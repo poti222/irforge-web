@@ -1,0 +1,23 @@
+User-agent: *
+Allow: /
+Allow: /docs
+Disallow: /dashboard
+Disallow: /bots
+Disallow: /marketplace
+Disallow: /themes
+Disallow: /plans
+Disallow: /invoices
+Disallow: /tickets
+Disallow: /wallet
+Disallow: /support
+Disallow: /language
+Disallow: /database
+Disallow: /profile
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+
+Sitemap: https://irforge.ir/sitemap.xml
