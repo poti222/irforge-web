@@ -56,6 +56,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_photo_file_id TEXT;
 -- does not exist", since drizzle selects every column the schema declares).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_code_hash TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_code_expires_at TIMESTAMPTZ;
+-- Z8: 7-day free trial (one per account) — was only added to the Drizzle TS
+-- schema, never to this runtime script, which caused every login/register/me
+-- query to 500 with "column has_used_trial does not exist".
+ALTER TABLE users ADD COLUMN IF NOT EXISTS has_used_trial BOOLEAN NOT NULL DEFAULT false;
 
 -- ─── SESSIONS ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sessions (
@@ -92,6 +96,9 @@ ALTER TABLE bots ADD COLUMN IF NOT EXISTS sheet_id TEXT;
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS admin_code TEXT;
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS admin_code_used BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'pending';
+-- Z8: 7-day free trial (same story — declared in Drizzle schema, never here)
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS is_trial BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS trial_expires_at TIMESTAMPTZ;
 -- existing active/inactive bots are already paid
 UPDATE bots SET payment_status = 'approved'
   WHERE status IN ('active', 'inactive', 'error') AND payment_status = 'pending';
@@ -318,6 +325,23 @@ CREATE TABLE IF NOT EXISTS telegram_link_tokens (
   expires_at TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX IF NOT EXISTS telegram_link_tokens_user_id_idx ON telegram_link_tokens(user_id);
+
+-- ─── NOTIFICATIONS (Z8: trial warnings, etc.) ──────────────────────────────
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  bot_id TEXT,
+  type TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'info',
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  read BOOLEAN NOT NULL DEFAULT false,
+  dedupe_key TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS notifications_user_id_idx ON notifications(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_dedupe_idx
+  ON notifications(user_id, dedupe_key) WHERE dedupe_key IS NOT NULL;
 `;
 
 async function migrate() {
