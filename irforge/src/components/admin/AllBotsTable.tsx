@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   ExternalLink, Bot as BotIcon, Plus, Loader2, Trash2, Check, ChevronsUpDown, KeyRound,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/use-language";
@@ -110,6 +111,69 @@ export function AllBotsTable() {
     }
   }
 
+  // ─── Registry status check / fix ────────────────────────────────────────
+  type RegistryStatus = {
+    inRegistry: boolean;
+    sheetMatches: boolean;
+    nameMatches: boolean;
+    synced: boolean;
+    botSheetId: string | null;
+  };
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+
+  async function checkAndFixStatus(bot: AdminBot) {
+    setCheckingId(bot.id);
+    try {
+      const status = await customFetch<RegistryStatus>(`/api/admin/bots/${bot.id}/registry-status`);
+
+      if (status.synced) {
+        toast({
+          title: fa ? "همگام است" : "In sync",
+          description: fa
+            ? "این بات توی tenants ثبت شده و شیت/نامش با pool یکیه."
+            : "This bot is registered in tenants and its sheet/name match.",
+        });
+        return;
+      }
+
+      if (!status.botSheetId) {
+        toast({
+          variant: "destructive",
+          title: fa ? "شیت نداره" : "No sheet assigned",
+          description: fa
+            ? "این بات اصلاً شیت نداره؛ اول یک شیت آزاد از pool بهش اختصاص بده."
+            : "This bot has no sheet at all; assign a free sheet from the pool first.",
+        });
+        return;
+      }
+
+      // Out of sync but has a sheet — push it into the registry.
+      await customFetch(`/api/admin/bots/${bot.id}/resync`, { method: "POST" });
+      const rechecked = await customFetch<RegistryStatus>(`/api/admin/bots/${bot.id}/registry-status`);
+
+      if (rechecked.synced) {
+        toast({
+          title: fa ? "اصلاح شد" : "Fixed",
+          description: status.inRegistry
+            ? (fa ? "اطلاعات بات توی tenants به‌روزرسانی شد." : "The bot's tenants entry was updated.")
+            : (fa ? "بات به tenants اضافه شد و الان روشنه." : "The bot was added to tenants and is now on."),
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: fa ? "هنوز همگام نیست" : "Still out of sync",
+          description: fa
+            ? "بعد از تلاش برای اصلاح، هنوز مشکل داره. یک بار دیگه امتحان کن یا لاگ سرور رو چک کن."
+            : "Still out of sync after attempting a fix. Try again or check server logs.",
+        });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: e?.message });
+    } finally {
+      setCheckingId(null);
+    }
+  }
+
   // ─── Delete bot ─────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<AdminBot | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -186,6 +250,18 @@ export function AllBotsTable() {
                         <Link href={`/bots/${bot.id}`}>
                           <ExternalLink className="me-1 h-3.5 w-3.5" /> {fa ? "باز کردن" : "Open"}
                         </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={fa ? "بررسی و اصلاح وضعیت" : "Check & fix status"}
+                        onClick={() => checkAndFixStatus(bot)}
+                        disabled={checkingId === bot.id}
+                        data-testid={`check-status-bot-${bot.id}`}
+                      >
+                        {checkingId === bot.id
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <ShieldCheck className="h-4 w-4" />}
                       </Button>
                       <Button
                         variant="ghost"
