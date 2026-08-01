@@ -1175,16 +1175,45 @@ router.get("/admin/bots/:botId/registry-status", requireSuperAdmin, async (req: 
 
 // ─── POST /api/admin/bots/:botId/resync ──────────────────────────────────────
 // Re-pushes this bot's canonical Postgres record into the registry `tenants`
-// tab — fixes exactly the "has a sheet but isn't in tenants" case above.
-// Reuses the bot's existing adminCode if it has one so activation codes
-// already shared with the owner keep working; generates one otherwise.
+// tab — fixes the "has a sheet but isn't in tenants" case. If the bot has NO
+// sheet at all yet (e.g. it was created back when the pool was empty), this
+// also claims one free sheet from the pool first, so one click both attaches
+// a sheet AND syncs the tenant row — the bot goes from fully unstarted to
+// fully running.
 
 router.post("/admin/bots/:botId/resync", requireSuperAdmin, async (req: any, res) => {
   try {
-    const [bot] = await db.select().from(botsTable).where(eq(botsTable.id, req.params.botId)).limit(1);
+    let [bot] = await db.select().from(botsTable).where(eq(botsTable.id, req.params.botId)).limit(1);
     if (!bot) {
       res.status(404).json({ error: "Bot not found" });
       return;
+    }
+
+    let sheetJustAssigned = false;
+    if (!bot.sheetId) {
+      const [freeSheet] = await db
+        .select()
+        .from(sheetPoolTable)
+        .where(eq(sheetPoolTable.status, "available"))
+        .limit(1);
+      if (freeSheet) {
+        await db
+          .update(sheetPoolTable)
+          .set({ status: "assigned", assignedBotId: bot.id })
+          .where(eq(sheetPoolTable.id, freeSheet.id));
+        [bot] = await db
+          .update(botsTable)
+          .set({ sheetId: freeSheet.sheetId })
+          .where(eq(botsTable.id, bot.id))
+          .returning();
+        syncSheetPoolUpsert({
+          sheet_id: freeSheet.sheetId,
+          status: "assigned",
+          assigned_to: bot.id,
+          created_at: freeSheet.createdAt,
+        });
+        sheetJustAssigned = true;
+      }
     }
 
     let adminCode = bot.adminCode;
@@ -1211,11 +1240,11 @@ router.post("/admin/bots/:botId/resync", requireSuperAdmin, async (req: any, res
       created_at: bot.createdAt,
     });
 
-    // syncTenantUpsert is fire-and-forget (background write) — give it a
-    // moment before the follow-up status check re-reads the sheet.
+    // Both syncs above are fire-and-forget (background writes) — give them a
+    // moment before the follow-up status check re-reads the sheets.
     await new Promise((r) => setTimeout(r, 1500));
 
-    res.json({ ok: true });
+    res.json({ ok: true, sheetAssigned: sheetJustAssigned, hasSheet: Boolean(bot.sheetId) });
   } catch (err) {
     logger.error({ err }, "Admin bot resync error");
     res.status(500).json({ error: "Internal server error" });
