@@ -136,27 +136,31 @@ export function AllBotsTable() {
         return;
       }
 
-      if (!status.botSheetId) {
-        toast({
-          variant: "destructive",
-          title: fa ? "شیت نداره" : "No sheet assigned",
-          description: fa
-            ? "این بات اصلاً شیت نداره؛ اول یک شیت آزاد از pool بهش اختصاص بده."
-            : "This bot has no sheet at all; assign a free sheet from the pool first.",
-        });
-        return;
-      }
-
-      // Out of sync but has a sheet — push it into the registry.
-      await customFetch(`/api/admin/bots/${bot.id}/resync`, { method: "POST" });
+      // Out of sync — resync claims a free pool sheet first if the bot has
+      // none at all, then pushes the tenant row either way.
+      const result = await customFetch<{ ok: boolean; sheetAssigned: boolean; hasSheet: boolean }>(
+        `/api/admin/bots/${bot.id}/resync`,
+        { method: "POST" }
+      );
       const rechecked = await customFetch<RegistryStatus>(`/api/admin/bots/${bot.id}/registry-status`);
 
       if (rechecked.synced) {
+        const parts: string[] = [];
+        if (result.sheetAssigned) parts.push(fa ? "یک شیت آزاد از pool بهش اختصاص داده شد" : "a free sheet from the pool was assigned");
+        parts.push(status.inRegistry
+          ? (fa ? "اطلاعاتش توی tenants به‌روزرسانی شد" : "its tenants entry was updated")
+          : (fa ? "به tenants اضافه شد" : "it was added to tenants"));
         toast({
           title: fa ? "اصلاح شد" : "Fixed",
-          description: status.inRegistry
-            ? (fa ? "اطلاعات بات توی tenants به‌روزرسانی شد." : "The bot's tenants entry was updated.")
-            : (fa ? "بات به tenants اضافه شد و الان روشنه." : "The bot was added to tenants and is now on."),
+          description: parts.join(fa ? " و " : " and ") + (fa ? "." : "."),
+        });
+      } else if (!result.hasSheet) {
+        toast({
+          variant: "destructive",
+          title: fa ? "شیت آزادی توی pool نیست" : "No free sheet in the pool",
+          description: fa
+            ? "این بات هنوز شیت نداره چون pool خالیه. یک شیت به pool اضافه کن و دوباره امتحان کن."
+            : "This bot still has no sheet because the pool is empty. Add a sheet to the pool and try again.",
         });
       } else {
         toast({
