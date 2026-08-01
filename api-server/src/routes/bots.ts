@@ -975,6 +975,132 @@ router.get("/admin/bots", requireSuperAdmin, async (req: any, res) => {
   }
 });
 
+// ─── POST /api/admin/bots ────────────────────────────────────────────────────
+// R6: super-admin manual bot registration — for bots created directly with a
+// Telegram token outside the normal receipt-payment flow (see دیالوگ "افزودن
+// بات با توکن" in AllBotsTable.tsx). Assigns a free pool sheet automatically
+// when one is available; otherwise the bot is created without one and a sheet
+// can be attached later, same as /bots/wallet-purchase.
+
+router.post("/admin/bots", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const { name, token, ownerId, description } = req.body ?? {};
+    if (!name?.trim() || !token?.trim() || !ownerId) {
+      res.status(400).json({ error: "Name, token and ownerId are required" });
+      return;
+    }
+
+    const [owner] = await db
+      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, ownerId))
+      .limit(1);
+    if (!owner) {
+      res.status(404).json({ error: "Owner not found" });
+      return;
+    }
+
+    // Tokens are encrypted with a random IV (no DB-level uniqueness possible),
+    // so duplicate detection is done by decrypting existing rows in-app.
+    const existingBots = await db.select().from(botsTable);
+    const duplicate = existingBots.some((b) => {
+      try {
+        return decryptToken(b.token) === token.trim();
+      } catch {
+        return false;
+      }
+    });
+    if (duplicate) {
+      res.status(409).json({ error: "A bot with this token is already registered" });
+      return;
+    }
+
+    const botId = crypto.randomUUID();
+
+    let sheetId: string | null = null;
+    const [freeSheet] = await db
+      .select()
+      .from(sheetPoolTable)
+      .where(eq(sheetPoolTable.status, "available"))
+      .limit(1);
+    if (freeSheet) {
+      await db
+        .update(sheetPoolTable)
+        .set({ status: "assigned", assignedBotId: botId })
+        .where(eq(sheetPoolTable.id, freeSheet.id));
+      sheetId = freeSheet.sheetId;
+    }
+
+    const [bot] = await db
+      .insert(botsTable)
+      .values({
+        id: botId,
+        name: name.trim(),
+        description: description?.trim() || null,
+        token: encryptToken(token.trim()),
+        userId: ownerId,
+        status: "active",
+        paymentStatus: "approved",
+        sheetId,
+      })
+      .returning();
+
+    await db.insert(activityTable).values({
+      id: crypto.randomUUID(),
+      userId: ownerId,
+      type: "bot_created",
+      title: "Bot added by admin",
+      description: `Bot "${bot.name}" registered manually by an admin`,
+      botName: bot.name,
+    });
+
+    syncBotUpsert({
+      id: bot.id, userId: bot.userId, name: bot.name, username: bot.username,
+      status: bot.status, commandCount: bot.commandCount, pluginCount: bot.pluginCount,
+      userCount: bot.userCount, messageCount: bot.messageCount,
+      createdAt: bot.createdAt, updatedAt: bot.updatedAt,
+    });
+    if (sheetId) {
+      syncSheetPoolUpsert({
+        sheet_id: sheetId,
+        status: "assigned",
+        assigned_to: bot.id,
+        created_at: freeSheet!.createdAt,
+      });
+    }
+
+    res.status(201).json({ ...formatBot(bot), owner, sheetAssigned: Boolean(sheetId) });
+  } catch (err) {
+    logger.error({ err }, "Admin create bot error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── DELETE /api/admin/bots/:botId ───────────────────────────────────────────
+// R6: super-admin can remove any tenant's bot (not just their own), reusing
+// the same full-purge cleanup as the tenant-facing DELETE /bots/:botId.
+
+router.delete("/admin/bots/:botId", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const [botToDelete] = await db
+      .select()
+      .from(botsTable)
+      .where(eq(botsTable.id, req.params.botId))
+      .limit(1);
+
+    if (!botToDelete) {
+      res.status(404).json({ error: "Bot not found" });
+      return;
+    }
+
+    await purgeBotFully(botToDelete, "manual");
+    res.status(204).end();
+  } catch (err) {
+    logger.error({ err }, "Admin delete bot error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── GET /api/bots/:botId ────────────────────────────────────────────────────
 
 router.get("/bots/:botId", requireAuth, async (req: any, res) => {
