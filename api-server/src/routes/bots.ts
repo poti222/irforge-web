@@ -268,10 +268,10 @@ type RegistryTenant = {
 let tenantsCache: { at: number; rows: RegistryTenant[] } | null = null;
 const TENANTS_CACHE_MS = 15_000;
 
-async function readAllTenants(): Promise<RegistryTenant[]> {
+async function readAllTenants(force = false): Promise<RegistryTenant[]> {
   const spreadsheetId = registrySheetId();
   if (!spreadsheetId) return [];
-  if (tenantsCache && Date.now() - tenantsCache.at < TENANTS_CACHE_MS) return tenantsCache.rows;
+  if (!force && tenantsCache && Date.now() - tenantsCache.at < TENANTS_CACHE_MS) return tenantsCache.rows;
   const rows = await readAllKV<RegistryTenant>(spreadsheetId, "tenants");
   tenantsCache = { at: Date.now(), rows };
   return rows;
@@ -1031,6 +1031,8 @@ router.post("/admin/bots", requireSuperAdmin, async (req: any, res) => {
       sheetId = freeSheet.sheetId;
     }
 
+    const adminCode = generateAdminCode();
+
     const [bot] = await db
       .insert(botsTable)
       .values({
@@ -1042,6 +1044,7 @@ router.post("/admin/bots", requireSuperAdmin, async (req: any, res) => {
         status: "active",
         paymentStatus: "approved",
         sheetId,
+        adminCode,
       })
       .returning();
 
@@ -1068,6 +1071,28 @@ router.post("/admin/bots", requireSuperAdmin, async (req: any, res) => {
         created_at: freeSheet!.createdAt,
       });
     }
+
+    // BUG FIX: this used to be missing entirely, so admin-created bots never
+    // landed in the registry `tenants` tab — the bot runtime reads bots from
+    // there, not from Postgres, so the bot stayed effectively "off" even
+    // though the site showed it as active. Same shape as the approve-payment
+    // flow's syncTenantUpsert call below.
+    const [tenantOwner] = await db
+      .select({ telegramId: usersTable.telegramId })
+      .from(usersTable)
+      .where(eq(usersTable.id, ownerId))
+      .limit(1);
+    syncTenantUpsert({
+      bot_token: token.trim(),
+      bot_name: bot.name,
+      bot_username: bot.username,
+      owner_user_id: bot.userId,
+      owner_telegram_id: tenantOwner?.telegramId ?? null,
+      sheet_id: sheetId,
+      admin_password: adminCode,
+      status: "active",
+      created_at: bot.createdAt,
+    });
 
     res.status(201).json({ ...formatBot(bot), owner, sheetAssigned: Boolean(sheetId) });
   } catch (err) {
@@ -1097,6 +1122,102 @@ router.delete("/admin/bots/:botId", requireSuperAdmin, async (req: any, res) => 
     res.status(204).end();
   } catch (err) {
     logger.error({ err }, "Admin delete bot error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── GET /api/admin/bots/:botId/registry-status ──────────────────────────────
+// Backs the "check status" button in the admin panel: bypasses the tenants
+// cache and reports whether this bot actually has a row in the registry
+// `tenants` tab, and whether that row's sheet/name match Postgres. A bot can
+// look "active" in Postgres while being invisible to the bot runtime if this
+// sync never happened (see the POST /admin/bots bug fix above).
+
+router.get("/admin/bots/:botId/registry-status", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const [bot] = await db.select().from(botsTable).where(eq(botsTable.id, req.params.botId)).limit(1);
+    if (!bot) {
+      res.status(404).json({ error: "Bot not found" });
+      return;
+    }
+
+    const plainToken = decryptToken(bot.token);
+    const spreadsheetId = registrySheetId();
+    if (!spreadsheetId) {
+      res.status(503).json({ error: "Registry spreadsheet is not configured" });
+      return;
+    }
+
+    const tenants = await readAllTenants(true);
+    const entry = tenants.find((t) => t.bot_token === plainToken) ?? null;
+
+    const registrySheetIdValue = entry ? (entry.spreadsheet_id || entry.sheet_id || null) : null;
+    const inRegistry = Boolean(entry);
+    const sheetMatches = inRegistry && registrySheetIdValue === (bot.sheetId ?? null);
+    const nameMatches = inRegistry && entry?.bot_name === bot.name;
+    const synced = inRegistry && sheetMatches && nameMatches;
+
+    res.json({
+      botId: bot.id,
+      botName: bot.name,
+      botSheetId: bot.sheetId ?? null,
+      inRegistry,
+      sheetMatches,
+      nameMatches,
+      synced,
+      registryEntry: entry,
+    });
+  } catch (err) {
+    logger.error({ err }, "Admin bot registry-status error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/admin/bots/:botId/resync ──────────────────────────────────────
+// Re-pushes this bot's canonical Postgres record into the registry `tenants`
+// tab — fixes exactly the "has a sheet but isn't in tenants" case above.
+// Reuses the bot's existing adminCode if it has one so activation codes
+// already shared with the owner keep working; generates one otherwise.
+
+router.post("/admin/bots/:botId/resync", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const [bot] = await db.select().from(botsTable).where(eq(botsTable.id, req.params.botId)).limit(1);
+    if (!bot) {
+      res.status(404).json({ error: "Bot not found" });
+      return;
+    }
+
+    let adminCode = bot.adminCode;
+    if (!adminCode) {
+      adminCode = generateAdminCode();
+      await db.update(botsTable).set({ adminCode }).where(eq(botsTable.id, bot.id));
+    }
+
+    const [tenantOwner] = await db
+      .select({ telegramId: usersTable.telegramId })
+      .from(usersTable)
+      .where(eq(usersTable.id, bot.userId))
+      .limit(1);
+
+    syncTenantUpsert({
+      bot_token: decryptToken(bot.token),
+      bot_name: bot.name,
+      bot_username: bot.username,
+      owner_user_id: bot.userId,
+      owner_telegram_id: tenantOwner?.telegramId ?? null,
+      sheet_id: bot.sheetId,
+      admin_password: adminCode,
+      status: bot.status,
+      created_at: bot.createdAt,
+    });
+
+    // syncTenantUpsert is fire-and-forget (background write) — give it a
+    // moment before the follow-up status check re-reads the sheet.
+    await new Promise((r) => setTimeout(r, 1500));
+
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "Admin bot resync error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
