@@ -715,6 +715,7 @@ router.post("/bots/:botId/approve-payment", requireSuperAdmin, async (req: any, 
     syncSheetPoolUpsert({
       sheet_id: freeSheet.sheetId,
       assigned_to: botId,
+      used_by: decryptToken(bot.token),
       status: "assigned",
     });
 
@@ -1068,6 +1069,7 @@ router.post("/admin/bots", requireSuperAdmin, async (req: any, res) => {
         sheet_id: sheetId,
         status: "assigned",
         assigned_to: bot.id,
+        used_by: token.trim(),
         created_at: freeSheet!.createdAt,
       });
     }
@@ -1210,10 +1212,21 @@ router.post("/admin/bots/:botId/resync", requireSuperAdmin, async (req: any, res
           sheet_id: freeSheet.sheetId,
           status: "assigned",
           assigned_to: bot.id,
+          used_by: decryptToken(bot.token),
           created_at: freeSheet.createdAt,
         });
         sheetJustAssigned = true;
       }
+    } else {
+      // Bot already had a sheet — re-push its sheet_pool row too, in case it
+      // was written with the old (wrong) shape that used the Postgres bot id
+      // as used_by instead of the bot's actual Telegram token.
+      syncSheetPoolUpsert({
+        sheet_id: bot.sheetId,
+        status: "assigned",
+        assigned_to: bot.id,
+        used_by: decryptToken(bot.token),
+      });
     }
 
     let adminCode = bot.adminCode;
@@ -1677,7 +1690,7 @@ router.post("/bots/:botId/sheet", requireBotOwnership, async (req: any, res) => 
         id: crypto.randomUUID(), sheetId, status: "assigned", assignedBotId: bot.id, addedBy: req.userId,
       });
     }
-    syncSheetPoolUpsert({ sheet_id: sheetId, assigned_to: bot.id, status: "assigned" });
+    syncSheetPoolUpsert({ sheet_id: sheetId, assigned_to: bot.id, used_by: decryptToken(updatedBot.token), status: "assigned" });
 
     if (previousSheetId && previousSheetId !== sheetId) {
       await db.update(sheetPoolTable)
