@@ -39,6 +39,7 @@ import {
   syncTenantDelete,
   syncDeletionQueueAdd,
   readAllKV,
+  readKV,
   registrySheetId,
 } from "../lib/sheetsSync";
 import { getBotLanguage, setBotLanguage, parseBotLanguageConfig } from "../lib/botLanguageStore";
@@ -1157,7 +1158,17 @@ router.get("/admin/bots/:botId/registry-status", requireSuperAdmin, async (req: 
     const inRegistry = Boolean(entry);
     const sheetMatches = inRegistry && registrySheetIdValue === (bot.sheetId ?? null);
     const nameMatches = inRegistry && entry?.bot_name === bot.name;
-    const synced = inRegistry && sheetMatches && nameMatches;
+
+    // Also check the bot's sheet_pool row: used_by must be this bot's actual
+    // token, not e.g. a leftover Postgres bot id from before the shape fix.
+    let poolMatches = true; // no sheet at all isn't a pool-sync problem by itself
+    let poolEntry: { spreadsheet_id?: string; used_by?: string | null } | null = null;
+    if (bot.sheetId) {
+      poolEntry = await readKV(spreadsheetId, "sheet_pool", bot.sheetId);
+      poolMatches = poolEntry?.used_by === plainToken;
+    }
+
+    const synced = inRegistry && sheetMatches && nameMatches && poolMatches;
 
     res.json({
       botId: bot.id,
@@ -1166,8 +1177,10 @@ router.get("/admin/bots/:botId/registry-status", requireSuperAdmin, async (req: 
       inRegistry,
       sheetMatches,
       nameMatches,
+      poolMatches,
       synced,
       registryEntry: entry,
+      poolEntry,
     });
   } catch (err) {
     logger.error({ err }, "Admin bot registry-status error");
