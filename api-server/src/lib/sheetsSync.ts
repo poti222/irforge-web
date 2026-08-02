@@ -457,14 +457,22 @@ export function syncTenantDelete(botToken: string) {
 // ── SHEET POOL ─────────────────────────────────────────────────────────────
 
 export function syncSheetPoolUpsert(entry: {
-  sheet_id: string; assigned_to?: string | null; status: "free" | "available" | "assigned";
+  sheet_id: string;
+  assigned_to?: string | null; // Postgres bot id — website-only bookkeeping alias
+  used_by?: string | null;     // the bot's own Telegram token — what mainbot actually reads/writes
+  status: "free" | "available" | "assigned";
   created_at?: Date | string;
 }) {
   const spreadsheetId = registrySheetId();
   if (!spreadsheetId) return;
   bg(async () => {
-    // The main bot reads `{spreadsheet_id, used_by}` (used_by truthy = taken).
-    const usedBy = entry.status === "assigned" ? (entry.assigned_to ?? "assigned") : null;
+    // The main bot reads `{spreadsheet_id, used_by}` (used_by truthy = taken)
+    // and — critically — expects used_by to be the bot's own Telegram token,
+    // the same shape it writes itself when a tenant is created directly
+    // through the bot. Passing a Postgres bot id here instead breaks that
+    // contract (row looks "taken" to a truthy check, but any code that reads
+    // used_by as a token — e.g. reverse lookup — won't find a match).
+    const usedBy = entry.status === "assigned" ? (entry.used_by ?? null) : null;
     await upsertKV(spreadsheetId, "sheet_pool", entry.sheet_id, {
       spreadsheet_id: entry.sheet_id,
       used_by: usedBy,
@@ -519,4 +527,3 @@ export function syncDeletionQueueAdd(entry: {
     ]]);
   }, `deletion-queue-add:${entry.bot_token}`);
 }
-
