@@ -116,6 +116,7 @@ export function AllBotsTable() {
     inRegistry: boolean;
     sheetMatches: boolean;
     nameMatches: boolean;
+    poolMatches: boolean;
     synced: boolean;
     botSheetId: string | null;
   };
@@ -147,6 +148,7 @@ export function AllBotsTable() {
       if (rechecked.synced) {
         const parts: string[] = [];
         if (result.sheetAssigned) parts.push(fa ? "یک شیت آزاد از pool بهش اختصاص داده شد" : "a free sheet from the pool was assigned");
+        if (!status.poolMatches && status.botSheetId) parts.push(fa ? "ردیف sheet_pool اصلاح شد" : "its sheet_pool row was corrected");
         parts.push(status.inRegistry
           ? (fa ? "اطلاعاتش توی tenants به‌روزرسانی شد" : "its tenants entry was updated")
           : (fa ? "به tenants اضافه شد" : "it was added to tenants"));
