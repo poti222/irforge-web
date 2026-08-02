@@ -458,7 +458,7 @@ export function syncTenantDelete(botToken: string) {
 
 export function syncSheetPoolUpsert(entry: {
   sheet_id: string;
-  assigned_to?: string | null; // Postgres bot id — website-only bookkeeping alias
+  assigned_to?: string | null; // Postgres bot id — kept in the call signature for callers, not written to the sheet
   used_by?: string | null;     // the bot's own Telegram token — what mainbot actually reads/writes
   status: "free" | "available" | "assigned";
   created_at?: Date | string;
@@ -466,21 +466,16 @@ export function syncSheetPoolUpsert(entry: {
   const spreadsheetId = registrySheetId();
   if (!spreadsheetId) return;
   bg(async () => {
-    // The main bot reads `{spreadsheet_id, used_by}` (used_by truthy = taken)
-    // and — critically — expects used_by to be the bot's own Telegram token,
-    // the same shape it writes itself when a tenant is created directly
-    // through the bot. Passing a Postgres bot id here instead breaks that
-    // contract (row looks "taken" to a truthy check, but any code that reads
-    // used_by as a token — e.g. reverse lookup — won't find a match).
+    // Match mainbot's own row shape exactly: {spreadsheet_id, used_by} only
+    // (used_by truthy = taken, and it must be the bot's own Telegram token —
+    // the same thing mainbot writes when a tenant is created directly
+    // through the bot). No extra fields — nothing in this codebase reads
+    // this tab back, so anything beyond what mainbot itself expects just
+    // makes the row diverge from mainbot's own writes for no reason.
     const usedBy = entry.status === "assigned" ? (entry.used_by ?? null) : null;
     await upsertKV(spreadsheetId, "sheet_pool", entry.sheet_id, {
       spreadsheet_id: entry.sheet_id,
       used_by: usedBy,
-      // legacy aliases
-      sheet_id: entry.sheet_id,
-      assigned_to: entry.assigned_to ?? null,
-      status: entry.status,
-      created_at: entry.created_at instanceof Date ? entry.created_at.toISOString() : (entry.created_at ?? new Date().toISOString()),
     });
   }, `sheet-pool-upsert:${entry.sheet_id}`);
 }
