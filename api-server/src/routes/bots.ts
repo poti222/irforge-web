@@ -496,6 +496,27 @@ router.post("/bots/trial", requireAuth, async (req: any, res) => {
     const trialExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const botId = crypto.randomUUID();
 
+    // ۱. یک شیت آزاد از Pool بگیر — بدون این، بات هیچ‌وقت spreadsheet_id
+    //    نداره و runtime اصلی نمی‌تونه دیتای این tenant رو ذخیره کنه.
+    const [freeSheet] = await db
+      .select()
+      .from(sheetPoolTable)
+      .where(eq(sheetPoolTable.status, "available"))
+      .limit(1);
+
+    if (!freeSheet) {
+      res.status(503).json({ error: "در حال حاضر شیت آزادی برای تریال موجود نیست. بعداً دوباره تلاش کن." });
+      return;
+    }
+
+    await db
+      .update(sheetPoolTable)
+      .set({ status: "assigned", assignedBotId: botId })
+      .where(eq(sheetPoolTable.id, freeSheet.id));
+
+    // ۲. admin code بساز — برای ورود به پنل ادمین همین بات لازمه
+    const adminCode = generateAdminCode();
+
     const [bot] = await db
       .insert(botsTable)
       .values({
@@ -506,6 +527,8 @@ router.post("/bots/trial", requireAuth, async (req: any, res) => {
         userId: req.userId,
         status: "active",
         paymentStatus: "approved",
+        sheetId: freeSheet.sheetId,
+        adminCode,
         isTrial: true,
         trialExpiresAt,
       })
@@ -520,6 +543,34 @@ router.post("/bots/trial", requireAuth, async (req: any, res) => {
       title: "Trial bot started",
       description: `7-day free trial started for bot "${name}"`,
       botName: name,
+    });
+
+    syncSheetPoolUpsert({
+      sheet_id: freeSheet.sheetId,
+      assigned_to: botId,
+      used_by: token.trim(),
+      status: "assigned",
+    });
+
+    // ۳. Sync tenant (ربط توکن بات به شیت) — همون شکلی که mainbot از
+    //    utils/registry.py می‌خونه. قبلاً این call اصلاً اینجا نبود، پس
+    //    بات‌های تریال هیچ‌وقت توی تب "tenants" ثبت نمی‌شدن و runtime
+    //    اصلی هیچ‌وقت اجراشون نمی‌کرد، با اینکه توی سایت "فعال" نشون
+    //    داده می‌شدن.
+    const [tenantOwner] = await db
+      .select({ telegramId: usersTable.telegramId })
+      .from(usersTable).where(eq(usersTable.id, bot.userId)).limit(1);
+    syncTenantUpsert({
+      bot_token: token.trim(),
+      bot_name: bot.name,
+      bot_username: bot.username,
+      owner_user_id: bot.userId,
+      owner_telegram_id: tenantOwner?.telegramId ?? null,
+      sheet_id: freeSheet.sheetId,
+      admin_password: adminCode,
+      status: "active",
+      bot_purpose: bot.description ?? "",
+      created_at: bot.createdAt,
     });
 
     syncBotUpsert({
