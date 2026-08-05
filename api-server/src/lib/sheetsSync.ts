@@ -62,9 +62,19 @@ export function registrySheetId(): string | null {
   return process.env.REGISTRY_SPREADSHEET_ID || process.env.SHEETS_REGISTRY_ID || null;
 }
 
-/** Ensure header row [key, value] exists on a tab. */
+/**
+ * Ensure a tab exists (creating it if missing — same helper the
+ * deletion_queue setup already used) and that it has the [key, value]
+ * header row. Previously this only tried to write the header and assumed
+ * the tab was already there by hand; if it wasn't, every read/write against
+ * that tab failed with a Sheets "Unable to parse range: <tab>" 400 and was
+ * swallowed as a silent non-fatal warning — so a tab that was never
+ * manually created (e.g. "bots", "tenants") would just never sync, with no
+ * visible error anywhere except the server logs.
+ */
 async function ensureHeader(spreadsheetId: string, tab: string) {
   try {
+    await addTab(spreadsheetId, tab); // no-op if the tab already exists
     const rows = await readSheet(spreadsheetId, `${tab}!A1:B1`);
     if (!rows || rows.length === 0 || rows[0]?.[0] !== "key") {
       await writeSheet(spreadsheetId, `${tab}!A1`, [["key", "value"]]);
