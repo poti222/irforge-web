@@ -1543,6 +1543,27 @@ router.patch("/bots/:botId/status", requireAuth, async (req: any, res) => {
       userCount: bot.userCount, messageCount: bot.messageCount,
       createdAt: bot.createdAt, updatedAt: bot.updatedAt,
     });
+    // BUG FIX: this route used to only sync the "bots" data-mirror tab, never
+    // the registry "tenants" tab — that's the tab mainbot's tenant_watcher
+    // actually reads to decide which tenant bots should be running. So
+    // clicking start/stop never changed anything mainbot could see, and the
+    // tenant process just stayed running (or off) regardless of the toggle.
+    if (bot.sheetId) {
+      const [tenantOwner] = await db
+        .select({ telegramId: usersTable.telegramId })
+        .from(usersTable).where(eq(usersTable.id, bot.userId)).limit(1);
+      syncTenantUpsert({
+        bot_token: decryptToken(bot.token),
+        bot_name: bot.name,
+        bot_username: bot.username,
+        owner_user_id: bot.userId,
+        owner_telegram_id: tenantOwner?.telegramId ?? null,
+        sheet_id: bot.sheetId,
+        admin_password: bot.adminCode ?? "",
+        status: bot.status,
+        created_at: bot.createdAt,
+      });
+    }
     res.json(formatBot(bot));
   } catch (err) {
     logger.error({ err }, "Toggle bot status error");
