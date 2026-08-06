@@ -15,11 +15,12 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
 
 type PendingItem = {
-  payment: { id: string; receiptUrl: string | null; description: string | null; status: string; createdAt: string };
+  payment: { id: string; botId: string | null; receiptUrl: string | null; description: string | null; status: string; createdAt: string };
   bot: { id: string; name: string; username: string; status: string } | null;
   user: { id: string; name: string; email: string; telegramId: string | null } | null;
 };
@@ -104,7 +105,7 @@ export default function AdminPendingPayments() {
       ) : (
         <div className="space-y-3">
           {data.map((item, i) => {
-            const botId = item.bot?.id;
+            const botId = item.payment.botId ?? item.bot?.id ?? null;
             return (
               <motion.div
                 key={item.payment.id}
@@ -132,15 +133,24 @@ export default function AdminPendingPayments() {
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span>{new Date(item.payment.createdAt).toLocaleString(fa ? "fa-IR" : "en-US")}</span>
                         {item.payment.receiptUrl && (
-                          <a
-                            href={item.payment.receiptUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
-                          >
-                            <ExternalLink className="size-3.5" />
-                            {fa ? "مشاهده فیش" : "View receipt"}
-                          </a>
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                              >
+                                <ExternalLink className="size-3.5" />
+                                {fa ? "مشاهده فیش" : "View receipt"}
+                              </button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl">
+                              <img
+                                src={item.payment.receiptUrl}
+                                alt="receipt"
+                                className="max-h-[80vh] w-full rounded-md object-contain"
+                              />
+                            </DialogContent>
+                          </Dialog>
                         )}
                       </div>
                     </div>
