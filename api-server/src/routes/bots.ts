@@ -82,6 +82,20 @@ async function syncSheetTitle(sheetId: string | null | undefined, botName: strin
   }
 }
 
+/**
+ * وقتی شیتی از یک بات آزاد می‌شه (چه با حذف بات، چه با release دستی توسط
+ * سوپرادمین)، عنوانش رو "~" می‌کنیم تا مشخص باشه دیگه هیچ بات فعالی
+ * ازش استفاده نمی‌کنه. Best-effort و non-fatal، مثل syncSheetTitle.
+ */
+async function markSheetTitleFreed(sheetId: string | null | undefined) {
+  if (!sheetId) return;
+  try {
+    await renameSpreadsheet(sheetId, "~");
+  } catch (err) {
+    logger.warn({ err, sheetId }, "sheet title freed-rename failed (non-fatal)");
+  }
+}
+
 const VALID_BOT_STATUSES = ["active", "inactive", "error", "pending_payment", "payment_rejected", "expired"] as const;
 type BotStatus = typeof VALID_BOT_STATUSES[number];
 
@@ -114,6 +128,7 @@ async function purgeBotFully(
       .where(eq(sheetPoolTable.sheetId, bot.sheetId));
 
     syncSheetPoolUpsert({ sheet_id: bot.sheetId, assigned_to: null, status: "available" });
+    await markSheetTitleFreed(bot.sheetId);
   }
 
   syncDeletionQueueAdd({
@@ -1146,6 +1161,7 @@ router.post("/sheet-pool/:id/release", requireSuperAdmin, async (req: any, res) 
       .returning();
 
     syncSheetPoolUpsert({ sheet_id: updated.sheetId, assigned_to: null, status: "available" });
+    await markSheetTitleFreed(updated.sheetId);
 
     res.json({
       id: updated.id,
