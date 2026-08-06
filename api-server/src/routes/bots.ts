@@ -701,6 +701,7 @@ router.get("/bots/pending-payments", requireSuperAdmin, async (req: any, res) =>
         return {
           payment: {
             id: p.id,
+            botId: p.botId,
             receiptUrl: p.receiptUrl,
             description: p.description,
             status: p.status,
