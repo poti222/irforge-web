@@ -163,7 +163,9 @@
     "overviewTotalUsers": "Kullanıcılar",
     "overviewMessages": "Mesajlar",
     "overviewCommands": "Komutlar",
-    "overviewPlugins": "Eklentiler"
+    "overviewPlugins": "Eklentiler",
+    "botStartingCountdown": "Botunuz yaklaşık {seconds} saniye içinde açılacak",
+    "botStoppingCountdown": "Botunuz yaklaşık {seconds} saniye içinde kapanacak"
   },
   "marketplace": {},
   "wallet": {},
