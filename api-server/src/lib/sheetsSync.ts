@@ -490,6 +490,13 @@ export function syncSheetPoolUpsert(entry: {
   }, `sheet-pool-upsert:${entry.sheet_id}`);
 }
 
+/** Remove a sheet's row from the registry's `sheet_pool` tab (super-admin delete/replace). */
+export function syncSheetPoolDelete(sheetId: string) {
+  const spreadsheetId = registrySheetId();
+  if (!spreadsheetId) return;
+  bg(() => deleteKVByKey(spreadsheetId, "sheet_pool", sheetId), `sheet-pool-delete:${sheetId}`);
+}
+
 // ── DELETION QUEUE (manual delete / expiry coordination) ────────────────────
 // See docs/DELETION_POLICY.md for the full architecture. This tab is an
 // append-only queue, not a key/value tab: each row is one deletion request,
