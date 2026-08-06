@@ -11,6 +11,8 @@ import {
   Bot as BotIcon,
   Loader2,
   Inbox,
+  Ban,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,13 +32,15 @@ export default function AdminPendingPayments() {
   const fa = lang === "fa";
   const { toast } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
+  const [botNotFound, setBotNotFound] = useState<Record<string, boolean>>({});
+  const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["admin", "pending-payments"],
     queryFn: () => customFetch<PendingItem[]>("/api/bots/pending-payments"),
   });
 
-  async function act(botId: string, action: "approve" | "reject") {
+  async function act(paymentId: string, botId: string, action: "approve" | "reject") {
     setBusy(botId + action);
     try {
       const res = await customFetch<{ success: boolean; adminCode?: string }>(
@@ -55,9 +59,33 @@ export default function AdminPendingPayments() {
       }
       await refetch();
     } catch (e: any) {
+      if (e?.status === 404) {
+        setBotNotFound((prev) => ({ ...prev, [paymentId]: true }));
+      }
       toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: e?.message });
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function cancelOrder(paymentId: string) {
+    if (confirmCancel !== paymentId) {
+      setConfirmCancel(paymentId);
+      return;
+    }
+    setBusy("cancel:" + paymentId);
+    try {
+      await customFetch(`/api/bots/pending-payments/${paymentId}/cancel`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      toast({ title: fa ? "سفارش کنسل شد" : "Order cancelled" });
+      await refetch();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: e?.message });
+    } finally {
+      setBusy(null);
+      setConfirmCancel(null);
     }
   }
 
@@ -158,7 +186,7 @@ export default function AdminPendingPayments() {
                     <div className="flex shrink-0 gap-2">
                       <Button
                         size="sm"
-                        onClick={() => botId && act(botId, "approve")}
+                        onClick={() => botId && act(item.payment.id, botId, "approve")}
                         disabled={!botId || busy === botId + "approve"}
                         data-testid={`approve-${item.payment.id}`}
                       >
@@ -168,7 +196,7 @@ export default function AdminPendingPayments() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => botId && act(botId, "reject")}
+                        onClick={() => botId && act(item.payment.id, botId, "reject")}
                         disabled={!botId || busy === botId + "reject"}
                         data-testid={`reject-${item.payment.id}`}
                         className="text-destructive hover:text-destructive"
@@ -178,6 +206,28 @@ export default function AdminPendingPayments() {
                       </Button>
                     </div>
                   </CardContent>
+                  {botNotFound[item.payment.id] && (
+                    <CardContent className="flex flex-col gap-2 border-t border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="flex items-center gap-1.5 text-xs text-destructive">
+                        <AlertTriangle className="size-3.5 shrink-0" />
+                        {fa ? "بات این سفارش پیدا نشد (احتمالاً حذف شده). می‌تونی کل سفارش رو کنسل کنی." : "This order's bot wasn't found (likely deleted). You can cancel the whole order."}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => cancelOrder(item.payment.id)}
+                        disabled={busy === "cancel:" + item.payment.id}
+                        className="shrink-0 border-destructive/50 text-destructive hover:bg-destructive/10"
+                      >
+                        {busy === "cancel:" + item.payment.id ? <Loader2 className="size-4 animate-spin" /> : <Ban className="size-4" />}
+                        <span className="ms-1.5">
+                          {confirmCancel === item.payment.id
+                            ? (fa ? "مطمئنی؟ دوباره بزن" : "Sure? Click again")
+                            : (fa ? "کنسل کامل سفارش" : "Cancel order entirely")}
+                        </span>
+                      </Button>
+                    </CardContent>
+                  )}
                 </Card>
               </motion.div>
             );
