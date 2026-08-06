@@ -216,6 +216,24 @@ function generateAdminCode(): string {
   return crypto.randomBytes(4).toString("hex").toUpperCase();
 }
 
+/**
+ * چک تکراری نبودن توکن.
+ * توکن‌ها با IV رندوم رمزنگاری می‌شن، پس نمی‌شه رو دیتابیس یونیک‌شون کرد؛
+ * برای همین همه‌ی بات‌های موجود دیکریپت و مقایسه می‌شن (همون روش /admin/bots).
+ * بدون این چک، وارد کردن یک توکن تکراری دو بات جدا (با دو سیم‌شیت/ادمین‌کد
+ * جدا) می‌سازه که هر دو سعی می‌کنن روی همون بات تلگرام کار کنن.
+ */
+async function isTokenAlreadyUsed(token: string): Promise<boolean> {
+  const existingBots = await db.select().from(botsTable);
+  return existingBots.some((b) => {
+    try {
+      return decryptToken(b.token) === token;
+    } catch {
+      return false;
+    }
+  });
+}
+
 // ─── Live stats overlay ───────────────────────────────────────────────────────
 // FIX: bot.userCount / commandCount / pluginCount in Postgres are dead
 // counters — nothing in mainbot ever updates them, because mainbot writes
@@ -454,6 +472,11 @@ router.post("/bots", requireAuth, async (req: any, res) => {
     }
     if (!user.telegramId) {
       res.status(400).json({ error: "Please link your Telegram account first" });
+      return;
+    }
+
+    if (await isTokenAlreadyUsed(token)) {
+      res.status(409).json({ error: "This bot token is already registered", code: "duplicate_token" });
       return;
     }
 
@@ -699,6 +722,11 @@ router.post("/bots/wallet-purchase", requireAuth, async (req: any, res) => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
     if (!user.telegramId) { res.status(400).json({ error: "Please link your Telegram account first" }); return; }
+
+    if (await isTokenAlreadyUsed(token)) {
+      res.status(409).json({ error: "This bot token is already registered", code: "duplicate_token" });
+      return;
+    }
 
     const ok = await deductWallet(req.userId, Number(amount) || 0, `Bot purchase: ${name}`);
     if (!ok) { res.status(400).json({ error: "Insufficient wallet balance", code: "insufficient" }); return; }
@@ -1367,15 +1395,7 @@ router.post("/admin/bots", requireSuperAdmin, async (req: any, res) => {
 
     // Tokens are encrypted with a random IV (no DB-level uniqueness possible),
     // so duplicate detection is done by decrypting existing rows in-app.
-    const existingBots = await db.select().from(botsTable);
-    const duplicate = existingBots.some((b) => {
-      try {
-        return decryptToken(b.token) === token.trim();
-      } catch {
-        return false;
-      }
-    });
-    if (duplicate) {
+    if (await isTokenAlreadyUsed(token.trim())) {
       res.status(409).json({ error: "A bot with this token is already registered" });
       return;
     }
