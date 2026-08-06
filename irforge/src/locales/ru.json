@@ -156,6 +156,7 @@
     "awaitingPaymentApproval": "Ожидает подтверждения платежа",
     "paymentRejected": "Платёж отклонён",
     "sectionOverview": "Обзор",
+    "sectionProfile": "Профиль бота",
     "sectionCommands": "Команды",
     "sectionPlugins": "Плагины",
     "sectionStats": "Статистика",
