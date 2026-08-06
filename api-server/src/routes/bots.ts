@@ -9,6 +9,8 @@
  *   - POST /api/bots/pending-payments/:paymentId/cancel: کنسل کامل سفارش (حتی اگه بات حذف شده باشه)
  *   - GET  /api/bots/pending-payments: لیست فیش‌های منتظر (سوپرادمین)
  *   - POST /api/sheet-pool: اضافه کردن شیت به pool (سوپرادمین)
+ *   - DELETE /api/sheet-pool/:id: حذف شیت آزاد از pool (سوپرادمین)
+ *   - POST /api/sheet-pool/:id/replace: جایگزینی شیت (آزاد یا assigned) با یک شیت دیگه
  */
 
 import { logger } from "../lib/logger";
@@ -36,6 +38,7 @@ import {
   syncBotDelete,
   syncPaymentUpsert,
   syncSheetPoolUpsert,
+  syncSheetPoolDelete,
   syncTenantUpsert,
   syncTenantDelete,
   syncDeletionQueueAdd,
@@ -1063,6 +1066,134 @@ router.get("/sheet-pool", requireSuperAdmin, async (req: any, res) => {
     );
   } catch (err) {
     logger.error({ err }, "List sheet pool error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── DELETE /api/sheet-pool/:id ──────────────────────────────────────────────
+// سوپرادمین یک شیت رو از pool حذف می‌کنه. اگه شیت به یک بات اختصاص داده شده،
+// حذف مستقیم بلاک می‌شه (چون بات همچنان به این sheetId رفرنس داره) — باید
+// اول با /replace جایگزینش کنن یا بات مربوطه رو جدا/حذف کنن.
+
+router.delete("/sheet-pool/:id", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+
+    const [entry] = await db.select().from(sheetPoolTable).where(eq(sheetPoolTable.id, id)).limit(1);
+    if (!entry) {
+      res.status(404).json({ error: "Sheet not found" });
+      return;
+    }
+    if (entry.status === "assigned") {
+      res.status(409).json({
+        error: "Sheet is assigned to a bot. Replace it with another sheet instead of deleting.",
+      });
+      return;
+    }
+
+    await db.delete(sheetPoolTable).where(eq(sheetPoolTable.id, id));
+    syncSheetPoolDelete(entry.sheetId);
+
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, "Delete sheet pool error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/sheet-pool/:id/replace ────────────────────────────────────────
+// سوپرادمین یک شیت رو با یک sheetId دیگه جایگزین می‌کنه — هم برای شیت‌های
+// آزاد (مثلاً شیت خراب/غیرقابل‌دسترس) و هم برای شیت‌های assigned. اگه assigned
+// باشه، sheetId بات مرتبط هم آپدیت می‌شه و tenant registry دوباره sync می‌شه
+// تا مین‌بات با شیت جدید کار کنه.
+
+router.post("/sheet-pool/:id/replace", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const { sheetId: newSheetId } = req.body ?? {};
+
+    if (!newSheetId || typeof newSheetId !== "string" || !isValidSheetId(newSheetId.trim())) {
+      res.status(400).json({ error: "A valid sheetId is required" });
+      return;
+    }
+    const trimmedSheetId = newSheetId.trim();
+
+    const [entry] = await db.select().from(sheetPoolTable).where(eq(sheetPoolTable.id, id)).limit(1);
+    if (!entry) {
+      res.status(404).json({ error: "Sheet not found" });
+      return;
+    }
+
+    const oldSheetId = entry.sheetId;
+
+    let updated;
+    try {
+      [updated] = await db
+        .update(sheetPoolTable)
+        .set({ sheetId: trimmedSheetId })
+        .where(eq(sheetPoolTable.id, id))
+        .returning();
+    } catch (err: any) {
+      if (err?.code === "23505") {
+        res.status(409).json({ error: "This sheet ID already exists in the pool" });
+        return;
+      }
+      throw err;
+    }
+
+    // اگه این ردیف به یک بات assign شده، sheetId بات و tenant registry رو هم آپدیت کن
+    if (updated.assignedBotId) {
+      const [bot] = await db.select().from(botsTable).where(eq(botsTable.id, updated.assignedBotId)).limit(1);
+      if (bot) {
+        await db.update(botsTable).set({ sheetId: trimmedSheetId }).where(eq(botsTable.id, bot.id));
+
+        const [tenantOwner] = await db
+          .select({ telegramId: usersTable.telegramId })
+          .from(usersTable)
+          .where(eq(usersTable.id, bot.userId))
+          .limit(1);
+
+        syncTenantUpsert({
+          bot_token: decryptToken(bot.token),
+          bot_name: bot.name,
+          bot_username: bot.username,
+          owner_user_id: bot.userId,
+          owner_telegram_id: tenantOwner?.telegramId ?? null,
+          sheet_id: trimmedSheetId,
+          admin_password: bot.adminCode ?? "",
+          status: bot.status,
+          created_at: bot.createdAt,
+        });
+
+        syncSheetPoolUpsert({
+          sheet_id: trimmedSheetId,
+          assigned_to: bot.id,
+          used_by: decryptToken(bot.token),
+          status: "assigned",
+        });
+      }
+    } else {
+      syncSheetPoolUpsert({
+        sheet_id: trimmedSheetId,
+        assigned_to: null,
+        status: "available",
+      });
+    }
+
+    // ردیف قدیمی رو از رجیستری پاک کن (چون کلید بر اساس sheet_id هست، sheetId عوض شده یعنی کلید عوض شده)
+    if (oldSheetId !== trimmedSheetId) {
+      syncSheetPoolDelete(oldSheetId);
+    }
+
+    res.json({
+      id: updated.id,
+      sheetId: updated.sheetId,
+      status: updated.status,
+      assignedBotId: updated.assignedBotId,
+      createdAt: updated.createdAt.toISOString(),
+    });
+  } catch (err) {
+    logger.error({ err }, "Replace sheet pool error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
