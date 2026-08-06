@@ -6,6 +6,7 @@
  *   - POST /api/bots/activate-admin-code: وارد کردن admin code → فعال‌سازی پنل
  *   - POST /api/bots/:botId/approve-payment: سوپرادمین تأیید می‌کنه
  *   - POST /api/bots/:botId/reject-payment: سوپرادمین رد می‌کنه
+ *   - POST /api/bots/pending-payments/:paymentId/cancel: کنسل کامل سفارش (حتی اگه بات حذف شده باشه)
  *   - GET  /api/bots/pending-payments: لیست فیش‌های منتظر (سوپرادمین)
  *   - POST /api/sheet-pool: اضافه کردن شیت به pool (سوپرادمین)
  */
@@ -884,6 +885,68 @@ router.post("/bots/:botId/reject-payment", requireSuperAdmin, async (req: any, r
     res.json({ success: true });
   } catch (err) {
     logger.error({ err }, "Reject payment error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/bots/pending-payments/:paymentId/cancel ───────────────────────
+// سوپرادمین می‌تونه کل سفارش رو کنسل کنه، حتی اگه بات مرتبط حذف/گم شده باشه
+// (مثلاً بات قبل از بررسی فیش پاک شده). برخلاف approve/reject که وابسته به
+// وجود ردیف bot هستن، این route فقط رکورد payment رو کنسل می‌کنه.
+
+router.post("/bots/pending-payments/:paymentId/cancel", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const { reviewNote } = req.body;
+    const { paymentId } = req.params;
+
+    const [payment] = await db
+      .select()
+      .from(paymentsTable)
+      .where(eq(paymentsTable.id, paymentId))
+      .limit(1);
+
+    if (!payment) {
+      res.status(404).json({ error: "Payment not found" });
+      return;
+    }
+    if (payment.status !== "pending") {
+      res.status(400).json({ error: "Payment already reviewed" });
+      return;
+    }
+
+    await db
+      .update(paymentsTable)
+      .set({ status: "cancelled", reviewedBy: req.userId, reviewNote: reviewNote ?? null })
+      .where(eq(paymentsTable.id, paymentId));
+
+    // اگه بات مرتبط هنوز وجود داره، وضعیتش رو هم به‌روز کن (سفارش لغو شده)
+    if (payment.botId) {
+      const [bot] = await db
+        .select()
+        .from(botsTable)
+        .where(eq(botsTable.id, payment.botId))
+        .limit(1);
+
+      if (bot) {
+        const [updatedBot] = await db
+          .update(botsTable)
+          .set({ status: "payment_rejected", paymentStatus: "rejected" })
+          .where(eq(botsTable.id, payment.botId))
+          .returning();
+
+        syncBotUpsert({
+          id: updatedBot.id, userId: updatedBot.userId, name: updatedBot.name,
+          username: updatedBot.username, status: updatedBot.status,
+          commandCount: updatedBot.commandCount, pluginCount: updatedBot.pluginCount,
+          userCount: updatedBot.userCount, messageCount: updatedBot.messageCount,
+          createdAt: updatedBot.createdAt, updatedAt: updatedBot.updatedAt,
+        });
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, "Cancel payment error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
