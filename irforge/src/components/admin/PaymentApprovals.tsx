@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Check, X, Loader2, Inbox, ExternalLink, Wallet as WalletIcon } from "lucide-react";
+import { Check, X, Loader2, Inbox, ExternalLink, Wallet as WalletIcon, Ban, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
@@ -42,8 +42,10 @@ export function PaymentApprovals() {
 
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [botNotFound, setBotNotFound] = useState<Record<string, boolean>>({});
+  const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
 
-  async function actBot(botId: string, action: "approve" | "reject") {
+  async function actBot(paymentId: string, botId: string, action: "approve" | "reject") {
     setBusyId("bot:" + botId + action);
     try {
       await customFetch(`/api/bots/${botId}/${action}-payment`, {
@@ -54,8 +56,33 @@ export function PaymentApprovals() {
       queryClient.invalidateQueries({ queryKey: getAdminGetStatsQueryKey() });
       toast({ title: action === "approve" ? (fa ? "پرداخت تأیید شد" : "Payment approved") : (fa ? "پرداخت رد شد" : "Payment rejected") });
     } catch (err: any) {
+      if (err?.status === 404) {
+        setBotNotFound((prev) => ({ ...prev, [paymentId]: true }));
+      }
       toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: err?.message });
     } finally { setBusyId(null); }
+  }
+
+  async function cancelOrder(paymentId: string) {
+    if (confirmCancel !== paymentId) {
+      setConfirmCancel(paymentId);
+      return;
+    }
+    setBusyId("cancel:" + paymentId);
+    try {
+      await customFetch(`/api/bots/pending-payments/${paymentId}/cancel`, {
+        method: "POST",
+        body: JSON.stringify({ reviewNote: notes[paymentId] || null }),
+      });
+      queryClient.invalidateQueries({ queryKey: PENDING_KEY });
+      queryClient.invalidateQueries({ queryKey: getAdminGetStatsQueryKey() });
+      toast({ title: fa ? "سفارش کنسل شد" : "Order cancelled" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: err?.message });
+    } finally {
+      setBusyId(null);
+      setConfirmCancel(null);
+    }
   }
 
   async function actDeposit(txId: string, action: "approve" | "reject") {
@@ -117,15 +144,38 @@ export function PaymentApprovals() {
                     </Dialog>
                   )}
                   {payment.description && <p className="rounded-md bg-muted/50 p-2 text-sm">{payment.description}</p>}
-                  <Input placeholder={fa ? "یادداشت (اختیاری)" : "Review note (optional)"} value={notes[botId ?? ""] ?? ""} onChange={(e) => botId && setNotes({ ...notes, [botId]: e.target.value })} />
+                  <Input placeholder={fa ? "یادداشت (اختیاری)" : "Review note (optional)"} value={notes[botId ?? payment.id] ?? ""} onChange={(e) => setNotes({ ...notes, [botId ?? payment.id]: e.target.value })} />
                   <div className="flex gap-2">
-                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={!botId || busyId !== null} onClick={() => botId && actBot(botId, "approve")}>
+                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={!botId || busyId !== null} onClick={() => botId && actBot(payment.id, botId, "approve")}>
                       {busyId === "bot:" + (botId ?? "") + "approve" ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Check className="me-2 h-4 w-4" />}{fa ? "تأیید" : "Approve"}
                     </Button>
-                    <Button variant="destructive" className="flex-1" disabled={!botId || busyId !== null} onClick={() => botId && actBot(botId, "reject")}>
+                    <Button variant="destructive" className="flex-1" disabled={!botId || busyId !== null} onClick={() => botId && actBot(payment.id, botId, "reject")}>
                       {busyId === "bot:" + (botId ?? "") + "reject" ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <X className="me-2 h-4 w-4" />}{fa ? "رد" : "Reject"}
                     </Button>
                   </div>
+                  {botNotFound[payment.id] && (
+                    <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-2">
+                      <p className="flex items-center gap-1.5 text-xs text-destructive">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        {fa ? "بات این سفارش پیدا نشد (احتمالاً حذف شده). می‌تونی کل سفارش رو کنسل کنی." : "This order's bot wasn't found (likely deleted). You can cancel the whole order."}
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full border-destructive/50 text-destructive hover:bg-destructive/10"
+                        disabled={busyId !== null}
+                        onClick={() => cancelOrder(payment.id)}
+                      >
+                        {busyId === "cancel:" + payment.id ? (
+                          <Loader2 className="me-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Ban className="me-2 h-4 w-4" />
+                        )}
+                        {confirmCancel === payment.id
+                          ? (fa ? "مطمئنی؟ دوباره بزن برای کنسل کامل" : "Sure? Click again to confirm")
+                          : (fa ? "کنسل کامل سفارش" : "Cancel order entirely")}
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
               );
