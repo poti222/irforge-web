@@ -61,7 +61,15 @@ export default function Checkout() {
 
   const botItems = items.filter((i): i is CartBot => i.kind === "bot");
   const allBotsComplete = botItems.every(isBotItemComplete);
-  const canPay = items.length > 0 && allBotsComplete;
+
+  const tokenCounts = new Map<string, number>();
+  botItems.forEach((i) => {
+    const t = i.token.trim();
+    if (t) tokenCounts.set(t, (tokenCounts.get(t) ?? 0) + 1);
+  });
+  const hasDuplicateTokens = botItems.some((i) => (tokenCounts.get(i.token.trim()) ?? 0) > 1);
+
+  const canPay = items.length > 0 && allBotsComplete && !hasDuplicateTokens;
 
   async function checkout() {
     if (!canPay) return;
@@ -213,6 +221,13 @@ export default function Checkout() {
                       {fa ? "چطور توکن بات را بگیرم؟" : "How do I get my bot token?"}
                     </Link>
                   </p>
+                  {item.token.trim() && (tokenCounts.get(item.token.trim()) ?? 0) > 1 && (
+                    <p className="text-xs font-medium text-red-500">
+                      {fa
+                        ? "این توکن در چند آیتم سبد تکرار شده — هر بات باید توکن جدا داشته باشد."
+                        : "This token is used in more than one cart item — each bot needs its own token."}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor={`desc-${item.key}`}>{fa ? "توضیحات ساخت بات *" : "Bot build description *"}</Label>
@@ -255,6 +270,11 @@ export default function Checkout() {
           {!allBotsComplete && (
             <p className="text-center text-xs text-muted-foreground">
               {fa ? "برای فعال شدن دکمه پرداخت، فیلدهای اجباری همه‌ی بات‌ها را کامل کن." : "Fill in every bot's required fields to enable payment."}
+            </p>
+          )}
+          {allBotsComplete && hasDuplicateTokens && (
+            <p className="text-center text-xs text-red-500">
+              {fa ? "یک توکن تکراری در سبد وجود دارد؛ آن را اصلاح کن." : "A duplicate token is in your cart; fix it to continue."}
             </p>
           )}
         </CardContent>
