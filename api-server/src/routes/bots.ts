@@ -30,7 +30,7 @@ import {
   walletsTable,
   walletTransactionsTable,
 } from "@workspace/db";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { encryptToken, decryptToken } from "../lib/tokenCrypto";
@@ -1094,12 +1094,25 @@ router.post("/sheet-pool", requireSuperAdmin, async (req: any, res) => {
 router.get("/sheet-pool", requireSuperAdmin, async (req: any, res) => {
   try {
     const entries = await db.select().from(sheetPoolTable);
+
+    const botIds = [...new Set(entries.map((e) => e.assignedBotId).filter((id): id is string => !!id))];
+    const botsById = new Map<string, { name: string; userId: string }>();
+    if (botIds.length > 0) {
+      const rows = await db
+        .select({ id: botsTable.id, name: botsTable.name, userId: botsTable.userId })
+        .from(botsTable)
+        .where(inArray(botsTable.id, botIds));
+      for (const b of rows) botsById.set(b.id, { name: b.name, userId: b.userId });
+    }
+
     res.json(
       entries.map((e) => ({
         id: e.id,
         sheetId: e.sheetId,
         status: e.status,
         assignedBotId: e.assignedBotId,
+        assignedBotName: e.assignedBotId ? botsById.get(e.assignedBotId)?.name ?? null : null,
+        assignedBotOwnerId: e.assignedBotId ? botsById.get(e.assignedBotId)?.userId ?? null : null,
         createdAt: e.createdAt.toISOString(),
       }))
     );
