@@ -68,6 +68,14 @@ export const botsTable = pgTable("bots", {
   /** لحظه‌ی پایان تریال — بعد از این تاریخ status به "expired" تغییر می‌کند. */
   trialExpiresAt: timestamp("trial_expires_at", { withTimezone: true }),
 
+  // ─── تسویه‌حساب سبد خرید (/bots/cart): اطلاعات تماس مخصوص این سفارش ───
+  // ممکنه با phone/telegramId پروفایل کاربر فرق داشته باشه (مثلاً وقتی
+  // کاربر داره برای شخص دیگه‌ای بات می‌سازه)، پس جدا نگه داشته می‌شه.
+  /** شماره تلفنی که هنگام خرید این بات وارد شده */
+  orderPhone: text("order_phone"),
+  /** آیدی تلگرامی که هنگام خرید این بات وارد شده */
+  orderTelegramId: text("order_telegram_id"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
