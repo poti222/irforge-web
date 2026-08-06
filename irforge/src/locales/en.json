@@ -156,6 +156,7 @@
     "awaitingPaymentApproval": "Awaiting payment approval",
     "paymentRejected": "Payment rejected",
     "sectionOverview": "Overview",
+    "sectionProfile": "Bot Profile",
     "sectionCommands": "Commands",
     "sectionPlugins": "Plugins",
     "sectionStats": "Stats",
