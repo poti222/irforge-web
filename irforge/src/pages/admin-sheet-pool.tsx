@@ -11,6 +11,7 @@ import {
   LinkIcon,
   Trash2,
   RefreshCw,
+  Unlock,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -108,6 +109,19 @@ export default function AdminSheetPool() {
   function openReplace(entry: SheetEntry) {
     setReplaceTarget(entry);
     setReplaceValue("");
+  }
+
+  async function releaseSheet(entry: SheetEntry) {
+    setBusyRow("release:" + entry.id);
+    try {
+      await customFetch(`/api/sheet-pool/${entry.id}/release`, { method: "POST" });
+      toast({ title: fa ? "شیت خالی و آماده شد" : "Sheet freed up" });
+      await refetch();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: e?.message });
+    } finally {
+      setBusyRow(null);
+    }
   }
 
   async function submitReplace() {
@@ -239,6 +253,19 @@ export default function AdminSheetPool() {
               >
                 <ExternalLink className="size-4" />
               </a>
+              {s.status === "assigned" && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="shrink-0 size-8 text-muted-foreground hover:text-emerald-500"
+                  aria-label={fa ? "خالی کردن شیت" : "Free up sheet"}
+                  title={fa ? "خالی کردن و آماده‌سازی برای بات جدید" : "Free up for a new bot"}
+                  disabled={busyRow === "release:" + s.id}
+                  onClick={() => releaseSheet(s)}
+                >
+                  {busyRow === "release:" + s.id ? <Loader2 className="size-4 animate-spin" /> : <Unlock className="size-4" />}
+                </Button>
+              )}
               <Button
                 size="icon"
                 variant="ghost"
