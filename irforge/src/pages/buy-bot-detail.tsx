@@ -3,13 +3,11 @@ import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GlowButton } from "@/components/ui/glow-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import {
-  Check, ArrowLeft, ArrowRight, ShoppingCart, Bot as BotIcon, Settings2, Lock,
+  Check, ArrowLeft, ArrowRight, ShoppingCart, Settings2, Lock,
 } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
@@ -28,8 +26,6 @@ export default function BuyBotDetail() {
   const isCustom = tierId === "custom";
   const tier = !isCustom ? getBotTier(tierId) : undefined;
 
-  const [name, setName] = useState("");
-  const [token, setToken] = useState("");
   // Custom package: purely visual checklist for now (no pricing/logic wired up).
   const [customSelected, setCustomSelected] = useState<Set<string>>(
     new Set(CUSTOM_MODULES.filter((m) => m.mandatory).map((m) => m.id))
@@ -58,26 +54,21 @@ export default function BuyBotDetail() {
   }
 
   function handleAddToCart() {
-    if (!name.trim() || !token.trim()) {
-      toast({
-        variant: "destructive",
-        title: fa ? "نام و توکن بات الزامی است" : "Bot name and token are required",
-      });
-      return;
-    }
     addBot({
-      name: name.trim(),
-      token: token.trim(),
+      name: "",
+      token: "",
       description: "",
+      phone: "",
+      telegramId: "",
       price: isCustom ? 0 : (tier?.price ?? 0),
       tierId: isCustom ? "custom" : tier?.id,
       tierName: isCustom ? (fa ? "سفارشی" : "Custom") : (fa ? tier?.name.fa : tier?.name.en),
     });
     toast({
       title: fa ? "به سبد خرید اضافه شد" : "Added to cart",
-      description: fa ? "از سبد خرید بالای صفحه، خریدت را نهایی کن." : "Finish checkout from the cart at the top.",
+      description: fa ? "حالا مشخصات بات را در صفحه‌ی تسویه‌حساب کامل کن." : "Now fill in the bot's details on the checkout page.",
     });
-    setLocation("/bots");
+    setLocation("/bots/cart");
   }
 
   return (
@@ -175,37 +166,19 @@ export default function BuyBotDetail() {
           </CardContent>
         </Card>
 
-        {/* Right: purchase form */}
+        {/* Right: add to cart */}
         <Card className="lg:col-span-2 h-fit">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <BotIcon className="size-5 text-primary" /> {fa ? "مشخصات بات" : "Bot details"}
+              <ShoppingCart className="size-5 text-primary" /> {fa ? "افزودن به سبد خرید" : "Add to cart"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="bot-name">{fa ? "نام بات *" : "Bot name *"}</Label>
-              <Input
-                id="bot-name"
-                placeholder={fa ? "مثلاً: فروشگاه من" : "e.g. My Shop"}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="bot-token">{fa ? "توکن بات *" : "Bot token *"}</Label>
-              <Input
-                id="bot-token"
-                dir="ltr"
-                placeholder="123456:ABCdef..."
-                className="font-mono text-sm"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                {fa ? "توکن رو از @BotFather دریافت کن" : "Get your token from @BotFather"}
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              {fa
+                ? "این پکیج به سبد خرید اضافه می‌شود. نام بات، توکن و بقیه‌ی مشخصات را در صفحه‌ی تسویه‌حساب کامل می‌کنی."
+                : "This package will be added to your cart. You'll fill in the bot's name, token and other details on the checkout page."}
+            </p>
 
             <Separator />
 
@@ -220,8 +193,8 @@ export default function BuyBotDetail() {
             </GlowButton>
             <p className="text-center text-xs text-muted-foreground">
               {fa
-                ? "خرید نهایی از داخل سبد خرید (بالای صفحه) انجام می‌شود."
-                : "Checkout happens from the cart at the top of the page."}
+                ? "خرید نهایی از صفحه‌ی تسویه‌حساب انجام می‌شود."
+                : "Checkout is completed on the checkout page."}
             </p>
           </CardContent>
         </Card>
