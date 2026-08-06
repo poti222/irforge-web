@@ -59,46 +59,50 @@ export default function BuyBot() {
           return (
             <MotionCard
               key={tier.id}
-              className={`flex flex-col overflow-hidden ${tier.popular ? "border-primary shadow-md relative" : ""}`}
+              className={`flex flex-col ${tier.popular ? "border-primary shadow-md relative" : ""}`}
             >
+              {/* Badge lives outside the overflow-hidden container below so it
+                  never gets clipped by the rounded card corners. */}
               {tier.popular && (
                 <div className="absolute top-0 right-0 z-10 translate-x-1/4 -translate-y-1/2 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
                   {fa ? "پیشنهادی" : "POPULAR"}
                 </div>
               )}
-              <div className={`h-1.5 w-full bg-gradient-to-r ${tier.accent}`} />
-              <CardHeader>
-                <div className={`mb-2 flex size-11 items-center justify-center rounded-lg bg-gradient-to-br ${tier.accent} text-white`}>
-                  <Icon className="size-5" />
-                </div>
-                <CardTitle className="text-xl">{fa ? tier.name.fa : tier.name.en}</CardTitle>
-                <p className="text-sm text-muted-foreground">{fa ? tier.tagline.fa : tier.tagline.en}</p>
-                <div className="mt-3 flex items-baseline gap-1 text-2xl font-extrabold">
-                  {formatToman(tier.price, lang)}
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1">
-                <ul className="space-y-2.5 text-sm">
-                  {tier.features.slice(0, 4).map((f, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                      <span>{fa ? f.fa : f.en}</span>
-                    </li>
-                  ))}
-                  {tier.features.length > 4 && (
-                    <li className="text-xs text-muted-foreground">
-                      {fa ? `+ ${tier.features.length - 4} امکان دیگر` : `+ ${tier.features.length - 4} more`}
-                    </li>
-                  )}
-                </ul>
-              </CardContent>
-              <CardFooter>
-                <Button className="w-full" variant={tier.popular ? "default" : "secondary"} asChild>
-                  <Link href={`/buy-bot/${tier.id}`}>
-                    {fa ? "مشاهده و انتخاب" : "View & Select"} <ArrowIcon className="ms-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardFooter>
+              <div className="flex flex-1 flex-col overflow-hidden rounded-xl">
+                <div className={`h-1.5 w-full bg-gradient-to-r ${tier.accent}`} />
+                <CardHeader>
+                  <div className={`mb-2 flex size-11 items-center justify-center rounded-lg bg-gradient-to-br ${tier.accent} text-white`}>
+                    <Icon className="size-5" />
+                  </div>
+                  <CardTitle className="text-xl">{fa ? tier.name.fa : tier.name.en}</CardTitle>
+                  <p className="text-sm text-muted-foreground">{fa ? tier.tagline.fa : tier.tagline.en}</p>
+                  <div className="mt-3 flex items-baseline gap-1 text-2xl font-extrabold">
+                    {formatToman(tier.price, lang)}
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <ul className="space-y-2.5 text-sm">
+                    {tier.features.slice(0, 4).map((f, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        <span>{fa ? f.fa : f.en}</span>
+                      </li>
+                    ))}
+                    {tier.features.length > 4 && (
+                      <li className="text-xs text-muted-foreground">
+                        {fa ? `+ ${tier.features.length - 4} امکان دیگر` : `+ ${tier.features.length - 4} more`}
+                      </li>
+                    )}
+                  </ul>
+                </CardContent>
+                <CardFooter>
+                  <Button className="w-full" variant={tier.popular ? "default" : "secondary"} asChild>
+                    <Link href={`/buy-bot/${tier.id}`}>
+                      {fa ? "مشاهده و انتخاب" : "View & Select"} <ArrowIcon className="ms-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </div>
             </MotionCard>
           );
         })}
