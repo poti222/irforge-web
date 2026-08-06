@@ -15,6 +15,9 @@ export type CartBot = {
   name: string;
   token: string;
   description: string;
+  /** Order contact info, filled in on the /bots/cart checkout page — may differ from the buyer's own profile. */
+  phone: string;
+  telegramId: string;
   price: number;
   /** Set when the bot was added via the /buy-bot tier flow (silver/gold/diamond/custom). */
   tierId?: string;
@@ -28,6 +31,7 @@ type CartContextType = {
   total: number;
   addPlugin: (p: Omit<CartPlugin, "key" | "kind">) => void;
   addBot: (b: Omit<CartBot, "key" | "kind">) => void;
+  updateBot: (key: string, fields: Partial<Pick<CartBot, "name" | "token" | "description" | "phone" | "telegramId">>) => void;
   remove: (key: string) => void;
   clear: () => void;
 };
@@ -59,8 +63,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }
 
   function addBot(b: Omit<CartBot, "key" | "kind">) {
-    const key = `bot:${b.token.slice(-8)}:${b.name}`;
-    setItems((prev) => (prev.some((i) => i.key === key) ? prev : [...prev, { ...b, key, kind: "bot" }]));
+    // Bot items are filled in later on the /bots/cart checkout page, so name/token
+    // aren't reliable dedupe keys here (they're often still empty) — use a fresh id.
+    const key = `bot:${crypto.randomUUID()}`;
+    setItems((prev) => [...prev, { ...b, key, kind: "bot" }]);
+  }
+
+  function updateBot(key: string, fields: Partial<Pick<CartBot, "name" | "token" | "description" | "phone" | "telegramId">>) {
+    setItems((prev) =>
+      prev.map((i) => (i.key === key && i.kind === "bot" ? { ...i, ...fields } : i))
+    );
   }
 
   const remove = (key: string) => setItems((prev) => prev.filter((i) => i.key !== key));
@@ -69,7 +81,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const total = items.reduce((acc, i) => acc + (i.price || 0), 0);
 
   return (
-    <CartContext.Provider value={{ items, count: items.length, total, addPlugin, addBot, remove, clear }}>
+    <CartContext.Provider value={{ items, count: items.length, total, addPlugin, addBot, updateBot, remove, clear }}>
       {children}
     </CartContext.Provider>
   );
