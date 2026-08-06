@@ -18,6 +18,8 @@ import Dashboard from "@/pages/dashboard";
 import Bots from "@/pages/bots";
 import BuyBot from "@/pages/buy-bot";
 import BuyBotDetail from "@/pages/buy-bot-detail";
+import Checkout from "@/pages/checkout";
+import LearnBotToken from "@/pages/learn-bot-token";
 import BotWorkspace from "@/pages/bot-workspace";
 import Marketplace from "@/pages/marketplace";
 import Themes from "@/pages/themes";
@@ -130,7 +132,10 @@ function Router() {
       <Route path="/bots"><ProtectedRoute component={Bots} /></Route>
       <Route path="/buy-bot"><ProtectedRoute component={BuyBot} /></Route>
       <Route path="/buy-bot/:tierId"><ProtectedRoute component={BuyBotDetail} /></Route>
+      {/* Must come before /bots/:botId so "cart" isn't parsed as a bot id */}
+      <Route path="/bots/cart"><ProtectedRoute component={Checkout} /></Route>
       <Route path="/bots/:botId"><ProtectedRoute component={BotWorkspace} /></Route>
+      <Route path="/learn/bot-token"><ProtectedRoute component={LearnBotToken} /></Route>
       <Route path="/marketplace"><ProtectedRoute component={Marketplace} /></Route>
       <Route path="/themes"><ProtectedRoute component={Themes} /></Route>
       <Route path="/plans"><ProtectedRoute component={Plans} /></Route>
