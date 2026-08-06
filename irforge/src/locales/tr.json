@@ -156,6 +156,7 @@
     "awaitingPaymentApproval": "Ödeme onayı bekleniyor",
     "paymentRejected": "Ödeme reddedildi",
     "sectionOverview": "Genel Bakış",
+    "sectionProfile": "Bot Profili",
     "sectionCommands": "Komutlar",
     "sectionPlugins": "Eklentiler",
     "sectionStats": "İstatistikler",
