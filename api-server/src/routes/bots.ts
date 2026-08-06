@@ -11,6 +11,7 @@
  *   - POST /api/sheet-pool: اضافه کردن شیت به pool (سوپرادمین)
  *   - DELETE /api/sheet-pool/:id: حذف شیت آزاد از pool (سوپرادمین)
  *   - POST /api/sheet-pool/:id/replace: جایگزینی شیت (آزاد یا assigned) با یک شیت دیگه
+ *   - POST /api/sheet-pool/:id/release: خالی کردن دستی شیت (آزادسازی از هر باتی، برای دیتای قدیمی/گیر کرده)
  */
 
 import { logger } from "../lib/logger";
@@ -80,6 +81,15 @@ async function purgeBotFully(
   syncTenantDelete(plainToken);
 
   if (bot.sheetId) {
+    // BUG FIX: این فقط رجیستری گوگل‌شیت رو آزاد می‌کرد، نه ردیف واقعی
+    // sheet_pool توی Postgres — در نتیجه بعد از حذف بات (چه دستی، چه با
+    // expiry، چه توسط خود کاربر)، شیت توی پنل همچنان "assigned" می‌موند و
+    // نه قابل استفاده‌ی مجدد بود نه قابل حذف. حالا هر دو رو آزاد می‌کنیم.
+    await db
+      .update(sheetPoolTable)
+      .set({ status: "available", assignedBotId: null })
+      .where(eq(sheetPoolTable.sheetId, bot.sheetId));
+
     syncSheetPoolUpsert({ sheet_id: bot.sheetId, assigned_to: null, status: "available" });
   }
 
@@ -1066,6 +1076,44 @@ router.get("/sheet-pool", requireSuperAdmin, async (req: any, res) => {
     );
   } catch (err) {
     logger.error({ err }, "List sheet pool error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/sheet-pool/:id/release ────────────────────────────────────────
+// خالی‌کردن دستیِ یک شیت — صرف‌نظر از وضعیت فعلیش، status رو "available" و
+// assignedBotId رو null می‌کنه. برای دیتای قدیمی/گیرکرده‌ای که هنوز assigned
+// نشون داده می‌شه (مثلاً باتش قبل از این فیکس حذف شده) یا هر سناریوی دیگه‌ای
+// که سوپرادمین بخواد بدون تغییر sheetId، صرفاً شیت رو دوباره در دسترس بذاره.
+// برخلاف approve/reject-payment، این کاملاً مستقل از وجود بات مرتبطه.
+
+router.post("/sheet-pool/:id/release", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+
+    const [entry] = await db.select().from(sheetPoolTable).where(eq(sheetPoolTable.id, id)).limit(1);
+    if (!entry) {
+      res.status(404).json({ error: "Sheet not found" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(sheetPoolTable)
+      .set({ status: "available", assignedBotId: null })
+      .where(eq(sheetPoolTable.id, id))
+      .returning();
+
+    syncSheetPoolUpsert({ sheet_id: updated.sheetId, assigned_to: null, status: "available" });
+
+    res.json({
+      id: updated.id,
+      sheetId: updated.sheetId,
+      status: updated.status,
+      assignedBotId: updated.assignedBotId,
+      createdAt: updated.createdAt.toISOString(),
+    });
+  } catch (err) {
+    logger.error({ err }, "Release sheet pool error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
