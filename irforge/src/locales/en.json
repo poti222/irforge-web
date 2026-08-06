@@ -163,7 +163,9 @@
     "overviewTotalUsers": "Total Users",
     "overviewMessages": "Messages",
     "overviewCommands": "Commands",
-    "overviewPlugins": "Plugins"
+    "overviewPlugins": "Plugins",
+    "botStartingCountdown": "Your bot will turn on in about {seconds}s",
+    "botStoppingCountdown": "Your bot will turn off in about {seconds}s"
   },
   "marketplace": {},
   "wallet": {},
