@@ -34,7 +34,7 @@ import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { encryptToken, decryptToken } from "../lib/tokenCrypto";
-import { sendTelegramMessage } from "../lib/telegram";
+import { sendTelegramMessage, tgApi, tgSetProfilePhoto } from "../lib/telegram";
 import {
   syncBotUpsert,
   syncBotDelete,
@@ -1975,6 +1975,110 @@ router.get("/bots/:botId/stats", requireBotOwnership, async (req: any, res) => {
     });
     res.json({ botId: bot.id, messages: bot.messageCount, users: bot.userCount, commands: commands.length, plugins: plugins.length, uptime: bot.status === "active" ? 99.5 : 0, messagesPerDay });
   } catch (err) { logger.error({ err }, "Get bot stats error"); res.status(500).json({ error: "Internal server error" }); }
+});
+
+// ─── Telegram profile (real Bot API profile, distinct from the site's own
+// bots.name/description — see bot-profile-feature-prompt.md for why these
+// are kept separate and read live from Telegram instead of a DB column) ────
+
+router.get("/bots/:botId/telegram-profile", requireBotOwnership, async (req: any, res) => {
+  try {
+    const token = decryptToken(req.bot.token);
+    const [nameRes, descRes, shortDescRes] = await Promise.all([
+      tgApi<{ name: string }>(token, "getMyName"),
+      tgApi<{ description: string }>(token, "getMyDescription"),
+      tgApi<{ short_description: string }>(token, "getMyShortDescription"),
+    ]);
+    res.json({
+      name: nameRes.ok ? nameRes.result?.name ?? null : null,
+      description: descRes.ok ? descRes.result?.description ?? null : null,
+      shortDescription: shortDescRes.ok ? shortDescRes.result?.short_description ?? null : null,
+    });
+  } catch (err) {
+    logger.error({ err }, "Get telegram profile error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.patch("/bots/:botId/telegram-profile", requireBotOwnership, async (req: any, res) => {
+  try {
+    const { name, description, shortDescription } = req.body ?? {};
+    if (name === undefined && description === undefined && shortDescription === undefined) {
+      res.status(400).json({ error: "At least one of name, description, shortDescription is required" });
+      return;
+    }
+    const token = decryptToken(req.bot.token);
+    const errors: string[] = [];
+
+    if (name !== undefined) {
+      const r = await tgApi(token, "setMyName", { name });
+      if (!r.ok) errors.push(r.description ?? "setMyName failed");
+    }
+    if (description !== undefined) {
+      const r = await tgApi(token, "setMyDescription", { description });
+      if (!r.ok) errors.push(r.description ?? "setMyDescription failed");
+    }
+    if (shortDescription !== undefined) {
+      const r = await tgApi(token, "setMyShortDescription", { short_description: shortDescription });
+      if (!r.ok) errors.push(r.description ?? "setMyShortDescription failed");
+    }
+
+    if (errors.length > 0) {
+      res.status(400).json({ error: errors.join("; ") });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "Update telegram profile error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/bots/:botId/telegram-profile/photo", requireBotOwnership, async (req: any, res) => {
+  try {
+    const dataUrl = String(req.body?.photo ?? "");
+    const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+    if (!match) {
+      res.status(400).json({ error: "Invalid photo data URL" });
+      return;
+    }
+    const [, mimeType, base64] = match;
+    if (!mimeType.startsWith("image/")) {
+      res.status(400).json({ error: "photo must be an image" });
+      return;
+    }
+    const buffer = Buffer.from(base64, "base64");
+    const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+    if (buffer.length > MAX_PHOTO_BYTES) {
+      res.status(400).json({ error: "Photo is too large (max 5MB)" });
+      return;
+    }
+    const token = decryptToken(req.bot.token);
+    const result = await tgSetProfilePhoto(token, buffer, mimeType);
+    if (!result.ok) {
+      res.status(400).json({ error: result.description ?? "setMyProfilePhoto failed" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "Set telegram profile photo error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/bots/:botId/telegram-profile/photo", requireBotOwnership, async (req: any, res) => {
+  try {
+    const token = decryptToken(req.bot.token);
+    const result = await tgApi(token, "removeMyProfilePhoto");
+    if (!result.ok) {
+      res.status(400).json({ error: result.description ?? "removeMyProfilePhoto failed" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "Remove telegram profile photo error");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 router.get("/bots/:botId/commands", requireBotOwnership, async (req: any, res) => {
