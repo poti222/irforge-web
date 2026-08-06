@@ -27,7 +27,7 @@ export async function sendTelegramMessage(
 
 // ─── G8: connect-via-bot (webhook + file proxy) ────────────────────────────
 
-async function tgApi<T = any>(
+export async function tgApi<T = any>(
   botToken: string,
   method: string,
   body?: Record<string, unknown>
@@ -38,6 +38,28 @@ async function tgApi<T = any>(
     body: JSON.stringify(body ?? {}),
   });
   return (await res.json()) as { ok: boolean; result?: T; description?: string };
+}
+
+/**
+ * setMyProfilePhoto (added to Bot API mid-2026, see
+ * https://core.telegram.org/bots/api#setmyprofilephoto) takes multipart/form-data
+ * with a real file, unlike the rest of the JSON-only Bot API — so it can't
+ * reuse tgApi() above. Uses Node's built-in FormData/Blob (Node 18+, no new
+ * dependency).
+ */
+export async function tgSetProfilePhoto(
+  botToken: string,
+  photoBuffer: Buffer,
+  mimeType: string
+): Promise<{ ok: boolean; description?: string }> {
+  const form = new FormData();
+  form.set("photo", JSON.stringify({ type: "static", photo: "attach://photo_file" }));
+  form.set("photo_file", new Blob([photoBuffer], { type: mimeType }), "profile.jpg");
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/setMyProfilePhoto`, {
+    method: "POST",
+    body: form,
+  });
+  return (await res.json()) as { ok: boolean; description?: string };
 }
 
 /**
