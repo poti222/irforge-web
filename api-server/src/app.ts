@@ -21,8 +21,13 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || true,
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// FIX: default express.json() body limit is 100kb, which silently 413s any
+// base64 data-URL upload (bot profile photos, wallet deposit receipts) once
+// the encoded payload — image bytes * ~1.33 for base64, plus JSON overhead —
+// crosses that. Raised to accommodate the largest such upload (bot profile
+// photo, capped at 5MB raw server-side in bots.ts) with headroom.
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 app.use("/api", router);
 
