@@ -13,6 +13,20 @@ type ToasterToast = ToastProps & {
   title?: React.ReactNode
   description?: React.ReactNode
   action?: ToastActionElement
+  // Whether this toast should auto-dismiss with the orange progress bar.
+  // Defaults to true. Set to false while a multi-step process (e.g. the
+  // 20s start/stop countdown) is still updating the toast, then set back
+  // to true (optionally bumping autoCloseKey) once the final message is
+  // shown so the 5s auto-close timer starts fresh from that point.
+  autoClose?: boolean
+  // Duration in ms for the auto-close progress bar. Defaults to 5000.
+  duration?: number
+  // Changing this value forces the auto-close timer/progress bar to
+  // restart from full, even if the toast id stayed the same (used when
+  // a toast's content changes via update() and the 5s countdown should
+  // begin at that later point rather than from when the toast was first
+  // created).
+  autoCloseKey?: string | number
 }
 
 const actionTypes = {
@@ -152,6 +166,8 @@ function toast({ ...props }: Toast) {
   dispatch({
     type: "ADD_TOAST",
     toast: {
+      autoClose: true,
+      duration: 5000,
       ...props,
       id,
       open: true,
