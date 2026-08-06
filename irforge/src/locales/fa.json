@@ -163,7 +163,9 @@
     "overviewTotalUsers": "کاربران",
     "overviewMessages": "پیام‌ها",
     "overviewCommands": "دستورات",
-    "overviewPlugins": "پلاگین‌ها"
+    "overviewPlugins": "پلاگین‌ها",
+    "botStartingCountdown": "بات شما تا حدود {seconds} ثانیه‌ی دیگه روشن می‌شه",
+    "botStoppingCountdown": "بات شما تا حدود {seconds} ثانیه‌ی دیگه خاموش می‌شه"
   },
   "marketplace": {},
   "wallet": {},
