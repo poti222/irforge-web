@@ -163,7 +163,9 @@
     "overviewTotalUsers": "Пользователи",
     "overviewMessages": "Сообщения",
     "overviewCommands": "Команды",
-    "overviewPlugins": "Плагины"
+    "overviewPlugins": "Плагины",
+    "botStartingCountdown": "Бот включится примерно через {seconds} с",
+    "botStoppingCountdown": "Бот выключится примерно через {seconds} с"
   },
   "marketplace": {},
   "wallet": {},
