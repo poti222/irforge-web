@@ -61,17 +61,27 @@ export default function BotWorkspace() {
         String(seconds)
       );
 
+    // While the 20s countdown is running, the toast's own 5s auto-close
+    // timer must stay off — it should only start once the final
+    // "started/stopped" message below is shown.
     const handle = toast({
       title: status === "active" ? t.botStarted : t.botStopped,
       description: describe(remaining),
+      autoClose: false,
     });
 
     const intervalId = setInterval(() => {
       remaining -= 1;
       if (remaining <= 0) {
         clearInterval(intervalId);
-        handle.dismiss();
         countdownRef.current = null;
+        handle.update({
+          id: handle.id,
+          title: status === "active" ? t.botStarted : t.botStopped,
+          description: undefined,
+          autoClose: true,
+          autoCloseKey: Date.now(),
+        } as any);
         return;
       }
       handle.update({ id: handle.id, description: describe(remaining) } as any);
