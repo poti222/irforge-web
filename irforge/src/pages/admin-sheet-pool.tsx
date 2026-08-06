@@ -26,6 +26,8 @@ type SheetEntry = {
   sheetId: string;
   status: string;
   assignedBotId: string | null;
+  assignedBotName?: string | null;
+  assignedBotOwnerId?: string | null;
   createdAt: string;
 };
 
@@ -231,9 +233,24 @@ export default function AdminSheetPool() {
               transition={{ delay: i * 0.03 }}
               className="flex items-center gap-3 border-b p-3 last:border-b-0 hover:bg-muted/30"
             >
-              <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground" dir="ltr" title={s.sheetId}>
-                {s.sheetId}
-              </span>
+              <div className="min-w-0 flex-1">
+                <span className="block truncate font-mono text-xs text-muted-foreground" dir="ltr" title={s.sheetId}>
+                  {s.sheetId}
+                </span>
+                {s.status === "assigned" && (s.assignedBotName || s.assignedBotOwnerId) && (
+                  <span className="mt-0.5 block truncate text-xs" dir="ltr">
+                    {s.assignedBotName && (
+                      <span className="font-medium text-foreground">{s.assignedBotName}</span>
+                    )}
+                    {s.assignedBotOwnerId && (
+                      <span className="ms-1.5 font-mono text-muted-foreground">
+                        {fa ? "مالک: " : "owner: "}
+                        {s.assignedBotOwnerId}
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
               {s.status === "available" ? (
                 <Badge className="shrink-0 gap-1 bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-400">
                   <CheckCircle2 className="size-3" />
