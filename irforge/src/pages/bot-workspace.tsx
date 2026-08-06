@@ -6,6 +6,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { GlowButton } from "@/components/ui/glow-button";
 import { ArrowLeft, Play, Square, Loader2 } from "lucide-react";
@@ -13,6 +14,13 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
 import { BotWorkspaceDocument } from "@/components/bots/BotWorkspaceDocument";
+
+// The bot process only reconciles against the registry sheet every ~20s
+// (services/tenant_status_watcher.py on mainbot), so a start/stop click
+// here doesn't take effect on the actual bot instantly. This countdown
+// toast just sets that expectation instead of leaving the user assuming
+// the click did nothing.
+const STATUS_PROPAGATION_SECONDS = 20;
 
 export default function BotWorkspace() {
   const { botId } = useParams<{ botId: string }>();
@@ -22,6 +30,55 @@ export default function BotWorkspace() {
 
   const { data: bot, isLoading } = useGetBot(botId);
   const toggle = useToggleBotStatus();
+
+  // Tracks the in-flight countdown toast (if any) so a second click can
+  // clear the previous timer/toast instead of stacking two of them.
+  const countdownRef = useRef<{
+    intervalId: ReturnType<typeof setInterval>;
+    dismiss: () => void;
+  } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current.intervalId);
+        countdownRef.current.dismiss();
+      }
+    };
+  }, []);
+
+  function startStatusCountdown(status: "active" | "inactive") {
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current.intervalId);
+      countdownRef.current.dismiss();
+      countdownRef.current = null;
+    }
+
+    let remaining = STATUS_PROPAGATION_SECONDS;
+    const describe = (seconds: number) =>
+      (status === "active" ? t.botStartingCountdown : t.botStoppingCountdown).replace(
+        "{seconds}",
+        String(seconds)
+      );
+
+    const handle = toast({
+      title: status === "active" ? t.botStarted : t.botStopped,
+      description: describe(remaining),
+    });
+
+    const intervalId = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(intervalId);
+        handle.dismiss();
+        countdownRef.current = null;
+        return;
+      }
+      handle.update({ id: handle.id, description: describe(remaining) } as any);
+    }, 1000);
+
+    countdownRef.current = { intervalId, dismiss: handle.dismiss };
+  }
 
   if (isLoading) {
     return <div className="p-8 text-center animate-pulse">{t.loadingWorkspace}</div>;
@@ -39,9 +96,7 @@ export default function BotWorkspace() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetBotQueryKey(bot.id) });
           queryClient.invalidateQueries({ queryKey: getListBotsQueryKey() });
-          toast({
-            title: status === "active" ? t.botStarted : t.botStopped,
-          });
+          startStatusCountdown(status);
         },
         onError: (err: any) =>
           toast({ variant: "destructive", title: t.error, description: err?.message }),
