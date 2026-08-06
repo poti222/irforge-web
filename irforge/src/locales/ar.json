@@ -156,6 +156,7 @@
     "awaitingPaymentApproval": "بانتظار الموافقة على الدفع",
     "paymentRejected": "تم رفض الدفع",
     "sectionOverview": "نظرة عامة",
+    "sectionProfile": "ملف تعريف البوت",
     "sectionCommands": "الأوامر",
     "sectionPlugins": "الإضافات",
     "sectionStats": "الإحصائيات",
