@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { LayoutDashboard, Terminal, Blocks, Activity, Settings, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, IdCard, Terminal, Blocks, Activity, Settings, type LucideIcon } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/hooks/use-language";
@@ -10,12 +10,14 @@ import { CommandsEditor } from "@/components/bots/CommandsEditor";
 import { PluginsManager } from "@/components/bots/PluginsManager";
 import { BotStatsPanel } from "@/components/bots/BotStatsPanel";
 import { BotSettingsForm } from "@/components/bots/BotSettingsForm";
+import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import type { LocaleShape } from "@/hooks/use-translation";
 
-type SectionKey = "overview" | "commands" | "plugins" | "stats" | "settings";
+type SectionKey = "overview" | "profile" | "commands" | "plugins" | "stats" | "settings";
 
 const SECTION_META: { key: SectionKey; icon: LucideIcon; labelKey: keyof LocaleShape["botWorkspace"] }[] = [
   { key: "overview", icon: LayoutDashboard, labelKey: "sectionOverview" },
+  { key: "profile", icon: IdCard, labelKey: "sectionProfile" },
   { key: "commands", icon: Terminal, labelKey: "sectionCommands" },
   { key: "plugins", icon: Blocks, labelKey: "sectionPlugins" },
   { key: "stats", icon: Activity, labelKey: "sectionStats" },
@@ -96,6 +98,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
                 </Card>
               </div>
             )}
+            {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}
             {section === "stats" && <BotStatsPanel botId={bot.id} status={bot.status} />}
