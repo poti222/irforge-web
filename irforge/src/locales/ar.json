@@ -163,7 +163,9 @@
     "overviewTotalUsers": "المستخدمون",
     "overviewMessages": "الرسائل",
     "overviewCommands": "الأوامر",
-    "overviewPlugins": "الإضافات"
+    "overviewPlugins": "الإضافات",
+    "botStartingCountdown": "سيتم تشغيل البوت خلال {seconds} ثانية تقريبًا",
+    "botStoppingCountdown": "سيتم إيقاف البوت خلال {seconds} ثانية تقريبًا"
   },
   "marketplace": {},
   "wallet": {},
