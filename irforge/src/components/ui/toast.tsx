@@ -38,19 +38,150 @@ const toastVariants = cva(
   }
 )
 
+// Drives the orange auto-dismiss progress bar. Counts down `duration` ms of
+// real elapsed time, freezing (and later resuming from the same point,
+// rather than restarting) whenever `paused` is true. Remount this component
+// (via a changing `key` on the parent) to restart the countdown from full.
+function ToastAutoCloseBar({
+  duration,
+  paused,
+  onExpire,
+}: {
+  duration: number
+  paused: boolean
+  onExpire: () => void
+}) {
+  const [remainingRatio, setRemainingRatio] = React.useState(1)
+  const remainingMsRef = React.useRef(duration)
+  const lastTickRef = React.useRef(
+    typeof performance !== "undefined" ? performance.now() : Date.now()
+  )
+  const rafRef = React.useRef<number | undefined>(undefined)
+  const expiredRef = React.useRef(false)
+  const onExpireRef = React.useRef(onExpire)
+  onExpireRef.current = onExpire
+
+  React.useEffect(() => {
+    lastTickRef.current =
+      typeof performance !== "undefined" ? performance.now() : Date.now()
+
+    const tick = () => {
+      if (expiredRef.current) return
+
+      const now =
+        typeof performance !== "undefined" ? performance.now() : Date.now()
+
+      if (paused) {
+        // Freeze the clock while hovered; resume counting from "now" once
+        // the pointer leaves, instead of restarting from the beginning.
+        lastTickRef.current = now
+        rafRef.current = requestAnimationFrame(tick)
+        return
+      }
+
+      const elapsed = now - lastTickRef.current
+      lastTickRef.current = now
+      remainingMsRef.current -= elapsed
+
+      if (remainingMsRef.current <= 0) {
+        expiredRef.current = true
+        setRemainingRatio(0)
+        onExpireRef.current()
+        return
+      }
+
+      setRemainingRatio(remainingMsRef.current / duration)
+      rafRef.current = requestAnimationFrame(tick)
+    }
+
+    rafRef.current = requestAnimationFrame(tick)
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+    // Only `paused` should re-arm the loop; `duration` changes are handled
+    // by remounting this component via a changing `key` on the parent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paused])
+
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-foreground/10"
+      aria-hidden="true"
+    >
+      <div
+        className="h-full bg-orange-500"
+        style={{ width: `${remainingRatio * 100}%` }}
+      />
+    </div>
+  )
+}
+
 const Toast = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> &
-    VariantProps<typeof toastVariants>
->(({ className, variant, ...props }, ref) => {
-  return (
-    <ToastPrimitives.Root
-      ref={ref}
-      className={cn(toastVariants({ variant }), className)}
-      {...props}
-    />
-  )
-})
+    VariantProps<typeof toastVariants> & {
+      /**
+       * Whether to show the orange auto-dismiss progress bar and call
+       * onOpenChange(false) once it runs out. Defaults to true.
+       */
+      autoClose?: boolean
+      /** Auto-dismiss duration in ms. Defaults to 5000. */
+      duration?: number
+      /**
+       * Change this value to restart the auto-dismiss countdown from full,
+       * even though the toast's id stayed the same (e.g. once a 20s
+       * status-propagation countdown finishes and the final message is
+       * shown, the 5s auto-close should start fresh from that point).
+       */
+      autoCloseKey?: string | number
+    }
+>(
+  (
+    {
+      className,
+      variant,
+      autoClose = true,
+      duration = 5000,
+      autoCloseKey,
+      onOpenChange,
+      onMouseEnter,
+      onMouseLeave,
+      children,
+      ...props
+    },
+    ref
+  ) => {
+    const [paused, setPaused] = React.useState(false)
+
+    return (
+      <ToastPrimitives.Root
+        ref={ref}
+        className={cn(toastVariants({ variant }), className)}
+        onOpenChange={onOpenChange}
+        onMouseEnter={(event) => {
+          setPaused(true)
+          onMouseEnter?.(event)
+        }}
+        onMouseLeave={(event) => {
+          setPaused(false)
+          onMouseLeave?.(event)
+        }}
+        {...props}
+      >
+        {children}
+        {autoClose && (
+          <ToastAutoCloseBar
+            key={String(autoCloseKey ?? "default")}
+            duration={duration}
+            paused={paused}
+            onExpire={() => onOpenChange?.(false)}
+          />
+        )}
+      </ToastPrimitives.Root>
+    )
+  }
+)
 Toast.displayName = ToastPrimitives.Root.displayName
 
 const ToastAction = React.forwardRef<
