@@ -200,6 +200,8 @@ function formatBot(bot: any) {
     messageCount: bot.messageCount,
     sheetId: bot.sheetId ?? null,
     adminCode: bot.adminCode ?? null,
+    orderPhone: bot.orderPhone ?? null,
+    orderTelegramId: bot.orderTelegramId ?? null,
     paymentStatus: bot.paymentStatus,
     isTrial: bot.isTrial ?? false,
     trialExpiresAt: bot.trialExpiresAt ? bot.trialExpiresAt.toISOString() : null,
@@ -683,9 +685,15 @@ router.get("/payments/me", requireAuth, async (req: any, res) => {
 
 router.post("/bots/wallet-purchase", requireAuth, async (req: any, res) => {
   try {
-    const { name, token, description, amount } = req.body;
+    const { name, token, description, amount, phone, telegramId } = req.body;
     if (!name || !token) {
       res.status(400).json({ error: "Name and token are required" });
+      return;
+    }
+    // فیلدهای اطلاعات تماس سفارش (صفحه‌ی تسویه‌حساب /bots/cart) — اجباری هستن
+    // چون ممکنه با پروفایل کاربر فرق داشته باشن.
+    if (!phone || !telegramId) {
+      res.status(400).json({ error: "Phone and Telegram ID are required" });
       return;
     }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId)).limit(1);
@@ -710,6 +718,7 @@ router.post("/bots/wallet-purchase", requireAuth, async (req: any, res) => {
     const [bot] = await db.insert(botsTable).values({
       id: botId, name, description: description ?? null, token: encryptToken(token),
       userId: req.userId, status: "inactive", paymentStatus: "approved", sheetId, adminCode,
+      orderPhone: String(phone), orderTelegramId: String(telegramId),
     }).returning();
 
     await syncSheetTitle(sheetId, bot.name);
