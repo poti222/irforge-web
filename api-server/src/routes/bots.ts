@@ -12,6 +12,7 @@
  *   - DELETE /api/sheet-pool/:id: حذف شیت آزاد از pool (سوپرادمین)
  *   - POST /api/sheet-pool/:id/replace: جایگزینی شیت (آزاد یا assigned) با یک شیت دیگه
  *   - POST /api/sheet-pool/:id/release: خالی کردن دستی شیت (آزادسازی از هر باتی، برای دیتای قدیمی/گیر کرده)
+ *   - sheetTitleForBot/syncSheetTitle: عنوان شیت هر بات "irforge-{نام بات}" نگه داشته می‌شه، هر جا بات ساخته/رینیم/ری‌اساین بشه
  */
 
 import { logger } from "../lib/logger";
@@ -57,6 +58,28 @@ const router = Router();
 /** A Google Spreadsheet ID is ~20-60 chars of [A-Za-z0-9_-]. */
 function isValidSheetId(id: string): boolean {
   return /^[A-Za-z0-9_-]{20,120}$/.test(id);
+}
+
+// ─── Sheet title ↔ bot name sync ─────────────────────────────────────────────
+// هر شیتی که به یک بات اختصاص داده می‌شه باید اسمش "irforge-{نام بات}" باشه
+// (فاصله‌ها با خط‌تیره جایگزین می‌شن، مثلاً «کوزه سازان» → «irforge-کوزه-سازان»).
+// هر جا اسم بات تغییر کنه یا شیتش عوض بشه، باید این عنوان دوباره sync بشه —
+// همه‌ی محل‌هایی که شیت assign/replace می‌کنن یا اسم بات رو آپدیت می‌کنن این
+// helper رو صدا می‌زنن. Best-effort و non-fatal: اگه rename fail بشه (مثلاً
+// دسترسی گوگل قطع باشه)، فقط لاگ می‌کنیم و درخواست اصلی رو خراب نمی‌کنیم.
+
+function sheetTitleForBot(botName: string): string {
+  const slug = botName.trim().replace(/\s+/g, "-");
+  return `irforge-${slug}`;
+}
+
+async function syncSheetTitle(sheetId: string | null | undefined, botName: string) {
+  if (!sheetId) return;
+  try {
+    await renameSpreadsheet(sheetId, sheetTitleForBot(botName));
+  } catch (err) {
+    logger.warn({ err, sheetId }, "sheet title sync failed (non-fatal)");
+  }
 }
 
 const VALID_BOT_STATUSES = ["active", "inactive", "error", "pending_payment", "payment_rejected", "expired"] as const;
@@ -550,6 +573,8 @@ router.post("/bots/trial", requireAuth, async (req: any, res) => {
 
     await db.update(usersTable).set({ hasUsedTrial: true }).where(eq(usersTable.id, req.userId));
 
+    await syncSheetTitle(freeSheet.sheetId, bot.name);
+
     await db.insert(activityTable).values({
       id: crypto.randomUUID(),
       userId: req.userId,
@@ -671,6 +696,8 @@ router.post("/bots/wallet-purchase", requireAuth, async (req: any, res) => {
       id: botId, name, description: description ?? null, token: encryptToken(token),
       userId: req.userId, status: "inactive", paymentStatus: "approved", sheetId, adminCode,
     }).returning();
+
+    await syncSheetTitle(sheetId, bot.name);
 
     await db.insert(activityTable).values({
       id: crypto.randomUUID(), userId: req.userId, type: "bot_created",
@@ -806,6 +833,8 @@ router.post("/bots/:botId/approve-payment", requireSuperAdmin, async (req: any, 
       .update(paymentsTable)
       .set({ status: "approved", reviewedBy: req.userId, reviewNote: reviewNote ?? null })
       .where(eq(paymentsTable.botId, botId));
+
+    await syncSheetTitle(freeSheet.sheetId, updatedBot.name);
 
     // ۶. Sync tenant (ربط توکن بات به شیت) — bot-compatible shape
     const [tenantOwner] = await db
@@ -1195,6 +1224,8 @@ router.post("/sheet-pool/:id/replace", requireSuperAdmin, async (req: any, res) 
       if (bot) {
         await db.update(botsTable).set({ sheetId: trimmedSheetId }).where(eq(botsTable.id, bot.id));
 
+        await syncSheetTitle(trimmedSheetId, bot.name);
+
         const [tenantOwner] = await db
           .select({ telegramId: usersTable.telegramId })
           .from(usersTable)
@@ -1352,6 +1383,8 @@ router.post("/admin/bots", requireSuperAdmin, async (req: any, res) => {
       description: `Bot "${bot.name}" registered manually by an admin`,
       botName: bot.name,
     });
+
+    await syncSheetTitle(sheetId, bot.name);
 
     syncBotUpsert({
       id: bot.id, userId: bot.userId, name: bot.name, username: bot.username,
@@ -1542,6 +1575,8 @@ router.post("/admin/bots/:botId/resync", requireSuperAdmin, async (req: any, res
       await db.update(botsTable).set({ adminCode }).where(eq(botsTable.id, bot.id));
     }
 
+    await syncSheetTitle(bot.sheetId, bot.name);
+
     const [tenantOwner] = await db
       .select({ telegramId: usersTable.telegramId })
       .from(usersTable)
@@ -1673,6 +1708,9 @@ router.patch("/bots/:botId", requireAuth, async (req: any, res) => {
     if (!bot) {
       res.status(404).json({ error: "Bot not found" });
       return;
+    }
+    if (name !== undefined) {
+      await syncSheetTitle(bot.sheetId, bot.name);
     }
     syncBotUpsert({
       id: bot.id, userId: bot.userId, name: bot.name, username: bot.username,
@@ -1993,11 +2031,7 @@ router.post("/bots/:botId/sheet", requireBotOwnership, async (req: any, res) => 
 
     // 3. Rename the spreadsheet to match the bot (best-effort — don't fail the
     //    whole request if the title can't be changed).
-    try {
-      await renameSpreadsheet(sheetId, `IrForge — ${bot.name}`);
-    } catch (err) {
-      logger.warn({ err, sheetId }, "sheet rename failed (non-fatal)");
-    }
+    await syncSheetTitle(sheetId, bot.name);
 
     // 4. Point the bot at the new sheet.
     const [updatedBot] = await db
