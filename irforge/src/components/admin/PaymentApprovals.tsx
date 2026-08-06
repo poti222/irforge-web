@@ -5,13 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Check, X, Loader2, Inbox, ExternalLink, Wallet as WalletIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
 
 type PendingPayment = {
-  payment: { id: string; receiptUrl: string | null; description: string | null; status: string; createdAt: string };
+  payment: { id: string; botId: string | null; receiptUrl: string | null; description: string | null; status: string; createdAt: string };
   bot: { id: string; name: string; status: string } | null;
   user: { id: string; name: string; email: string; telegramId: string | null } | null;
 };
@@ -90,7 +91,9 @@ export function PaymentApprovals() {
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
-            {pending!.map(({ payment, bot, user }) => (
+            {pending!.map(({ payment, bot, user }) => {
+              const botId = payment.botId ?? bot?.id ?? null;
+              return (
               <Card key={payment.id}>
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center justify-between text-base">
@@ -101,24 +104,32 @@ export function PaymentApprovals() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {payment.receiptUrl && (
-                    <a href={payment.receiptUrl} target="_blank" rel="noreferrer" className="block">
-                      <img src={payment.receiptUrl} alt="receipt" className="max-h-48 w-full rounded-md border object-contain bg-muted" />
-                      <span className="mt-1 flex items-center gap-1 text-xs text-primary"><ExternalLink className="h-3 w-3" /> {fa ? "مشاهده اصل" : "Open full"}</span>
-                    </a>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button type="button" className="block w-full text-start">
+                          <img src={payment.receiptUrl} alt="receipt" className="max-h-48 w-full rounded-md border object-contain bg-muted" />
+                          <span className="mt-1 flex items-center gap-1 text-xs text-primary"><ExternalLink className="h-3 w-3" /> {fa ? "مشاهده اصل" : "Open full"}</span>
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-3xl">
+                        <img src={payment.receiptUrl} alt="receipt" className="max-h-[80vh] w-full rounded-md object-contain" />
+                      </DialogContent>
+                    </Dialog>
                   )}
                   {payment.description && <p className="rounded-md bg-muted/50 p-2 text-sm">{payment.description}</p>}
-                  <Input placeholder={fa ? "یادداشت (اختیاری)" : "Review note (optional)"} value={notes[bot?.id ?? ""] ?? ""} onChange={(e) => bot && setNotes({ ...notes, [bot.id]: e.target.value })} />
+                  <Input placeholder={fa ? "یادداشت (اختیاری)" : "Review note (optional)"} value={notes[botId ?? ""] ?? ""} onChange={(e) => botId && setNotes({ ...notes, [botId]: e.target.value })} />
                   <div className="flex gap-2">
-                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={!bot || busyId !== null} onClick={() => bot && actBot(bot.id, "approve")}>
-                      {busyId === "bot:" + (bot?.id ?? "") + "approve" ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Check className="me-2 h-4 w-4" />}{fa ? "تأیید" : "Approve"}
+                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={!botId || busyId !== null} onClick={() => botId && actBot(botId, "approve")}>
+                      {busyId === "bot:" + (botId ?? "") + "approve" ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Check className="me-2 h-4 w-4" />}{fa ? "تأیید" : "Approve"}
                     </Button>
-                    <Button variant="destructive" className="flex-1" disabled={!bot || busyId !== null} onClick={() => bot && actBot(bot.id, "reject")}>
-                      {busyId === "bot:" + (bot?.id ?? "") + "reject" ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <X className="me-2 h-4 w-4" />}{fa ? "رد" : "Reject"}
+                    <Button variant="destructive" className="flex-1" disabled={!botId || busyId !== null} onClick={() => botId && actBot(botId, "reject")}>
+                      {busyId === "bot:" + (botId ?? "") + "reject" ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <X className="me-2 h-4 w-4" />}{fa ? "رد" : "Reject"}
                     </Button>
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -146,9 +157,16 @@ export function PaymentApprovals() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {d.receiptUrl && (
-                    <a href={d.receiptUrl} target="_blank" rel="noreferrer" className="block">
-                      <img src={d.receiptUrl} alt="receipt" className="max-h-40 w-full rounded-md border object-contain bg-muted" />
-                    </a>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button type="button" className="block w-full text-start">
+                          <img src={d.receiptUrl} alt="receipt" className="max-h-40 w-full rounded-md border object-contain bg-muted" />
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-3xl">
+                        <img src={d.receiptUrl} alt="receipt" className="max-h-[80vh] w-full rounded-md object-contain" />
+                      </DialogContent>
+                    </Dialog>
                   )}
                   {d.txHash && <p className="break-all rounded-md bg-muted/50 p-2 font-mono text-xs" dir="ltr">{d.txHash}</p>}
                   <Input placeholder={fa ? "یادداشت (اختیاری)" : "Review note (optional)"} value={notes[d.id] ?? ""} onChange={(e) => setNotes({ ...notes, [d.id]: e.target.value })} />
