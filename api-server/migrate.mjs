@@ -342,6 +342,11 @@ CREATE TABLE IF NOT EXISTS notifications (
 CREATE INDEX IF NOT EXISTS notifications_user_id_idx ON notifications(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS notifications_dedupe_idx
   ON notifications(user_id, dedupe_key) WHERE dedupe_key IS NOT NULL;
+
+-- ─── CHECKOUT ORDER CONTACT (/bots/cart) ───────────────────────────────────
+-- Per-order phone/Telegram ID, which may differ from the buyer's own profile.
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS order_phone TEXT;
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS order_telegram_id TEXT;
 `;
 
 async function migrate() {
