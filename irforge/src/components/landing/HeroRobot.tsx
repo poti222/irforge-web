@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useLanguage } from "@/hooks/use-language";
+import { useIsMobileViewport } from "./use-is-mobile-viewport";
 
 /**
  * W9 / delight: animated hero version of the shared OrangeRobot mark. Rebuilt
@@ -14,8 +15,14 @@ import { useLanguage } from "@/hooks/use-language";
  */
 export function HeroRobot({ className }: { className?: string }) {
   const reduce = useReducedMotion();
+  const isMobile = useIsMobileViewport();
   const { lang } = useLanguage();
   const fa = lang === "fa";
+
+  // `reduce` kills everything; `noLoops` additionally kills the infinite
+  // antenna pulse on phones, where the mascot must settle after its mount
+  // animation and then stay completely still.
+  const noLoops = reduce || isMobile;
 
   // One-shot greeting window on mount (skipped entirely under reduced-motion).
   const [greeting, setGreeting] = useState(!reduce);
@@ -36,7 +43,7 @@ export function HeroRobot({ className }: { className?: string }) {
   // Body float animation removed per product decision — hero stays static, no bobbing.
   const float = {};
 
-  const glow = reduce
+  const glow = noLoops
     ? {}
     : { animate: { opacity: [0.6, 1, 0.6] }, transition: { duration: 2.5, ease: "easeInOut" as const, repeat: Infinity } };
 
@@ -91,7 +98,7 @@ export function HeroRobot({ className }: { className?: string }) {
           {/* head group — antenna, ears, head, eyes, smile all tilt together, twice, on mount */}
           <motion.g {...headTilt}>
             {/* antenna + soft glow halo */}
-            {!reduce && (
+            {!noLoops && (
               <motion.circle
                 cx="24" cy="6" r="5.5" fill="currentColor"
                 style={{ transformBox: "fill-box", transformOrigin: "center" }}
