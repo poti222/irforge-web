@@ -50,20 +50,30 @@
 
     <!--
       FIX [lang]: تنظیم زبان و جهت — قبل از render اجرا می‌شه.
-      اگه کاربر زبان fa انتخاب کرده → dir=rtl + lang=fa
-      اگه en → dir=ltr + lang=en
-      پیش‌فرض: fa/rtl
+
+      این سه لیست باید همیشه با src/lib/i18n.ts یکی بمونن:
+        VALID   ← LANGUAGES
+        RTL     ← RTL_LANGS  (fa و ar — نه فقط fa)
+        DEFAULT ← DEFAULT_LANG
+      اگه از هم جدا بشن، صفحه با dir اشتباه لود می‌شه و تا وقتی کاربر
+      دستی زبان رو عوض نکنه همون‌طور می‌مونه (باگ قبلی: عربی با dir=ltr
+      لود می‌شد، و بازدید اول با محتوای انگلیسی ولی dir=rtl).
     -->
     <script>
       (function () {
+        var VALID = ["en", "fa", "ar", "tr", "ru"];
+        var RTL = ["fa", "ar"];
+        var DEFAULT = "en";
+        var stored = null;
         try {
-          var lang = localStorage.getItem("irforge_lang") || "fa";
-          var html = document.documentElement;
-          html.setAttribute("lang", lang);
-          html.setAttribute("dir", lang === "fa" ? "rtl" : "ltr");
+          stored = localStorage.getItem("irforge_lang");
         } catch (e) {
-          // localStorage بلاک — fa/rtl پیش‌فرض (همون مقدار html tag)
+          // localStorage بلاک — می‌ریم سراغ پیش‌فرض
         }
+        var lang = VALID.indexOf(stored) !== -1 ? stored : DEFAULT;
+        var html = document.documentElement;
+        html.setAttribute("lang", lang);
+        html.setAttribute("dir", RTL.indexOf(lang) !== -1 ? "rtl" : "ltr");
       })();
     </script>
 
