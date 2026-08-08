@@ -85,11 +85,8 @@ const fadeUp = {
 
 export default function Docs() {
   const t = useT("common");
-  useSEO({
-    title: "مستندات IrForge | راهنمای ساخت ربات تلگرام با SDK",
-    description:
-      "مستندات کامل IrForge برای ساخت ربات تلگرام: شروع سریع، تعریف دستورات با آرگومان، نوشتن پلاگین و آشنایی با پنل مدیریت.",
-  });
+  const seo = useT("seo");
+  useSEO({ title: seo.docsTitle, description: seo.docsDescription, route: "/docs" });
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
