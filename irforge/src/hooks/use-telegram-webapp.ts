@@ -14,7 +14,8 @@ export interface TelegramWebAppUser {
 }
 
 export function useTelegramWebApp() {
-  const tg = (window as any).Telegram?.WebApp;
+  // guarded so the hook is safe to pull into the prerender bundle
+  const tg = typeof window === "undefined" ? undefined : (window as any).Telegram?.WebApp;
 
   const isInsideTelegram = Boolean(tg?.initData && tg.initData.length > 0);
   const user: TelegramWebAppUser | null = tg?.initDataUnsafe?.user ?? null;
