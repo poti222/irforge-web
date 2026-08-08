@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>IrForge — OG image generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700;800&display=swap" rel="stylesheet" />
+    <style>
+      body { font-family: Inter, sans-serif; background: #111; color: #eee; margin: 0; padding: 32px; }
+      h1 { font-size: 20px; margin: 0 0 6px; }
+      p { color: #aaa; font-size: 14px; margin: 0 0 24px; max-width: 70ch; line-height: 1.6; }
+      code { background: #222; padding: 2px 6px; border-radius: 4px; }
+      .card { margin-bottom: 28px; }
+      .card h2 { font-size: 14px; color: #fb923c; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .08em; }
+      canvas { width: 600px; max-width: 100%; display: block; border: 1px solid #333; border-radius: 8px; }
+      a.dl { display: inline-block; margin-top: 8px; background: #ea580c; color: #fff; text-decoration: none;
+             padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 600; }
+      #all { background: #ea580c; color: #fff; border: 0; padding: 10px 20px; border-radius: 6px;
+             font-size: 14px; font-weight: 600; cursor: pointer; margin-bottom: 24px; }
+    </style>
+  </head>
+  <body>
+    <h1>OG image generator</h1>
+    <p>
+      Open this file in a browser and click <strong>Download all</strong>. Put the five PNGs in
+      <code>irforge/public/og/</code> keeping their filenames. The build picks them up automatically —
+      each language's page then points <code>og:image</code> at its own card, and any language whose file
+      is missing falls back to <code>/og-image.png</code>, so a partial set is safe to ship.
+      Replace these with proper artwork whenever a designer has time; only the filenames matter.
+    </p>
+    <button id="all">Download all</button>
+    <div id="out"></div>
+
+    <script>
+      const W = 1200, H = 630;
+      const SPECS = {
+        fa: { rtl: true,  font: "Vazirmatn", l1: "ساخت ربات تلگرام",   l2: "بدون کدنویسی",             sub: "پلتفرم حرفه‌ای ساخت ربات تلگرام" },
+        en: { rtl: false, font: "Inter",     l1: "The professional",   l2: "Telegram Bot Platform",    sub: "Build and scale bots — no code required" },
+        ar: { rtl: true,  font: "Vazirmatn", l1: "المنصة الاحترافية",  l2: "لبوتات تيليجرام",          sub: "أنشئ بوتات تيليجرام دون كتابة أي كود" },
+        tr: { rtl: false, font: "Inter",     l1: "Profesyonel",        l2: "Telegram Bot Platformu",   sub: "Kod yazmadan Telegram botu oluşturun" },
+        ru: { rtl: false, font: "Inter",     l1: "Профессиональная",   l2: "платформа Telegram-ботов", sub: "Создавайте ботов без единой строки кода" },
+      };
+
+      function draw(canvas, s) {
+        canvas.width = W; canvas.height = H;
+        const x = canvas.getContext("2d");
+        // Flat blocks only, no gradients: keeps the palette small so each PNG
+        // lands around 55-65 kB instead of ~470 kB.
+        x.fillStyle = "#0a0a0a"; x.fillRect(0, 0, W, H);
+        x.fillStyle = "#ea580c"; x.fillRect(0, 0, W, 10);
+        x.fillStyle = "#141414"; x.fillRect(s.rtl ? 0 : 1010, 0, 190, H);
+        x.fillStyle = "#ea580c"; x.fillRect(s.rtl ? 186 : 1010, 0, 4, H);
+
+        const edge = s.rtl ? 1120 : 80;
+        x.direction = s.rtl ? "rtl" : "ltr";
+        x.textAlign = s.rtl ? "right" : "left";
+
+        x.fillStyle = "#ea580c";
+        x.font = `700 30px ${s.font}, sans-serif`;
+        x.fillText("IrForge", edge, 140);
+        x.fillStyle = "#ffffff";
+        x.font = `800 76px ${s.font}, sans-serif`;
+        x.fillText(s.l1, edge, 285);
+        x.fillStyle = "#fb923c";
+        x.fillText(s.l2, edge, 380);
+        x.fillStyle = "rgba(255,255,255,0.7)";
+        x.font = `400 29px ${s.font}, sans-serif`;
+        x.fillText(s.sub, edge, 462);
+        x.fillStyle = "rgba(255,255,255,0.42)";
+        x.font = "500 25px Inter, sans-serif";
+        x.fillText("irforge.ir", edge, 548);
+      }
+
+      function save(canvas, lang) {
+        const a = document.createElement("a");
+        a.href = canvas.toDataURL("image/png");
+        a.download = `og-${lang}.png`;
+        a.click();
+      }
+
+      const canvases = {};
+      document.fonts.ready.then(() => {
+        const out = document.getElementById("out");
+        for (const [lang, s] of Object.entries(SPECS)) {
+          const wrap = document.createElement("div");
+          wrap.className = "card";
+          wrap.innerHTML = `<h2>${lang} — og-${lang}.png</h2>`;
+          const c = document.createElement("canvas");
+          draw(c, s);
+          canvases[lang] = c;
+          wrap.appendChild(c);
+          const dl = document.createElement("a");
+          dl.className = "dl";
+          dl.href = "#";
+          dl.textContent = `Download og-${lang}.png`;
+          dl.onclick = (e) => { e.preventDefault(); save(c, lang); };
+          wrap.appendChild(dl);
+          out.appendChild(wrap);
+        }
+      });
+
+      document.getElementById("all").onclick = () => {
+        Object.entries(canvases).forEach(([lang, c], i) =>
+          setTimeout(() => save(c, lang), i * 400)
+        );
+      };
+    </script>
+  </body>
+</html>
