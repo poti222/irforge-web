@@ -23,9 +23,18 @@
     <meta name="twitter:title" content="IrForge | ساخت ربات تلگرام بدون کدنویسی" />
     <meta name="twitter:description" content="با IrForge بدون نیاز به کدنویسی ربات تلگرام بسازید؛ پلاگین نصب کنید، دستورات دلخواه تعریف کنید و ربات خود را در چند دقیقه راه‌اندازی، شخصی‌سازی و مدیریت کنید." />
     <meta name="twitter:image" content="https://irforge.ir/og-image.png?v=2" />
+    <!--
+      Google's favicon crawler wants a square icon that is a multiple of 48px;
+      favicon-96.png covers that. The brand icon shown next to a search result
+      comes from Organization.logo in the JSON-LD (a square 1254x1254), not
+      from these tags — see src/lib/structured-data.ts.
+
+      /favicon.png is intentionally NOT linked as a browser icon: it is 909 kB
+      and browsers would fetch it for a 16px tab slot.
+    -->
     <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
     <!--
       NOTE [hreflang]: the language switcher (en/fa/ar/tr/ru) swaps content
@@ -53,8 +62,9 @@
 
       این سه لیست باید همیشه با src/lib/i18n.ts یکی بمونن:
         VALID   ← LANGUAGES
-        RTL     ← RTL_LANGS  (fa و ar — نه فقط fa)
-        DEFAULT ← DEFAULT_LANG
+        RTL     ← RTL_LANGS   (fa و ar — نه فقط fa)
+        DEFAULT ← DEFAULT_LANG (fa — زبانِ ریشه، هم‌راستا با تگ استاتیک
+                  <html lang="fa" dir="rtl"> و og:locale=fa_IR بالاتر)
       اگه از هم جدا بشن، صفحه با dir اشتباه لود می‌شه و تا وقتی کاربر
       دستی زبان رو عوض نکنه همون‌طور می‌مونه (باگ قبلی: عربی با dir=ltr
       لود می‌شد، و بازدید اول با محتوای انگلیسی ولی dir=rtl).
@@ -63,14 +73,17 @@
       (function () {
         var VALID = ["en", "fa", "ar", "tr", "ru"];
         var RTL = ["fa", "ar"];
-        var DEFAULT = "en";
-        var stored = null;
-        try {
-          stored = localStorage.getItem("irforge_lang");
-        } catch (e) {
-          // localStorage بلاک — می‌ریم سراغ پیش‌فرض
-        }
-        var lang = VALID.indexOf(stored) !== -1 ? stored : DEFAULT;
+        var DEFAULT = "fa";
+
+        // ترتیب دقیقاً همون readInitialLang() در src/hooks/use-language.ts:
+        // پیشوند زبان در URL هست → همون، نیست → زبان ریشه. عمداً اینجا
+        // localStorage خونده نمی‌شه: URL تعیین‌کننده‌ست، و اگه کاربر زبان
+        // دیگه‌ای ذخیره کرده باشه، خودِ اپ (useCanonicalLangPath) اونو به URL
+        // زبان خودش ریدایرکت می‌کنه. اگه اینجا localStorage رو می‌خوندیم،
+        // `/` یه فریم با lang/dir انگلیسی ولی محتوای فارسی رنگ می‌شد.
+        var seg = (location.pathname.split("/")[1] || "").toLowerCase();
+        var lang = VALID.indexOf(seg) !== -1 ? seg : DEFAULT;
+
         var html = document.documentElement;
         html.setAttribute("lang", lang);
         html.setAttribute("dir", RTL.indexOf(lang) !== -1 ? "rtl" : "ltr");
