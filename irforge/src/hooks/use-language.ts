@@ -1,6 +1,8 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { navigate } from "wouter/use-browser-location";
 import { useRunViewTransition } from "./use-view-transition";
 import { type Lang, DEFAULT_LANG, LANGUAGES, isRtlLang, isValidLang } from "@/lib/i18n";
+import { langHref, splitLangPrefix } from "@/lib/lang-routing";
 
 // برای سازگاری با کدهای قدیمی که Lang رو از همینجا import می‌کردن
 export type { Lang };
@@ -17,13 +19,33 @@ function applyLangAttributes(lang: Lang) {
   } catch (_) {}
 }
 
+/**
+ * زبانِ رندر **فقط** از روی URL تعیین می‌شه.
+ *
+ * قبلاً اگه URL پیشوند نداشت، انتخاب ذخیره‌شده رو برمی‌گردوند — و همین یه باگ
+ * جدی می‌ساخت: زبان، `base` روتر رو تعیین می‌کنه، پس کاربری که قبلاً انگلیسی
+ * انتخاب کرده بود و بعد به `/` سر می‌زد، base=/en می‌گرفت در حالی که URL
+ * پیشوند نداشت؛ wouter هیچ روتی رو match نمی‌کرد و **صفحه سفید** می‌شد.
+ *
+ * حالا: پیشوند هست → همون زبان، نیست → زبان ریشه. اینطوری base و URL هیچ‌وقت
+ * نمی‌تونن با هم اختلاف داشته باشن. انتخاب ذخیره‌شده از بین نمی‌ره — توی
+ * useStoredLangRedirect (در App.tsx) کاربر رو به URL زبان خودش می‌فرسته.
+ */
 function readInitialLang(): Lang {
+  if (typeof window !== "undefined") {
+    const fromUrl = splitLangPrefix(window.location.pathname).lang;
+    if (fromUrl) return fromUrl;
+  }
+  return DEFAULT_LANG;
+}
+
+/** انتخاب ذخیره‌شده‌ی کاربر (اگه معتبر باشه) — فقط برای ریدایرکت. */
+export function readStoredLang(): Lang | null {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    // زبان پیش‌فرض سایت: انگلیسی — تا وقتی کاربر خودش چیز دیگه‌ای انتخاب نکرده
-    return isValidLang(stored) ? stored : DEFAULT_LANG;
+    return isValidLang(stored) ? stored : null;
   } catch (_) {
-    return DEFAULT_LANG;
+    return null;
   }
 }
 
@@ -56,17 +78,43 @@ function commitLang(next: Lang) {
   listeners.forEach((listener) => listener());
 }
 
+/**
+ * SSG only. Sets the language for a server render without touching document
+ * or localStorage (neither exists in Node). The prerender script calls this
+ * once per language before renderToString.
+ */
+export function setRenderLang(next: Lang) {
+  currentLang = next;
+}
+
 export function useLanguage() {
-  const lang = useSyncExternalStore(subscribe, getSnapshot);
+  // third arg = server snapshot; during the build-time render there's no
+  // subscription, the language is whatever setRenderLang() put in the store
+  const lang = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const runViewTransition = useRunViewTransition();
 
   const setLang = useCallback(
     (next: Lang) => {
+      // The URL carries the language, so switching language is a navigation:
+      // strip whatever prefix the current path has and re-apply the new one.
+      // Without this the content would change but the URL (and therefore the
+      // canonical/hreflang the page advertises) would still claim the old
+      // language.
+      const target =
+        typeof window === "undefined"
+          ? null
+          : langHref(next, splitLangPrefix(window.location.pathname).path) +
+            window.location.search +
+            window.location.hash;
+
       // W3: crossfade+scale the page across every language flip
       // (including RTL<->LTR when fa/ar are involved) instead of an instant flash.
       runViewTransition(
         () => {
           commitLang(next);
+          // same tick as commitLang so React batches them into one render —
+          // the router base and the URL must never disagree, even briefly
+          if (target) navigate(target);
         },
         () => {
           document.documentElement.animate(
