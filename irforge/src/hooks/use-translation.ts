@@ -1,17 +1,23 @@
 import { useLanguage } from "@/hooks/use-language";
+import type { Lang } from "@/lib/i18n";
 import en from "@/locales/en.json";
 import fa from "@/locales/fa.json";
 import ar from "@/locales/ar.json";
 import tr from "@/locales/tr.json";
 import ru from "@/locales/ru.json";
 
+export type LocaleShape = typeof en;
+export type Namespace = keyof LocaleShape;
+
 // یک آبجکت واحد که هر ۵ زبان رو نگه می‌داره — استاتیک import شده، بدون
 // درخواست شبکه‌ی اضافه (فایل‌های locale کوچیک‌اند، توسط bundler خودِ vite
 // در build نهایی inline می‌شن).
-const LOCALES = { en, fa, ar, tr, ru } as const;
-
-export type LocaleShape = typeof en;
-export type Namespace = keyof LocaleShape;
+//
+// نوعش صریحاً Record<Lang, LocaleShape> است، نه استنتاجِ خودکار: با استنتاج،
+// هر زبان نوع مستقل خودش رو می‌گرفت و LOCALES[lang][namespace] یه union از
+// ۵ آبجکت بزرگ می‌ساخت. بعد از اضافه شدن namespaceهای seo و faq، همین union
+// از حد TypeScript رد شد و خطای TS2590 داد.
+const LOCALES: Record<Lang, LocaleShape> = { en, fa, ar, tr, ru };
 
 /**
  * useT(namespace): کلیدهای همون namespace رو برای زبان جاری برمی‌گردونه.
