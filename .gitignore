@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-ssg/
+.ssg-template.html
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# TypeScript incremental build caches
+*.tsbuildinfo
