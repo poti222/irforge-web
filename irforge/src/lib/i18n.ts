@@ -1,7 +1,16 @@
 export type Lang = "en" | "fa" | "ar" | "tr" | "ru";
 
-// زبان پیش‌فرض سایت
-export const DEFAULT_LANG: Lang = "en";
+// زبان پیش‌فرض سایت — فارسی.
+//
+// این مقدار «زبانِ ریشه» هم هست: irforge.ir/ بدون پیشوند فارسی سِرو می‌شه و
+// بقیه‌ی زبان‌ها زیر پیشوند خودشون میان (/en/, /tr/, /ru/, /ar/). دلیلش
+// محتوا و رتبه‌ی فعلی سایت روی عبارت‌های فارسیه.
+//
+// هر جایی که این مقدار عوض بشه، این‌ها هم باید هم‌زمان عوض بشن:
+//   - تگ استاتیک <html lang dir> در irforge/index.html
+//   - مقدار DEFAULT در اسکریپت تشخیص زبانِ همون فایل
+//   - og:locale و title/description پیش‌فرض در همون فایل
+export const DEFAULT_LANG: Lang = "fa";
 
 // زبان‌هایی که راست‌به‌چپ (RTL) هستن
 export const RTL_LANGS: readonly Lang[] = ["fa", "ar"];
