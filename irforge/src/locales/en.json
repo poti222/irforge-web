@@ -197,5 +197,28 @@
   "profile": {},
   "support": {},
   "admin": {},
-  "botLanguageSettings": {}
+  "botLanguageSettings": {},
+  "seo": {
+    "homeTitle": "Build a Telegram Bot Without Code | IrForge",
+    "homeDescription": "Create, deploy and manage Telegram bots without writing code. Install plugins, define custom commands, and launch your bot in minutes with IrForge.",
+    "docsTitle": "IrForge Docs | Telegram Bot Builder Guide & SDK",
+    "docsDescription": "Complete IrForge documentation: quick start, defining commands with arguments, writing plugins, and finding your way around the management panel.",
+    "navHome": "Home",
+    "navDocs": "Documentation",
+    "keywords": "build a telegram bot, telegram bot builder, no-code telegram bot, create telegram bot free, telegram bot maker, how to make a telegram bot, telegram shop bot, telegram automation, IrForge"
+  },
+  "faq": {
+    "title": "Frequently asked questions",
+    "subtitle": "What you need to know about building a Telegram bot on IrForge.",
+    "q1": "How do I make a Telegram bot without coding?",
+    "a1": "Get a token from BotFather and paste it into IrForge. The webhook, profile and hosting are handled for you, so you can create a Telegram bot without writing a line of code. If you do write code, you can drop down to it for command logic whenever you want.",
+    "q2": "Is it free to create a Telegram bot here?",
+    "a2": "Yes — you can start free and build and test your first bot without a credit card. Paid plans add more bots and more capacity.",
+    "q3": "How long does it take to set up the bot builder?",
+    "a3": "Usually a few minutes. Your bot goes live as soon as the token is in; after that you add commands, install plugins, and publish changes with no downtime.",
+    "q4": "Can I build a store or support bot?",
+    "a4": "Yes. Custom commands plus payment, moderation and AI-reply plugins cover shop bots, customer-support bots and most other workflows.",
+    "q5": "Where do I learn how to build a Telegram bot?",
+    "a5": "Start with the documentation: quick start, defining commands with arguments, and writing a plugin are all covered with working examples."
+  }
 }
