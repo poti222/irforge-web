@@ -1,23 +1,54 @@
 User-agent: *
 Allow: /
+
+# Public, indexable pages. Persian is the root language (no prefix); every
+# other language lives under its own prefix and has its own prerendered HTML.
 Allow: /docs
+Allow: /en/
+Allow: /tr/
+Allow: /ru/
+Allow: /ar/
+
+# Everything below is behind auth or is an auth screen. Each path is listed
+# twice: bare, and under any language prefix — /en/dashboard became a real
+# URL when the site moved to per-language routes, and "Disallow: /dashboard"
+# does not match it.
+#
+# This list is checked against PRIVATE_ROUTES in src/lib/lang-routing.ts at
+# build time; scripts/ssg.mjs fails the build if the two drift apart.
 Disallow: /dashboard
+Disallow: /*/dashboard
 Disallow: /bots
+Disallow: /*/bots
 Disallow: /marketplace
+Disallow: /*/marketplace
 Disallow: /themes
+Disallow: /*/themes
 Disallow: /plans
+Disallow: /*/plans
 Disallow: /invoices
+Disallow: /*/invoices
 Disallow: /tickets
+Disallow: /*/tickets
 Disallow: /wallet
+Disallow: /*/wallet
 Disallow: /support
+Disallow: /*/support
 Disallow: /language
+Disallow: /*/language
 Disallow: /database
+Disallow: /*/database
 Disallow: /profile
+Disallow: /*/profile
 Disallow: /admin
-Disallow: /admin/*
+Disallow: /*/admin
 Disallow: /login
+Disallow: /*/login
 Disallow: /register
+Disallow: /*/register
 Disallow: /forgot-password
+Disallow: /*/forgot-password
 Disallow: /reset-password
+Disallow: /*/reset-password
 
 Sitemap: https://irforge.ir/sitemap.xml
