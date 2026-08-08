@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
+import { navigate } from "wouter/use-browser-location";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -43,8 +45,12 @@ import { BrandHomeButton } from "@/components/layout/brand-home";
 import { HeaderControls } from "@/components/layout/header-controls";
 import { Spinner } from "@/components/ui/spinner";
 import ErrorBoundary from "@/components/error-boundary";
+import { readStoredLang, useLanguage } from "@/hooks/use-language";
+import { DEFAULT_LANG, type Lang } from "@/lib/i18n";
+import { langHref, langPrefix, splitLangPrefix } from "@/lib/lang-routing";
 
-const queryClient = new QueryClient({
+// exported so the prerender entry can seed it (logged-out) before rendering
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
@@ -157,13 +163,62 @@ function Router() {
   );
 }
 
-function App() {
+/**
+ * Keeps the URL and the render language in agreement, in both directions:
+ *
+ *  - `/fa/...` is not a canonical URL (Persian lives at the root), so rewrite
+ *    it to the unprefixed form — one page, one URL.
+ *  - An unprefixed URL always renders the root language. If the visitor has
+ *    previously chosen another one, send them to that language's URL instead
+ *    of quietly rendering it at the wrong path. Crawlers have no
+ *    localStorage, so they never take this branch and always get Persian at
+ *    `/` — which is exactly what the canonical claims.
+ *
+ * Both use `replace`, so neither adds a history entry to get stuck on.
+ */
+function useCanonicalLangPath(setLang: (lang: Lang) => void) {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const { search, hash } = window.location;
+    const { lang, path } = splitLangPrefix(window.location.pathname);
+
+    if (lang === DEFAULT_LANG) {
+      // same language, different path — a plain navigation is enough
+      navigate(langHref(DEFAULT_LANG, path) + search + hash, { replace: true });
+      return;
+    }
+    if (!lang) {
+      const stored = readStoredLang();
+      if (stored && stored !== DEFAULT_LANG) {
+        // Must go through setLang, not navigate: the language drives the
+        // router base, so moving the URL to /en/ without committing the
+        // language would leave base="" against a prefixed URL and match
+        // nothing — a 404 on the visitor's own homepage.
+        setLang(stored);
+      }
+    }
+    // mount-only on purpose: this reconciles the entry URL, and setLang owns
+    // every later change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
+function App({ ssrPath }: { ssrPath?: string } = {}) {
+  const { lang, setLang } = useLanguage();
+  useCanonicalLangPath(setLang);
+
+  // Everything below the router lives under the language prefix, so every
+  // existing <Link href="/docs"> keeps the visitor in their language without
+  // a single call site changing. App routes come along for the ride
+  // (/en/dashboard) — robots.txt disallows both the bare and prefixed forms.
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "") + langPrefix(lang);
+
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <WouterRouter base={base} ssrPath={ssrPath}>
               <AuthProvider>
                 <CartProvider>
                   <Router />
