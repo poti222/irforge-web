@@ -27,11 +27,13 @@ import { HeroRobot } from "@/components/landing/HeroRobot";
 import { BotChatMockup } from "@/components/landing/BotChatMockup";
 import { MiniAnalyticsChart } from "@/components/landing/MiniAnalyticsChart";
 import { PluginRail } from "@/components/landing/PluginRail";
+import { FaqSection } from "@/components/landing/FaqSection";
 import { useIsMobileViewport } from "@/components/landing/use-is-mobile-viewport";
 import { RevealItem, VIEWPORT_ONCE, revealContainer, revealItem } from "@/components/landing/motion";
 import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { useT } from "@/hooks/use-translation";
+import { useSEO } from "@/hooks/use-seo";
 import { useMotionDirection } from "@/hooks/use-motion-direction";
 
 /**
@@ -45,6 +47,11 @@ type LandingStat = { value: string; label: string };
 export default function Landing() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const tr = useT("landing");
+  const seo = useT("seo");
+
+  // Keeps the client-side title/description in step with the prerendered head
+  // when the visitor switches language without a reload.
+  useSEO({ title: seo.homeTitle, description: seo.homeDescription, route: "/" });
 
   const reduce = useReducedMotion();
   const isMobile = useIsMobileViewport();
@@ -367,6 +374,10 @@ export default function Landing() {
             </motion.div>
           </div>
         </section>
+
+        {/* ── FAQ ─────────────────────────────────────────────────────────
+            Also the source of the FAQPage schema on this page. */}
+        <FaqSection reduce={!!reduce} stagger={reduce || isMobile ? 0 : 0.08} />
 
         {/* ── CTA ─────────────────────────────────────────────────────────── */}
         <motion.section
