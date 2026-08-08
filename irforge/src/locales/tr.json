@@ -197,5 +197,28 @@
   "profile": {},
   "support": {},
   "admin": {},
-  "botLanguageSettings": {}
+  "botLanguageSettings": {},
+  "seo": {
+    "homeTitle": "Kodsuz Telegram Bot Yapma | IrForge",
+    "homeDescription": "Kod yazmadan Telegram botu oluşturun, yayınlayın ve yönetin. Eklenti kurun, özel komutlar tanımlayın ve botunuzu dakikalar içinde çalıştırın.",
+    "docsTitle": "IrForge Dokümantasyon | Telegram Bot Yapma Rehberi",
+    "docsDescription": "Eksiksiz IrForge dokümantasyonu: hızlı başlangıç, argümanlı komut tanımlama, eklenti yazma ve yönetim paneli rehberi.",
+    "navHome": "Ana sayfa",
+    "navDocs": "Dokümantasyon",
+    "keywords": "telegram bot yapma, telegram bot oluşturma, kodsuz telegram botu, ücretsiz telegram bot, telegram bot nasıl yapılır, telegram mağaza botu, telegram otomasyonu, IrForge"
+  },
+  "faq": {
+    "title": "Sık sorulan sorular",
+    "subtitle": "IrForge ile Telegram bot yapma hakkında bilmeniz gerekenler.",
+    "q1": "Kod yazmadan Telegram botu nasıl yapılır?",
+    "a1": "BotFather'dan aldığınız token'ı IrForge'a yapıştırmanız yeterli. Webhook, profil ve çalıştırma sizin için halledilir; böylece tek satır kod yazmadan Telegram bot oluşturma mümkün olur. Kod yazmak isterseniz komut mantığına istediğiniz zaman inebilirsiniz.",
+    "q2": "Telegram bot yapmak ücretsiz mi?",
+    "a2": "Evet, ücretsiz başlayabilir ve ilk botunuzu kredi kartı olmadan kurup test edebilirsiniz. Ücretli planlar daha fazla bot ve kapasite sunar.",
+    "q3": "Bot kurulumu ne kadar sürer?",
+    "a3": "Genellikle birkaç dakika. Token girildiği anda bot yayına girer; sonrasında komut ekler, eklenti kurar ve değişiklikleri kesintisiz yayınlarsınız.",
+    "q4": "Mağaza veya destek botu yapabilir miyim?",
+    "a4": "Evet. Özel komutlar ile ödeme, moderasyon ve yapay zeka yanıt eklentileri; mağaza botlarını, müşteri destek botlarını ve çoğu iş akışını kapsar.",
+    "q5": "Telegram bot yapımını nereden öğrenirim?",
+    "a5": "Dokümantasyondan başlayın: hızlı başlangıç, argümanlı komut tanımlama ve eklenti yazma, çalışan örneklerle anlatılıyor."
+  }
 }
