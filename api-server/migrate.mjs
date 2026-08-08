@@ -131,9 +131,15 @@ CREATE TABLE IF NOT EXISTS plans (
   max_bots INTEGER NOT NULL DEFAULT 1,
   max_plugins INTEGER NOT NULL DEFAULT 5,
   max_users INTEGER NOT NULL DEFAULT 100,
+  ram_gb REAL NOT NULL DEFAULT 1,
+  cpu_cores REAL NOT NULL DEFAULT 1,
   popular BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- resource sizing, added after the table already existed in production
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS ram_gb REAL NOT NULL DEFAULT 1;
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS cpu_cores REAL NOT NULL DEFAULT 1;
 
 -- ─── USER_PLANS ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_plans (

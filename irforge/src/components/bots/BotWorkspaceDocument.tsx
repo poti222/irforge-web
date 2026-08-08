@@ -1,8 +1,24 @@
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { LayoutDashboard, IdCard, Terminal, Blocks, Activity, Settings, type LucideIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  IdCard,
+  Terminal,
+  Blocks,
+  Activity,
+  Settings,
+  Globe,
+  Lock,
+  Copy,
+  Check,
+  ExternalLink,
+  type LucideIcon,
+} from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import type { Bot } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
 import { useMotionDirection } from "@/hooks/use-motion-direction";
@@ -14,16 +30,90 @@ import { BotSettingsForm } from "@/components/bots/BotSettingsForm";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import type { LocaleShape } from "@/hooks/use-translation";
 
-type SectionKey = "overview" | "profile" | "commands" | "plugins" | "stats" | "settings";
+type SectionKey = "overview" | "profile" | "commands" | "plugins" | "stats" | "language" | "settings";
 
-const SECTION_META: { key: SectionKey; icon: LucideIcon; labelKey: keyof LocaleShape["botWorkspace"] }[] = [
+const SECTION_META: {
+  key: SectionKey;
+  icon: LucideIcon;
+  labelKey: keyof LocaleShape["botWorkspace"];
+  /** Rendered but not selectable — the feature has no implementation yet. */
+  locked?: boolean;
+}[] = [
   { key: "overview", icon: LayoutDashboard, labelKey: "sectionOverview" },
   { key: "profile", icon: IdCard, labelKey: "sectionProfile" },
   { key: "commands", icon: Terminal, labelKey: "sectionCommands" },
   { key: "plugins", icon: Blocks, labelKey: "sectionPlugins" },
   { key: "stats", icon: Activity, labelKey: "sectionStats" },
+  // The standalone /language page is gone; bot language belongs to the bot,
+  // not to the account. Shown locked until the per-bot implementation lands.
+  { key: "language", icon: Globe, labelKey: "sectionLanguage", locked: true },
   { key: "settings", icon: Settings, labelKey: "sectionSettings" },
 ];
+
+/**
+ * QR code + copyable @username for the bot, under the overview cards.
+ *
+ * Scanning is how someone actually gets a bot in front of a customer, so the
+ * code encodes the same t.me link the username points at. A bot with no
+ * username yet has nothing to link to, so the card is omitted entirely rather
+ * than rendering a QR for a dead URL.
+ */
+function BotLinkCard({ bot }: { bot: Bot }) {
+  const t = useT("botWorkspace");
+  const [copied, setCopied] = useState(false);
+
+  if (!bot.username) return null;
+  const handle = `@${bot.username}`;
+  const link = `https://t.me/${bot.username}`;
+
+  function copy() {
+    // writeText rejects when the page isn't a secure context or the permission
+    // is denied; unhandled that surfaces as an uncaught rejection in the
+    // console. The visual confirmation is best-effort either way.
+    void navigator.clipboard?.writeText(handle).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm">{t.botLink}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
+        <div className="rounded-lg bg-white p-2">
+          {/* fixed white plate: a QR on a dark card is unreadable to scanners */}
+          <QRCodeSVG value={link} size={116} level="M" marginSize={0} />
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col items-center gap-2 sm:items-start">
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            dir="ltr"
+            className="truncate font-mono text-base font-semibold text-primary hover:underline"
+          >
+            {handle}
+          </a>
+          <p className="text-xs text-muted-foreground">{t.qrHint}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={copy}>
+              {copied ? <Check className="me-1.5 size-3.5" /> : <Copy className="me-1.5 size-3.5" />}
+              {copied ? t.copied : t.copyId}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" asChild>
+              <a href={link} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="me-1.5 size-3.5" />
+                {t.openInTelegram}
+              </a>
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 /**
  * Q5: the bot workspace as a single "document" shell — a narrow sidebar for
@@ -49,7 +139,13 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
         initial: { opacity: 0, x: dir * 12 },
         animate: { opacity: 1, x: 0 },
         exit: { opacity: 0, x: dir * -12 },
-        transition: { type: "spring" as const, duration: 0.25, bounce: 0.1 },
+        // A tween, not a spring. With `AnimatePresence mode="wait"` the new
+        // section only mounts once the old one's exit *completes*, and the
+        // duration+bounce spring here never reported completion — so clicking
+        // a section left the panel permanently blank (old section stuck at
+        // opacity 0, new one never mounted). Reproduced on the build before
+        // this section was added, so it predates the Bot Language tab.
+        transition: { duration: 0.2, ease: "easeOut" as const },
       };
 
   return (
@@ -67,15 +163,20 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             return (
               <button
                 key={s.key}
-                onClick={() => setSection(s.key)}
+                onClick={() => !s.locked && setSection(s.key)}
+                disabled={s.locked}
+                title={s.locked ? t.comingSoon : undefined}
                 className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors md:w-full ${
-                  active
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  s.locked
+                    ? "cursor-not-allowed text-muted-foreground/50"
+                    : active
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 <s.icon className="h-4 w-4 shrink-0" />
                 <span>{t[s.labelKey]}</span>
+                {s.locked && <Lock className="ms-auto h-3 w-3 shrink-0" />}
               </button>
             );
           })}
@@ -84,26 +185,51 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
 
       {/* Main area */}
       <div className="flex-1 min-w-0 overflow-auto rounded-md border bg-card p-4">
-        <AnimatePresence mode="wait">
+        {/* No mode="wait": with it, the incoming section only mounts after the
+            outgoing one's exit completes, and that completion never fired here
+            — clicking a section left the panel showing the old content forever
+            (verified on the build predating this file's changes). Without it
+            the new section mounts immediately and the old one fades out over
+            the top, which is what the cross-fade was meant to look like. */}
+        <AnimatePresence>
           <motion.div key={section} {...anim}>
             {section === "overview" && (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewTotalUsers}</CardTitle></CardHeader>
-                  <CardContent><div className="text-2xl font-bold">{nf(bot.userCount)}</div></CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewMessages}</CardTitle></CardHeader>
-                  <CardContent><div className="text-2xl font-bold">{nf(bot.messageCount)}</div></CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewCommands}</CardTitle></CardHeader>
-                  <CardContent><div className="text-2xl font-bold">{nf(bot.commandCount)}</div></CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewPlugins}</CardTitle></CardHeader>
-                  <CardContent><div className="text-2xl font-bold">{nf(bot.pluginCount)}</div></CardContent>
-                </Card>
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewTotalUsers}</CardTitle></CardHeader>
+                    <CardContent><div className="text-2xl font-bold">{nf(bot.userCount)}</div></CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewActiveToday}</CardTitle></CardHeader>
+                    <CardContent>
+                      {/* No invented number: the field is a TODO on the API, so
+                          until it arrives this says so instead of guessing. */}
+                      {bot.activeUsersToday == null ? (
+                        <div className="text-sm text-muted-foreground">{t.noDataYet}</div>
+                      ) : (
+                        <div className="text-2xl font-bold">{nf(bot.activeUsersToday)}</div>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewCommands}</CardTitle></CardHeader>
+                    <CardContent><div className="text-2xl font-bold">{nf(bot.commandCount)}</div></CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewPlugins}</CardTitle></CardHeader>
+                    <CardContent><div className="text-2xl font-bold">{nf(bot.pluginCount)}</div></CardContent>
+                  </Card>
+                </div>
+
+                <BotLinkCard bot={bot} />
+              </div>
+            )}
+            {section === "language" && (
+              <div className="rounded-md border border-dashed p-10 text-center">
+                <Globe className="mx-auto mb-3 size-8 text-muted-foreground" />
+                <Badge variant="secondary" className="mb-3">{t.comingSoon}</Badge>
+                <p className="text-sm text-muted-foreground">{t.languageSectionNotice}</p>
               </div>
             )}
             {section === "profile" && <BotProfileForm bot={bot} />}

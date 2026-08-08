@@ -7,7 +7,13 @@ import {
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
 
-export function AdminOverview() {
+/**
+ * `showRevenue` gates money figures. The stats endpoint itself is
+ * `requireAdmin`, so a plain admin can load this panel — but revenue is
+ * super-admin information, so the total-revenue card and the monthly revenue
+ * chart are withheld from them.
+ */
+export function AdminOverview({ showRevenue = true }: { showRevenue?: boolean }) {
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { data: stats, isLoading } = useAdminGetStats();
@@ -28,10 +34,12 @@ export function AdminOverview() {
     { label: fa ? "کاربران جدید امروز" : "New Users Today", value: nf(stats.newUsersToday), icon: UserPlus },
     { label: fa ? "کل ربات‌ها" : "Total Bots", value: nf(stats.totalBots), icon: Bot },
     { label: fa ? "کل پیام‌ها" : "Total Messages", value: nf(stats.totalMessages), icon: MessageSquare },
-    { label: fa ? "درآمد کل" : "Total Revenue", value: formatToman(stats.totalRevenue, lang), icon: Wallet },
+    ...(showRevenue
+      ? [{ label: fa ? "درآمد کل" : "Total Revenue", value: formatToman(stats.totalRevenue, lang), icon: Wallet }]
+      : []),
   ];
 
-  const revenue = stats.revenueByMonth ?? [];
+  const revenue = showRevenue ? stats.revenueByMonth ?? [] : [];
   const plans = stats.planBreakdown ?? [];
 
   return (

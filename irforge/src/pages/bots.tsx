@@ -39,13 +39,37 @@ export default function Bots() {
             <Card key={bot.id} className="flex flex-col">
               <CardHeader className="pb-4">
                 <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                      <BotIcon className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{bot.name}</CardTitle>
-                      <p className="text-sm text-muted-foreground">@{bot.username}</p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    {/* the bot's own Telegram profile photo when it has one —
+                        makes a list of several bots scannable at a glance */}
+                    {bot.avatar ? (
+                      <img
+                        src={bot.avatar}
+                        alt={t.botAvatarAlt}
+                        loading="lazy"
+                        className="size-10 shrink-0 rounded-lg border border-border object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <BotIcon className="h-6 w-6" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <CardTitle className="truncate text-lg">{bot.name}</CardTitle>
+                      {bot.username ? (
+                        <a
+                          href={`https://t.me/${bot.username}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          dir="ltr"
+                          className="block truncate text-sm text-muted-foreground hover:text-primary hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          @{bot.username}
+                        </a>
+                      ) : (
+                        <p className="truncate text-sm text-muted-foreground">{t.noUsername}</p>
+                      )}
                     </div>
                   </div>
                   <Badge variant={bot.status === "active" ? "default" : "secondary"}>

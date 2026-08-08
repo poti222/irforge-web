@@ -40,7 +40,14 @@
     "statActiveBots": "Active Bots",
     "statTotalUsers": "Total Users",
     "statMessagesPerDay": "Messages / day",
-    "startBuildingNow": "Start building now"
+    "startBuildingNow": "Start building now",
+    "receiptViewerTitle": "Payment receipt",
+    "viewReceipt": "View receipt",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "resetZoom": "Actual size",
+    "openOriginal": "Open original",
+    "noReceipt": "No receipt"
   },
   "landing": {
     "signIn": "Sign In",
@@ -167,7 +174,10 @@
     "manageBot": "Manage Bot",
     "noBotsTitle": "No bots yet",
     "noBotsDesc": "You haven't created any bots yet. Create your first bot to get started.",
-    "createFirstBot": "Create Your First Bot"
+    "createFirstBot": "Create Your First Bot",
+    "botAvatarAlt": "Bot profile picture",
+    "noUsername": "No username",
+    "activeUsersDaily": "Daily active users · last 7 days"
   },
   "botWorkspace": {
     "loadingWorkspace": "Loading bot workspace...",
@@ -190,9 +200,21 @@
     "overviewCommands": "Commands",
     "overviewPlugins": "Plugins",
     "botStartingCountdown": "Your bot will turn on in about {seconds}s",
-    "botStoppingCountdown": "Your bot will turn off in about {seconds}s"
+    "botStoppingCountdown": "Your bot will turn off in about {seconds}s",
+    "sectionLanguage": "Bot language",
+    "comingSoon": "Coming soon",
+    "overviewActiveToday": "Active users today",
+    "noDataYet": "No data yet",
+    "botLink": "Bot link",
+    "copyId": "Copy ID",
+    "copied": "Copied",
+    "openInTelegram": "Open in Telegram",
+    "qrHint": "Scan this code to open the bot",
+    "languageSectionNotice": "Bot language settings will move here soon."
   },
-  "marketplace": {},
+  "marketplace": {
+    "walletBalance": "Wallet balance"
+  },
   "wallet": {},
   "profile": {},
   "support": {},
@@ -220,5 +242,32 @@
     "a4": "Yes. Custom commands plus payment, moderation and AI-reply plugins cover shop bots, customer-support bots and most other workflows.",
     "q5": "Where do I learn how to build a Telegram bot?",
     "a5": "Start with the documentation: quick start, defining commands with arguments, and writing a plugin are all covered with working examples."
+  },
+  "database": {
+    "readOnlyBadge": "Read-only",
+    "readOnlyNotice": "This page is view-only. Open the sheet in Google to change the data.",
+    "hiddenRowsNote": "{count} technical rows hidden"
+  },
+  "buyBot": {
+    "plansTitle": "Subscription plans",
+    "plansSub": "Plans defined by the admin — in addition to the packages above.",
+    "noPlans": "No plans have been defined yet.",
+    "currentPlan": "Current plan",
+    "upgrade": "Upgrade",
+    "ram": "RAM",
+    "cpu": "CPU",
+    "concurrentUsers": "concurrent users",
+    "botsLimit": "bots",
+    "pluginsLimit": "plugins",
+    "gb": "GB",
+    "cores": "cores",
+    "resources": "Resources",
+    "confirmUpgradeTitle": "Confirm plan upgrade",
+    "cancel": "Cancel",
+    "confirmUpgrade": "Confirm upgrade",
+    "planUpdated": "Plan updated",
+    "planUpdateFailed": "Could not change plan",
+    "customResources": "Custom resources",
+    "customResourcesHint": "Pick RAM and CPU up to 8 GB."
   }
 }

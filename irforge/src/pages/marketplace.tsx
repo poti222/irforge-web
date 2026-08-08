@@ -1,18 +1,21 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import {
   useListMarketplaceItems,
   useListBots,
   useInstallPlugin,
   getListBotPluginsQueryKey,
   getGetBotQueryKey,
+  customFetch,
 } from "@workspace/api-client-react";
 import type { MarketplaceItem } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { MotionCard } from "@/components/ui/motion-card";
 import { Button } from "@/components/ui/button";
-import { Store, Download, Star, Loader2, Blocks, ShoppingCart } from "lucide-react";
+import { Store, Download, Star, Loader2, Blocks, ShoppingCart, Wallet as WalletIcon } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
+import { useT } from "@/hooks/use-translation";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -31,10 +34,20 @@ export default function Marketplace() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const tr = useT("marketplace");
+
   const { data: items, isLoading } = useListMarketplaceItems({});
   const { data: bots } = useListBots();
   const installPlugin = useInstallPlugin();
   const { addPlugin } = useCart();
+
+  // Same query key as the wallet page, so the two share one cache entry and
+  // the chip updates as soon as a deposit is approved there.
+  const { data: wallet } = useQuery({
+    queryKey: ["wallet"],
+    queryFn: () => customFetch<{ balance: number }>("/api/wallet"),
+    refetchInterval: 10000,
+  });
 
   const [selected, setSelected] = useState<MarketplaceItem | null>(null);
   const [targetBot, setTargetBot] = useState<string>("");
@@ -65,13 +78,26 @@ export default function Marketplace() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{fa ? "بازار" : "Marketplace"}</h1>
           <p className="text-muted-foreground">
             {fa ? "پلاگین‌ها، قالب‌ها و کامپوننت‌ها برای ربات‌های شما." : "Discover plugins, templates, and components for your bots."}
           </p>
         </div>
+
+        {/* Balance is the thing you need to know before buying a plugin, so it
+            sits on this page rather than making you go and come back. */}
+        <Link
+          href="/wallet"
+          title={tr.walletBalance}
+          className="inline-flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:border-primary/50 hover:text-primary"
+          data-testid="marketplace-wallet-chip"
+        >
+          <WalletIcon className="size-4 text-primary" />
+          <span className="text-muted-foreground">{tr.walletBalance}</span>
+          <span className="font-semibold">{formatToman(wallet?.balance ?? 0, lang)}</span>
+        </Link>
       </div>
 
       {isLoading ? (

@@ -13,9 +13,13 @@ export default function Admin() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { user } = useAuth();
-  // R6 RBAC: platform-wide overview, all-bots, payments and plan management are
-  // super_admin-only (their APIs are requireSuperAdmin server-side). A plain
-  // admin only sees user management + announcements.
+  // R6 RBAC: all-bots, payments and plan management stay super_admin-only —
+  // their APIs are requireSuperAdmin server-side, so showing the tabs to a
+  // plain admin would just render a 403.
+  //
+  // Overview is different: /admin/stats is requireAdmin, so a plain admin can
+  // legitimately load it. They get the panel without the revenue figures,
+  // which remain super_admin information (see AdminOverview showRevenue).
   const isSuperAdmin = user?.role === "super_admin";
 
   return (
@@ -27,13 +31,13 @@ export default function Admin() {
         <p className="text-muted-foreground">
           {isSuperAdmin
             ? (fa ? "کنترل کامل پلتفرم" : "Full platform control")
-            : (fa ? "مدیریت کاربران و اعلان‌ها" : "Manage users and announcements")}
+            : (fa ? "نمای کلی، کاربران و اعلان‌ها" : "Overview, users and announcements")}
         </p>
       </div>
 
-      <Tabs defaultValue={isSuperAdmin ? "overview" : "users"} className="space-y-4">
+      <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="flex-wrap h-auto">
-          {isSuperAdmin && <TabsTrigger value="overview"><LayoutDashboard className="me-2 h-4 w-4" /> {fa ? "نمای کلی" : "Overview"}</TabsTrigger>}
+          <TabsTrigger value="overview"><LayoutDashboard className="me-2 h-4 w-4" /> {fa ? "نمای کلی" : "Overview"}</TabsTrigger>
           {isSuperAdmin && <TabsTrigger value="bots"><Bot className="me-2 h-4 w-4" /> {fa ? "همه ربات‌ها" : "All Bots"}</TabsTrigger>}
           <TabsTrigger value="users"><Users className="me-2 h-4 w-4" /> {fa ? "کاربران" : "Users"}</TabsTrigger>
           {isSuperAdmin && <TabsTrigger value="payments"><CreditCard className="me-2 h-4 w-4" /> {fa ? "پرداخت‌ها" : "Payments"}</TabsTrigger>}
@@ -41,7 +45,7 @@ export default function Admin() {
           <TabsTrigger value="announcements"><Megaphone className="me-2 h-4 w-4" /> {fa ? "اعلان‌ها" : "Announcements"}</TabsTrigger>
         </TabsList>
 
-        {isSuperAdmin && <TabsContent value="overview"><AdminOverview /></TabsContent>}
+        <TabsContent value="overview"><AdminOverview showRevenue={isSuperAdmin} /></TabsContent>
         {isSuperAdmin && <TabsContent value="bots"><AllBotsTable /></TabsContent>}
         <TabsContent value="users"><UsersTable /></TabsContent>
         {isSuperAdmin && <TabsContent value="payments"><PaymentApprovals /></TabsContent>}

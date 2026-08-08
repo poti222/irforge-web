@@ -40,7 +40,14 @@
     "statActiveBots": "البوتات النشطة",
     "statTotalUsers": "إجمالي المستخدمين",
     "statMessagesPerDay": "الرسائل / اليوم",
-    "startBuildingNow": "ابدأ البناء الآن"
+    "startBuildingNow": "ابدأ البناء الآن",
+    "receiptViewerTitle": "إيصال الدفع",
+    "viewReceipt": "عرض الإيصال",
+    "zoomIn": "تكبير",
+    "zoomOut": "تصغير",
+    "resetZoom": "الحجم الأصلي",
+    "openOriginal": "فتح الأصل",
+    "noReceipt": "بدون إيصال"
   },
   "landing": {
     "signIn": "تسجيل الدخول",
@@ -167,7 +174,10 @@
     "manageBot": "إدارة البوت",
     "noBotsTitle": "لا توجد بوتات بعد",
     "noBotsDesc": "لم تُنشئ أي بوت بعد. أنشئ أول بوت لك للبدء.",
-    "createFirstBot": "أنشئ أول بوت لك"
+    "createFirstBot": "أنشئ أول بوت لك",
+    "botAvatarAlt": "صورة ملف البوت",
+    "noUsername": "بدون معرّف",
+    "activeUsersDaily": "المستخدمون النشطون يوميًا · آخر ٧ أيام"
   },
   "botWorkspace": {
     "loadingWorkspace": "جارٍ تحميل مساحة عمل البوت...",
@@ -190,9 +200,21 @@
     "overviewCommands": "الأوامر",
     "overviewPlugins": "الإضافات",
     "botStartingCountdown": "سيتم تشغيل البوت خلال {seconds} ثانية تقريبًا",
-    "botStoppingCountdown": "سيتم إيقاف البوت خلال {seconds} ثانية تقريبًا"
+    "botStoppingCountdown": "سيتم إيقاف البوت خلال {seconds} ثانية تقريبًا",
+    "sectionLanguage": "لغة البوت",
+    "comingSoon": "قريبًا",
+    "overviewActiveToday": "المستخدمون النشطون اليوم",
+    "noDataYet": "لا توجد بيانات بعد",
+    "botLink": "رابط البوت",
+    "copyId": "نسخ المعرّف",
+    "copied": "تم النسخ",
+    "openInTelegram": "فتح في تيليجرام",
+    "qrHint": "امسح هذا الرمز لفتح البوت",
+    "languageSectionNotice": "ستنتقل إعدادات لغة البوت إلى هنا قريبًا."
   },
-  "marketplace": {},
+  "marketplace": {
+    "walletBalance": "رصيد المحفظة"
+  },
   "wallet": {},
   "profile": {},
   "support": {},
@@ -220,5 +242,32 @@
     "a4": "نعم. الأوامر المخصصة مع إضافات المدفوعات والإشراف وردود الذكاء الاصطناعي تغطي بوتات المتاجر وخدمة العملاء ومعظم سير العمل.",
     "q5": "من أين أتعلم طريقة عمل بوت تليجرام؟",
     "a5": "ابدأ من صفحة التوثيق: البداية السريعة وتعريف الأوامر مع الوسائط وكتابة الإضافات، جميعها مشروحة بأمثلة جاهزة."
+  },
+  "database": {
+    "readOnlyBadge": "للعرض فقط",
+    "readOnlyNotice": "هذه الصفحة للعرض فقط. افتح الجدول في Google لتعديل البيانات.",
+    "hiddenRowsNote": "تم إخفاء {count} صفوف تقنية"
+  },
+  "buyBot": {
+    "plansTitle": "خطط الاشتراك",
+    "plansSub": "خطط عرّفها المدير — إضافة إلى الباقات أعلاه.",
+    "noPlans": "لم يتم تعريف أي خطة بعد.",
+    "currentPlan": "الخطة الحالية",
+    "upgrade": "ترقية",
+    "ram": "ذاكرة",
+    "cpu": "معالج",
+    "concurrentUsers": "مستخدم متزامن",
+    "botsLimit": "بوتات",
+    "pluginsLimit": "إضافات",
+    "gb": "غيغا",
+    "cores": "أنوية",
+    "resources": "الموارد",
+    "confirmUpgradeTitle": "تأكيد ترقية الخطة",
+    "cancel": "إلغاء",
+    "confirmUpgrade": "تأكيد الترقية",
+    "planUpdated": "تم تغيير الخطة",
+    "planUpdateFailed": "تعذّر تغيير الخطة",
+    "customResources": "موارد مخصصة",
+    "customResourcesHint": "اختر الذاكرة والمعالج حتى ٨ غيغا."
   }
 }

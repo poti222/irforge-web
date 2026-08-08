@@ -18,6 +18,8 @@ function formatPlan(p: any) {
     maxBots: p.maxBots,
     maxPlugins: p.maxPlugins,
     maxUsers: p.maxUsers,
+    ramGb: p.ramGb,
+    cpuCores: p.cpuCores,
     popular: p.popular,
   };
 }
@@ -40,6 +42,8 @@ router.get("/plans", requireAuth, async (req: any, res) => {
       maxBots: p.maxBots,
       maxPlugins: p.maxPlugins,
       maxUsers: p.maxUsers,
+      ramGb: p.ramGb,
+      cpuCores: p.cpuCores,
       popular: p.popular,
     })));
   } catch (err) {
@@ -146,7 +150,7 @@ router.get("/admin/plans", requireAdmin, async (req: any, res) => {
 // POST /api/admin/plans — create
 router.post("/admin/plans", requireAdmin, async (req: any, res) => {
   try {
-    const { id, name, price, interval, features, maxBots, maxPlugins, maxUsers, popular } = req.body;
+    const { id, name, price, interval, features, maxBots, maxPlugins, maxUsers, ramGb, cpuCores, popular } = req.body;
     if (!name || price === undefined || price === null) {
       res.status(400).json({ error: "name and price are required" });
       return;
@@ -160,6 +164,8 @@ router.post("/admin/plans", requireAdmin, async (req: any, res) => {
       maxBots: maxBots ?? 1,
       maxPlugins: maxPlugins ?? 5,
       maxUsers: maxUsers ?? 100,
+      ramGb: ramGb ?? 1,
+      cpuCores: cpuCores ?? 1,
       popular: !!popular,
     }).returning();
     res.status(201).json(formatPlan(plan));
@@ -177,7 +183,7 @@ router.post("/admin/plans", requireAdmin, async (req: any, res) => {
 router.patch("/admin/plans/:planId", requireAdmin, async (req: any, res) => {
   try {
     const update: Record<string, any> = {};
-    const { name, price, interval, features, maxBots, maxPlugins, maxUsers, popular } = req.body;
+    const { name, price, interval, features, maxBots, maxPlugins, maxUsers, ramGb, cpuCores, popular } = req.body;
     if (name !== undefined) update.name = name;
     if (price !== undefined) update.price = Number(price);
     if (interval !== undefined) update.interval = interval;
@@ -185,6 +191,8 @@ router.patch("/admin/plans/:planId", requireAdmin, async (req: any, res) => {
     if (maxBots !== undefined) update.maxBots = maxBots;
     if (maxPlugins !== undefined) update.maxPlugins = maxPlugins;
     if (maxUsers !== undefined) update.maxUsers = maxUsers;
+    if (ramGb !== undefined) update.ramGb = ramGb;
+    if (cpuCores !== undefined) update.cpuCores = cpuCores;
     if (popular !== undefined) update.popular = !!popular;
     if (Object.keys(update).length === 0) {
       res.status(400).json({ error: "No fields to update" });

@@ -40,7 +40,14 @@
     "statActiveBots": "Активные боты",
     "statTotalUsers": "Всего пользователей",
     "statMessagesPerDay": "Сообщений / день",
-    "startBuildingNow": "Начать создание прямо сейчас"
+    "startBuildingNow": "Начать создание прямо сейчас",
+    "receiptViewerTitle": "Квитанция об оплате",
+    "viewReceipt": "Посмотреть квитанцию",
+    "zoomIn": "Увеличить",
+    "zoomOut": "Уменьшить",
+    "resetZoom": "Исходный размер",
+    "openOriginal": "Открыть оригинал",
+    "noReceipt": "Нет квитанции"
   },
   "landing": {
     "signIn": "Войти",
@@ -167,7 +174,10 @@
     "manageBot": "Управление ботом",
     "noBotsTitle": "Пока нет ботов",
     "noBotsDesc": "Вы ещё не создали ни одного бота. Создайте первого бота, чтобы начать.",
-    "createFirstBot": "Создать первого бота"
+    "createFirstBot": "Создать первого бота",
+    "botAvatarAlt": "Аватар бота",
+    "noUsername": "Без имени пользователя",
+    "activeUsersDaily": "Активные пользователи в день · 7 дней"
   },
   "botWorkspace": {
     "loadingWorkspace": "Загрузка рабочей области бота...",
@@ -190,9 +200,21 @@
     "overviewCommands": "Команды",
     "overviewPlugins": "Плагины",
     "botStartingCountdown": "Бот включится примерно через {seconds} с",
-    "botStoppingCountdown": "Бот выключится примерно через {seconds} с"
+    "botStoppingCountdown": "Бот выключится примерно через {seconds} с",
+    "sectionLanguage": "Язык бота",
+    "comingSoon": "Скоро",
+    "overviewActiveToday": "Активные пользователи сегодня",
+    "noDataYet": "Пока нет данных",
+    "botLink": "Ссылка на бота",
+    "copyId": "Скопировать ID",
+    "copied": "Скопировано",
+    "openInTelegram": "Открыть в Telegram",
+    "qrHint": "Отсканируйте код, чтобы открыть бота",
+    "languageSectionNotice": "Настройки языка бота скоро появятся здесь."
   },
-  "marketplace": {},
+  "marketplace": {
+    "walletBalance": "Баланс кошелька"
+  },
   "wallet": {},
   "profile": {},
   "support": {},
@@ -220,5 +242,32 @@
     "a4": "Да. Собственные команды плюс плагины платежей, модерации и ответов ИИ закрывают магазины, службу поддержки и большинство сценариев.",
     "q5": "Где научиться делать Telegram-ботов?",
     "a5": "Начните с документации: быстрый старт, команды с аргументами и написание плагина разобраны на рабочих примерах."
+  },
+  "database": {
+    "readOnlyBadge": "Только просмотр",
+    "readOnlyNotice": "Эта страница только для просмотра. Чтобы изменить данные, откройте таблицу в Google.",
+    "hiddenRowsNote": "Скрыто технических строк: {count}"
+  },
+  "buyBot": {
+    "plansTitle": "Тарифы подписки",
+    "plansSub": "Тарифы, заданные администратором — в дополнение к пакетам выше.",
+    "noPlans": "Тарифы ещё не заданы.",
+    "currentPlan": "Текущий тариф",
+    "upgrade": "Повысить",
+    "ram": "ОЗУ",
+    "cpu": "CPU",
+    "concurrentUsers": "одновременных пользователей",
+    "botsLimit": "ботов",
+    "pluginsLimit": "плагинов",
+    "gb": "ГБ",
+    "cores": "ядра",
+    "resources": "Ресурсы",
+    "confirmUpgradeTitle": "Подтвердите смену тарифа",
+    "cancel": "Отмена",
+    "confirmUpgrade": "Подтвердить",
+    "planUpdated": "Тариф обновлён",
+    "planUpdateFailed": "Не удалось сменить тариф",
+    "customResources": "Свои ресурсы",
+    "customResourcesHint": "Выберите ОЗУ и CPU до 8 ГБ."
   }
 }

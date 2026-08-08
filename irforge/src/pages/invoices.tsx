@@ -8,6 +8,7 @@ import {
 import { Receipt, ExternalLink, Bot, Wallet } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
+import { ReceiptLightbox } from "@/components/ui/receipt-lightbox";
 
 type Payment = {
   id: string; botId: string | null; botName: string | null; amount: number | null;
@@ -101,9 +102,11 @@ export default function Invoices() {
                     <TableCell className="hidden md:table-cell text-muted-foreground">{new Date(r.createdAt).toLocaleDateString(fa ? "fa-IR" : "en-US")}</TableCell>
                     <TableCell className="text-end">
                       {r.receiptUrl ? (
-                        <Button variant="ghost" size="sm" asChild>
-                          <a href={r.receiptUrl} target="_blank" rel="noreferrer"><ExternalLink className="me-1 h-3.5 w-3.5" /> {fa ? "مشاهده" : "View"}</a>
-                        </Button>
+                        <ReceiptLightbox src={r.receiptUrl}>
+                          <Button variant="ghost" size="sm">
+                            <ExternalLink className="me-1 h-3.5 w-3.5" /> {fa ? "مشاهده" : "View"}
+                          </Button>
+                        </ReceiptLightbox>
                       ) : "—"}
                     </TableCell>
                   </TableRow>

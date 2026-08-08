@@ -1,14 +1,17 @@
 import { useGetBotStats, getGetBotStatsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, Users, Terminal, Blocks } from "lucide-react";
+import { UserCheck, Users, Terminal, Blocks } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
 } from "recharts";
 import { useLanguage } from "@/hooks/use-language";
+import { useT } from "@/hooks/use-translation";
 
 export function BotStatsPanel({ botId, status }: { botId: string; status: string }) {
   const { lang } = useLanguage();
   const fa = lang === "fa";
+  const tb = useT("bots");
+  const tw = useT("botWorkspace");
   const isLive = status === "active";
 
   // Y5: poll while the bot is live so the numbers visibly tick up.
@@ -21,16 +24,24 @@ export function BotStatsPanel({ botId, status }: { botId: string; status: string
 
   const nf = (n: number) => n.toLocaleString(fa ? "fa-IR" : "en-US");
 
+  // "Messages" is replaced by active users here and in the chart below: a raw
+  // message count says how chatty the bot is, not how many people it reached.
   const cards = stats
     ? [
-        { label: fa ? "پیام‌ها" : "Messages", value: nf(stats.messages), icon: MessageSquare },
+        {
+          label: fa ? "کاربران فعال امروز" : "Active users today",
+          // TODO: backend field — no per-user activity data exists yet, so this
+          // shows a dash rather than a made-up figure.
+          value: stats.activeUsersToday == null ? "—" : nf(stats.activeUsersToday),
+          icon: UserCheck,
+        },
         { label: fa ? "کاربران" : "Users", value: nf(stats.users), icon: Users },
         { label: fa ? "دستورات" : "Commands", value: nf(stats.commands), icon: Terminal },
         { label: fa ? "پلاگین‌ها" : "Plugins", value: nf(stats.plugins), icon: Blocks },
       ]
     : [];
 
-  const series = stats?.messagesPerDay ?? [];
+  const series = stats?.activeUsersPerDay ?? [];
 
   if (isLoading) {
     return (
@@ -67,12 +78,19 @@ export function BotStatsPanel({ botId, status }: { botId: string; status: string
         ))}
       </div>
 
-      {series.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{fa ? "پیام‌ها در ۷ روز اخیر" : "Messages · last 7 days"}</CardTitle>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">{tb.activeUsersDaily}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {series.length === 0 ? (
+            // Explicit empty state rather than hiding the card: the chart is
+            // part of the spec, and silently omitting it would read as a bug.
+            // TODO: backend field — activeUsersPerDay is not returned yet.
+            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+              {tw.noDataYet}
+            </div>
+          ) : (
             <div className="h-64 w-full" dir="ltr">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={series} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
@@ -88,9 +106,9 @@ export function BotStatsPanel({ botId, status }: { botId: string; status: string
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

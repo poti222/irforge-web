@@ -22,7 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { OrangeRobot, BrandLogo } from "@/components/layout/brand-home";
+import { BrandLogo } from "@/components/layout/brand-home";
 import { HeroRobot } from "@/components/landing/HeroRobot";
 import { BotChatMockup } from "@/components/landing/BotChatMockup";
 import { MiniAnalyticsChart } from "@/components/landing/MiniAnalyticsChart";
@@ -422,18 +422,13 @@ export default function Landing() {
       <footer className="border-t py-10 bg-card/50">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-3">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <OrangeRobot className="size-5 text-primary-foreground" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="font-semibold text-foreground">IrForge</span>
-                <img
-                  src="/lion-sun-flag.png"
-                  alt="پرچم شیر و خورشید"
-                  className="h-3.5 w-auto rounded-sm"
-                />
-              </div>
+            <div className="flex flex-col items-center gap-1.5 md:items-start">
+              <BrandLogo href={null} size="sm" />
+              <img
+                src="/lion-sun-flag.png"
+                alt="پرچم شیر و خورشید"
+                className="h-3.5 w-auto rounded-sm"
+              />
             </div>
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} IrForge. {tr.madeWith}

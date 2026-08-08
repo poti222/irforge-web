@@ -5,15 +5,22 @@ import { Button } from "@/components/ui/button";
 import { GlowButton } from "@/components/ui/glow-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import {
-  Check, ArrowLeft, ArrowRight, ShoppingCart, Settings2, Lock,
+  Check, ArrowLeft, ArrowRight, ShoppingCart, Settings2, Lock, Cpu, MemoryStick,
 } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
-import { getBotTier, CUSTOM_MODULES } from "@/lib/bot-tiers";
+import { useT } from "@/hooks/use-translation";
+import {
+  getBotTier,
+  CUSTOM_MODULES,
+  CUSTOM_MAX_RAM_GB,
+  CUSTOM_MAX_CPU_CORES,
+} from "@/lib/bot-tiers";
 
 export default function BuyBotDetail() {
   const { lang } = useLanguage();
@@ -26,10 +33,16 @@ export default function BuyBotDetail() {
   const isCustom = tierId === "custom";
   const tier = !isCustom ? getBotTier(tierId) : undefined;
 
+  const tb = useT("buyBot");
+
   // Custom package: purely visual checklist for now (no pricing/logic wired up).
   const [customSelected, setCustomSelected] = useState<Set<string>>(
     new Set(CUSTOM_MODULES.filter((m) => m.mandatory).map((m) => m.id))
   );
+  // Sizing for the custom build. Capped at CUSTOM_MAX_* for self-serve; the
+  // chosen values ride along on the cart item so the order carries them.
+  const [customRam, setCustomRam] = useState(2);
+  const [customCpu, setCustomCpu] = useState(2);
 
   const BackArrow = fa ? ArrowRight : ArrowLeft;
   const NextArrow = fa ? ArrowLeft : ArrowRight;
@@ -133,6 +146,49 @@ export default function BuyBotDetail() {
 
             {isCustom && (
               <div>
+                {/* Self-serve sizing is capped at CUSTOM_MAX_* — anything
+                    larger is a bespoke plan an admin creates, where no cap
+                    applies. */}
+                <p className="mb-3 text-sm font-medium">{tb.customResources}</p>
+                <div className="mb-6 space-y-5 rounded-md border p-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-1.5">
+                        <MemoryStick className="size-4 text-primary" /> {tb.ram}
+                      </span>
+                      <span className="font-semibold" dir="ltr">
+                        {customRam} {tb.gb}
+                      </span>
+                    </div>
+                    <Slider
+                      value={[customRam]}
+                      min={1}
+                      max={CUSTOM_MAX_RAM_GB}
+                      step={1}
+                      onValueChange={([v]) => setCustomRam(v)}
+                      aria-label={tb.ram}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-1.5">
+                        <Cpu className="size-4 text-primary" /> {tb.cpu}
+                      </span>
+                      <span className="font-semibold" dir="ltr">
+                        {customCpu} {tb.cores}
+                      </span>
+                    </div>
+                    <Slider
+                      value={[customCpu]}
+                      min={1}
+                      max={CUSTOM_MAX_CPU_CORES}
+                      step={1}
+                      onValueChange={([v]) => setCustomCpu(v)}
+                      aria-label={tb.cpu}
+                    />
+                  </div>
+                </div>
+
                 <p className="mb-3 text-sm font-medium">
                   {fa ? "بخش‌های بات را انتخاب کن" : "Choose your bot's parts"}
                 </p>

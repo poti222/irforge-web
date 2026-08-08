@@ -155,6 +155,13 @@ export interface Bot {
   pluginCount?: number;
   userCount?: number;
   messageCount?: number;
+  /**
+   * Users who sent at least one message to this bot today.
+   * TODO: backend field — there is no per-user activity table yet, so the API
+   * does not return this. The UI renders a placeholder while it is undefined
+   * rather than inventing a number.
+   */
+  activeUsersToday?: number;
   // ─── Group 2 fields ────────────────────────────────────────────
   /** @nullable */
   sheetId?: string | null;
@@ -215,6 +222,15 @@ export interface BotStats {
   plugins: number;
   uptime: number;
   messagesPerDay?: BotStatsMessagesPerDayItem[];
+  /**
+   * Distinct users who messaged the bot on each of the last 7 days.
+   * TODO: backend field — /bots/:id/stats does not return this yet (it has no
+   * per-user activity data to derive it from). The chart renders an explicit
+   * "no data" state while it is undefined.
+   */
+  activeUsersPerDay?: BotStatsMessagesPerDayItem[];
+  /** Distinct users who messaged the bot today. TODO: backend field */
+  activeUsersToday?: number;
 }
 
 export type BotCommandPermission = typeof BotCommandPermission[keyof typeof BotCommandPermission];
@@ -332,7 +348,12 @@ export interface Plan {
   features: string[];
   maxBots: number;
   maxPlugins: number;
+  /** Ceiling on concurrent bot users the plan is sized for. */
   maxUsers?: number;
+  /** Guaranteed RAM in GB. */
+  ramGb?: number;
+  /** Guaranteed CPU cores. */
+  cpuCores?: number;
   popular?: boolean;
 }
 

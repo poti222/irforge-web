@@ -29,9 +29,19 @@ export interface BotTier {
   price: number; // Toman, 0 for custom (contact / configure)
   maxBots: number;
   maxPlugins: number;
+  /** Guaranteed RAM in GB. */
+  ramGb: number;
+  /** Guaranteed CPU cores. */
+  cpuCores: number;
+  /** Ceiling on simultaneous bot users the tier is sized for. */
+  maxConcurrentUsers: number;
   popular?: boolean;
   features: BotTierFeature[];
 }
+
+/** Ceiling on the self-serve custom builder. Admins are not bound by this. */
+export const CUSTOM_MAX_RAM_GB = 8;
+export const CUSTOM_MAX_CPU_CORES = 8;
 
 export const BOT_TIERS: BotTier[] = [
   {
@@ -43,8 +53,13 @@ export const BOT_TIERS: BotTier[] = [
     price: 150000,
     maxBots: 1,
     maxPlugins: 3,
+    ramGb: 1,
+    cpuCores: 1,
+    maxConcurrentUsers: 50,
     features: [
       { fa: "۱ ربات فعال", en: "1 active bot" },
+      { fa: "۱ گیگ رم / ۱ هسته پردازنده", en: "1 GB RAM / 1 CPU core" },
+      { fa: "تا ۵۰ کاربر همزمان", en: "Up to 50 concurrent users" },
       { fa: "تا ۳ پلاگین", en: "Up to 3 plugins" },
       { fa: "پشتیبانی از طریق تیکت", en: "Ticket-based support" },
       { fa: "به‌روزرسانی‌های عمومی", en: "General updates" },
@@ -57,11 +72,16 @@ export const BOT_TIERS: BotTier[] = [
     name: { fa: "طلایی", en: "Gold" },
     tagline: { fa: "تعادل بین امکانات و قیمت", en: "The best balance of features and price" },
     price: 350000,
-    maxBots: 3,
+    maxBots: 2,
     maxPlugins: 10,
+    ramGb: 3,
+    cpuCores: 2,
+    maxConcurrentUsers: 200,
     popular: true,
     features: [
-      { fa: "تا ۳ ربات فعال", en: "Up to 3 active bots" },
+      { fa: "تا ۲ ربات فعال", en: "Up to 2 active bots" },
+      { fa: "۳ گیگ رم / ۲ هسته پردازنده", en: "3 GB RAM / 2 CPU cores" },
+      { fa: "تا ۲۰۰ کاربر همزمان", en: "Up to 200 concurrent users" },
       { fa: "تا ۱۰ پلاگین", en: "Up to 10 plugins" },
       { fa: "پشتیبانی اولویت‌دار", en: "Priority support" },
       { fa: "دسترسی به قالب‌های اختصاصی", en: "Access to premium themes" },
@@ -75,10 +95,15 @@ export const BOT_TIERS: BotTier[] = [
     name: { fa: "الماسی", en: "Diamond" },
     tagline: { fa: "حداکثر امکانات برای کسب‌وکارهای جدی", en: "Maximum power for serious businesses" },
     price: 750000,
-    maxBots: 10,
+    maxBots: 5,
     maxPlugins: 999,
+    ramGb: 5,
+    cpuCores: 4,
+    maxConcurrentUsers: 500,
     features: [
-      { fa: "تا ۱۰ ربات فعال", en: "Up to 10 active bots" },
+      { fa: "تا ۵ ربات فعال", en: "Up to 5 active bots" },
+      { fa: "۵ گیگ رم / ۴ هسته پردازنده", en: "5 GB RAM / 4 CPU cores" },
+      { fa: "تا ۵۰۰ کاربر همزمان", en: "Up to 500 concurrent users" },
       { fa: "پلاگین نامحدود", en: "Unlimited plugins" },
       { fa: "پشتیبانی اختصاصی ۲۴/۷", en: "Dedicated 24/7 support" },
       { fa: "دسترسی زودهنگام به امکانات جدید", en: "Early access to new features" },

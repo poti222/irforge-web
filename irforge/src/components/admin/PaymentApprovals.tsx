@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { ReceiptLightbox } from "@/components/ui/receipt-lightbox";
 import { Check, X, Loader2, Inbox, ExternalLink, Wallet as WalletIcon, Ban, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
@@ -131,17 +131,12 @@ export function PaymentApprovals() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {payment.receiptUrl && (
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <button type="button" className="block w-full text-start">
-                          <img src={payment.receiptUrl} alt="receipt" className="max-h-48 w-full rounded-md border object-contain bg-muted" />
-                          <span className="mt-1 flex items-center gap-1 text-xs text-primary"><ExternalLink className="h-3 w-3" /> {fa ? "مشاهده اصل" : "Open full"}</span>
-                        </button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-3xl">
-                        <img src={payment.receiptUrl} alt="receipt" className="max-h-[80vh] w-full rounded-md object-contain" />
-                      </DialogContent>
-                    </Dialog>
+                    <ReceiptLightbox src={payment.receiptUrl}>
+                      <button type="button" className="block w-full text-start">
+                        <img src={payment.receiptUrl} alt="receipt" className="max-h-48 w-full rounded-md border object-contain bg-muted" />
+                        <span className="mt-1 flex items-center gap-1 text-xs text-primary"><ExternalLink className="h-3 w-3" /> {fa ? "مشاهده اصل" : "Open full"}</span>
+                      </button>
+                    </ReceiptLightbox>
                   )}
                   {payment.description && <p className="rounded-md bg-muted/50 p-2 text-sm">{payment.description}</p>}
                   <Input placeholder={fa ? "یادداشت (اختیاری)" : "Review note (optional)"} value={notes[botId ?? payment.id] ?? ""} onChange={(e) => setNotes({ ...notes, [botId ?? payment.id]: e.target.value })} />
@@ -207,16 +202,11 @@ export function PaymentApprovals() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {d.receiptUrl && (
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <button type="button" className="block w-full text-start">
-                          <img src={d.receiptUrl} alt="receipt" className="max-h-40 w-full rounded-md border object-contain bg-muted" />
-                        </button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-3xl">
-                        <img src={d.receiptUrl} alt="receipt" className="max-h-[80vh] w-full rounded-md object-contain" />
-                      </DialogContent>
-                    </Dialog>
+                    <ReceiptLightbox src={d.receiptUrl}>
+                      <button type="button" className="block w-full text-start">
+                        <img src={d.receiptUrl} alt="receipt" className="max-h-40 w-full rounded-md border object-contain bg-muted" />
+                      </button>
+                    </ReceiptLightbox>
                   )}
                   {d.txHash && <p className="break-all rounded-md bg-muted/50 p-2 font-mono text-xs" dir="ltr">{d.txHash}</p>}
                   <Input placeholder={fa ? "یادداشت (اختیاری)" : "Review note (optional)"} value={notes[d.id] ?? ""} onChange={(e) => setNotes({ ...notes, [d.id]: e.target.value })} />

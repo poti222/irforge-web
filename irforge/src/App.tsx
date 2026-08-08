@@ -24,7 +24,6 @@ import Checkout from "@/pages/checkout";
 import LearnBotToken from "@/pages/learn-bot-token";
 import BotWorkspace from "@/pages/bot-workspace";
 import Marketplace from "@/pages/marketplace";
-import Plans from "@/pages/plans";
 import Invoices from "@/pages/invoices";
 import Tickets from "@/pages/tickets";
 import WalletPage from "@/pages/wallet";
@@ -34,7 +33,6 @@ import AdminUsers from "@/pages/admin-users";
 import AdminPendingPayments from "@/pages/admin-pending-payments";
 import AdminSheetPool from "@/pages/admin-sheet-pool";
 import Support from "@/pages/support";
-import Language from "@/pages/language";
 import DatabasePage from "@/pages/database";
 
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
@@ -150,12 +148,10 @@ function Router() {
       <Route path="/bots/:botId"><ProtectedRoute component={BotWorkspace} /></Route>
       <Route path="/learn/bot-token"><ProtectedRoute component={LearnBotToken} /></Route>
       <Route path="/marketplace"><ProtectedRoute component={Marketplace} /></Route>
-      <Route path="/plans"><ProtectedRoute component={Plans} /></Route>
       <Route path="/invoices"><ProtectedRoute component={Invoices} /></Route>
       <Route path="/tickets"><ProtectedRoute component={Tickets} /></Route>
       <Route path="/wallet"><ProtectedRoute component={WalletPage} /></Route>
       <Route path="/support"><ProtectedRoute component={Support} /></Route>
-      <Route path="/language"><ProtectedRoute component={Language} /></Route>
       <Route path="/database"><ProtectedRoute component={DatabasePage} /></Route>
       <Route path="/profile"><ProtectedRoute component={Profile} /></Route>
       

@@ -36,12 +36,15 @@ type FormState = {
   maxBots: string;
   maxPlugins: string;
   maxUsers: string;
+  ramGb: string;
+  cpuCores: string;
   popular: boolean;
 };
 
 const EMPTY: FormState = {
   id: null, name: "", price: "0", interval: "monthly",
-  featuresText: "", maxBots: "1", maxPlugins: "5", maxUsers: "100", popular: false,
+  featuresText: "", maxBots: "1", maxPlugins: "5", maxUsers: "100",
+  ramGb: "1", cpuCores: "1", popular: false,
 };
 
 export function PlansManager() {
@@ -72,7 +75,9 @@ export function PlansManager() {
       id: p.id, name: p.name, price: String(p.price), interval: p.interval,
       featuresText: (p.features ?? []).join("\n"),
       maxBots: String(p.maxBots), maxPlugins: String(p.maxPlugins),
-      maxUsers: String(p.maxUsers ?? 100), popular: !!p.popular,
+      maxUsers: String(p.maxUsers ?? 100),
+      ramGb: String(p.ramGb ?? 1), cpuCores: String(p.cpuCores ?? 1),
+      popular: !!p.popular,
     });
     setDialogOpen(true);
   }
@@ -90,6 +95,10 @@ export function PlansManager() {
       maxBots: Number(form.maxBots) || 0,
       maxPlugins: Number(form.maxPlugins) || 0,
       maxUsers: Number(form.maxUsers) || 0,
+      // No ceiling here on purpose: an admin may size a bespoke plan at 24 GB.
+      // The 8 GB cap in bot-tiers.ts applies only to the self-serve builder.
+      ramGb: Number(form.ramGb) || 0,
+      cpuCores: Number(form.cpuCores) || 0,
       popular: form.popular,
     };
     setBusy(true);
@@ -192,6 +201,8 @@ export function PlansManager() {
             <div className="space-y-1.5"><Label>{fa ? "حداکثر بات" : "Max bots"}</Label><Input type="number" dir="ltr" value={form.maxBots} onChange={(e) => setForm({ ...form, maxBots: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>{fa ? "حداکثر پلاگین" : "Max plugins"}</Label><Input type="number" dir="ltr" value={form.maxPlugins} onChange={(e) => setForm({ ...form, maxPlugins: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>{fa ? "حداکثر کاربر" : "Max users"}</Label><Input type="number" dir="ltr" value={form.maxUsers} onChange={(e) => setForm({ ...form, maxUsers: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>{fa ? "رم (گیگابایت)" : "RAM (GB)"}</Label><Input type="number" min="0" step="0.5" dir="ltr" value={form.ramGb} onChange={(e) => setForm({ ...form, ramGb: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>{fa ? "پردازنده (هسته)" : "CPU (cores)"}</Label><Input type="number" min="0" step="0.5" dir="ltr" value={form.cpuCores} onChange={(e) => setForm({ ...form, cpuCores: e.target.value })} /></div>
             <div className="flex items-end gap-2 pb-1">
               <Switch checked={form.popular} onCheckedChange={(v) => setForm({ ...form, popular: v })} id="plan-popular" />
               <Label htmlFor="plan-popular">{fa ? "محبوب" : "Popular"}</Label>

@@ -40,7 +40,14 @@
     "statActiveBots": "Aktif Botlar",
     "statTotalUsers": "Toplam Kullanıcı",
     "statMessagesPerDay": "Mesaj / gün",
-    "startBuildingNow": "Şimdi oluşturmaya başlayın"
+    "startBuildingNow": "Şimdi oluşturmaya başlayın",
+    "receiptViewerTitle": "Ödeme dekontu",
+    "viewReceipt": "Dekontu görüntüle",
+    "zoomIn": "Yakınlaştır",
+    "zoomOut": "Uzaklaştır",
+    "resetZoom": "Gerçek boyut",
+    "openOriginal": "Orijinali aç",
+    "noReceipt": "Dekont yok"
   },
   "landing": {
     "signIn": "Giriş Yap",
@@ -167,7 +174,10 @@
     "manageBot": "Botu Yönet",
     "noBotsTitle": "Henüz bot yok",
     "noBotsDesc": "Henüz hiç bot oluşturmadınız. Başlamak için ilk botunuzu oluşturun.",
-    "createFirstBot": "İlk Botunuzu Oluşturun"
+    "createFirstBot": "İlk Botunuzu Oluşturun",
+    "botAvatarAlt": "Bot profil resmi",
+    "noUsername": "Kullanıcı adı yok",
+    "activeUsersDaily": "Günlük aktif kullanıcı · son 7 gün"
   },
   "botWorkspace": {
     "loadingWorkspace": "Bot çalışma alanı yükleniyor...",
@@ -190,9 +200,21 @@
     "overviewCommands": "Komutlar",
     "overviewPlugins": "Eklentiler",
     "botStartingCountdown": "Botunuz yaklaşık {seconds} saniye içinde açılacak",
-    "botStoppingCountdown": "Botunuz yaklaşık {seconds} saniye içinde kapanacak"
+    "botStoppingCountdown": "Botunuz yaklaşık {seconds} saniye içinde kapanacak",
+    "sectionLanguage": "Bot dili",
+    "comingSoon": "Yakında",
+    "overviewActiveToday": "Bugün aktif kullanıcılar",
+    "noDataYet": "Henüz veri yok",
+    "botLink": "Bot bağlantısı",
+    "copyId": "Kimliği kopyala",
+    "copied": "Kopyalandı",
+    "openInTelegram": "Telegram'da aç",
+    "qrHint": "Botu açmak için bu kodu tarayın",
+    "languageSectionNotice": "Bot dili ayarları yakında buraya taşınacak."
   },
-  "marketplace": {},
+  "marketplace": {
+    "walletBalance": "Cüzdan bakiyesi"
+  },
   "wallet": {},
   "profile": {},
   "support": {},
@@ -220,5 +242,32 @@
     "a4": "Evet. Özel komutlar ile ödeme, moderasyon ve yapay zeka yanıt eklentileri; mağaza botlarını, müşteri destek botlarını ve çoğu iş akışını kapsar.",
     "q5": "Telegram bot yapımını nereden öğrenirim?",
     "a5": "Dokümantasyondan başlayın: hızlı başlangıç, argümanlı komut tanımlama ve eklenti yazma, çalışan örneklerle anlatılıyor."
+  },
+  "database": {
+    "readOnlyBadge": "Salt okunur",
+    "readOnlyNotice": "Bu sayfa yalnızca görüntülemek içindir. Veriyi değiştirmek için sayfayı Google'da açın.",
+    "hiddenRowsNote": "{count} teknik satır gizlendi"
+  },
+  "buyBot": {
+    "plansTitle": "Abonelik planları",
+    "plansSub": "Yöneticinin tanımladığı planlar — yukarıdaki paketlere ek olarak.",
+    "noPlans": "Henüz plan tanımlanmadı.",
+    "currentPlan": "Mevcut plan",
+    "upgrade": "Yükselt",
+    "ram": "RAM",
+    "cpu": "CPU",
+    "concurrentUsers": "eşzamanlı kullanıcı",
+    "botsLimit": "bot",
+    "pluginsLimit": "eklenti",
+    "gb": "GB",
+    "cores": "çekirdek",
+    "resources": "Kaynaklar",
+    "confirmUpgradeTitle": "Plan yükseltmeyi onayla",
+    "cancel": "İptal",
+    "confirmUpgrade": "Yükseltmeyi onayla",
+    "planUpdated": "Plan güncellendi",
+    "planUpdateFailed": "Plan değiştirilemedi",
+    "customResources": "Özel kaynaklar",
+    "customResourcesHint": "RAM ve CPU'yu 8 GB'a kadar seçin."
   }
 }

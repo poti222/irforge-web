@@ -40,7 +40,14 @@
     "statActiveBots": "ربات‌های فعال",
     "statTotalUsers": "کل کاربران",
     "statMessagesPerDay": "پیام در روز",
-    "startBuildingNow": "همین حالا شروع کنید"
+    "startBuildingNow": "همین حالا شروع کنید",
+    "receiptViewerTitle": "فیش پرداخت",
+    "viewReceipt": "مشاهده فیش",
+    "zoomIn": "بزرگ‌نمایی",
+    "zoomOut": "کوچک‌نمایی",
+    "resetZoom": "اندازه اصلی",
+    "openOriginal": "تصویر اصلی",
+    "noReceipt": "بدون فیش"
   },
   "landing": {
     "signIn": "ورود",
@@ -167,7 +174,10 @@
     "manageBot": "مدیریت ربات",
     "noBotsTitle": "هنوز رباتی ندارید",
     "noBotsDesc": "هنوز رباتی نساخته‌اید. اولین ربات خود را بسازید تا شروع کنید.",
-    "createFirstBot": "ساخت اولین ربات"
+    "createFirstBot": "ساخت اولین ربات",
+    "botAvatarAlt": "تصویر پروفایل ربات",
+    "noUsername": "بدون آیدی",
+    "activeUsersDaily": "کاربران فعال روزانه (۷ روز اخیر)"
   },
   "botWorkspace": {
     "loadingWorkspace": "در حال بارگذاری...",
@@ -190,9 +200,21 @@
     "overviewCommands": "دستورات",
     "overviewPlugins": "پلاگین‌ها",
     "botStartingCountdown": "بات شما تا حدود {seconds} ثانیه‌ی دیگه روشن می‌شه",
-    "botStoppingCountdown": "بات شما تا حدود {seconds} ثانیه‌ی دیگه خاموش می‌شه"
+    "botStoppingCountdown": "بات شما تا حدود {seconds} ثانیه‌ی دیگه خاموش می‌شه",
+    "sectionLanguage": "زبان بات",
+    "comingSoon": "به‌زودی",
+    "overviewActiveToday": "کاربران فعال امروز",
+    "noDataYet": "هنوز داده‌ای نیست",
+    "botLink": "لینک بات",
+    "copyId": "کپی آیدی",
+    "copied": "کپی شد",
+    "openInTelegram": "باز کردن در تلگرام",
+    "qrHint": "برای باز کردن بات، این کد را اسکن کنید",
+    "languageSectionNotice": "تنظیمات زبان بات به‌زودی از همین‌جا در دسترس خواهد بود."
   },
-  "marketplace": {},
+  "marketplace": {
+    "walletBalance": "موجودی کیف پول"
+  },
   "wallet": {},
   "profile": {},
   "support": {},
@@ -220,5 +242,32 @@
     "a4": "بله. با تعریف دستورهای دلخواه و نصب پلاگین‌های پرداخت، مدیریت گروه و پاسخ هوش مصنوعی، می‌توانید بات فروشگاهی، ربات پشتیبانی یا هر جریان کاری دیگری را بسازید.",
     "q5": "برای آموزش ساخت ربات تلگرام از کجا شروع کنم؟",
     "a5": "از صفحه‌ی مستندات شروع کنید: شروع سریع، تعریف دستور با آرگومان و نوشتن پلاگین با مثال‌های آماده توضیح داده شده‌اند."
+  },
+  "database": {
+    "readOnlyBadge": "فقط خواندنی",
+    "readOnlyNotice": "این صفحه فقط برای مشاهده است. برای تغییر داده‌ها شیت را در گوگل باز کنید.",
+    "hiddenRowsNote": "{count} ردیف فنی نمایش داده نشد"
+  },
+  "buyBot": {
+    "plansTitle": "پلن‌های اشتراک",
+    "plansSub": "پلن‌هایی که مدیر تعریف کرده — علاوه بر پکیج‌های بالا.",
+    "noPlans": "هنوز پلنی تعریف نشده است.",
+    "currentPlan": "پلن فعلی",
+    "upgrade": "ارتقا",
+    "ram": "رم",
+    "cpu": "پردازنده",
+    "concurrentUsers": "کاربر همزمان",
+    "botsLimit": "ربات",
+    "pluginsLimit": "پلاگین",
+    "gb": "گیگ",
+    "cores": "هسته",
+    "resources": "منابع",
+    "confirmUpgradeTitle": "تأیید ارتقای پلن",
+    "cancel": "انصراف",
+    "confirmUpgrade": "تأیید و ارتقا",
+    "planUpdated": "پلن تغییر کرد",
+    "planUpdateFailed": "خطا در تغییر پلن",
+    "customResources": "منابع سفارشی",
+    "customResourcesHint": "رم و پردازنده را تا سقف ۸ گیگ انتخاب کنید."
   }
 }

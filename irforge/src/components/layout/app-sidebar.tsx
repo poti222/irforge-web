@@ -73,12 +73,13 @@ export function AppSidebar() {
     // left-0, which slides page content under it. side="right" realigns them.
     <Sidebar side={isRtlLang(lang) ? "right" : "left"} variant="inset" collapsible="icon">
       <SidebarHeader className="p-0">
-        {/* Clicking the mark leaves the app for the public homepage, in the
-            visitor's current language: the router base already holds the
-            language prefix, so "/" becomes /en/, /tr/, … and bare / for fa.
-            (Dashboard is still one tap away — it's the first nav row below.) */}
+        {/* Inside the app the mark goes to the dashboard, not the public
+            homepage — someone already signed in who clicks the logo expects
+            "take me to my stuff", not "sign me out into marketing". The
+            router base carries the language prefix, so this resolves to
+            /en/dashboard, /tr/dashboard, … and bare /dashboard for fa. */}
         <SidebarBrandHeader
-          href="/"
+          href="/dashboard"
           data-testid="nav-brand-home"
           className="group-data-[collapsible=icon]:px-0"
           logoClassName="group-data-[collapsible=icon]:[&>span]:hidden"
@@ -161,26 +162,9 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              {/* Not yet reordered per the new spec: these two will move (or
-                  disappear) in later phases — Bot Language moves into the
-                  per-bot workspace, Plans merges into Buy Bot — so for now
-                  they stay at the end of the list. */}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/language"} tooltip={nav.botLanguage}>
-                  <Link href="/language" data-testid="nav-language" onClick={closeMobileMenu}>
-                    <Globe />
-                    <span>{nav.botLanguage}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/plans"} tooltip={nav.plans}>
-                  <Link href="/plans" data-testid="nav-plans" onClick={closeMobileMenu}>
-                    <CreditCard />
-                    <span>{nav.plans}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {/* Bot Language moved into the per-bot workspace and Plans
+                  merged into Buy Bot, so neither has a top-level row any more.
+                  What's left is exactly the order the spec asks for. */}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

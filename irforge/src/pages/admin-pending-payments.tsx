@@ -17,7 +17,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { ReceiptLightbox } from "@/components/ui/receipt-lightbox";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
 
@@ -161,24 +161,15 @@ export default function AdminPendingPayments() {
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span>{new Date(item.payment.createdAt).toLocaleString(fa ? "fa-IR" : "en-US")}</span>
                         {item.payment.receiptUrl && (
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <button
-                                type="button"
-                                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
-                              >
-                                <ExternalLink className="size-3.5" />
-                                {fa ? "مشاهده فیش" : "View receipt"}
-                              </button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-3xl">
-                              <img
-                                src={item.payment.receiptUrl}
-                                alt="receipt"
-                                className="max-h-[80vh] w-full rounded-md object-contain"
-                              />
-                            </DialogContent>
-                          </Dialog>
+                          <ReceiptLightbox src={item.payment.receiptUrl}>
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                            >
+                              <ExternalLink className="size-3.5" />
+                              {fa ? "مشاهده فیش" : "View receipt"}
+                            </button>
+                          </ReceiptLightbox>
                         )}
                       </div>
                     </div>
