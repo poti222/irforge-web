@@ -24,7 +24,6 @@ import Checkout from "@/pages/checkout";
 import LearnBotToken from "@/pages/learn-bot-token";
 import BotWorkspace from "@/pages/bot-workspace";
 import Marketplace from "@/pages/marketplace";
-import Themes from "@/pages/themes";
 import Plans from "@/pages/plans";
 import Invoices from "@/pages/invoices";
 import Tickets from "@/pages/tickets";
@@ -41,7 +40,6 @@ import DatabasePage from "@/pages/database";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { SupportFab } from "@/components/layout/support-fab";
-import { BrandHomeButton } from "@/components/layout/brand-home";
 import { HeaderControls } from "@/components/layout/header-controls";
 import { Spinner } from "@/components/ui/spinner";
 import ErrorBoundary from "@/components/error-boundary";
@@ -89,8 +87,6 @@ function ProtectedRoute({ component: Component, adminOnly = false, superAdminOnl
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
-          <div className="h-5 w-px bg-border mx-1" />
-          <BrandHomeButton className="size-8" />
           <HeaderControls />
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
@@ -143,7 +139,6 @@ function Router() {
       <Route path="/bots/:botId"><ProtectedRoute component={BotWorkspace} /></Route>
       <Route path="/learn/bot-token"><ProtectedRoute component={LearnBotToken} /></Route>
       <Route path="/marketplace"><ProtectedRoute component={Marketplace} /></Route>
-      <Route path="/themes"><ProtectedRoute component={Themes} /></Route>
       <Route path="/plans"><ProtectedRoute component={Plans} /></Route>
       <Route path="/invoices"><ProtectedRoute component={Invoices} /></Route>
       <Route path="/tickets"><ProtectedRoute component={Tickets} /></Route>
