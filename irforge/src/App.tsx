@@ -39,6 +39,7 @@ import DatabasePage from "@/pages/database";
 
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { BrandLogo } from "@/components/layout/brand-home";
 import { SupportFab } from "@/components/layout/support-fab";
 import { HeaderControls } from "@/components/layout/header-controls";
 import { Spinner } from "@/components/ui/spinner";
@@ -87,6 +88,16 @@ function ProtectedRoute({ component: Component, adminOnly = false, superAdminOnl
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
+          {/* Brand lockup sits right of the toggle so it's present on the
+              dashboard and every signed-in page — and, more importantly, on
+              mobile, where the sidebar is a closed sheet and the header would
+              otherwise carry no brand at all.
+              href="/" is language-aware for free: WouterRouter's `base`
+              already carries the active language prefix, so this resolves to
+              /en/ for an English visitor, /ar/ for Arabic, and bare / for the
+              default (fa). Don't hardcode a prefix here — that would double it. */}
+          <div className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden="true" />
+          <BrandLogo href="/" size="sm" data-testid="header-brand-home" />
           <HeaderControls />
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
