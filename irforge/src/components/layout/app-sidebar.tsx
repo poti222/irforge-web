@@ -11,11 +11,11 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
+import { BrandLogo } from "@/components/layout/brand-home";
 import {
   Bot,
   LayoutDashboard,
   Store,
-  Palette,
   CreditCard,
   Settings,
   ShieldAlert,
@@ -73,13 +73,12 @@ export function AppSidebar() {
     // left-0, which slides page content under it. side="right" realigns them.
     <Sidebar side={isRtlLang(lang) ? "right" : "left"} variant="inset" collapsible="icon">
       <SidebarHeader className="flex h-16 items-center justify-center border-b border-sidebar-border px-4 py-0 group-data-[collapsible=icon]:px-0">
-        <div className="flex w-full items-center justify-center gap-2 overflow-hidden group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0">
-          <div className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Bot className="size-5" />
-          </div>
-          <span className="truncate font-semibold text-lg tracking-tight group-data-[collapsible=icon]:hidden">
-            IrForge
-          </span>
+        <div className="flex w-full items-center justify-center overflow-hidden group-data-[collapsible=icon]:justify-center">
+          <BrandLogo
+            href="/dashboard"
+            data-testid="nav-brand-home"
+            className="group-data-[collapsible=icon]:[&>span]:hidden"
+          />
         </div>
       </SidebarHeader>
 
@@ -96,14 +95,6 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location.startsWith("/buy-bot")} tooltip={nav.buyBot}>
-                  <Link href="/buy-bot" data-testid="nav-buy-bot" onClick={closeMobileMenu}>
-                    <ShoppingBag />
-                    <span>{nav.buyBot}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location.startsWith("/bots")} tooltip={nav.myBots}>
                   <Link href="/bots" data-testid="nav-bots" onClick={closeMobileMenu}>
                     <Bot />
@@ -112,34 +103,10 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/invoices"} tooltip={nav.myInvoices}>
-                  <Link href="/invoices" data-testid="nav-invoices" onClick={closeMobileMenu}>
-                    <Receipt />
-                    <span>{nav.myInvoices}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/support"} tooltip={nav.support}>
-                  <Link href="/support" data-testid="nav-support" onClick={closeMobileMenu}>
-                    <Headset />
-                    <span>{nav.support}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/tickets"} tooltip={nav.tickets}>
-                  <Link href="/tickets" data-testid="nav-tickets" onClick={closeMobileMenu}>
-                    <LifeBuoy />
-                    <span>{nav.tickets}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/wallet"} tooltip={nav.myWallet}>
-                  <Link href="/wallet" data-testid="nav-wallet" onClick={closeMobileMenu}>
-                    <Wallet />
-                    <span>{nav.myWallet}</span>
+                <SidebarMenuButton asChild isActive={location.startsWith("/buy-bot")} tooltip={nav.buyBot}>
+                  <Link href="/buy-bot" data-testid="nav-buy-bot" onClick={closeMobileMenu}>
+                    <ShoppingBag />
+                    <span>{nav.buyBot}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -152,6 +119,38 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/wallet"} tooltip={nav.myWallet}>
+                  <Link href="/wallet" data-testid="nav-wallet" onClick={closeMobileMenu}>
+                    <Wallet />
+                    <span>{nav.myWallet}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/invoices"} tooltip={nav.myInvoices}>
+                  <Link href="/invoices" data-testid="nav-invoices" onClick={closeMobileMenu}>
+                    <Receipt />
+                    <span>{nav.myInvoices}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/tickets"} tooltip={nav.tickets}>
+                  <Link href="/tickets" data-testid="nav-tickets" onClick={closeMobileMenu}>
+                    <LifeBuoy />
+                    <span>{nav.tickets}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/support"} tooltip={nav.support}>
+                  <Link href="/support" data-testid="nav-support" onClick={closeMobileMenu}>
+                    <Headset />
+                    <span>{nav.support}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location === "/database"} tooltip={nav.database}>
                   <Link href="/database" data-testid="nav-database" onClick={closeMobileMenu}>
                     <Database />
@@ -159,19 +158,15 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {/* Not yet reordered per the new spec: these two will move (or
+                  disappear) in later phases — Bot Language moves into the
+                  per-bot workspace, Plans merges into Buy Bot — so for now
+                  they stay at the end of the list. */}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location === "/language"} tooltip={nav.botLanguage}>
                   <Link href="/language" data-testid="nav-language" onClick={closeMobileMenu}>
                     <Globe />
                     <span>{nav.botLanguage}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/themes"} tooltip={nav.themeBuilder}>
-                  <Link href="/themes" data-testid="nav-themes" onClick={closeMobileMenu}>
-                    <Palette />
-                    <span>{nav.themeBuilder}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
