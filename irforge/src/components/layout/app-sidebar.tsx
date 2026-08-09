@@ -11,7 +11,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
-import { BrandLogo } from "@/components/layout/brand-home";
+import { SidebarBrandHeader } from "@/components/layout/brand-home";
 import {
   Bot,
   LayoutDashboard,
@@ -72,14 +72,13 @@ export function AppSidebar() {
     // follows the RTL flex order (right) while a `left` sidebar stays pinned
     // left-0, which slides page content under it. side="right" realigns them.
     <Sidebar side={isRtlLang(lang) ? "right" : "left"} variant="inset" collapsible="icon">
-      <SidebarHeader className="flex h-16 items-center justify-center border-b border-sidebar-border px-4 py-0 group-data-[collapsible=icon]:px-0">
-        <div className="flex w-full items-center justify-center overflow-hidden group-data-[collapsible=icon]:justify-center">
-          <BrandLogo
-            href="/dashboard"
-            data-testid="nav-brand-home"
-            className="group-data-[collapsible=icon]:[&>span]:hidden"
-          />
-        </div>
+      <SidebarHeader className="p-0">
+        <SidebarBrandHeader
+          href="/dashboard"
+          data-testid="nav-brand-home"
+          className="group-data-[collapsible=icon]:px-0"
+          logoClassName="group-data-[collapsible=icon]:[&>span]:hidden"
+        />
       </SidebarHeader>
 
       <SidebarContent>
