@@ -10,9 +10,17 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { LifeBuoy, Plus, Send, Loader2, CheckCircle2, ArrowLeft } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { LifeBuoy, Plus, Send, Loader2, CheckCircle2, ArrowLeft, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
+import { useAuth } from "@/contexts/AuthContext";
 
 type TicketListItem = {
   id: string; subject: string; status: string; createdAt: string; updatedAt: string;
@@ -28,11 +36,21 @@ const STATUS: Record<string, { variant: "default" | "secondary" | "outline"; fa:
   closed: { variant: "secondary", fa: "بسته", en: "closed" },
 };
 
+type StatusFilter = "all" | "open" | "answered" | "closed";
+const STATUS_FILTERS: { value: StatusFilter; fa: string; en: string }[] = [
+  { value: "all", fa: "همه", en: "All" },
+  { value: "open", fa: "باز", en: "Open" },
+  { value: "answered", fa: "پاسخ داده‌شده", en: "Answered" },
+  { value: "closed", fa: "بسته", en: "Closed" },
+];
+
 export default function Tickets() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === "super_admin";
 
   const [selected, setSelected] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -40,11 +58,16 @@ export default function Tickets() {
   const [firstMessage, setFirstMessage] = useState("");
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; subject: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: tickets, isLoading } = useQuery({
     queryKey: ["tickets"],
     queryFn: () => customFetch<TicketListItem[]>("/api/tickets"),
   });
+
+  const filteredTickets = tickets?.filter((t) => statusFilter === "all" || t.status === statusFilter);
 
   const { data: detail } = useQuery({
     queryKey: ["ticket", selected],
@@ -101,6 +124,24 @@ export default function Tickets() {
     }
   }
 
+  // super_admin only — irreversible, permanently removes the ticket and its
+  // whole message history (server-enforced; this button is just UI gating).
+  async function confirmDeleteTicket() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await customFetch(`/api/tickets/${deleteTarget.id}`, { method: "DELETE" });
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
+      if (selected === deleteTarget.id) setSelected(null);
+      toast({ title: fa ? "تیکت حذف شد" : "Ticket deleted" });
+      setDeleteTarget(null);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: fa ? "خطا در حذف" : "Delete failed", description: err?.message });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -114,16 +155,30 @@ export default function Tickets() {
       <div className="grid gap-4 lg:grid-cols-3">
         {/* List */}
         <div className="space-y-2 lg:col-span-1">
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_FILTERS.map((f) => (
+                <SelectItem key={f.value} value={f.value}>{fa ? f.fa : f.en}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           {isLoading ? (
             [1, 2, 3].map((i) => <div key={i} className="h-16 animate-pulse rounded-md bg-muted" />)
-          ) : tickets && tickets.length > 0 ? (
-            tickets.map((t) => {
+          ) : filteredTickets && filteredTickets.length > 0 ? (
+            filteredTickets.map((t) => {
               const s = STATUS[t.status] ?? STATUS.open;
               return (
-                <button
+                <div
                   key={t.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelected(t.id)}
-                  className={`w-full rounded-md border p-3 text-start transition-colors hover:bg-muted/50 ${selected === t.id ? "border-primary bg-muted/40" : ""}`}
+                  onKeyDown={(e) => { if (e.key === "Enter") setSelected(t.id); }}
+                  className={`w-full cursor-pointer rounded-md border p-3 text-start transition-colors hover:bg-muted/50 ${selected === t.id ? "border-primary bg-muted/40" : ""}`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex min-w-0 items-center gap-1.5">
@@ -134,7 +189,19 @@ export default function Tickets() {
                       )}
                       <span className="font-medium truncate">{t.subject}</span>
                     </span>
-                    <Badge variant={s.variant}>{fa ? s.fa : s.en}</Badge>
+                    <span className="flex shrink-0 items-center gap-1">
+                      <Badge variant={s.variant}>{fa ? s.fa : s.en}</Badge>
+                      {isSuperAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: t.id, subject: t.subject }); }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </span>
                   </div>
                   {t.source === "bot" && (t.telegramId || t.tenant) && (
                     <p className="mt-1 text-xs text-muted-foreground" dir="ltr">
@@ -145,13 +212,17 @@ export default function Tickets() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     {new Date(t.updatedAt).toLocaleDateString(fa ? "fa-IR" : "en-US")}
                   </p>
-                </button>
+                </div>
               );
             })
           ) : (
             <div className="flex flex-col items-center gap-2 rounded-md border border-dashed py-10 text-center">
               <LifeBuoy className="h-7 w-7 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">{fa ? "تیکتی ندارید." : "No tickets."}</p>
+              <p className="text-sm text-muted-foreground">
+                {tickets && tickets.length > 0
+                  ? (fa ? "تیکتی با این وضعیت نیست." : "No tickets with this status.")
+                  : (fa ? "تیکتی ندارید." : "No tickets.")}
+              </p>
             </div>
           )}
         </div>
@@ -170,11 +241,23 @@ export default function Tickets() {
                     {fa ? (STATUS[detail.status] ?? STATUS.open).fa : (STATUS[detail.status] ?? STATUS.open).en}
                   </Badge>
                 </div>
-                {detail.status !== "closed" && (
-                  <Button variant="outline" size="sm" onClick={closeTicket}>
-                    <CheckCircle2 className="me-1 h-3.5 w-3.5" /> {fa ? "بستن" : "Close"}
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {detail.status !== "closed" && (
+                    <Button variant="outline" size="sm" onClick={closeTicket}>
+                      <CheckCircle2 className="me-1 h-3.5 w-3.5" /> {fa ? "بستن" : "Close"}
+                    </Button>
+                  )}
+                  {isSuperAdmin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => setDeleteTarget({ id: detail.id, subject: detail.subject })}
+                    >
+                      <Trash2 className="me-1 h-3.5 w-3.5" /> {fa ? "حذف" : "Delete"}
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="flex-1 space-y-3 overflow-auto py-4">
                 {detail.messages.map((m) => {
@@ -233,6 +316,31 @@ export default function Tickets() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* super_admin — permanent, irreversible ticket delete */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{fa ? "حذف تیکت؟" : "Delete ticket?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {fa
+                ? `تیکت «${deleteTarget?.subject ?? ""}» و تمام تاریخچه‌ی پیام‌های آن برای همیشه حذف می‌شود. این عمل غیرقابل بازگشت است.`
+                : `“${deleteTarget?.subject ?? ""}” and its whole message history will be permanently deleted. This cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>{fa ? "انصراف" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={(e) => { e.preventDefault(); confirmDeleteTicket(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+              {fa ? "حذف برای همیشه" : "Delete permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
