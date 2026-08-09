@@ -73,8 +73,12 @@ export function AppSidebar() {
     // left-0, which slides page content under it. side="right" realigns them.
     <Sidebar side={isRtlLang(lang) ? "right" : "left"} variant="inset" collapsible="icon">
       <SidebarHeader className="p-0">
+        {/* Clicking the mark leaves the app for the public homepage, in the
+            visitor's current language: the router base already holds the
+            language prefix, so "/" becomes /en/, /tr/, … and bare / for fa.
+            (Dashboard is still one tap away — it's the first nav row below.) */}
         <SidebarBrandHeader
-          href="/dashboard"
+          href="/"
           data-testid="nav-brand-home"
           className="group-data-[collapsible=icon]:px-0"
           logoClassName="group-data-[collapsible=icon]:[&>span]:hidden"
