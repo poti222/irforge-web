@@ -22,7 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { OrangeRobot } from "@/components/layout/brand-home";
+import { OrangeRobot, BrandLogo } from "@/components/layout/brand-home";
 import { HeroRobot } from "@/components/landing/HeroRobot";
 import { BotChatMockup } from "@/components/landing/BotChatMockup";
 import { MiniAnalyticsChart } from "@/components/landing/MiniAnalyticsChart";
@@ -151,15 +151,7 @@ export default function Landing() {
       {/* Navbar */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="flex aspect-square size-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <OrangeRobot className="size-6 text-primary-foreground" />
-            </div>
-            <div className="flex flex-col leading-none min-w-0">
-              <span className="font-extrabold text-lg tracking-tight text-foreground truncate">IrForge</span>
-              <span className="hidden sm:block text-[9px] text-primary font-semibold tracking-widest uppercase opacity-80">Bot Platform</span>
-            </div>
-          </div>
+          <BrandLogo href={null} className="sm:gap-3 min-w-0" />
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <ThemeToggleButton className="rounded-full" />
 
@@ -435,7 +427,7 @@ export default function Landing() {
                 <OrangeRobot className="size-5 text-primary-foreground" />
               </div>
               <div className="flex flex-col gap-1">
-                <span className="font-bold text-foreground">IrForge Platform</span>
+                <span className="font-semibold text-foreground">IrForge</span>
                 <img
                   src="/lion-sun-flag.png"
                   alt="پرچم شیر و خورشید"
