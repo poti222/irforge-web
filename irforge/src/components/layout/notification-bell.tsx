@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Bell, AlertTriangle, Info, CheckCheck } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
+import { SEVERITY_DOT_CLASS } from "@/lib/notification-severity";
+import { useReducedMotion } from "framer-motion";
 
 function severityIcon(severity: AppNotification["severity"]) {
   if (severity === "critical") return <AlertTriangle className="size-4 shrink-0 text-red-500" />;
@@ -15,8 +17,9 @@ function severityIcon(severity: AppNotification["severity"]) {
 export function NotificationBell() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
-  const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
+  const { notifications, unreadCount, topSeverity, markRead, markAllRead } = useNotifications();
   const [open, setOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -26,8 +29,12 @@ export function NotificationBell() {
           aria-label={fa ? "اعلان‌ها" : "Notifications"}
         >
           <Bell className="size-4" />
-          {unreadCount > 0 && (
-            <span className="absolute -end-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+          {unreadCount > 0 && topSeverity && (
+            <span
+              className={`absolute -end-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full text-[10px] font-bold text-white ${SEVERITY_DOT_CLASS[topSeverity]} ${
+                topSeverity === "critical" && !reducedMotion ? "animate-pulse" : ""
+              }`}
+            >
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}

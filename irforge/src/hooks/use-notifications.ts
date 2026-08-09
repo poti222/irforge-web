@@ -32,7 +32,22 @@ export function useNotifications() {
     refetchOnWindowFocus: true,
   });
 
-  const unreadCount = (query.data ?? []).filter((n) => !n.read).length;
+  const unread = (query.data ?? []).filter((n) => !n.read);
+  const unreadCount = unread.length;
+
+  /**
+   * بالاترین severity بین اعلان‌های خوانده‌نشده — رنگ نشانگر (بج زنگوله و نقطه‌ی
+   * کنار منوی کناری) از روی همین تعیین می‌شود. وقتی چیزی خوانده‌نشده نیست
+   * `null` است.
+   */
+  const topSeverity: AppNotification["severity"] | null =
+    unreadCount === 0
+      ? null
+      : unread.some((n) => n.severity === "critical")
+        ? "critical"
+        : unread.some((n) => n.severity === "warning")
+          ? "warning"
+          : "info";
 
   async function markRead(id: string) {
     await customFetch(`/api/notifications/${id}/read`, { method: "PATCH" });
@@ -51,6 +66,7 @@ export function useNotifications() {
   return {
     notifications: query.data ?? [],
     unreadCount,
+    topSeverity,
     isLoading: query.isLoading,
     markRead,
     markAllRead,

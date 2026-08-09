@@ -250,3 +250,45 @@ read at 50, which hides but does not solve this). Also, the events are fired
 after the parent write commits, not inside its transaction: if the process dies
 in between, the write lands without its notification. Both are acceptable for
 this feature's purpose but worth a retention/outbox pass later.
+
+## Phase 4 — Notification bell + sidebar severity indicator  [DONE 2026-08-09]
+Files touched: `irforge/src/hooks/use-notifications.ts`,
+`irforge/src/components/layout/notification-bell.tsx`,
+`irforge/src/components/layout/app-sidebar.tsx`,
+`irforge/src/lib/notification-severity.ts` (new).
+
+1. `use-notifications.ts` now derives and exports
+   `topSeverity: "critical" | "warning" | "info" | null` — the max severity
+   across **unread** notifications, `null` when `unreadCount === 0`. It reuses
+   the same `unread` array `unreadCount` is computed from, so the two can't
+   disagree.
+2. The bell badge colour comes from `topSeverity` instead of the hardcoded
+   `bg-red-500`: critical → `bg-red-500`, warning → `bg-amber-500`, info →
+   `bg-primary`. A `critical` badge also gets `animate-pulse`, suppressed when
+   `useReducedMotion()` (framer-motion, already a dependency) is true. Used the
+   CSS class rather than a framer-motion loop — the badge is a 16px span, and a
+   motion component there would cost more than it buys.
+3. `app-sidebar.tsx` shows a severity dot on the **Tickets** and **Support** nav
+   rows (`ms-auto`, so it sits at the row's end in both LTR and RTL) and on the
+   footer avatar. No new API call: it calls `useNotifications()`, which shares
+   react-query's cache with the header bell under the same `["notifications"]`
+   key.
+
+Decisions / deviations:
+- **New shared module** `lib/notification-severity.ts` holds the one colour
+  scale (`SEVERITY_DOT_CLASS` + `severityDotClass`). Three call sites needed the
+  same mapping and copy-pasting it would have let them drift. Phase 5 extends
+  this same module with the severity **icon** helper it asks to extract.
+- The footer avatar's dot is anchored on a new `relative` wrapper around
+  `<Avatar>` rather than on the flex row, so it stays attached to the avatar
+  when the sidebar collapses to icon-only — in that state the avatar is the only
+  thing still visible, so that is exactly when the dot matters most.
+- Dots are `aria-hidden`: the unread count is already announced by the bell's
+  own badge, and a bare decorative dot would just add noise to a screen reader.
+Verification: `pnpm --filter @workspace/irforge typecheck` shows only the
+pre-existing `AllBotsTable.tsx:68` baseline error; `build` clean.
+Follow-ups left open: the severity dot is driven by *all* unread notifications,
+not by ticket-related ones specifically, so an unread `deposit_rejected` also
+lights up the Tickets row. That matches the prompt ("when there are unread
+notifications"), but a per-category dot would be more precise once
+`/notifications` (Phase 5) gives users somewhere else to look.

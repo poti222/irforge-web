@@ -47,6 +47,8 @@ import { getDisplayAvatar } from "@/lib/avatar";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
 import { isRtlLang } from "@/lib/i18n";
+import { useNotifications } from "@/hooks/use-notifications";
+import { severityDotClass } from "@/lib/notification-severity";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -55,6 +57,11 @@ export function AppSidebar() {
   const { lang, toggleLang } = useLanguage();
   const nav = useT("common");
   const { isMobile, setOpenMobile } = useSidebar();
+  // همان کوئری‌ای که زنگوله‌ی هدر استفاده می‌کند (react-query کش مشترک دارد،
+  // پس این یک درخواست اضافه نیست). روی موبایل که هدر اسکرول می‌شود و از دید
+  // خارج، این نقطه‌ها تنها نشانه‌ی وجود اعلان خوانده‌نشده‌اند.
+  const { topSeverity } = useNotifications();
+  const severityDot = severityDotClass(topSeverity);
 
   if (!user) return null;
 
@@ -143,6 +150,7 @@ export function AppSidebar() {
                   <Link href="/tickets" data-testid="nav-tickets" onClick={closeMobileMenu}>
                     <LifeBuoy />
                     <span>{nav.tickets}</span>
+                    {severityDot && <span className={`ms-auto size-2 shrink-0 rounded-full ${severityDot}`} aria-hidden />}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -151,6 +159,7 @@ export function AppSidebar() {
                   <Link href="/support" data-testid="nav-support" onClick={closeMobileMenu}>
                     <Headset />
                     <span>{nav.support}</span>
+                    {severityDot && <span className={`ms-auto size-2 shrink-0 rounded-full ${severityDot}`} aria-hidden />}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -230,12 +239,22 @@ export function AppSidebar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <div className="flex w-full items-center gap-3 cursor-pointer overflow-hidden rounded-md p-1 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:p-0">
-              <Avatar className="size-8 shrink-0 rounded-md border border-sidebar-border bg-background">
-                <AvatarImage src={avatarSrc} />
-                <AvatarFallback className="rounded-md bg-primary/10 text-primary">
-                  {user.name.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
+              <div className="relative shrink-0">
+                <Avatar className="size-8 rounded-md border border-sidebar-border bg-background">
+                  <AvatarImage src={avatarSrc} />
+                  <AvatarFallback className="rounded-md bg-primary/10 text-primary">
+                    {user.name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                {/* وقتی منوی کناری جمع است، آواتار تنها چیزی‌ست که دیده می‌شود —
+                    نشانگر باید همین‌جا هم باشد. */}
+                {severityDot && (
+                  <span
+                    className={`absolute -end-0.5 -top-0.5 size-2.5 rounded-full border border-sidebar ${severityDot}`}
+                    aria-hidden
+                  />
+                )}
+              </div>
               <div className="flex flex-1 flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
                 <span className="truncate text-sm font-medium">{user.name}</span>
                 <span className="truncate text-xs text-sidebar-foreground/60">{user.email}</span>
