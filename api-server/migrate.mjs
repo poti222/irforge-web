@@ -353,6 +353,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS notifications_dedupe_idx
 -- Per-order phone/Telegram ID, which may differ from the buyer's own profile.
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS order_phone TEXT;
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS order_telegram_id TEXT;
+
+-- ─── BOT AVATAR (Phase 7: real Telegram identity) ──────────────────────────
+-- bots.avatar only ever stores the server-side proxy path
+-- (/api/bots/:botId/avatar), never a raw Telegram file URL (that URL embeds
+-- the bot token). This column holds the Telegram file_id the proxy route
+-- re-resolves to a short-lived file_path on every request.
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS avatar_file_id TEXT;
 `;
 
 async function migrate() {
