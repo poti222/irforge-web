@@ -20,7 +20,7 @@ export interface SupportContacts {
 // Google Sheet (read via the settings endpoint) instead of the hardcoded
 // defaults below.
 export const SUPPORT_CONTACTS: SupportContacts = {
-  aiBotUsername: "irforge_ai_support_bot",
+  aiBotUsername: "irforge_support_bot",
   ownerUsername: "irforge_admin",
   ownerLabel: "IrForge",
 };
