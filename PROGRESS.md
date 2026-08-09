@@ -390,3 +390,61 @@ Follow-ups left open: `GET /api/notifications` still caps at 50 rows with no
 pagination, so `/notifications` silently truncates for a heavy user — the
 "View all" link promises more than the page can show once someone passes 50.
 Pagination is the obvious next step and was not in this phase's scope.
+
+## Phase 6 — Super admin can delete tickets  [DONE 2026-08-10]
+Files touched: `api-server/src/routes/tickets.ts`, `irforge/src/pages/tickets.tsx`.
+
+1. `DELETE /api/tickets/:id` added, guarded by a `requireSuperAdmin` middleware
+   defined locally in this file — messages first (`ticketMessagesTable`), then
+   the ticket row, then `204`. Unknown id → `404`. A plain user (or an admin
+   who isn't `super_admin`) gets `403` from the guard before the handler runs.
+   No soft-delete anywhere in the path.
+2. `tickets.tsx`: `useAuth()` → `isSuperAdmin = user?.role === "super_admin"`.
+   For that role only: a small destructive `Trash2` icon button on each list
+   row, and a `Delete` button in the open thread's header. Both open the same
+   `AlertDialog` (`deleteTarget: {id, subject} | null`), whose copy names the
+   ticket and states the whole message history is permanently removed. On
+   confirm: `DELETE` via `customFetch`, invalidate `["tickets"]`, and clear
+   `selected` if the deleted ticket was the one open. Cancel is the
+   `AlertDialogCancel` default per the shadcn pattern (matches
+   `BotSettingsForm.tsx`'s bot-delete dialog — no typed-confirmation field here,
+   since the prompt only asks for that friction level in Phase 16's bot delete).
+3. Added the status filter (`all` / `open` / `answered` / `closed`, default
+   `all`) as a `<Select>` above the ticket list, filtering client-side over the
+   already-fetched `tickets` array — no new endpoint or query param needed. The
+   empty state now distinguishes "no tickets at all" from "no tickets matching
+   this filter".
+
+Decisions / deviations:
+- **`requireSuperAdmin` "import" correction.** The prompt says to "import it
+  the same way `bots.ts` does" implying a shared export. It doesn't exist:
+  `bots.ts` and `wallet.ts` each define their **own** local, unexported
+  `requireSuperAdmin(req, res, next)` — identical bodies, no shared module.
+  Matched that same pattern in `tickets.ts` (copy of the exact same
+  `requireAuth` → role lookup → 403 body) rather than inventing a new shared
+  export other routers don't use, since the prompt's actual constraint ("don't
+  hand-roll a role check" — i.e. don't reinvent the *logic*) is satisfied by
+  mirroring the existing check byte-for-byte.
+- The row's delete button needed to sit inside what used to be a `<button>`
+  list-item; a `<button>` can't contain another interactive `<button>`, so the
+  row element was changed to a `role="button"` `<div>` with the same
+  click/keyboard (`Enter`) handling — visually and behaviorally identical, and
+  `e.stopPropagation()` on the delete button keeps it from also selecting the
+  row.
+- No `lib/api-client-react` involvement: this page already talks to
+  `/api/tickets*` via raw `customFetch` (not the generated client), matching
+  every other verb on this page, so `DELETE` follows suit rather than
+  introducing a mixed pattern for one call.
+
+Verification: no live DB harness was reconstructed this phase (the gitignored
+`_repro_*` files from Phase 2/3/5 aren't present in this delivered tree, since
+they're excluded from the zip export) — reviewed the new route line-by-line
+against the identical, already-verified `requireSuperAdmin` blocks in
+`bots.ts`/`wallet.ts`, and against this file's own existing 404/403 ownership
+checks on the neighboring `GET/PATCH` routes. `pnpm -r build` clean (api-server
+esbuild + irforge vite/SSG, 10 pages prerendered, robots/sitemap assertions
+still pass). `pnpm --filter @workspace/irforge typecheck` shows only the
+pre-existing Phase 0 baseline error (`AllBotsTable.tsx:68`) — no new errors.
+Follow-ups left open: if the harness is rebuilt for a later phase, worth
+re-confirming live: a `super_admin` deleting an open (not just closed) ticket,
+and the exact 403 body for a plain `admin` hitting `DELETE` directly.
