@@ -80,13 +80,13 @@ export function AppSidebar() {
     // left-0, which slides page content under it. side="right" realigns them.
     <Sidebar side={isRtlLang(lang) ? "right" : "left"} variant="inset" collapsible="icon">
       <SidebarHeader className="p-0">
-        {/* Inside the app the mark goes to the dashboard, not the public
-            homepage — someone already signed in who clicks the logo expects
-            "take me to my stuff", not "sign me out into marketing". The
+        {/* Per Phase 18's own spec (and confirmed by the user directly):
+            the mark goes to the public homepage, not the dashboard. The
             router base carries the language prefix, so this resolves to
-            /en/dashboard, /tr/dashboard, … and bare /dashboard for fa. */}
+            /en/, /tr/, … and bare / for fa — never hardcode the prefix here,
+            that would double it into /en/en/. */}
         <SidebarBrandHeader
-          href="/dashboard"
+          href="/"
           data-testid="nav-brand-home"
           className="group-data-[collapsible=icon]:px-0"
           logoClassName="group-data-[collapsible=icon]:[&>span]:hidden"
