@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
 import { useMotionDirection } from "@/hooks/use-motion-direction";
+import { SidebarBrandHeader } from "@/components/layout/brand-home";
 import { CommandsEditor } from "@/components/bots/CommandsEditor";
 import { PluginsManager } from "@/components/bots/PluginsManager";
 import { BotStatsPanel } from "@/components/bots/BotStatsPanel";
@@ -53,25 +54,32 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
 
   return (
     <div className="flex flex-1 flex-col gap-4 min-h-0 md:flex-row">
-      {/* Sidebar section nav — vertical on md+, horizontal scroll on mobile */}
-      <nav className="flex shrink-0 gap-1 overflow-x-auto pb-1 md:w-52 md:flex-col md:overflow-visible md:pb-0">
-        {SECTION_META.map((s) => {
-          const active = section === s.key;
-          return (
-            <button
-              key={s.key}
-              onClick={() => setSection(s.key)}
-              className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors md:w-full ${
-                active
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <s.icon className="h-4 w-4 shrink-0" />
-              <span>{t[s.labelKey]}</span>
-            </button>
-          );
-        })}
+      {/* Sidebar section nav — vertical on md+, horizontal scroll on mobile.
+          On md+ it carries the same brand header band as the app sidebar so
+          every sidebar surface in the product reads as the same component.
+          The header is hidden on mobile, where the nav collapses to a single
+          horizontal strip of chips and a 64px logo band would just eat space. */}
+      <nav className="flex shrink-0 flex-col md:w-52">
+        <SidebarBrandHeader className="hidden md:flex mb-2" size="sm" />
+        <div className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
+          {SECTION_META.map((s) => {
+            const active = section === s.key;
+            return (
+              <button
+                key={s.key}
+                onClick={() => setSection(s.key)}
+                className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors md:w-full ${
+                  active
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <s.icon className="h-4 w-4 shrink-0" />
+                <span>{t[s.labelKey]}</span>
+              </button>
+            );
+          })}
+        </div>
       </nav>
 
       {/* Main area */}
