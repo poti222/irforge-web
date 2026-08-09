@@ -24,7 +24,14 @@ export const botsTable = pgTable("bots", {
   token: text("token").notNull(),
   userId: text("user_id").notNull(),
   username: text("username"),
+  /**
+   * آواتار — این ستون هرگز URL خام تلگرام (که توکن بات توش هست) رو نگه
+   * نمی‌داره، فقط مسیر پروکسی سمت سرور: `/api/bots/{id}/avatar`.
+   * (نگاه کن به fetchBotIdentity در lib/telegram.ts و GET .../avatar پایین‌تر.)
+   */
   avatar: text("avatar"),
+  /** file_id تلگرامی عکس پروفایل بات — برای resolve کردن file_path در هر بار درخواست پروکسی. */
+  avatarFileId: text("avatar_file_id"),
 
   // آمار
   commandCount: integer("command_count").notNull().default(0),
