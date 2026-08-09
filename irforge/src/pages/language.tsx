@@ -154,7 +154,7 @@ export default function Language() {
           <p className="mb-4 text-sm text-muted-foreground">
             {fa ? "اول یک ربات بساز تا زبانش را تنظیم کنی." : "Create a bot first to configure its language."}
           </p>
-          <Button asChild><Link href="/bots?create=1">{fa ? "ساخت ربات" : "Create a bot"}</Link></Button>
+          <Button asChild><Link href="/buy-bot">{fa ? "ساخت ربات" : "Create a bot"}</Link></Button>
         </div>
       ) : (
         <>
