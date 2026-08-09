@@ -9,6 +9,17 @@ import { createNotification } from "../lib/notify";
 
 const router = Router();
 
+function requireSuperAdmin(req: any, res: any, next: any) {
+  requireAuth(req, res, async () => {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId)).limit(1);
+    if (!user || user.role !== "super_admin") {
+      res.status(403).json({ error: "Super admin only" });
+      return;
+    }
+    next();
+  });
+}
+
 async function getRole(userId: string): Promise<string> {
   const [u] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   return u?.role ?? "user";
@@ -184,6 +195,25 @@ router.patch("/tickets/:id", requireAuth, async (req: any, res) => {
     res.json(formatTicket(updated));
   } catch (err) {
     logger.error({ err }, "Update ticket error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// DELETE /api/tickets/:id — super_admin only, permanently removes the ticket
+// and its whole message history. No soft-delete: messages are deleted first
+// (FK), then the ticket row.
+router.delete("/tickets/:id", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, req.params.id)).limit(1);
+    if (!ticket) {
+      res.status(404).json({ error: "Ticket not found" });
+      return;
+    }
+    await db.delete(ticketMessagesTable).where(eq(ticketMessagesTable.ticketId, ticket.id));
+    await db.delete(ticketsTable).where(eq(ticketsTable.id, ticket.id));
+    res.status(204).end();
+  } catch (err) {
+    logger.error({ err }, "Delete ticket error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
