@@ -34,7 +34,7 @@ import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { encryptToken, decryptToken } from "../lib/tokenCrypto";
-import { sendTelegramMessage, tgApi, tgSetProfilePhoto } from "../lib/telegram";
+import { sendTelegramMessage, tgApi, tgSetProfilePhoto, fetchBotIdentity, getTelegramFilePath } from "../lib/telegram";
 import {
   syncBotUpsert,
   syncBotDelete,
@@ -292,6 +292,54 @@ async function formatBotWithLiveStats(bot: any) {
   }
 }
 
+// ─── Phase 7: lazy identity backfill ───────────────────────────────────────
+// Bots created before fetchBotIdentity existed (or whose creation-time fetch
+// failed) sit with username=null forever otherwise. GET /bots and
+// GET /bots/:botId opportunistically fill it in — but a bot with a
+// revoked/invalid token must not trigger a Telegram call on every single
+// page load, so each bot is retried at most once per hour via this
+// in-process TTL map (matches the "in-process TTL map is fine" option in the
+// phase spec; not persisted, so it resets on deploy — acceptable since a
+// cold cache just means one extra retry, not repeated hammering).
+const identityBackfillAttempts = new Map<string, number>();
+const IDENTITY_BACKFILL_RETRY_MS = 60 * 60 * 1000; // 1h
+
+/**
+ * If `bot` still has no username and isn't sitting in pending_payment (not
+ * yet a confirmed real bot), fetch its identity from Telegram and persist it.
+ * Mutates nothing when the guard skips or the fetch comes back empty.
+ * Returns the (possibly updated) bot row.
+ */
+async function backfillBotIdentityIfStale<T extends { id: string; token: string; username: string | null; status: string }>(
+  bot: T
+): Promise<T> {
+  if (bot.username || bot.status === "pending_payment") return bot;
+
+  const lastAttempt = identityBackfillAttempts.get(bot.id);
+  if (lastAttempt && Date.now() - lastAttempt < IDENTITY_BACKFILL_RETRY_MS) return bot;
+  identityBackfillAttempts.set(bot.id, Date.now());
+
+  let plainToken: string;
+  try {
+    plainToken = decryptToken(bot.token);
+  } catch (err) {
+    logger.warn({ err, botId: bot.id }, "identity backfill: token decrypt failed");
+    return bot;
+  }
+
+  const identity = await fetchBotIdentity(plainToken);
+  if (!identity.username && !identity.avatarFileId) return bot;
+
+  const update: Record<string, any> = {};
+  if (identity.username) update.username = identity.username;
+  if (identity.avatarFileId) {
+    update.avatarFileId = identity.avatarFileId;
+    update.avatar = `/api/bots/${bot.id}/avatar`;
+  }
+  await db.update(botsTable).set(update).where(eq(botsTable.id, bot.id));
+  return { ...bot, ...update };
+}
+
 /**
  * Z6: deduct from a user's wallet for a cart purchase. Returns false when the
  * balance can't cover it. A zero/negative amount (e.g. a free plugin) is a no-op
@@ -434,8 +482,9 @@ router.get("/bots", requireAuth, async (req: any, res) => {
       .select()
       .from(botsTable)
       .where(eq(botsTable.userId, req.userId));
+    const withIdentity = await Promise.all(bots.map(backfillBotIdentityIfStale));
     const evaluated = await Promise.all(
-      bots.map((b) => (b.isTrial ? evaluateBotTrial(b) : b))
+      withIdentity.map((b) => (b.isTrial ? evaluateBotTrial(b) : b))
     );
     res.json(await Promise.all(evaluated.map(formatBotWithLiveStats)));
   } catch (err) {
@@ -484,6 +533,11 @@ router.post("/bots", requireAuth, async (req: any, res) => {
     const botId = crypto.randomUUID();
     const paymentId = crypto.randomUUID();
 
+    // بات هنوز pending_payment هست، ولی توکن از همین الان معتبره — پس همین
+    // الان هویت واقعی‌ش رو از تلگرام می‌گیریم تا در صفحه‌ی بررسی فیش (ادمین)
+    // و لیست بات‌های خود کاربر @username واقعی دیده بشه، نه "@undefined".
+    const identity = await fetchBotIdentity(token);
+
     // ساخت بات با وضعیت pending_payment
     const [bot] = await db
       .insert(botsTable)
@@ -495,6 +549,9 @@ router.post("/bots", requireAuth, async (req: any, res) => {
         userId: req.userId,
         status: "pending_payment",
         paymentStatus: "pending",
+        username: identity.username,
+        avatarFileId: identity.avatarFileId,
+        avatar: identity.avatarFileId ? `/api/bots/${botId}/avatar` : null,
       })
       .returning();
 
@@ -595,13 +652,16 @@ router.post("/bots/trial", requireAuth, async (req: any, res) => {
     // ۲. admin code بساز — برای ورود به پنل ادمین همین بات لازمه
     const adminCode = generateAdminCode();
 
+    const trialToken = token.trim();
+    const identity = await fetchBotIdentity(trialToken);
+
     const [bot] = await db
       .insert(botsTable)
       .values({
         id: botId,
         name: name.trim(),
         description: "تریال ۷ روزه (معادل پکیج نقره‌ای)",
-        token: encryptToken(token.trim()),
+        token: encryptToken(trialToken),
         userId: req.userId,
         status: "active",
         paymentStatus: "approved",
@@ -609,6 +669,9 @@ router.post("/bots/trial", requireAuth, async (req: any, res) => {
         adminCode,
         isTrial: true,
         trialExpiresAt,
+        username: identity.username,
+        avatarFileId: identity.avatarFileId,
+        avatar: identity.avatarFileId ? `/api/bots/${botId}/avatar` : null,
       })
       .returning();
 
@@ -755,10 +818,15 @@ router.post("/bots/wallet-purchase", requireAuth, async (req: any, res) => {
       sheetId = freeSheet.sheetId;
     }
 
+    const identity = await fetchBotIdentity(token);
+
     const [bot] = await db.insert(botsTable).values({
       id: botId, name, description: description ?? null, token: encryptToken(token),
       userId: req.userId, status: "inactive", paymentStatus: "approved", sheetId, adminCode,
       orderPhone: String(phone), orderTelegramId: String(telegramId),
+      username: identity.username,
+      avatarFileId: identity.avatarFileId,
+      avatar: identity.avatarFileId ? `/api/bots/${botId}/avatar` : null,
     }).returning();
 
     await syncSheetTitle(sheetId, bot.name);
@@ -1754,7 +1822,8 @@ router.get("/bots/:botId", requireAuth, async (req: any, res) => {
       res.status(404).json({ error: "Bot not found" });
       return;
     }
-    const evaluated = bot.isTrial ? await evaluateBotTrial(bot) : bot;
+    const withIdentity = await backfillBotIdentityIfStale(bot);
+    const evaluated = withIdentity.isTrial ? await evaluateBotTrial(withIdentity) : withIdentity;
     res.json(await formatBotWithLiveStats(evaluated));
   } catch (err) {
     logger.error({ err }, "Get bot error");
@@ -2041,6 +2110,49 @@ router.get("/bots/:botId/stats", requireBotOwnership, async (req: any, res) => {
   } catch (err) { logger.error({ err }, "Get bot stats error"); res.status(500).json({ error: "Internal server error" }); }
 });
 
+// ─── GET /api/bots/:botId/avatar ────────────────────────────────────────────
+// Phase 7: server-side proxy for a bot's Telegram profile photo, mirroring
+// GET /api/users/:id/telegram-photo in routes/users.ts. bots.avatarFileId
+// only ever holds a Telegram file_id, never a downloadable URL — that URL
+// embeds the bot's own token (`.../file/bot<TOKEN>/<path>`), so it's
+// resolved fresh (file_path is short-lived) and streamed here instead of
+// ever being persisted or sent to the browser. No auth: this is loaded from
+// a plain <img> tag, same as any other public avatar.
+router.get("/bots/:botId/avatar", async (req, res) => {
+  try {
+    const [bot] = await db
+      .select({ token: botsTable.token, avatarFileId: botsTable.avatarFileId })
+      .from(botsTable)
+      .where(eq(botsTable.id, req.params.botId))
+      .limit(1);
+    if (!bot?.avatarFileId) {
+      res.status(404).end();
+      return;
+    }
+
+    const botToken = decryptToken(bot.token);
+    const filePath = await getTelegramFilePath(botToken, bot.avatarFileId);
+    if (!filePath) {
+      res.status(404).end();
+      return;
+    }
+
+    const fileRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${filePath}`);
+    if (!fileRes.ok || !fileRes.body) {
+      res.status(502).end();
+      return;
+    }
+
+    res.set("Content-Type", fileRes.headers.get("content-type") || "image/jpeg");
+    res.set("Cache-Control", "private, max-age=3600");
+    const buf = Buffer.from(await fileRes.arrayBuffer());
+    res.send(buf);
+  } catch (err) {
+    logger.error({ err }, "Bot avatar proxy error");
+    res.status(500).end();
+  }
+});
+
 // ─── Telegram profile (real Bot API profile, distinct from the site's own
 // bots.name/description — see bot-profile-feature-prompt.md for why these
 // are kept separate and read live from Telegram instead of a DB column) ────
@@ -2091,6 +2203,21 @@ router.patch("/bots/:botId/telegram-profile", requireBotOwnership, async (req: a
       res.status(400).json({ error: errors.join("; ") });
       return;
     }
+
+    // Phase 7: setMyName only changes the bot's display name, not its
+    // @username — but re-fetch identity anyway (cheap, non-fatal) since it's
+    // the same call that also picks up a profile photo set after creation.
+    const identity = await fetchBotIdentity(token);
+    if (identity.username || identity.avatarFileId) {
+      const update: Record<string, any> = {};
+      if (identity.username) update.username = identity.username;
+      if (identity.avatarFileId) {
+        update.avatarFileId = identity.avatarFileId;
+        update.avatar = `/api/bots/${req.bot.id}/avatar`;
+      }
+      await db.update(botsTable).set(update).where(eq(botsTable.id, req.bot.id));
+    }
+
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, "Update telegram profile error");
