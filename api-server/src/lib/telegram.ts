@@ -129,3 +129,42 @@ export async function getTelegramFilePath(botToken: string, fileId: string): Pro
   const data = await tgApi<{ file_path?: string }>(botToken, "getFile", { file_id: fileId });
   return data.result?.file_path ?? null;
 }
+
+// ─── Phase 7: bot identity (username + avatar) ─────────────────────────────
+
+/**
+ * Reads a bot's own public identity from Telegram: its `@username` (via
+ * `getMe`) and its profile-photo `file_id` (via `getUserProfilePhotos` +
+ * `getFile`, called with the bot's own numeric id — a bot is a Telegram
+ * "user" like any other, so its BotFather-set profile picture is reachable
+ * through the same user-profile-photo endpoints, exactly like
+ * `getTelegramUserPhotoFileId` above does for a human account).
+ *
+ * Deliberately returns a `file_id`, never a resolved file URL: Telegram's
+ * `getFile` result embeds the bot token in the download path
+ * (`.../file/bot<TOKEN>/<path>`), and that must never reach the browser or
+ * get persisted. Callers store the file_id and serve the bytes through the
+ * server-side proxy at `GET /api/bots/:botId/avatar` (see routes/bots.ts),
+ * which re-resolves file_path on every request since it's short-lived.
+ *
+ * Never throws — on any failure (invalid/revoked token, network error, no
+ * photo set) returns nulls and logs a warning, same contract as every other
+ * best-effort helper in this file.
+ */
+export async function fetchBotIdentity(
+  botToken: string
+): Promise<{ username: string | null; avatarFileId: string | null }> {
+  try {
+    const me = await tgApi<{ id: number; username?: string }>(botToken, "getMe");
+    if (!me.ok || !me.result) {
+      logger.warn({ description: me.description }, "fetchBotIdentity: getMe failed");
+      return { username: null, avatarFileId: null };
+    }
+    const username = me.result.username ?? null;
+    const avatarFileId = await getTelegramUserPhotoFileId(botToken, me.result.id);
+    return { username, avatarFileId };
+  } catch (err) {
+    logger.warn({ err }, "fetchBotIdentity failed (non-fatal)");
+    return { username: null, avatarFileId: null };
+  }
+}
