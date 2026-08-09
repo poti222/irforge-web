@@ -63,3 +63,41 @@ export function BrandHomeButton({ className = "" }: { className?: string }) {
     </Link>
   );
 }
+
+/**
+ * The full brand lockup — badge + "IrForge" wordmark — used anywhere the
+ * logo needs its label next to it (sidebar header, landing nav/footer, auth
+ * pages). This is the single source of truth for that pairing so every
+ * surface renders the exact same badge size, radius, and type scale.
+ *
+ * `href` defaults to "/" (home). Pass `href={null}` to render a static,
+ * non-link lockup (rare — e.g. if it's already inside another link).
+ */
+export function BrandLogo({
+  className = "",
+  href = "/",
+  "data-testid": dataTestId = "link-brand-logo",
+}: {
+  className?: string;
+  href?: string | null;
+  "data-testid"?: string;
+}) {
+  const content = (
+    <div className={`flex items-center gap-2 min-w-0 ${className}`}>
+      <div className="flex aspect-square size-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+        <OrangeRobot className="size-5 text-primary-foreground" />
+      </div>
+      <span className="truncate font-semibold text-lg tracking-tight text-foreground">
+        IrForge
+      </span>
+    </div>
+  );
+
+  if (href === null) return content;
+
+  return (
+    <Link href={href} aria-label="IrForge" data-testid={dataTestId}>
+      {content}
+    </Link>
+  );
+}
