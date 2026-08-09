@@ -22,8 +22,6 @@ Disallow: /bots
 Disallow: /*/bots
 Disallow: /marketplace
 Disallow: /*/marketplace
-Disallow: /themes
-Disallow: /*/themes
 Disallow: /plans
 Disallow: /*/plans
 Disallow: /invoices
