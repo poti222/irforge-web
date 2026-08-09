@@ -44,7 +44,6 @@ export const PRIVATE_ROUTES = [
   "/dashboard",
   "/bots",
   "/marketplace",
-  "/themes",
   "/plans",
   "/invoices",
   "/tickets",
