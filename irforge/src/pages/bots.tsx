@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useListBots } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,29 +6,21 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
-// FIX [1.1]: دیالوگ واقعی ساخت بات
-import { CreateBotDialog } from "@/components/bots/CreateBotDialog";
 
 export default function Bots() {
   const { lang } = useLanguage();
   const t = useT("bots");
-  const { data: bots, isLoading, refetch } = useListBots();
-  // FIX [1.1]: state کنترل دیالوگ
-  const [createOpen, setCreateOpen] = useState(false);
-
-  // Z2: "Buy Bot" sidebar entry links to /bots?create=1 and auto-opens the dialog.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("create") === "1") setCreateOpen(true);
-  }, []);
+  const { data: bots, isLoading } = useListBots();
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t.title}</h1>
-        {/* FIX [1.1]: onClick واقعی */}
-        <Button onClick={() => setCreateOpen(true)} className="w-full sm:w-auto">
-          <Plus className="me-2 h-4 w-4" /> {t.createNewBot}
+        {/* Creating a bot now always starts from the Buy Bot flow. */}
+        <Button asChild className="w-full sm:w-auto">
+          <Link href="/buy-bot">
+            <Plus className="me-2 h-4 w-4" /> {t.createNewBot}
+          </Link>
         </Button>
       </div>
 
@@ -105,19 +96,13 @@ export default function Bots() {
           <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
             {t.noBotsDesc}
           </p>
-          {/* FIX [1.1]: onClick واقعی */}
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="me-2 h-4 w-4" /> {t.createFirstBot}
+          <Button asChild>
+            <Link href="/buy-bot">
+              <Plus className="me-2 h-4 w-4" /> {t.createFirstBot}
+            </Link>
           </Button>
         </div>
       )}
-
-      {/* FIX [1.1]: دیالوگ ساخت بات */}
-      <CreateBotDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onSuccess={() => refetch()}
-      />
     </div>
   );
 }
