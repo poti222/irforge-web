@@ -46,3 +46,49 @@ service on Railway once Phase 4 lands — otherwise every purge call from
 mainbot gets a 403. Not required yet (Phase 4 doesn't exist yet in mainbot),
 but safe to set now; the route just 403s until both sides have it and
 mainbot actually starts calling it.
+
+---
+
+# FIX ROUND 2 — `IrForge_Fixes_Round2_ClaudeCode_Prompt.md`
+
+**Separate, unrelated tracker from the two above.** One phase per commit.
+
+## Phase 0 — setup / baseline  [DONE 2026-08-09]
+Files touched: none (repo import only).
+Decisions / deviations: The prompt has no Phase 0; treated it as environment setup since
+the repo arrived as `irforge-web-main (7).zip` rather than an existing checkout. Extracted
+to `C:\Users\alida\OneDrive\Desktop\claude\irforge-web`, `pnpm install` (pnpm 9.15.9 via
+`npx`, since pnpm is not on PATH — `node` is v24.19.0), `git init` + baseline commit so each
+phase lands as its own commit.
+**Baseline captured before any edits** — this matters because the prompt's "typecheck must
+pass" gate is not currently satisfiable:
+- `pnpm -r build` → **passes clean** (vite + SSG prerender of 10 pages + esbuild api-server).
+  This is the real gate, as the earlier trackers in this file also concluded.
+- `pnpm -r typecheck` → **fails on pre-existing errors unrelated to this prompt**: ~40
+  `TS7006` implicit-any params across `api-server/src/routes/*`, `TS6305` on
+  `lib/db/dist/index.d.ts` (project-reference output never built; `lib/db` has no build
+  script), and one frontend error, `irforge/src/components/admin/AllBotsTable.tsx:68`
+  `TS2741` (missing `queryKey`).
+  Therefore the per-phase gate used from here on is: **`pnpm -r build` passes, and
+  `pnpm -r typecheck` introduces no error that isn't in this baseline set.**
+Follow-ups left open: the pre-existing typecheck failures above are not fixed by this prompt;
+worth a cleanup pass of its own. Note `qrcode.react` is already in `irforge/package.json`
+dependencies even though Phase 8 (which adds it) has not run — a leftover from an earlier
+round; harmless, and Phase 8 will not need to add it.
+
+## Phase 1 — Admin panel Payments tab: wallet deposits only  [DONE 2026-08-09]
+Files touched: `irforge/src/components/admin/PaymentApprovals.tsx` (only file).
+Decisions / deviations: none — the stated diagnosis matched the code exactly. Deleted the
+whole `{/* Bot purchase receipts */}` section and everything only it used: the `pending`
+query on `/api/bots/pending-payments`, `PENDING_KEY`, the `PendingPayment` type, `actBot`,
+`cancelOrder`, `botNotFound`, `confirmCancel`, and the imports `ExternalLink`, `Ban`,
+`AlertTriangle` and `getAdminGetStatsQueryKey` (that last one was referenced only from the
+two deleted handlers — confirmed nothing else in the file used it). `isLoading` is now
+destructured off the **deposits** query instead of the deleted pending query, so the
+skeleton still renders. Kept `WALLET_KEY`, `actDeposit`, and the shared `notes`/`busyId`
+state. The `/api/bots/pending-payments` endpoint was **not** touched, per the prompt — bot
+receipt review stays on the super-admin page (Phase 12).
+Verification: `pnpm --filter @workspace/irforge typecheck` → the only error is the
+pre-existing `AllBotsTable.tsx:68` from the Phase 0 baseline; no new errors, no dead imports.
+Follow-ups left open: none for this phase. Phase 12 still owes this page's counterpart the
+wallet-deposits section so nothing awaiting review is orphaned in the meantime.
