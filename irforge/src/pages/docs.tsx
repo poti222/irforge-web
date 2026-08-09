@@ -15,7 +15,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BrandHomeButton } from "@/components/layout/brand-home";
+import { BrandHomeButton, SidebarBrandHeader } from "@/components/layout/brand-home";
 import { useT } from "@/hooks/use-translation";
 import { useSEO } from "@/hooks/use-seo";
 
@@ -166,8 +166,12 @@ export default function Docs() {
               <span className="ms-3 text-xs text-muted-foreground">dashboard.irforge.app</span>
             </div>
             <div className="flex">
-              {/* fake sidebar */}
-              <div className="hidden sm:flex w-48 flex-col gap-1 border-r p-3 bg-muted/20">
+              {/* fake sidebar — mirrors the real dashboard: same brand header
+                  band on top, then the nav rows. href={null} keeps the mockup
+                  inert so nothing inside the screenshot is clickable. */}
+              <div className="hidden sm:flex w-48 flex-col border-r bg-muted/20">
+                <SidebarBrandHeader href={null} size="sm" className="h-12" />
+                <div className="flex flex-col gap-1 p-3">
                 {[
                   { icon: LayoutDashboard, label: t.dashboard, active: true },
                   { icon: Bot, label: t.myBots },
@@ -189,6 +193,7 @@ export default function Docs() {
                     {item.label}
                   </motion.div>
                 ))}
+                </div>
               </div>
               {/* fake content */}
               <div className="flex-1 p-5 grid grid-cols-2 sm:grid-cols-3 gap-4">
