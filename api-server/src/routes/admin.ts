@@ -182,10 +182,22 @@ router.get("/admin/stats", requireAdmin, async (req: any, res) => {
   }
 });
 
+/** Allowed values of `announcements.type` — mirrors AnnouncementInputType in the OpenAPI spec. */
+const ANNOUNCEMENT_TYPES = ["info", "warning", "success", "error"] as const;
+const ANNOUNCEMENT_TITLE_MAX = 200;
+const ANNOUNCEMENT_MESSAGE_MAX = 4000;
+
 // GET /api/admin/announcements
+// FIX: this listing had no ORDER BY, so Postgres returned rows in whatever
+// order it pleased — a freshly published announcement could land anywhere in
+// the list, which reads as "publishing did nothing". Ordered newest-first, to
+// match the tenant-facing GET /api/announcements above.
 router.get("/admin/announcements", requireAdmin, async (req: any, res) => {
   try {
-    const items = await db.select().from(announcementsTable);
+    const items = await db
+      .select()
+      .from(announcementsTable)
+      .orderBy(desc(announcementsTable.createdAt));
     res.json(items.map(a => ({
       id: a.id,
       title: a.title,
@@ -202,11 +214,41 @@ router.get("/admin/announcements", requireAdmin, async (req: any, res) => {
 // POST /api/admin/announcements
 router.post("/admin/announcements", requireAdmin, async (req: any, res) => {
   try {
-    const { title, message, type } = req.body;
+    // FIX: title/message/type went into the insert straight from req.body with
+    // no validation. A missing `message` hit the NOT NULL constraint and came
+    // back as an opaque 500; a whitespace-only title, a 5000-character title, a
+    // numeric title and a `type` outside the allowed set were all accepted and
+    // persisted. Validate up front and answer 400 with a message the admin
+    // panel can show.
+    const { title, message, type } = req.body ?? {};
+
+    if (typeof title !== "string" || title.trim() === "") {
+      res.status(400).json({ error: "Title is required" });
+      return;
+    }
+    if (typeof message !== "string" || message.trim() === "") {
+      res.status(400).json({ error: "Message is required" });
+      return;
+    }
+    const trimmedTitle = title.trim();
+    const trimmedMessage = message.trim();
+    if (trimmedTitle.length > ANNOUNCEMENT_TITLE_MAX) {
+      res.status(400).json({ error: `Title must be at most ${ANNOUNCEMENT_TITLE_MAX} characters` });
+      return;
+    }
+    if (trimmedMessage.length > ANNOUNCEMENT_MESSAGE_MAX) {
+      res.status(400).json({ error: `Message must be at most ${ANNOUNCEMENT_MESSAGE_MAX} characters` });
+      return;
+    }
+    if (type != null && !ANNOUNCEMENT_TYPES.includes(type)) {
+      res.status(400).json({ error: `Type must be one of: ${ANNOUNCEMENT_TYPES.join(", ")}` });
+      return;
+    }
+
     const [announcement] = await db.insert(announcementsTable).values({
       id: crypto.randomUUID(),
-      title,
-      message,
+      title: trimmedTitle,
+      message: trimmedMessage,
       type: type ?? "info",
     }).returning();
     res.status(201).json({

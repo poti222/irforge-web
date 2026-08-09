@@ -22,6 +22,16 @@ import { useLanguage } from "@/hooks/use-language";
 
 const TYPES: AnnouncementInputType[] = ["info", "warning", "success", "error"];
 
+/**
+ * The API answers a rejected announcement with `{ error: "<reason>" }` and a
+ * 400. `ApiError.message` prefixes that with "HTTP 400 Bad Request: ", which is
+ * noise in a toast — prefer the raw server reason when there is one.
+ */
+function serverMessage(err: any): string | undefined {
+  const reason = err?.data?.error;
+  return typeof reason === "string" && reason.trim() !== "" ? reason : err?.message;
+}
+
 const TYPE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   info: "secondary",
   success: "default",
@@ -59,7 +69,7 @@ export function AnnouncementsManager() {
           setTitle(""); setMessage(""); setType("info");
           toast({ title: fa ? "اعلان ساخته شد" : "Announcement created" });
         },
-        onError: (err: any) => toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: err?.message }),
+        onError: (err: any) => toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: serverMessage(err) }),
       }
     );
   }
@@ -69,7 +79,7 @@ export function AnnouncementsManager() {
       { announcementId: a.id },
       {
         onSuccess: () => { invalidate(); toast({ title: fa ? "اعلان حذف شد" : "Announcement deleted" }); },
-        onError: (err: any) => toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: err?.message }),
+        onError: (err: any) => toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: serverMessage(err) }),
       }
     );
   }

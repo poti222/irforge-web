@@ -10,3 +10,7 @@ dist-ssg/
 
 # TypeScript incremental build caches
 *.tsbuildinfo
+
+# local reproduction harness (Fix Round 2) — removed in final cleanup
+_repro_*
+lib/db/_repro_migrations/

@@ -92,3 +92,84 @@ Verification: `pnpm --filter @workspace/irforge typecheck` → the only error is
 pre-existing `AllBotsTable.tsx:68` from the Phase 0 baseline; no new errors, no dead imports.
 Follow-ups left open: none for this phase. Phase 12 still owes this page's counterpart the
 wallet-deposits section so nothing awaiting review is orphaned in the meantime.
+
+## Phase 2 — Announcements tab actually works  [DONE 2026-08-09]
+Files touched: `api-server/src/routes/admin.ts`,
+`irforge/src/components/admin/AnnouncementsManager.tsx`.
+No spec change, so `lib/api-client-react/` was **not** regenerated.
+
+### What was actually wrong — the prompt's headline diagnosis was wrong
+The prompt said creating/listing/deleting was broken. **It isn't.** Rather than
+guess, the endpoints were exercised end-to-end against a real Postgres (see
+"Reproduction method" below) as `admin`, as `super_admin` and as a plain user.
+The happy path already worked for both admin roles: `GET` 200, `POST` 201,
+`DELETE` 204, and a plain user correctly got 403. So:
+- **Suspicion 1 (wrong endpoint / auth mismatch) — ruled out.** The generated
+  client points all three operations at `/api/admin/announcements`, which is
+  exactly where the `requireAdmin` routes live, and `requireAdmin` admits both
+  `admin` and `super_admin` (`auth.ts:97`). Verified live: 200 for both roles,
+  403 only for a plain user. The tenant-facing `GET /api/announcements`
+  (`requireAuth`) is a separate, deliberate route for the dashboard and is not
+  what the admin tab calls.
+- **Suspicion 3 (stale hooks) — ruled out.** `useListAnnouncements` /
+  `useCreateAnnouncement` / `useDeleteAnnouncement` match the live routes in
+  path, method and payload shape.
+- **Suspicion 2 (no validation) — confirmed, and worse than described.**
+
+Two real defects, both fixed:
+
+1. **`GET /api/admin/announcements` had no `ORDER BY`** (`db.select().from(...)`
+   bare). Postgres is free to return rows in any order, and in the reproduction
+   it did — the admin list came back in a visibly different order from the
+   tenant-facing list, which *does* order by `createdAt desc`. A freshly
+   published announcement could therefore land anywhere in "Current
+   announcements", which presents to a user as "publishing did nothing". This
+   is the most plausible source of the reported symptom. Now ordered
+   newest-first, matching `GET /api/announcements`.
+2. **`POST /api/admin/announcements` had no validation at all** —
+   `title`/`message`/`type` went from `req.body` straight into the insert.
+   Measured before the fix / after the fix:
+
+   | request | before | after |
+   |---|---|---|
+   | whitespace-only title | **201** (junk row persisted) | 400 `Title is required` |
+   | missing `message` | **500** (NOT NULL violation leaked as opaque 500) | 400 `Message is required` |
+   | empty body `{}` | **500** | 400 `Title is required` |
+   | `type: "nope"` | **201** (out-of-set value persisted) | 400 `Type must be one of: info, warning, success, error` |
+   | 5000-char title | **201** | 400 `Title must be at most 200 characters` |
+   | numeric title `12345` | **201** (coerced to `"12345"`) | 400 `Title is required` |
+   | valid input | 201 | 201 (unchanged) |
+
+   Title/message are trimmed before insert. Limits chosen: title 200, message
+   4000 — not specified in the prompt, picked to be comfortably above real use
+   and well under any Postgres `text` concern.
+
+On the client, `AnnouncementsManager.tsx` gained a small `serverMessage(err)`
+helper used by both mutation `onError` handlers: `ApiError.message` renders as
+`"HTTP 400 Bad Request: Title is required"`, so the raw `err.data.error` is
+preferred when present and the toast shows just `Title is required`. The
+component's existing inline `const fa = lang === "fa"` style was kept — no
+locale files touched, per the i18n ground rule about matching the file.
+
+### Reproduction method (no staging environment available here)
+There is no Postgres, Docker or `psql` on this machine and no credentials for
+the real deployment, so "log in as admin and capture the failure" was done
+against a **real Postgres running in-process**: PGlite exposed over the actual
+Postgres wire protocol on `127.0.0.1:55432`, with the schema applied from
+`drizzle-kit generate` DDL, and the **unmodified** api-server pointed at it via
+`DATABASE_URL`. Roles were bootstrapped through the app's own API
+(`POST /auth/super-admin-code`, then `PATCH /admin/users/:id`), not by direct
+SQL. Harness files are `api-server/_repro_*.mjs`, gitignored, and removed in the
+cleanup at the end of Phase 5; `@electric-sql/pglite` + `@electric-sql/pglite-socket`
+were added as `api-server` devDependencies for the same reason and are removed
+in that same cleanup. Two harness caveats worth recording: PGLiteSocketServer
+serves only **one** wire connection at a time (hence the schema is applied
+in-process and the app's pool is pinned to `max: 1`), and it leaves socket
+`ECONNRESET` unhandled, which crashes it unless swallowed.
+Verification: `pnpm -r build` clean; `pnpm --filter @workspace/irforge typecheck`
+shows only the pre-existing `AllBotsTable.tsx:68` baseline error.
+Follow-ups left open: `DELETE /api/admin/announcements/:id` returns **204 for an
+id that does not exist**, silently reporting success for a no-op delete. Out of
+this phase's stated scope (which is about POST) and harmless to the UI, but it
+should probably be a 404. Not changed here to avoid an unrequested contract
+change on an endpoint the prompt didn't ask about.
