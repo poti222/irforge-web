@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import { OrangeRobot } from "@/components/layout/brand-home";
+import { BrandLogo } from "@/components/layout/brand-home";
 import { ArrowLeft, Loader2, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
@@ -47,12 +47,7 @@ export default function ResetPassword() {
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 px-4 bg-background">
       <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
-        <Link href="/" className="flex items-center gap-2 mb-8 hover:opacity-80 transition-opacity">
-          <div className="flex aspect-square size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-            <OrangeRobot className="size-6" />
-          </div>
-          <span className="font-bold text-2xl tracking-tight">IrForge</span>
-        </Link>
+        <BrandLogo className="mb-8 hover:opacity-80 transition-opacity" />
         <h2 className="text-center text-2xl font-bold tracking-tight">
           {t.setNewPasswordTitle}
         </h2>
