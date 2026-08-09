@@ -5,6 +5,7 @@ import { eq, and, gte, sql, desc } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAdmin, requireAuth } from "./auth";
 import { syncUserUpsert, syncUserDelete } from "../lib/sheetsSync";
+import { createNotificationsBulk, severityForAnnouncementType } from "../lib/notify";
 
 const router = Router();
 
@@ -251,6 +252,19 @@ router.post("/admin/announcements", requireAdmin, async (req: any, res) => {
       message: trimmedMessage,
       type: type ?? "info",
     }).returning();
+
+    // fan-out: هر اعلان سراسری برای همه‌ی کاربران یک ردیف notification می‌سازد،
+    // در یک insert دسته‌ای (نه یک رفت‌وبرگشت به‌ازای هر کاربر). dedupeKey مشترک
+    // است تا retry نتواند دوباره پست کند.
+    const recipients = await db.select({ id: usersTable.id }).from(usersTable);
+    await createNotificationsBulk(recipients.map((u) => u.id), {
+      type: "announcement",
+      severity: severityForAnnouncementType(announcement.type),
+      title: announcement.title,
+      message: announcement.message,
+      dedupeKey: "announcement:" + announcement.id,
+    });
+
     res.status(201).json({
       id: announcement.id,
       title: announcement.title,

@@ -173,3 +173,80 @@ id that does not exist**, silently reporting success for a no-op delete. Out of
 this phase's stated scope (which is about POST) and harmless to the UI, but it
 should probably be a 404. Not changed here to avoid an unrequested contract
 change on an endpoint the prompt didn't ask about.
+
+## Phase 3 — Notification events (backend)  [DONE 2026-08-09]
+Files touched: `api-server/src/lib/notify.ts` (new), `api-server/src/routes/bots.ts`,
+`api-server/src/routes/wallet.ts`, `api-server/src/routes/tickets.ts`,
+`api-server/src/routes/admin.ts`.
+
+`notify.ts` exports `createNotification(input)` exactly as specified, plus three
+things the prompt implied but didn't name:
+- `createNotificationsBulk(userIds, input)` — the announcement fan-out in one
+  batched `db.insert(...).values([...])`, as required. It resolves the shared
+  `dedupeKey` with a single query and filters out users who already have that
+  row, so a retry inserts nothing.
+- `formatTomanFa(amount)` — every money figure in a notification goes through it
+  (`۱۲۰٬۰۰۰ تومان`), so no notification says only "پرداخت انجام شد".
+- `severityForAnnouncementType(type)` — `error`→critical, `warning`→warning,
+  else info.
+Both creators are wrapped in try/catch and only `logger.warn` on failure, the
+same shape as `sendTelegramMessage`.
+
+All eleven events are wired and were **verified live** against the harness from
+Phase 2 (rows read back through `GET /api/notifications`):
+
+| event | type | severity | verified |
+|---|---|---|---|
+| wallet purchase succeeded | `purchase_success` | info | ✅ 201 + row |
+| insufficient balance | `purchase_failed` | warning | ✅ 400 + row |
+| plugin purchased | `plugin_purchased` | info | ✅ |
+| receipt approved | `payment_approved` | info | ✅ |
+| receipt rejected | `payment_rejected` | **critical** | ✅ |
+| order cancelled | `order_cancelled` | **critical** | ✅ |
+| deposit approved | `deposit_approved` | info | ✅ |
+| deposit rejected | `deposit_rejected` | warning | ✅ |
+| admin replied to ticket | `ticket_reply` | info | ✅ (owner, not sender) |
+| ticket closed | `ticket_closed` | info | ✅ |
+| announcement published | `announcement` | mirrors type | ✅ `error`→critical, 1 row/user |
+
+Messages carry the concrete detail: bot name + amount + admin code on purchase,
+plugin name + version + price, ticket subject + a 160-char reply preview,
+deposit amount + resulting balance, and the reviewer's `reviewNote` as the
+reason on every rejection. Tone follows `lib/trial.ts` (informal "کن/بزن").
+
+Decisions / deviations:
+- **Fan-out `type`** — the table says "mirror the announcement's own type" for
+  *severity*; it doesn't give a notification `type` string. Used the literal
+  `"announcement"` as `type` and mirrored the announcement's type into
+  `severity` only, so the front end can key off one stable type.
+- **`ticket_reply` guard** — notifies `ticket.userId` and is skipped when the
+  replying staff member *is* the ticket owner, so an admin never notifies
+  themselves about their own reply.
+- **`ticket_closed` guard** — fires only on a real transition
+  (`ticket.status !== "closed"`), so re-closing an already-closed ticket does
+  not re-notify.
+- **`order_cancelled`** — the cancel route exists precisely for orders whose bot
+  may already be deleted, so the message falls back from the bot name to the
+  order amount, then to "سفارش شما".
+- **`purchase_failed`** — fires on the `insufficient` branch only, before the
+  400 is returned.
+
+Verification: every event driven through the real API (harness restarted between
+runs — see the caveat below), plus the failure guarantee tested directly: with
+a temporary forced `throw` inside both creators, `POST /tickets/:id/messages`
+still returned **201**, `POST /admin/wallet-deposits/:id/approve` still returned
+**200 with the balance credited**, and `POST /admin/announcements` still returned
+**201**, with zero notification rows written and three
+`... failed (non-fatal)` warns logged. The temporary throw was removed
+afterwards — `grep NOTIFY_FORCE_FAIL` over `src/` is empty. `pnpm -r build`
+clean.
+Harness caveat learned this phase: the PGlite wire server does not survive the
+api-server reconnecting, so **both** processes must be restarted together for
+each run; a stale socket shows up as `Connection terminated unexpectedly` on the
+app's first query.
+Follow-ups left open: notifications are only ever created — nothing prunes them,
+so `notifications` grows without bound per user (`GET /notifications` caps its
+read at 50, which hides but does not solve this). Also, the events are fired
+after the parent write commits, not inside its transaction: if the process dies
+in between, the write lands without its notification. Both are acceptable for
+this feature's purpose but worth a retention/outbox pass later.

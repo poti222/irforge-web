@@ -5,6 +5,7 @@ import { eq, and, desc } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { notifyBotTicketReply } from "../lib/supportBot";
+import { createNotification } from "../lib/notify";
 
 const router = Router();
 
@@ -125,6 +126,19 @@ router.post("/tickets/:id/messages", requireAuth, async (req: any, res) => {
     if (isStaff && ticket.source === "bot") {
       notifyBotTicketReply({ ticketId: ticket.id, status: "answered", replyPreview: body.trim(), tenant: ticket.tenant });
     }
+    // اعلانِ «پاسخ پشتیبانی» فقط برای صاحب تیکت — نه برای خود پاسخ‌دهنده
+    // (اپراتور می‌تونه صاحب تیکت خودش هم نباشه).
+    if (isStaff && ticket.userId !== req.userId) {
+      const preview = body.trim().length > 160 ? `${body.trim().slice(0, 159)}…` : body.trim();
+      await createNotification({
+        userId: ticket.userId,
+        type: "ticket_reply",
+        severity: "info",
+        title: "پشتیبانی به تیکت شما پاسخ داد",
+        message: `تیکت «${ticket.subject}» پاسخ گرفت:\n\n${preview}`,
+      });
+    }
+
     res.status(201).json({
       id: msg.id, senderId: msg.senderId, senderRole: msg.senderRole, body: msg.body,
       createdAt: msg.createdAt.toISOString(),
@@ -155,6 +169,18 @@ router.patch("/tickets/:id", requireAuth, async (req: any, res) => {
     if (ticket.source === "bot") {
       notifyBotTicketReply({ ticketId: ticket.id, status, tenant: ticket.tenant });
     }
+    // فقط وقتی وضعیت واقعاً به closed تغییر کرده (نه بستنِ دوباره‌ی یک تیکت
+    // که از قبل بسته بوده) و بستن کارِ خودِ صاحب تیکت نبوده.
+    if (status === "closed" && ticket.status !== "closed" && ticket.userId !== req.userId) {
+      await createNotification({
+        userId: ticket.userId,
+        type: "ticket_closed",
+        severity: "info",
+        title: "تیکت شما بسته شد",
+        message: `تیکت «${ticket.subject}» توسط پشتیبانی بسته شد. اگر مشکل هنوز حل نشده، با ارسال پیام جدید در همان تیکت دوباره بازش کن.`,
+      });
+    }
+
     res.json(formatTicket(updated));
   } catch (err) {
     logger.error({ err }, "Update ticket error");

@@ -4,6 +4,7 @@ import { db, walletsTable, walletTransactionsTable, usersTable } from "@workspac
 import { eq, and, desc } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
+import { createNotification, formatTomanFa } from "../lib/notify";
 
 const router = Router();
 
@@ -156,6 +157,15 @@ router.post("/admin/wallet-deposits/:txId/approve", requireSuperAdmin, async (re
       .set({ balance: (wallet?.balance ?? 0) + tx.amount })
       .where(eq(walletsTable.userId, tx.userId)).returning();
 
+    await createNotification({
+      userId: tx.userId,
+      type: "deposit_approved",
+      severity: "info",
+      title: "شارژ کیف پول تأیید شد",
+      message: `واریز ${formatTomanFa(tx.amount)} تأیید شد و به کیف پول اضافه شد. موجودی فعلی: ${formatTomanFa(updated.balance)}.`
+        + (req.body?.reviewNote ? `\n\nیادداشت بررسی‌کننده: ${req.body.reviewNote}` : ""),
+    });
+
     res.json({ success: true, balance: updated.balance });
   } catch (err) {
     logger.error({ err }, "Approve wallet deposit error");
@@ -173,6 +183,17 @@ router.post("/admin/wallet-deposits/:txId/reject", requireSuperAdmin, async (req
     await db.update(walletTransactionsTable)
       .set({ status: "rejected", reviewedBy: req.userId, reviewNote: req.body?.reviewNote ?? null })
       .where(eq(walletTransactionsTable.id, tx.id));
+
+    await createNotification({
+      userId: tx.userId,
+      type: "deposit_rejected",
+      severity: "warning",
+      title: "شارژ کیف پول تأیید نشد",
+      message: `واریز ${formatTomanFa(tx.amount)} تأیید نشد و به کیف پول اضافه نشد.`
+        + (req.body?.reviewNote ? `\n\nدلیل: ${req.body.reviewNote}` : "")
+        + `\n\nاگر فکر می‌کنی اشتباهی رخ داده، فیش را دوباره با کیفیت بهتر ارسال کن یا تیکت بزن.`,
+    });
+
     res.json({ success: true });
   } catch (err) {
     logger.error({ err }, "Reject wallet deposit error");

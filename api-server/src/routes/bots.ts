@@ -52,6 +52,7 @@ import { getBotLanguage, setBotLanguage, parseBotLanguageConfig } from "../lib/b
 import { renameSpreadsheet, sheetIsAccessible } from "../lib/sheets";
 import { readTabRows } from "../lib/tenantSheets.js";
 import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
+import { createNotification, formatTomanFa } from "../lib/notify";
 
 const router = Router();
 
@@ -728,8 +729,19 @@ router.post("/bots/wallet-purchase", requireAuth, async (req: any, res) => {
       return;
     }
 
-    const ok = await deductWallet(req.userId, Number(amount) || 0, `Bot purchase: ${name}`);
-    if (!ok) { res.status(400).json({ error: "Insufficient wallet balance", code: "insufficient" }); return; }
+    const price = Number(amount) || 0;
+    const ok = await deductWallet(req.userId, price, `Bot purchase: ${name}`);
+    if (!ok) {
+      await createNotification({
+        userId: req.userId,
+        type: "purchase_failed",
+        severity: "warning",
+        title: "خرید بات ناموفق بود",
+        message: `موجودی کیف پول برای خرید بات «${name}» به مبلغ ${formatTomanFa(price)} کافی نبود. کیف پول را شارژ کن و دوباره تلاش کن.`,
+      });
+      res.status(400).json({ error: "Insufficient wallet balance", code: "insufficient" });
+      return;
+    }
 
     const botId = crypto.randomUUID();
     const adminCode = generateAdminCode();
@@ -762,6 +774,15 @@ router.post("/bots/wallet-purchase", requireAuth, async (req: any, res) => {
         `✅ <b>بات شما فعال شد!</b>\n\n🤖 ${bot.name}\n🔑 کد ادمین: <code>${adminCode}</code>\n\nبرای فعال‌سازی پنل، این کد را وارد کنید.`
       );
     }
+
+    await createNotification({
+      userId: req.userId,
+      botId: bot.id,
+      type: "purchase_success",
+      severity: "info",
+      title: "خرید بات با موفقیت انجام شد",
+      message: `بات «${bot.name}» به مبلغ ${formatTomanFa(price)} از کیف پول خریداری شد و آماده‌ی راه‌اندازی است. کد ادمین آن ${adminCode} است.`,
+    });
 
     res.status(201).json(formatBot(bot));
   } catch (err) {
@@ -931,6 +952,16 @@ router.post("/bots/:botId/approve-payment", requireSuperAdmin, async (req: any, 
       );
     }
 
+    await createNotification({
+      userId: updatedBot.userId,
+      botId: updatedBot.id,
+      type: "payment_approved",
+      severity: "info",
+      title: "فیش پرداخت تأیید شد",
+      message: `فیش پرداخت بات «${updatedBot.name}» تأیید شد و بات فعال شد. کد ادمین آن ${adminCode} است.`
+        + (reviewNote ? `\n\nیادداشت بررسی‌کننده: ${reviewNote}` : ""),
+    });
+
     res.json({ success: true, bot: formatBot(updatedBot), adminCode });
   } catch (err) {
     logger.error({ err }, "Approve payment error");
@@ -974,6 +1005,17 @@ router.post("/bots/:botId/reject-payment", requireSuperAdmin, async (req: any, r
       commandCount: updatedBot.commandCount, pluginCount: updatedBot.pluginCount,
       userCount: updatedBot.userCount, messageCount: updatedBot.messageCount,
       createdAt: updatedBot.createdAt, updatedAt: updatedBot.updatedAt,
+    });
+
+    await createNotification({
+      userId: updatedBot.userId,
+      botId: updatedBot.id,
+      type: "payment_rejected",
+      severity: "critical",
+      title: "فیش پرداخت رد شد",
+      message: `فیش پرداخت بات «${updatedBot.name}» تأیید نشد و سفارش فعال نشد.`
+        + (reviewNote ? `\n\nدلیل: ${reviewNote}` : "")
+        + `\n\nاگر فکر می‌کنی اشتباهی رخ داده، از بخش پشتیبانی تیکت بزن.`,
     });
 
     res.json({ success: true });
@@ -1037,6 +1079,28 @@ router.post("/bots/pending-payments/:paymentId/cancel", requireSuperAdmin, async
         });
       }
     }
+
+    // نام بات ممکنه در دسترس نباشه (بات قبل از بررسی حذف شده) — در اون حالت
+    // مبلغ سفارش رو به‌عنوان نشانه‌ی مشخصه توی متن می‌آریم.
+    const cancelledBotName = payment.botId
+      ? (await db.select({ name: botsTable.name }).from(botsTable).where(eq(botsTable.id, payment.botId)).limit(1))[0]?.name
+      : undefined;
+    const orderLabel = cancelledBotName
+      ? `بات «${cancelledBotName}»`
+      : payment.amount
+        ? `سفارش ${formatTomanFa(payment.amount)}`
+        : "سفارش شما";
+
+    await createNotification({
+      userId: payment.userId,
+      botId: payment.botId ?? null,
+      type: "order_cancelled",
+      severity: "critical",
+      title: "سفارش لغو شد",
+      message: `${orderLabel} توسط پشتیبانی لغو شد.`
+        + (reviewNote ? `\n\nدلیل: ${reviewNote}` : "")
+        + `\n\nبرای پیگیری وجه پرداختی یا ثبت دوباره‌ی سفارش، از بخش پشتیبانی تیکت بزن.`,
+    });
 
     res.json({ success: true });
   } catch (err) {
@@ -2143,6 +2207,17 @@ router.post("/bots/:botId/plugins", requireBotOwnership, async (req: any, res) =
     }
     const id = crypto.randomUUID();
     const [plugin] = await db.insert(installedPluginsTable).values({ id, botId: req.params.botId, marketplaceItemId, name: item.name, version: item.version, enabled: true }).returning();
+
+    const pricePart = item.isFree || item.price <= 0 ? "رایگان" : formatTomanFa(item.price);
+    await createNotification({
+      userId: req.userId,
+      botId: req.params.botId,
+      type: "plugin_purchased",
+      severity: "info",
+      title: "افزونه نصب شد",
+      message: `افزونه‌ی «${item.name}» (نسخه ${item.version}) روی بات «${req.bot?.name ?? ""}» نصب شد — ${pricePart}.`,
+    });
+
     res.status(201).json({ id: plugin.id, botId: plugin.botId, marketplaceItemId: plugin.marketplaceItemId, name: plugin.name, version: plugin.version, enabled: plugin.enabled, installedAt: plugin.installedAt.toISOString() });
   } catch (err) { logger.error({ err }, "Install plugin error"); res.status(500).json({ error: "Internal server error" }); }
 });
