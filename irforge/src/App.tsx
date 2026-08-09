@@ -33,6 +33,8 @@ import AdminUsers from "@/pages/admin-users";
 import AdminPendingPayments from "@/pages/admin-pending-payments";
 import AdminSheetPool from "@/pages/admin-sheet-pool";
 import Support from "@/pages/support";
+import Notifications from "@/pages/notifications";
+import NotificationDetail from "@/pages/notification-detail";
 import DatabasePage from "@/pages/database";
 
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
@@ -152,6 +154,8 @@ function Router() {
       <Route path="/tickets"><ProtectedRoute component={Tickets} /></Route>
       <Route path="/wallet"><ProtectedRoute component={WalletPage} /></Route>
       <Route path="/support"><ProtectedRoute component={Support} /></Route>
+      <Route path="/notifications"><ProtectedRoute component={Notifications} /></Route>
+      <Route path="/notifications/:id"><ProtectedRoute component={NotificationDetail} /></Route>
       <Route path="/database"><ProtectedRoute component={DatabasePage} /></Route>
       <Route path="/profile"><ProtectedRoute component={Profile} /></Route>
       

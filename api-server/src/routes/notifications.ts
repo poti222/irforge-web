@@ -44,6 +44,38 @@ router.get("/notifications", requireAuth, async (req: any, res) => {
   }
 });
 
+// GET /api/notifications/:id — a single notification, for its own detail page.
+// Deliberately does NOT mark the row read: the page calls PATCH /:id/read
+// explicitly, so a prefetch or a refresh can't silently clear the badge.
+router.get("/notifications/:id", requireAuth, async (req: any, res) => {
+  try {
+    const [row] = await db
+      .select()
+      .from(notificationsTable)
+      .where(eq(notificationsTable.id, req.params.id))
+      .limit(1);
+    // یک اعلانِ متعلق به کاربر دیگر باید مثل «وجود ندارد» رفتار کند، نه 403 —
+    // تا وجود/عدم وجود id لو نرود.
+    if (!row || row.userId !== req.userId) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.json({
+      id: row.id,
+      botId: row.botId,
+      type: row.type,
+      severity: row.severity,
+      title: row.title,
+      message: row.message,
+      read: row.read,
+      createdAt: row.createdAt.toISOString(),
+    });
+  } catch (err) {
+    logger.error({ err }, "Get notification error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // PATCH /api/notifications/:id/read
 router.patch("/notifications/:id/read", requireAuth, async (req: any, res) => {
   try {

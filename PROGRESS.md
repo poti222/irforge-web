@@ -292,3 +292,101 @@ not by ticket-related ones specifically, so an unread `deposit_rejected` also
 lights up the Tickets row. That matches the prompt ("when there are unread
 notifications"), but a per-category dot would be more precise once
 `/notifications` (Phase 5) gives users somewhere else to look.
+
+## Phase 5 — Per-notification detail page  [DONE 2026-08-09]
+Files touched: `api-server/src/routes/notifications.ts`,
+`irforge/src/pages/notifications.tsx` (new),
+`irforge/src/pages/notification-detail.tsx` (new), `irforge/src/App.tsx`,
+`irforge/src/components/layout/notification-bell.tsx`,
+`irforge/src/lib/lang-routing.ts`, `irforge/public/robots.txt`,
+`irforge/src/lib/notification-severity.tsx` (renamed from `.ts` — it now
+returns JSX), `irforge/src/locales/{en,fa,ar,tr,ru}.json`.
+
+1. `GET /api/notifications/:id` (`requireAuth`). A row belonging to someone else
+   returns **404, not 403**, so the endpoint doesn't confirm that an id exists.
+   It does **not** mark the row read.
+2. `notification-detail.tsx` — back link, severity-coloured header strip + icon,
+   `text-2xl font-bold` title, body at `max-w-2xl` / `text-base leading-relaxed`
+   / `whitespace-pre-wrap` (messages really do contain newlines — the reviewer's
+   reason is appended after a blank line), localised long timestamp, and a CTA
+   derived from `type` via `ctaForType`. Marks read on mount, guarded on
+   `!data.read` so re-opening an already-read notification issues no PATCH.
+3. `notifications.tsx` — full list, newest first (the API already orders
+   `createdAt desc`), each row a link to its detail page, "mark all read" in the
+   header, `line-clamp-2` previews.
+4. Routes registered in `App.tsx` (`/notifications` before `/notifications/:id`),
+   `/notifications` added to `PRIVATE_ROUTES`, and **both** `Disallow:
+   /notifications` and `Disallow: /*/notifications` added to `robots.txt` —
+   `scripts/ssg.mjs` asserts this and the build reports 34 rules (was 32).
+5. The bell popover's items are now links to the detail pages, capped at
+   `POPOVER_LIMIT = 6`, with a "View all" footer link that shows the total when
+   there are more.
+
+Decisions / deviations:
+- **i18n**: these are new files with no existing style to match, so they use the
+  locale files rather than the inline `fa` ternary — a new `notifications`
+  namespace with 12 keys in **all five** locales. The bell was migrated onto the
+  same keys since it now shares this vocabulary. (The neighbouring private pages
+  use the inline fa/en pattern, which silently serves English to ar/tr/ru users;
+  the locale route was the better of the two options the ground rules allow.)
+- **Severity module** (started in Phase 4) absorbed the `severityIcon` helper
+  that was duplicated in `notification-bell.tsx`, per the prompt, plus
+  `SEVERITY_STRIP_CLASS` for the detail header and `ctaForType` for the CTA
+  mapping. The file was renamed `.ts` → `.tsx` because it now returns JSX.
+- **`ctaForType`** covers the prompt's four families (`ticket_*` → `/tickets`,
+  `purchase_*`/`payment_*` → `/invoices`, `trial_*` → `/buy-bot`, `deposit_*` →
+  `/wallet`) plus `order_*` → `/invoices` and `plugin_purchased` → `/bots`,
+  which Phase 3 introduced. `announcement` deliberately maps to nothing — there
+  is no page for a single announcement, so the detail page simply shows no CTA.
+- Chevron/back-arrow direction flips on `isRtlLang(lang)`; all spacing uses
+  logical properties (`ms-auto`, `-end-1.5`, `text-start`).
+
+Verification — this phase was checked in a real browser, not only by build:
+- `GET /api/notifications/:id`: owner → **200**, and a **second** GET still
+  reports `read: false` (proving the GET has no read side effect); another
+  user's id → **404**; unknown id → **404**; no auth → **401**; after an
+  explicit `PATCH /:id/read` → `read: true`. Newlines survive the round trip.
+- In the browser (vite dev against the harness API): logged in, `/en/notifications`
+  lists the rows, clicking one navigates to `/en/notifications/<id>` — the
+  language prefix resolves through wouter's `base`, not hardcoded — the full
+  multi-line Persian body renders unclipped, the "Go to tickets" CTA appears for
+  a `ticket_reply`, and a `PATCH .../read` **200** fires on mount.
+- Phase 4 re-confirmed live on the same session: with one unread `critical`,
+  the badge computed to `bg-red-500 … animate-pulse` and the Tickets/Support
+  sidebar dots to `bg-red-500`; after opening it, badge and dots disappeared.
+- `/notifications` (root language) renders `dir="rtl"`, `lang="fa"`, heading
+  «اعلان‌ها» — RTL and the fa locale both wired.
+- `pnpm -r build` clean including the robots.txt assertion; `pnpm -r typecheck`
+  still only the Phase 0 baseline errors.
+
+**Trap worth recording for the next session:** the workspace's
+`.claude/launch.json` already had a preview config named `irforge-web` pointing
+at a *different, older* copy of this app (`irforge/site/irforge-web-main`).
+Starting the preview by that name serves the old code, and the first round of
+browser checks was silently testing that stale copy — including a
+`user.name.charAt(0)` crash in `AppSidebar` that has nothing to do with this
+work. A second entry, **`irforge-web-round2`** (port 5174), now points at this
+checkout; use that one. The dev frontend needs
+`irforge/.env.local` with `VITE_API_URL=http://localhost:3999`, otherwise
+`/api/*` resolves to the vite dev server, which answers `index.html` with 200 —
+`customFetch` then returns that HTML **string** as the user object, and the app
+shell crashes on `user.name`. That is a real robustness gap in
+`AuthContext`/`customFetch` worth its own fix, though it is out of scope here.
+
+### Harness cleanup (end of Phase 5)
+`api-server/_repro_*.mjs`, `lib/db/_repro_migrations/` and `irforge/.env.local`
+are gitignored and left on disk — they are the fastest way to exercise phases
+6-18. `api-server/package.json` and `pnpm-lock.yaml` were **reverted**, so the
+committed tree carries no test-only dependencies; to run the harness again
+first re-add them:
+`pnpm add -D --filter @workspace/api-server @electric-sql/pglite @electric-sql/pglite-socket`.
+Run order: start `_repro_pgserver.mjs` (applies the generated DDL in-process and
+opens a SQL side channel on 55433), then the api-server via `_repro_server.mjs`
+with `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/postgres`,
+`SUPER_ADMIN_CODE`, and a 64-hex `BOT_TOKEN_ENCRYPTION_KEY`. Restart **both**
+together for every run.
+
+Follow-ups left open: `GET /api/notifications` still caps at 50 rows with no
+pagination, so `/notifications` silently truncates for a heavy user — the
+"View all" link promises more than the page can show once someone passes 50.
+Pagination is the obvious next step and was not in this phase's scope.

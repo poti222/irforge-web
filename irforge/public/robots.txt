@@ -32,6 +32,8 @@ Disallow: /wallet
 Disallow: /*/wallet
 Disallow: /support
 Disallow: /*/support
+Disallow: /notifications
+Disallow: /*/notifications
 Disallow: /language
 Disallow: /*/language
 Disallow: /database

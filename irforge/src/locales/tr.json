@@ -269,5 +269,20 @@
     "planUpdateFailed": "Plan değiştirilemedi",
     "customResources": "Özel kaynaklar",
     "customResourcesHint": "RAM ve CPU'yu 8 GB'a kadar seçin."
+  },
+  "notifications": {
+    "title": "Bildirimler",
+    "empty": "Henüz bildirim yok.",
+    "markAllRead": "Tümünü okundu işaretle",
+    "back": "Bildirimlere dön",
+    "viewAll": "Tümünü gör",
+    "unread": "Okunmamış",
+    "notFound": "Bu bildirim yok ya da size ait değil.",
+    "loadError": "Bu bildirim yüklenemedi. Lütfen tekrar deneyin.",
+    "ctaTickets": "Destek taleplerine git",
+    "ctaInvoices": "Faturaları gör",
+    "ctaBuyBot": "Paketleri gör",
+    "ctaWallet": "Cüzdanı aç",
+    "ctaBots": "Botlarıma git"
   }
 }

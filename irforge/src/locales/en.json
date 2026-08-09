@@ -269,5 +269,20 @@
     "planUpdateFailed": "Could not change plan",
     "customResources": "Custom resources",
     "customResourcesHint": "Pick RAM and CPU up to 8 GB."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications yet.",
+    "markAllRead": "Mark all read",
+    "back": "Back to notifications",
+    "viewAll": "View all",
+    "unread": "Unread",
+    "notFound": "This notification doesn't exist, or it isn't yours.",
+    "loadError": "Couldn't load this notification. Please try again.",
+    "ctaTickets": "Go to tickets",
+    "ctaInvoices": "View invoices",
+    "ctaBuyBot": "See packages",
+    "ctaWallet": "Open wallet",
+    "ctaBots": "Go to my bots"
   }
 }
