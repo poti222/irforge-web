@@ -20,7 +20,7 @@ import { LoginMascot } from "@/components/auth/LoginMascot";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import { OrangeRobot } from "@/components/layout/brand-home";
+import { BrandLogo } from "@/components/layout/brand-home";
 import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { useT } from "@/hooks/use-translation";
@@ -97,12 +97,7 @@ export default function Login() {
       </div>
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
-        <Link href="/" className="flex items-center gap-2 mb-8 hover:opacity-80 transition-opacity">
-          <div className="flex aspect-square size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-            <OrangeRobot className="size-6" />
-          </div>
-          <span className="font-bold text-2xl tracking-tight">IrForge</span>
-        </Link>
+        <BrandLogo className="mb-8 hover:opacity-80 transition-opacity" />
         <h2 className="text-center text-2xl font-bold tracking-tight text-foreground">
           {tr.signInAccount}
         </h2>
