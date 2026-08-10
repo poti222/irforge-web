@@ -1,19 +1,32 @@
 /**
  * routes/discounts.ts
- * Phase 9 — کدهای تخفیف: schema و API.
+ * Phase 9 — کدهای تخفیف: API.
+ *
+ * داده‌ی کدهای تخفیف در Postgres نیست؛ فقط در Google Sheets نگه‌داری می‌شود
+ * (ببینید lib/discountStore.ts). این فایل صرفاً یک لایه‌ی HTTP روی همان
+ * store است.
  *
  * POST /api/discounts/validate فقط استعلام (quote) می‌کند — هرگز usedCount
- * را افزایش نمی‌دهد و هرگز discount_redemptions نمی‌نویسد. افزایش واقعیِ
- * usedCount و نوشتن ردیف redemption فقط داخل تراکنش خرید (Phase 11،
- * POST /bots/wallet-purchase) اتفاق می‌افتد.
+ * را افزایش نمی‌دهد و هرگز ردیف redemption نمی‌نویسد. افزایش واقعیِ
+ * usedCount و ثبت redemption فقط داخل خرید واقعی (Phase 11،
+ * POST /bots/wallet-purchase) از طریق reserveDiscount().commit() اتفاق می‌افتد.
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, discountCodesTable, usersTable } from "@workspace/db";
-import { eq, and, ne, desc } from "drizzle-orm";
-import crypto from "crypto";
+import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { requireAuth } from "./auth";
 import { computeDiscount, type DiscountKind } from "../lib/discounts";
+import {
+  listDiscountCodes,
+  getDiscountByCode,
+  getDiscountById,
+  createDiscountCode,
+  updateDiscountCode,
+  deleteDiscountCode,
+  DuplicateDiscountCodeError,
+  type DiscountCode,
+} from "../lib/discountStore";
 
 const router = Router();
 
@@ -53,7 +66,7 @@ function validateKindValue(kind: unknown, value: unknown): string | null {
   return null;
 }
 
-function formatCode(c: typeof discountCodesTable.$inferSelect) {
+function formatCode(c: DiscountCode) {
   return {
     id: c.id,
     code: c.code,
@@ -61,11 +74,11 @@ function formatCode(c: typeof discountCodesTable.$inferSelect) {
     value: c.value,
     maxUses: c.maxUses,
     usedCount: c.usedCount,
-    expiresAt: c.expiresAt ? c.expiresAt.toISOString() : null,
+    expiresAt: c.expiresAt,
     active: c.active,
     createdBy: c.createdBy,
-    createdAt: c.createdAt.toISOString(),
-    updatedAt: c.updatedAt.toISOString(),
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
   };
 }
 
@@ -84,7 +97,7 @@ router.post("/discounts/validate", requireAuth, async (req: any, res) => {
       return;
     }
 
-    const [row] = await db.select().from(discountCodesTable).where(eq(discountCodesTable.code, code)).limit(1);
+    const row = await getDiscountByCode(code);
     if (!row) {
       res.status(400).json({ valid: false, reason: "not_found", error: "کد تخفیف پیدا نشد" });
       return;
@@ -93,7 +106,7 @@ router.post("/discounts/validate", requireAuth, async (req: any, res) => {
       res.status(400).json({ valid: false, reason: "inactive", error: "این کد تخفیف غیرفعال است" });
       return;
     }
-    if (row.expiresAt && row.expiresAt.getTime() < Date.now()) {
+    if (row.expiresAt && new Date(row.expiresAt).getTime() < Date.now()) {
       res.status(400).json({ valid: false, reason: "expired", error: "این کد تخفیف منقضی شده است" });
       return;
     }
@@ -122,7 +135,7 @@ router.post("/discounts/validate", requireAuth, async (req: any, res) => {
 // GET /api/admin/discounts
 router.get("/admin/discounts", requireSuperAdmin, async (_req: any, res) => {
   try {
-    const rows = await db.select().from(discountCodesTable).orderBy(desc(discountCodesTable.createdAt));
+    const rows = await listDiscountCodes();
     res.json(rows.map(formatCode));
   } catch (err) {
     logger.error({ err }, "List discount codes error");
@@ -155,37 +168,29 @@ router.post("/admin/discounts", requireSuperAdmin, async (req: any, res) => {
       maxUses = n;
     }
 
-    let expiresAt: Date | null = null;
+    let expiresAt: string | null = null;
     if (req.body?.expiresAt != null && req.body?.expiresAt !== "") {
       const d = new Date(req.body.expiresAt);
       if (isNaN(d.getTime())) {
         res.status(400).json({ error: "Expiry date is invalid" });
         return;
       }
-      expiresAt = d;
+      expiresAt = d.toISOString();
     }
 
-    const [existing] = await db.select().from(discountCodesTable).where(eq(discountCodesTable.code, code)).limit(1);
-    if (existing) {
-      res.status(409).json({ error: "This discount code already exists" });
-      return;
-    }
-
-    const [created] = await db.insert(discountCodesTable).values({
-      id: crypto.randomUUID(),
+    const created = await createDiscountCode({
       code,
       kind,
       value,
       maxUses,
-      usedCount: 0,
       expiresAt,
       active: req.body?.active === false ? false : true,
       createdBy: req.userId,
-    }).returning();
+    });
 
     res.status(201).json(formatCode(created));
   } catch (err: any) {
-    if (err?.code === "23505") {
+    if (err instanceof DuplicateDiscountCodeError) {
       res.status(409).json({ error: "This discount code already exists" });
       return;
     }
@@ -197,24 +202,18 @@ router.post("/admin/discounts", requireSuperAdmin, async (req: any, res) => {
 // PATCH /api/admin/discounts/:id
 router.patch("/admin/discounts/:id", requireSuperAdmin, async (req: any, res) => {
   try {
-    const [existing] = await db.select().from(discountCodesTable).where(eq(discountCodesTable.id, req.params.id)).limit(1);
+    const existing = await getDiscountById(req.params.id);
     if (!existing) {
       res.status(404).json({ error: "Discount code not found" });
       return;
     }
 
-    const patch: Partial<typeof discountCodesTable.$inferInsert> = {};
+    const patch: Parameters<typeof updateDiscountCode>[1] = {};
 
     if (req.body?.code !== undefined) {
       const code = normalizeCode(req.body.code);
       if (!code) {
         res.status(400).json({ error: "A discount code is required" });
-        return;
-      }
-      const [dupe] = await db.select().from(discountCodesTable)
-        .where(and(eq(discountCodesTable.code, code), ne(discountCodesTable.id, existing.id))).limit(1);
-      if (dupe) {
-        res.status(409).json({ error: "This discount code already exists" });
         return;
       }
       patch.code = code;
@@ -254,7 +253,7 @@ router.patch("/admin/discounts/:id", requireSuperAdmin, async (req: any, res) =>
           res.status(400).json({ error: "Expiry date is invalid" });
           return;
         }
-        patch.expiresAt = d;
+        patch.expiresAt = d.toISOString();
       }
     }
 
@@ -262,17 +261,18 @@ router.patch("/admin/discounts/:id", requireSuperAdmin, async (req: any, res) =>
       patch.active = !!req.body.active;
     }
 
-    const [updated] = await db.update(discountCodesTable)
-      .set(patch)
-      .where(eq(discountCodesTable.id, existing.id))
-      .returning();
-
-    res.json(formatCode(updated));
-  } catch (err: any) {
-    if (err?.code === "23505") {
+    const updated = await updateDiscountCode(existing.id, patch);
+    if (updated && "error" in updated) {
       res.status(409).json({ error: "This discount code already exists" });
       return;
     }
+    if (!updated) {
+      res.status(404).json({ error: "Discount code not found" });
+      return;
+    }
+
+    res.json(formatCode(updated));
+  } catch (err) {
     logger.error({ err }, "Update discount code error");
     res.status(500).json({ error: "Internal server error" });
   }
@@ -281,12 +281,11 @@ router.patch("/admin/discounts/:id", requireSuperAdmin, async (req: any, res) =>
 // DELETE /api/admin/discounts/:id
 router.delete("/admin/discounts/:id", requireSuperAdmin, async (req: any, res) => {
   try {
-    const [existing] = await db.select().from(discountCodesTable).where(eq(discountCodesTable.id, req.params.id)).limit(1);
-    if (!existing) {
+    const deleted = await deleteDiscountCode(req.params.id);
+    if (!deleted) {
       res.status(404).json({ error: "Discount code not found" });
       return;
     }
-    await db.delete(discountCodesTable).where(eq(discountCodesTable.id, req.params.id));
     res.status(204).end();
   } catch (err) {
     logger.error({ err }, "Delete discount code error");
