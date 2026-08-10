@@ -21,6 +21,8 @@ import telegramWebhookRouter from "./telegramWebhook.js";
 import notificationsRouter from "./notifications.js";
 // Phase 9: کدهای تخفیف
 import discountsRouter from "./discounts.js";
+// آپدیت‌های سایت (تغییرات و امکانات جدید + مودال یک‌باره روی داشبورد)
+import updatesRouter from "./updates.js";
 
 const router: IRouter = Router();
 
@@ -44,5 +46,6 @@ router.use(superAdminRouter);
 router.use(telegramWebhookRouter);
 router.use(notificationsRouter);
 router.use(discountsRouter);
+router.use(updatesRouter);
 
 export default router;
