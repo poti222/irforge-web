@@ -49,6 +49,8 @@ export interface SchemaStrings {
   homeLabel: string;
   /** breadcrumb + nav label for the docs page */
   docsLabel: string;
+  /** breadcrumb + nav label for the public bot-token guide */
+  botTokenLabel: string;
 }
 
 function organization() {
@@ -101,6 +103,8 @@ function softwareApplication(lang: Lang, s: SchemaStrings) {
 function breadcrumbs(lang: Lang, route: string, s: SchemaStrings) {
   const items = [{ name: s.homeLabel, item: absoluteUrl(lang, "/") }];
   if (route === "/docs") items.push({ name: s.docsLabel, item: absoluteUrl(lang, "/docs") });
+  if (route === "/learn/bot-token")
+    items.push({ name: s.botTokenLabel, item: absoluteUrl(lang, "/learn/bot-token") });
   return {
     "@type": "BreadcrumbList",
     itemListElement: items.map((it, i) => ({
@@ -128,6 +132,11 @@ function siteNavigation(lang: Lang, s: SchemaStrings) {
       "@type": "SiteNavigationElement",
       name: s.docsLabel,
       url: absoluteUrl(lang, "/docs"),
+    },
+    {
+      "@type": "SiteNavigationElement",
+      name: s.botTokenLabel,
+      url: absoluteUrl(lang, "/learn/bot-token"),
     },
   ];
 }

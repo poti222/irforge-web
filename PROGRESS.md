@@ -595,3 +595,70 @@ pre-existing Phase 0 baseline error (`AllBotsTable.tsx:68`), no new errors.
 `pnpm --filter @workspace/irforge build` clean, 10 pages prerendered,
 robots/sitemap assertions still pass.
 Follow-ups left open: none.
+
+## Phase 14 — Fill in the "How do I get my bot token?" guide  [DONE 2026-08-10]
+Files touched: `irforge/src/pages/learn-bot-token.tsx`, `irforge/src/config/support.ts`,
+`irforge/src/lib/lang-routing.ts`, `irforge/src/lib/structured-data.ts`,
+`irforge/src/entry-ssg.tsx`, `irforge/src/App.tsx`, `irforge/public/robots.txt`,
+`irforge/src/pages/support.tsx`, `irforge/src/components/layout/support-fab.tsx`,
+`irforge/src/locales/{en,fa,ar,tr,ru}.json`, `.claude/launch.json` (new, dev preview only).
+
+1. Real guide, replacing the "coming soon" placeholder: a numbered `<ol>` of 7
+   steps (open Telegram → find @BotFather → `/newbot` → display name →
+   username ending in `bot` → copy the token → paste into IrForge), each with
+   an icon and body copy, plus a fake-but-realistic example token rendered
+   `dir="ltr"` in a scrollable `<code>`. A destructive-styled callout states
+   the token is a password (full control, never share/post/commit) and that
+   `/revoke` in BotFather invalidates a leaked one.
+2. Education channel constants live in `config/support.ts`
+   (`EDUCATION_CHANNEL_URL` / `EDUCATION_CHANNEL_HANDLE`) — not hardcoded in
+   the page — and are consumed by the guide, the Support page (new card) and
+   the support FAB (new secondary button above the robot). All three use
+   `target="_blank" rel="noopener noreferrer"`.
+3. Full content in all five locales under a new `learnBotToken` namespace,
+   plus `seo.botTokenTitle` / `botTokenDescription` / `navBotToken`.
+4. `/learn/bot-token` added to `PUBLIC_ROUTES` and `SITEMAP_LASTMOD` bumped to
+   2026-08-10. `seoFor` in `entry-ssg.tsx` and the breadcrumb/site-navigation
+   nodes in `structured-data.ts` were extended for the new route (both
+   previously special-cased `/docs` only, so without this the guide would have
+   inherited the *homepage* title in every language).
+
+Decisions / deviations:
+- **The route had to move out of `ProtectedRoute`.** It was registered as
+  `<Route path="/learn/bot-token"><ProtectedRoute .../></Route>`, i.e. behind
+  auth. A prerendered public page cannot be auth-gated (the SSG renders as a
+  logged-out visitor, so it would have emitted a redirect, not the guide), and
+  the prompt's own premise — public, linked from checkout, indexable — requires
+  it. It is now a bare `<Route>` next to `/docs`. Consequence worth knowing: an
+  authed user following the checkout link now gets the standalone page without
+  the app shell, exactly like `/docs` behaves.
+- **`irforge/public/sitemap.xml` does not exist and was not created.** The
+  prompt lists it as a file to touch, but this repo *generates* sitemap.xml in
+  `scripts/ssg.mjs` from (languages × `PUBLIC_ROUTES`) and deliberately does not
+  check one in ("a hand-maintained copy would go stale"). Adding the route to
+  `PUBLIC_ROUTES` is therefore the whole change; the sitemap picked it up
+  automatically (15 URLs, up from 10).
+- `robots.txt` gained `Allow: /learn/bot-token` for symmetry with `Allow: /docs`.
+  The build-time assertion only covers `PRIVATE_ROUTES`, so this was not
+  required — but leaving a public prerendered route unlisted next to its
+  siblings would be a trap for the next person editing that file.
+
+Verification: `pnpm --filter @workspace/irforge build` — 15 pages prerendered
+(up from 10), all five `/learn/bot-token` variants present with their own
+localised `<title>`, 15 sitemap URLs with `lastmod` 2026-08-10, robots and
+brand-asset assertions still pass. `typecheck` shows only the pre-existing
+Phase 0 baseline error (`AllBotsTable.tsx:68`). Served the built `dist/` over a
+static server (with `/api/*` → 401) and loaded the page in a browser:
+`/en/learn/bot-token` renders all 7 steps, the warning and the channel card;
+the channel anchor resolves to `https://t.me/irforge_Education` with
+`target="_blank" rel="noopener noreferrer"`; `/learn/bot-token` renders `dir=rtl`
+`lang=fa` with the Persian copy, correct canonical, and no horizontal overflow.
+
+Follow-ups left open: **the dev server (`pnpm dev`) cannot render any authed
+route while `api-server` is not running** — Vite answers `GET /api/me` with
+`index.html` and a `200`, so `AuthContext` gets a truthy non-user object,
+`ProtectedRoute` admits it, and `AppSidebar` crashes on `user.name.charAt(0)`
+(`app-sidebar.tsx:246`/`:274`). Confirmed pre-existing by reproducing it with
+this phase's changes stashed, on `/en/dashboard` as well. Not fixed here (out
+of scope), but `AppSidebar` guarding `user?.name` would make dev-without-API
+usable and is cheap.

@@ -125,6 +125,10 @@ function Router() {
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/docs" component={Docs} />
+      {/* Public and prerendered per language: it's linked from checkout but
+          also has to be readable (and indexable) by someone who hasn't signed
+          up yet — getting the token is a prerequisite to buying. */}
+      <Route path="/learn/bot-token" component={LearnBotToken} />
       <Route path="/login"><PublicOnlyRoute component={Login} /></Route>
       <Route path="/register"><PublicOnlyRoute component={Register} /></Route>
       <Route path="/forgot-password"><PublicOnlyRoute component={ForgotPassword} /></Route>
@@ -137,7 +141,6 @@ function Router() {
       {/* Must come before /bots/:botId so "cart" isn't parsed as a bot id */}
       <Route path="/bots/cart"><ProtectedRoute component={Checkout} /></Route>
       <Route path="/bots/:botId"><ProtectedRoute component={BotWorkspace} /></Route>
-      <Route path="/learn/bot-token"><ProtectedRoute component={LearnBotToken} /></Route>
       <Route path="/marketplace"><ProtectedRoute component={Marketplace} /></Route>
       <Route path="/invoices"><ProtectedRoute component={Invoices} /></Route>
       <Route path="/tickets"><ProtectedRoute component={Tickets} /></Route>

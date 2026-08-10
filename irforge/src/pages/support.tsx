@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   MessageCircle,
   LifeBuoy,
+  Youtube,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,7 +17,13 @@ import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
 import { OrangeRobot } from "@/components/layout/brand-home";
-import { SUPPORT_CONTACTS, telegramUrl, atHandle } from "@/config/support";
+import {
+  SUPPORT_CONTACTS,
+  telegramUrl,
+  atHandle,
+  EDUCATION_CHANNEL_URL,
+  EDUCATION_CHANNEL_HANDLE,
+} from "@/config/support";
 
 /** A small "@handle + copy" chip. */
 function HandleChip({ username }: { username: string }) {
@@ -127,8 +134,40 @@ export default function Support() {
         </Card>
       </motion.div>
 
-      {/* Direct contact with the owner — at the bottom, as requested */}
+      {/* Education channel — video walkthroughs */}
       <motion.div variants={fadeUp} initial="hidden" animate="show" custom={2}>
+        <Card className="border-primary/25">
+          <CardContent className="flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:justify-between sm:text-start">
+            <div className="flex items-center gap-4">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Youtube className="size-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold">
+                  {fa ? "کانال آموزشی" : "Education channel"}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {fa
+                    ? "ویدیوهای گام‌به‌گام: گرفتن توکن، ساخت اولین بات، پلاگین‌ها و پرداخت."
+                    : "Video walkthroughs: getting a token, your first bot, plugins and payments."}
+                </p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground" dir="ltr">
+                  {EDUCATION_CHANNEL_HANDLE}
+                </p>
+              </div>
+            </div>
+            <Button asChild variant="outline" size="sm" className="shrink-0 gap-2" data-testid="education-channel">
+              <a href={EDUCATION_CHANNEL_URL} target="_blank" rel="noopener noreferrer">
+                <Send className="size-4" />
+                {fa ? "باز کردن کانال" : "Open the channel"}
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Direct contact with the owner — at the bottom, as requested */}
+      <motion.div variants={fadeUp} initial="hidden" animate="show" custom={3}>
         <Card>
           <CardContent className="flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:justify-between sm:text-start">
             <div className="flex items-center gap-4">
@@ -164,7 +203,7 @@ export default function Support() {
         variants={fadeUp}
         initial="hidden"
         animate="show"
-        custom={3}
+        custom={4}
         className="flex flex-col items-center justify-between gap-3 rounded-xl border border-dashed p-4 text-sm text-muted-foreground sm:flex-row"
       >
         <span className="inline-flex items-center gap-2">

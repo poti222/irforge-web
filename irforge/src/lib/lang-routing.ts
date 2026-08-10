@@ -27,7 +27,7 @@ export const SITE_ORIGIN = "https://irforge.ir";
  * build time and appear in the sitemap. Everything else is behind auth,
  * stays a client-only SPA route, and is disallowed in robots.txt.
  */
-export const PUBLIC_ROUTES = ["/", "/docs"] as const;
+export const PUBLIC_ROUTES = ["/", "/docs", "/learn/bot-token"] as const;
 export type PublicRoute = (typeof PUBLIC_ROUTES)[number];
 
 /**
@@ -65,7 +65,7 @@ export const PRIVATE_ROUTES = [
  * build date — rebuilding without a content change shouldn't tell crawlers
  * the page was modified.
  */
-export const SITEMAP_LASTMOD = "2026-08-08";
+export const SITEMAP_LASTMOD = "2026-08-10";
 
 export const ALL_LANGS: readonly Lang[] = LANGUAGES.map((l) => l.code);
 

@@ -16,6 +16,17 @@ export interface SupportContacts {
   ownerLabel: string;
 }
 
+/**
+ * Public education channel — video walkthroughs (getting a bot token, first
+ * bot, plugins). Unlike the handles above this is a confirmed, real channel,
+ * so it is a full URL rather than a placeholder @username. Kept here so the
+ * learn page, the support page and the support FAB all read one source.
+ */
+export const EDUCATION_CHANNEL_URL = "https://t.me/irforge_Education";
+
+/** Display form of the education channel, e.g. for a handle chip. */
+export const EDUCATION_CHANNEL_HANDLE = "@irforge_Education";
+
 // TODO [settings stage]: override these from the values stored in the owner's
 // Google Sheet (read via the settings endpoint) instead of the hardcoded
 // defaults below.

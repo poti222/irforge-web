@@ -4,6 +4,7 @@ Allow: /
 # Public, indexable pages. Persian is the root language (no prefix); every
 # other language lives under its own prefix and has its own prerendered HTML.
 Allow: /docs
+Allow: /learn/bot-token
 Allow: /en/
 Allow: /tr/
 Allow: /ru/

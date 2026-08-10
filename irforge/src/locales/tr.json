@@ -232,7 +232,10 @@
     "docsDescription": "Eksiksiz IrForge dokümantasyonu: hızlı başlangıç, argümanlı komut tanımlama, eklenti yazma ve yönetim paneli rehberi.",
     "navHome": "Ana sayfa",
     "navDocs": "Dokümantasyon",
-    "keywords": "telegram bot yapma, telegram bot oluşturma, kodsuz telegram botu, ücretsiz telegram bot, telegram bot nasıl yapılır, telegram mağaza botu, telegram otomasyonu, IrForge"
+    "keywords": "telegram bot yapma, telegram bot oluşturma, kodsuz telegram botu, ücretsiz telegram bot, telegram bot nasıl yapılır, telegram mağaza botu, telegram otomasyonu, IrForge",
+    "botTokenTitle": "BotFather'dan Telegram Bot Token'ı Alma | IrForge",
+    "botTokenDescription": "@BotFather ile Telegram botu oluşturma ve token'ını kopyalama adım adım rehberi; token'ı güvende tutma ve sızan token'ı iptal etme dahil.",
+    "navBotToken": "Bot token rehberi"
   },
   "faq": {
     "title": "Sık sorulan sorular",
@@ -289,5 +292,36 @@
     "ctaBuyBot": "Paketleri gör",
     "ctaWallet": "Cüzdanı aç",
     "ctaBots": "Botlarıma git"
+  },
+  "learnBotToken": {
+    "back": "Geri",
+    "badge": "Rehber",
+    "title": "Bot token'ımı nasıl alırım?",
+    "subtitle": "Her Telegram botu, Telegram'ın kendi botu olan BotFather ile oluşturulur. Yaklaşık bir dakika sürer ve size bir token verir — IrForge'un botunuzu çalıştırmak için kullandığı anahtar.",
+    "stepsTitle": "Adım adım",
+    "step1Title": "Telegram'ı açın",
+    "step1Body": "Elinizdeki herhangi bir sürümü kullanın — telefon, masaüstü veya web. Yalnızca kendi hesabınızla giriş yapmış olmanız yeterli.",
+    "step2Title": "@BotFather'ı bulun",
+    "step2Body": "@BotFather'ı aratıp sohbeti açın. Bot oluşturmaya yarayan resmî Telegram botudur — başlamadan önce mavi onay rozetini kontrol edin.",
+    "step3Title": "/newbot gönderin",
+    "step3Body": "/newbot yazıp gönderin. BotFather aşağıdaki iki soruyu soracak.",
+    "step4Title": "Bir görünen ad seçin",
+    "step4Body": "Bu, sohbetin üstünde görünen addır, örneğin \"Dükkanım\". Sonradan değiştirilebilir; boşluk ve her dili kabul eder.",
+    "step5Title": "\"bot\" ile biten bir kullanıcı adı seçin",
+    "step5Body": "Kullanıcı adı benzersiz ve kalıcıdır, bot ile bitmelidir — örneğin my_shop_bot. Alınmışsa BotFather başka bir tane ister.",
+    "step6Title": "Token'ı kopyalayın",
+    "step6Body": "BotFather aşağıdaki örneğe benzeyen bir satır gönderir. O dizenin tamamı sizin token'ınızdır — fazladan boşluk bırakmadan birebir kopyalayın.",
+    "step7Title": "IrForge'a yapıştırın",
+    "step7Body": "Buraya dönün, token'ı ödeme sayfasındaki bot token alanına yapıştırın ve siparişi tamamlayın. IrForge o andan itibaren botunuza bağlanır.",
+    "tokenExampleLabel": "Token'ınız şuna benzer",
+    "warningTitle": "Token'ınız bir paroladır",
+    "warningBody": "Token'a sahip olan herkes botun tam kontrolüne sahiptir — mesajlarını okuyabilir ve onun adına hareket edebilir. Asla paylaşmayın, bir grupta veya ekran görüntüsünde yayımlamayın, herkese açık bir depoya koymayın.",
+    "warningRevoke": "Token sızdıysa @BotFather'ı açın, /revoke gönderin ve botu seçin. Eski token anında geçersiz olur ve buraya yapıştıracağınız yenisini alırsınız.",
+    "channelTitle": "İzlemeyi mi tercih edersiniz?",
+    "channelBody": "Eğitim kanalımızda bu rehberin ve IrForge'un geri kalanının video anlatımları var — kurulum, eklentiler, ödemeler ve daha fazlası.",
+    "channelCta": "Eğitim kanalını aç",
+    "nextTitle": "Token'ı aldınız mı?",
+    "nextBody": "Ödeme sayfasına dönüp yapıştırın ve bot oluşturmayı tamamlayın.",
+    "nextCta": "Ödemeye dön"
   }
 }

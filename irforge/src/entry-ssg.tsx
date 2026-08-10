@@ -49,9 +49,10 @@ export interface RenderedPage {
 
 function seoFor(lang: Lang, route: string) {
   const ns = { ...LOCALES.en.seo, ...(LOCALES[lang]?.seo ?? {}) };
-  return route === "/docs"
-    ? { title: ns.docsTitle, description: ns.docsDescription }
-    : { title: ns.homeTitle, description: ns.homeDescription };
+  if (route === "/docs") return { title: ns.docsTitle, description: ns.docsDescription };
+  if (route === "/learn/bot-token")
+    return { title: ns.botTokenTitle, description: ns.botTokenDescription };
+  return { title: ns.homeTitle, description: ns.homeDescription };
 }
 
 /**
@@ -87,6 +88,7 @@ export function renderPage(lang: Lang, route: string): RenderedPage {
       description,
       homeLabel: ns.navHome,
       docsLabel: ns.navDocs,
+      botTokenLabel: ns.navBotToken,
     },
     faqFor(lang)
   );

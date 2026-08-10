@@ -232,7 +232,10 @@
     "docsDescription": "Complete IrForge documentation: quick start, defining commands with arguments, writing plugins, and finding your way around the management panel.",
     "navHome": "Home",
     "navDocs": "Documentation",
-    "keywords": "build a telegram bot, telegram bot builder, no-code telegram bot, create telegram bot free, telegram bot maker, how to make a telegram bot, telegram shop bot, telegram automation, IrForge"
+    "keywords": "build a telegram bot, telegram bot builder, no-code telegram bot, create telegram bot free, telegram bot maker, how to make a telegram bot, telegram shop bot, telegram automation, IrForge",
+    "botTokenTitle": "How to Get a Telegram Bot Token from BotFather | IrForge",
+    "botTokenDescription": "Step-by-step guide to creating a Telegram bot with @BotFather and copying its token, plus how to keep the token safe and revoke a leaked one.",
+    "navBotToken": "Bot token guide"
   },
   "faq": {
     "title": "Frequently asked questions",
@@ -289,5 +292,36 @@
     "ctaBuyBot": "See packages",
     "ctaWallet": "Open wallet",
     "ctaBots": "Go to my bots"
+  },
+  "learnBotToken": {
+    "back": "Back",
+    "badge": "Guide",
+    "title": "How do I get my bot token?",
+    "subtitle": "Every Telegram bot is created by BotFather, Telegram's own bot. It takes about a minute and gives you a token — the key IrForge uses to run your bot.",
+    "stepsTitle": "Step by step",
+    "step1Title": "Open Telegram",
+    "step1Body": "Use any Telegram app you already have — phone, desktop or web. You need to be signed in to your own account.",
+    "step2Title": "Find @BotFather",
+    "step2Body": "Search for @BotFather and open the chat. It is Telegram's official bot for creating bots — check for the blue verified badge before you start.",
+    "step3Title": "Send /newbot",
+    "step3Body": "Type /newbot and send it. BotFather will walk you through the two questions below.",
+    "step4Title": "Choose a display name",
+    "step4Body": "This is the name people see at the top of the chat, for example \"My Shop\". You can change it later, and it may contain spaces and any language.",
+    "step5Title": "Choose a username ending in \"bot\"",
+    "step5Body": "The username is unique and permanent, and must end in \"bot\" — for example my_shop_bot. If the name is taken, BotFather asks for another one.",
+    "step6Title": "Copy the token",
+    "step6Body": "BotFather replies with a line that looks like the example below. That whole string is your token — copy it exactly, with no extra spaces.",
+    "step7Title": "Paste it into IrForge",
+    "step7Body": "Come back here, paste the token into the bot token field at checkout, and finish the order. IrForge connects to your bot from that point on.",
+    "tokenExampleLabel": "Your token looks like this",
+    "warningTitle": "Your token is a password",
+    "warningBody": "Anyone holding the token has full control of your bot — they can read its messages and act as it. Never share it, never post it in a group or a screenshot, and never commit it to a public repository.",
+    "warningRevoke": "If a token has leaked, open @BotFather, send /revoke and pick the bot. The old token stops working immediately and you get a new one to paste in here.",
+    "channelTitle": "Prefer to watch it?",
+    "channelBody": "Our education channel carries video walkthroughs of this guide and the rest of IrForge — setup, plugins, payments and more.",
+    "channelCta": "Open the education channel",
+    "nextTitle": "Got your token?",
+    "nextBody": "Head back to checkout and paste it in to finish creating your bot.",
+    "nextCta": "Back to checkout"
   }
 }
