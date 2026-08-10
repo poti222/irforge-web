@@ -12,8 +12,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { customFetch } from "@workspace/api-client-react";
 import { TelegramLoginButton, type TelegramWidgetUser } from "@/components/telegram-login-button";
+import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { useTelegramWebApp } from "@/hooks/use-telegram-webapp";
-import { Send, Info, Loader2, Save, KeyRound, LogOut } from "lucide-react";
+import { Send, Info, Loader2, Save, KeyRound, LogOut, ShieldCheck} from "lucide-react";
 
 type ProfileUser = {
   id: string;
@@ -322,6 +323,18 @@ export default function Profile() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* تلگرام حالا برای **ورود** لازم است، نه فقط یک تزئین پروفایل.
+              این را صریح می‌گوییم تا کسی به‌اشتباه فکر نکند اختیاری است.
+              قطع اتصال در این صفحه وجود ندارد و عمداً اضافه نشده: قطع‌کردنش
+              کاربر را تا وصل‌کردن یک حساب تازه از ورود محروم می‌کند. */}
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <ShieldCheck className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+            <p>
+              {fa
+                ? "ورود به حساب از این پس به کدی نیاز دارد که در تلگرام فرستاده می‌شود. تا وقتی حساب تلگرام دیگری وصل نکرده‌اید، قطع این اتصال ورود شما را مسدود می‌کند."
+                : "Signing in now requires a code sent to Telegram. Disconnecting would block your login until another Telegram account is connected."}
+            </p>
+          </div>
           {isTelegramLinked ? (
             // حساب لینک شده — نمایش اطلاعات
             <div className="flex items-center gap-4">

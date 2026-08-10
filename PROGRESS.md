@@ -1547,3 +1547,31 @@ Decisions:
 - A "lost access to your Telegram?" link sits on the credentials screen and
   routes to support, so the failure mode has a visible path instead of being a
   dead end (Phase 8 builds the other end of it).
+
+## Phase 6 — Telegram linking in the profile  [DONE 2026-08-10]
+
+Files touched: `irforge/src/components/auth/TelegramLinkPanel.tsx` (created in
+Phase 2), `irforge/src/components/auth/QrCanvas.tsx`,
+`irforge/src/pages/profile.tsx`
+
+Decisions:
+
+- One `TelegramLinkPanel` serves both entry points, switched by a single `mode`
+  prop: `"profile"` calls the `requireAuth` endpoint
+  (`/auth/telegram/link/start`), `"register"` receives the deep link the
+  pre-auth endpoint already returned. Deep link, QR, waiting poll and connected
+  state are identical because they are the same component.
+- **The QR is rendered locally on a canvas** (`QrCanvas`, QR v6-L, byte mode,
+  mask 0, with Reed–Solomon EC computed in-file) rather than fetched from a QR
+  image service. The encoded string is a deep link containing a one-shot
+  account-linking token; handing it to a third-party image host would be
+  handing over a credential. The QR is drawn on a fixed white background with a
+  quiet zone — a QR rendered on the dark theme's background does not scan.
+- The QR is not a nice-to-have: a `t.me/…` link on a desktop browser with no
+  phone to scan is unusable.
+- The profile now **states plainly that Telegram is required for signing in**,
+  in an amber notice inside the Telegram card.
+- **There is no unlink control**, and none was added. The existing profile had
+  none, so nothing needed gating; the notice explains that disconnecting would
+  block login until another account is connected. If unlink is ever added it
+  must be gated behind an immediate re-link.
