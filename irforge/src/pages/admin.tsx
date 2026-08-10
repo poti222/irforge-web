@@ -7,7 +7,8 @@ import { PaymentApprovals } from "@/components/admin/PaymentApprovals";
 import { UsersTable } from "@/components/admin/UsersTable";
 import { PlansManager } from "@/components/admin/PlansManager";
 import { AnnouncementsManager } from "@/components/admin/AnnouncementsManager";
-import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package } from "lucide-react";
+import { DiscountsManager } from "@/components/admin/DiscountsManager";
+import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, Percent } from "lucide-react";
 
 export default function Admin() {
   const { lang } = useLanguage();
@@ -43,6 +44,7 @@ export default function Admin() {
           {isSuperAdmin && <TabsTrigger value="payments"><CreditCard className="me-2 h-4 w-4" /> {fa ? "پرداخت‌ها" : "Payments"}</TabsTrigger>}
           {isSuperAdmin && <TabsTrigger value="plans"><Package className="me-2 h-4 w-4" /> {fa ? "پلن‌ها" : "Plans"}</TabsTrigger>}
           <TabsTrigger value="announcements"><Megaphone className="me-2 h-4 w-4" /> {fa ? "اعلان‌ها" : "Announcements"}</TabsTrigger>
+          {isSuperAdmin && <TabsTrigger value="discounts"><Percent className="me-2 h-4 w-4" /> {fa ? "تخفیف‌ها" : "Discounts"}</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="overview"><AdminOverview showRevenue={isSuperAdmin} /></TabsContent>
@@ -51,6 +53,7 @@ export default function Admin() {
         {isSuperAdmin && <TabsContent value="payments"><PaymentApprovals /></TabsContent>}
         {isSuperAdmin && <TabsContent value="plans"><PlansManager /></TabsContent>}
         <TabsContent value="announcements"><AnnouncementsManager /></TabsContent>
+        {isSuperAdmin && <TabsContent value="discounts"><DiscountsManager /></TabsContent>}
       </Tabs>
     </div>
   );
