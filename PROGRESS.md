@@ -1382,3 +1382,51 @@ database.
 Follow-ups: none blocking. The root `migrate.mjs` remains dead code (marked as
 such earlier this session); all runtime DDL went into `api-server/migrate.mjs`,
 which is the path that actually runs on deploy.
+
+## Phase 2 — Registration Steps 1 & 2  [DONE 2026-08-10]
+
+Files touched: `api-server/src/routes/registration.ts` (new),
+`api-server/src/lib/otp.ts` (new), `api-server/src/lib/registrationBot.ts` (new),
+`api-server/src/middleware/rateLimit.ts` (new), `api-server/src/routes/auth.ts`,
+`api-server/src/routes/index.ts`, `irforge/src/pages/register.tsx` (rewritten),
+`irforge/src/components/auth/CodeInput.tsx` (new),
+`irforge/src/components/auth/TelegramLinkPanel.tsx` (new),
+`irforge/src/components/auth/QrCanvas.tsx` (new), locales ×5
+
+Decisions:
+
+- The register page is an **explicit `Step` union** (`method | identity |
+  telegram | code | finish`), not nested booleans — with five steps and back
+  paths, booleans reach impossible states almost immediately.
+- **Email method is rendered visibly disabled** with a "coming soon" badge, not
+  hidden. A hidden option reads as "doesn't exist"; a disabled one reads as
+  "on the roadmap".
+- **No phone field on the identity form.** The phone arrives verified from
+  Telegram in Phase 3. Asking twice invites a mismatch between what the user
+  typed and what Telegram reports, and then something has to decide which is
+  true. That problem is simply not created.
+- ⚠️ **`register/start` deliberately does not check email uniqueness and never
+  reports that an address is taken.** Telling an anonymous caller whether an
+  email has an account turns the signup form into an account-enumeration
+  oracle. Uniqueness is enforced in `register/complete`, after the user has
+  proven control of a Telegram account and a phone. The endpoint also carries
+  the per-IP limit for the same reason.
+- `registrationId` lives in component state + `sessionStorage`, **never in the
+  URL** — it would leak into referrers, history and analytics.
+- **Only the server advances `step`.** The client sends `registrationId` and
+  reads the reported step back; no endpoint accepts a step value.
+- `TELEGRAM_BOT_USERNAME` is read from env and never hardcoded; a new
+  `GET /auth/telegram/bot-username` exposes only the public bot handle (never
+  the token) so the profile can build its own deep link.
+- **QR is rendered locally** (`QrCanvas`) rather than through a public QR image
+  service: the encoded string is a deep link containing a one-shot token, and
+  handing that to a third party would be handing over an account-linking
+  credential.
+- `lib/otp.ts` is the single OTP implementation: `crypto.randomInt` (never
+  `Math.random`), sha256 storage, `timingSafeEqual` comparison, plus E.164
+  normalisation. `AUTH_DEV_ECHO_CODES` exists but defaults off and logs a loud
+  boot warning when on.
+
+Follow-ups: `forgot-password` is refactored onto `lib/otp.ts` in Phase 3, per
+the brief's ordering. The legacy `POST /auth/register` still works and is
+untouched.

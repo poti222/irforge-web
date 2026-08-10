@@ -23,6 +23,8 @@ import notificationsRouter from "./notifications.js";
 import discountsRouter from "./discounts.js";
 // آپدیت‌های سایت (تغییرات و امکانات جدید + مودال یک‌باره روی داشبورد)
 import updatesRouter from "./updates.js";
+// ثبت‌نام پنج‌مرحله‌ای با تأیید شماره از طریق تلگرام
+import registrationRouter from "./registration.js";
 
 const router: IRouter = Router();
 
@@ -47,5 +49,6 @@ router.use(telegramWebhookRouter);
 router.use(notificationsRouter);
 router.use(discountsRouter);
 router.use(updatesRouter);
+router.use(registrationRouter);
 
 export default router;

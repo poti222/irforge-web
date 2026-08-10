@@ -414,6 +414,14 @@ router.post("/auth/telegram/link/start", requireAuth, async (req: any, res) => {
   }
 });
 
+// ─── GET /api/auth/telegram/bot-username ─────────────────────────────────────
+// نام کاربری بات از env، تا فرانت بتواند لینک عمیق بسازد. توکن بات هرگز از
+// اینجا بیرون نمی‌رود — فقط نام عمومی بات.
+router.get("/auth/telegram/bot-username", (_req, res) => {
+  const raw = process.env.TELEGRAM_BOT_USERNAME;
+  res.json({ username: raw ? raw.replace(/^@/, "") : null });
+});
+
 // ─── POST /api/auth/forgot-password ──────────────────────────────────────────
 // V2: send a reset code through the PLATFORM bot (TELEGRAM_BOT_TOKEN) to the
 // user's linked telegramId. Password recovery is a site-level account action,
