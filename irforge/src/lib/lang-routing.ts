@@ -27,7 +27,37 @@ export const SITE_ORIGIN = "https://irforge.ir";
  * build time and appear in the sitemap. Everything else is behind auth,
  * stays a client-only SPA route, and is disallowed in robots.txt.
  */
-export const PUBLIC_ROUTES = ["/", "/docs", "/learn/bot-token"] as const;
+export const PUBLIC_ROUTES = [
+  "/",
+  "/docs",
+  "/learn",
+  "/learn/telegram-bot-token",
+  "/learn/how-to-make-a-telegram-bot",
+  "/learn/telegram-shop-bot",
+  "/learn/telegram-support-bot",
+  "/learn/telegram-bot-without-coding",
+  "/learn/telegram-bot-google-sheets",
+  "/learn/telegram-bot-cost",
+  "/learn/botfather-commands",
+  "/learn/telegram-bot-webhook-vs-polling",
+  "/pricing",
+] as const;
+
+/**
+ * Article slugs stay in English in every language:
+ * `/fa/learn/telegram-bot-token`, not `/fa/آموزش/توکن-ربات`. Percent-encoded
+ * non-Latin slugs are legal but fragile once they pass through sitemaps,
+ * analytics and shared links, and Google handles an English slug with
+ * translated content perfectly well.
+ */
+
+/**
+ * The pre-hub URL of the bot-token guide. It is no longer prerendered and no
+ * longer in the sitemap; `App.tsx` client-redirects it to
+ * `/learn/telegram-bot-token`. A real 301 has to be configured at the host —
+ * see PROGRESS.md and SEO.md.
+ */
+export const LEGACY_BOT_TOKEN_ROUTE = "/learn/bot-token";
 export type PublicRoute = (typeof PUBLIC_ROUTES)[number];
 
 /**
@@ -68,10 +98,60 @@ export const ROUTE_SEO: Record<string, RouteSeo> = {
     descKey: "docsDescription",
     navKey: "navDocs",
   },
-  "/learn/bot-token": {
+  "/learn": {
+    titleKey: "learnHubTitle",
+    descKey: "learnHubDescription",
+    navKey: "navLearnHub",
+  },
+  "/learn/telegram-bot-token": {
     titleKey: "botTokenTitle",
     descKey: "botTokenDescription",
     navKey: "navBotToken",
+  },
+  "/learn/how-to-make-a-telegram-bot": {
+    titleKey: "howToMakeTitle",
+    descKey: "howToMakeDescription",
+    navKey: "navHowToMake",
+  },
+  "/learn/telegram-shop-bot": {
+    titleKey: "shopBotTitle",
+    descKey: "shopBotDescription",
+    navKey: "navShopBot",
+  },
+  "/learn/telegram-support-bot": {
+    titleKey: "supportBotTitle",
+    descKey: "supportBotDescription",
+    navKey: "navSupportBot",
+  },
+  "/learn/telegram-bot-without-coding": {
+    titleKey: "withoutCodingTitle",
+    descKey: "withoutCodingDescription",
+    navKey: "navWithoutCoding",
+  },
+  "/learn/telegram-bot-google-sheets": {
+    titleKey: "googleSheetsTitle",
+    descKey: "googleSheetsDescription",
+    navKey: "navGoogleSheets",
+  },
+  "/learn/telegram-bot-cost": {
+    titleKey: "botCostTitle",
+    descKey: "botCostDescription",
+    navKey: "navBotCost",
+  },
+  "/learn/botfather-commands": {
+    titleKey: "botfatherTitle",
+    descKey: "botfatherDescription",
+    navKey: "navBotfather",
+  },
+  "/learn/telegram-bot-webhook-vs-polling": {
+    titleKey: "webhookTitle",
+    descKey: "webhookDescription",
+    navKey: "navWebhook",
+  },
+  "/pricing": {
+    titleKey: "pricingTitle",
+    descKey: "pricingDescription",
+    navKey: "navPricing",
   },
 };
 

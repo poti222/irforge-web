@@ -306,7 +306,7 @@ export default function Checkout() {
                     onChange={(e) => updateBot(item.key, { token: e.target.value })}
                   />
                   <p className="text-xs">
-                    <Link href="/learn/bot-token" className="text-orange-500 hover:underline">
+                    <Link href="/learn/telegram-bot-token" className="text-orange-500 hover:underline">
                       {fa ? "چطور توکن بات را بگیرم؟" : "How do I get my bot token?"}
                     </Link>
                   </p>

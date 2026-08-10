@@ -976,3 +976,57 @@ Decisions / deviations:
   `homeTitle`/`docsTitle`/`botTokenTitle` and their nav labels, and the brief
   asked for those to be migrated into the registry rather than renamed. New
   `seo.routes` copy arrives with the routes themselves in Phase 3.
+
+## Phase 3 — Content architecture: the `/learn` hub  [DONE 2026-08-10]
+
+Files touched: `irforge/src/lib/lang-routing.ts`, `irforge/src/lib/learn-content.ts` (new),
+`irforge/src/pages/learn/*` (new: `ArticleLayout.tsx`, `index.tsx`, 9 article modules),
+`irforge/src/pages/pricing.tsx` (new), `irforge/src/App.tsx`,
+`irforge/src/pages/checkout.tsx`, `irforge/public/robots.txt`, `irforge/src/locales/*.json`
+Removed: `irforge/src/pages/learn-bot-token.tsx`
+
+Pages added (lang × route): **50 new URLs** — 10 new routes (`/learn`, 8 new articles,
+`/pricing`) × 5 languages, plus the bot-token guide moved to its new slug.
+Emitted total went 15 → **65**, sitemap 15 → **65 URLs**.
+
+Untranslated keys left: none (titles, descriptions and nav labels written natively in all five).
+
+Decisions / deviations:
+
+- **Slugs stay English in every language**, as instructed —
+  `/fa/learn/telegram-bot-token`, never a percent-encoded Persian slug.
+- **`ArticleLayout` renders everything unconditionally.** The FAQ uses native
+  `<details>/<summary>` copied from `components/landing/FaqSection.tsx`, never
+  the Radix accordion — Radix unmounts collapsed content, so those answers
+  would be absent from the HTML a crawler receives, which is fatal when the
+  same strings are mirrored into FAQPage schema. One `<h1>` per page; sections
+  are `<h2>`, sub-items `<h3>`, never skipped for styling.
+- The nine article pages are **thin modules** (`export default () =>
+  <ArticleLayout slug="…" />`) so each route keeps its own file as the brief
+  asked, without nine copies of identical JSX drifting apart.
+- Copy lives in `learn.articles.<slug>` in the locale files; **slugs, ordering,
+  related-article links and publication dates live in code**
+  (`lib/learn-content.ts`), because those must be identical across languages
+  and a translator editing JSON must not be able to change them.
+  `ARTICLE_DATES` is hand-maintained and **not** build-time, same principle as
+  `SITEMAP_LASTMOD`.
+- `RELATED` guarantees **≥3 internal links per article** by construction.
+- **`/learn/bot-token` → `/learn/telegram-bot-token`.** The old URL *was*
+  public, prerendered and in the sitemap, so it needed the redirect. It is now
+  out of `PUBLIC_ROUTES` (no longer prerendered or sitemapped) and `App.tsx`
+  carries a wouter `<Redirect>`. ⚠️ **A wouter redirect only fires once the SPA
+  boots — this is not a 301.** A real 301 must be configured at the host;
+  recorded in `SEO.md` as a human follow-up. The in-app link on
+  `checkout.tsx` was repointed to the new URL directly.
+- `robots.txt`: `Allow: /learn/bot-token` replaced by `Allow: /learn` +
+  `Allow: /pricing`. No `Disallow` rule matches `/learn/*` or `/pricing`
+  (`Disallow: /bots` does not match `/learn/...`); build assertion re-run and
+  still passing.
+- `/pricing` ships as a registered route with a shell in this phase; Phase 8
+  fills in the tiers.
+- **Caught by the build:** the Arabic no-code title was byte-identical to the
+  Arabic homepage title. Renamed to `بوت تيليجرام بدون برمجة: دليل عملي`.
+  Verified afterwards: **0 duplicate `<title>` values across all 65 pages.**
+- Article bodies are intentionally empty at this phase — `learn.articles` is
+  `{}` in all five locales and the layout renders only what exists, so the
+  build stays green. Phase 4 fills them.

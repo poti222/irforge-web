@@ -21,7 +21,17 @@ import Bots from "@/pages/bots";
 import BuyBot from "@/pages/buy-bot";
 import BuyBotDetail from "@/pages/buy-bot-detail";
 import Checkout from "@/pages/checkout";
-import LearnBotToken from "@/pages/learn-bot-token";
+import LearnHub from "@/pages/learn";
+import LearnTelegramBotToken from "@/pages/learn/telegram-bot-token";
+import LearnHowToMake from "@/pages/learn/how-to-make-a-telegram-bot";
+import LearnShopBot from "@/pages/learn/telegram-shop-bot";
+import LearnSupportBot from "@/pages/learn/telegram-support-bot";
+import LearnWithoutCoding from "@/pages/learn/telegram-bot-without-coding";
+import LearnGoogleSheets from "@/pages/learn/telegram-bot-google-sheets";
+import LearnBotCost from "@/pages/learn/telegram-bot-cost";
+import LearnBotFather from "@/pages/learn/botfather-commands";
+import LearnWebhook from "@/pages/learn/telegram-bot-webhook-vs-polling";
+import Pricing from "@/pages/pricing";
 import BotWorkspace from "@/pages/bot-workspace";
 import Marketplace from "@/pages/marketplace";
 import Invoices from "@/pages/invoices";
@@ -130,7 +140,26 @@ function Router() {
       {/* Public and prerendered per language: it's linked from checkout but
           also has to be readable (and indexable) by someone who hasn't signed
           up yet — getting the token is a prerequisite to buying. */}
-      <Route path="/learn/bot-token" component={LearnBotToken} />
+      {/* Public content hub. Every article slug stays English in all five
+          languages; the router `base` supplies the language prefix. */}
+      <Route path="/learn" component={LearnHub} />
+      <Route path="/learn/telegram-bot-token" component={LearnTelegramBotToken} />
+      <Route path="/learn/how-to-make-a-telegram-bot" component={LearnHowToMake} />
+      <Route path="/learn/telegram-shop-bot" component={LearnShopBot} />
+      <Route path="/learn/telegram-support-bot" component={LearnSupportBot} />
+      <Route path="/learn/telegram-bot-without-coding" component={LearnWithoutCoding} />
+      <Route path="/learn/telegram-bot-google-sheets" component={LearnGoogleSheets} />
+      <Route path="/learn/telegram-bot-cost" component={LearnBotCost} />
+      <Route path="/learn/botfather-commands" component={LearnBotFather} />
+      <Route path="/learn/telegram-bot-webhook-vs-polling" component={LearnWebhook} />
+      <Route path="/pricing" component={Pricing} />
+      {/* The guide used to live at /learn/bot-token and that URL was public and
+          prerendered, so it must not simply 404. wouter can only redirect once
+          the SPA has booted — a real 301 has to be configured at the host.
+          See SEO.md. */}
+      <Route path="/learn/bot-token">
+        <Redirect to="/learn/telegram-bot-token" replace />
+      </Route>
       <Route path="/login"><PublicOnlyRoute component={Login} /></Route>
       <Route path="/register"><PublicOnlyRoute component={Register} /></Route>
       <Route path="/forgot-password"><PublicOnlyRoute component={ForgotPassword} /></Route>
