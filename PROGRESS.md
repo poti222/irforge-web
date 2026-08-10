@@ -448,3 +448,108 @@ pre-existing Phase 0 baseline error (`AllBotsTable.tsx:68`) — no new errors.
 Follow-ups left open: if the harness is rebuilt for a later phase, worth
 re-confirming live: a `super_admin` deleting an open (not just closed) ticket,
 and the exact 403 body for a plain `admin` hitting `DELETE` directly.
+
+## Phase 9 — Discount codes: schema and API  [DONE 2026-08-10]
+Files touched: `lib/db/src/schema/discounts.ts` (new), `lib/db/src/schema/index.ts`,
+`lib/db/migrations/0014_discount_codes.sql` (new), `api-server/migrate.mjs`,
+`api-server/src/lib/discounts.ts` (new), `api-server/src/routes/discounts.ts` (new),
+`api-server/src/routes/index.ts`.
+
+**Resuming-session note:** PROGRESS.md's last entry on disk was Phase 6, but the
+checked-out tree already had Phases 7 and 8 fully implemented (`avatar_file_id` in
+`migrate.mjs`, `fetchBotIdentity` wired into `bots.ts`, `BotIdentityCard.tsx` +
+`qrcode.react` in `irforge/package.json`) — just never logged. Not re-verified or
+re-documented here (out of scope for "do phase 9"); flagging so the next session
+doesn't assume they're outstanding.
+
+1. New table `discount_codes` in `lib/db/src/schema/discounts.ts`, matching the
+   prompt's column table exactly (`code` unique, `kind` percent\|fixed, `value`,
+   `maxUses` nullable = unlimited, `usedCount` default 0, `expiresAt` nullable =
+   never, `active`, `createdBy`, timestamps). Plus `discount_redemptions`
+   (`codeId`, `userId`, `orderAmount`, `discountAmount`, `createdAt`) for audit —
+   written to by nothing yet in this phase; Phase 11's checkout is the only
+   intended writer.
+2. **Migration**: this repo's real migration path is the raw-SQL
+   `api-server/migrate.mjs` (`CREATE TABLE IF NOT EXISTS ...`, runs on every
+   server boot) — confirmed by reading it and by how Phase 7's `avatar_file_id`
+   was added there, not just in `lib/db/migrations/`. Added the two tables there,
+   plus `lib/db/migrations/0014_discount_codes.sql` for drizzle-kit parity
+   (mirrors the `0013_bot_avatar_file_id.sql` convention: a comment pointing at
+   `migrate.mjs` as the source of truth). No `meta/_journal.json` exists in this
+   repo's `migrations/` dir (these are hand-written parity files, not
+   `drizzle-kit generate` output), so no journal entry was needed.
+3. **Shared arithmetic helper**: `api-server/src/lib/discounts.ts` exports
+   `computeDiscount(kind, value, orderAmount)`. Percent discounts floor (never
+   round) to the nearest Toman, so the discount can never exceed the stated
+   percent; the result is clamped so `discountAmount <= orderAmount` and
+   `finalAmount >= 0` in one step — this is what makes an oversized fixed
+   discount zero the order instead of going negative. Verified directly (not
+   just read): 20% off ۱۲۳٬۴۵۷ → discount ۲۴٬۶۹۱ / final ۹۸٬۷۶۶ (floor of
+   24691.4, not round to 24691.4→24691 by luck — checked with a value where
+   floor and round would differ, e.g. 22% of 12345 = 2715.9 → floor 2715);
+   a ۵۰٬۰۰۰ fixed code against a ۳۰٬۰۰۰ order → discount clamped to ۳۰٬۰۰۰,
+   final ۰. This same helper is what Phase 11's checkout must import rather
+   than re-implementing the math.
+4. **`POST /api/discounts/validate`** (`requireAuth`): normalizes `code`
+   (trim + uppercase) before lookup, so a user typing lowercase still matches.
+   Checks in order: code present → amount present/non-negative → row exists
+   (`not_found`) → `active` (`inactive`) → `expiresAt` in the past (`expired`)
+   → `usedCount >= maxUses` (`exhausted`). Every failure is `400` with both a
+   `reason` code (for the frontend to key off/translate in Phase 11) and a
+   Persian `error` message. Success is `200` with
+   `{ valid: true, kind, value, discountAmount, finalAmount }`. **Never writes**
+   — no `usedCount` increment, no `discount_redemptions` row; that's Phase 11's
+   job, inside the purchase transaction, per the prompt.
+5. **`GET/POST/PATCH/DELETE /api/admin/discounts`** (`requireSuperAdmin`,
+   defined locally the same way `wallet.ts`/`tickets.ts` do — no shared export
+   exists in this codebase, per the precedent already recorded in Phase 6):
+   - `POST`/`PATCH` reject `percent` outside 1–100 and non-positive `fixed`
+     with a specific message; `value` must be an integer.
+   - Code is uppercased/trimmed on every write (create and rename via `PATCH`).
+   - Duplicate code → `409` on both `POST` and `PATCH` (checked pre-emptively
+     via a `SELECT`, and the Postgres unique-violation `23505` is also caught
+     as a `409` fallback for a race between the check and the insert/update —
+     the pre-check alone isn't safe under concurrent requests).
+   - `maxUses`/`expiresAt` accept `null`/`""`/omitted as "unlimited"/"never" on
+     both create and update; a non-integer or non-positive `maxUses`, or an
+     unparseable `expiresAt`, is `400`.
+   - `PATCH` is a partial update (only touches fields present in the body) and
+     re-validates `kind`+`value` together if either changes, so a `PATCH` that
+     only sends `value: 150` still gets rejected if the code's existing `kind`
+     is `percent`.
+   - `DELETE` is a hard delete (no soft-delete column on this table), `204` on
+     success, `404` on an unknown id.
+
+Decisions / deviations:
+- The prompt's endpoint table doesn't specify HTTP status/body shape for
+  `PATCH`/`DELETE`/duplicate-on-`PATCH` beyond "full CRUD" and "409 on
+  duplicate" for create — extended the same 409-on-duplicate rule to `PATCH`
+  (renaming a code onto an existing one) since leaving it unhandled would 500
+  on the DB unique constraint instead.
+- `discountRedemptionsTable` has no route yet in this phase — it exists purely
+  as the schema Phase 11 needs; nothing reads or writes it yet, so there was
+  nothing to verify beyond the migration creating it.
+
+Verification: no live Postgres available in this sandbox (the gitignored
+Phase 2/3/5 PGlite harness isn't present in this delivered tree, matching
+Phase 6's note) — `computeDiscount` was verified directly via `node --import
+tsx/esm` (see above), and the routes were reviewed line-by-line against the
+now-established local patterns (`wallet.ts`'s `requireSuperAdmin` /
+`ensureWallet`-style existence checks, `admin.ts`'s announcement validation
+style for the 400-with-message shape). Ran the real gates:
+`pnpm --filter @workspace/api-server typecheck` — the only line touching a new
+file is `src/routes/discounts.ts(12,52)`, the same pre-existing
+`TS6305`/`lib/db/dist` baseline error every other route file in this repo
+already has (Phase 0's baseline); no `TS7006`/new-error lines from this
+phase's code. `pnpm --filter @workspace/api-server build` (esbuild) — clean,
+`Build complete → dist/index.cjs`, same single pre-existing `import.meta`/cjs
+warning as baseline. `pnpm --filter @workspace/irforge build` — clean (not
+touched this phase, run anyway per the ground rule), same pre-existing
+sourcemap/chunk-size warnings, 10 pages prerendered.
+Follow-ups left open: this phase intentionally ships no frontend and no
+OpenAPI spec entry — Phase 10 (admin UI) and Phase 11 (checkout) are expected
+to call these endpoints via `customFetch` (not the generated client, since the
+spec wasn't regenerated — nothing in the prompt's Phase 9 scope required it).
+Live end-to-end verification (actually applying a code through a real DB) is
+still owed once a harness exists again; noting this explicitly rather than
+claiming it was done.
