@@ -796,3 +796,53 @@ So this phase was completed in an earlier round (the pre-branch "Update
 App.tsx" / "Update app-sidebar.tsx" commits) and simply never logged — the same
 situation the Phase 9 entry recorded for Phases 7 and 8. Recording it here so
 the ledger is complete; no commit of its own.
+
+## Final pass (after Phase 18)  [2026-08-10]
+
+Gates run at the end of the round:
+- `pnpm -r build` — **clean**. api-server: `Build complete → dist/index.cjs`.
+  irforge: 15 pages prerendered, sitemap 15 URLs, robots.txt covers every
+  private route, brand assets present and crawlable.
+- `pnpm -r typecheck` — one error, the unchanged Phase 0 baseline
+  (`AllBotsTable.tsx:68`, `TS2741` missing `queryKey`). api-server run
+  separately shows only its pre-existing `TS6305`/`TS7006` baseline, which all
+  cascade from `lib/db/dist` not being prebuilt.
+- `pnpm -r lint` — **there is no lint script in this workspace**
+  ("None of the selected packages has a \"lint\" script"). The prompt's final
+  pass asks for it; recording that it doesn't exist rather than claiming a pass.
+
+Manual walk: done for the **public** surface only — landing and the new
+`/learn/bot-token` in `fa` (RTL) and `en` (LTR), plus `ar`/`tr`/`ru` via their
+prerendered output, and a live dark→light toggle. The authed surface
+(dashboard, admin panel, bot workspace, checkout, tickets) could **not** be
+walked: see Known issues #1.
+
+## Known issues
+
+1. **The frontend cannot run against a missing API in dev.** With `api-server`
+   down, Vite answers `GET /api/me` with `index.html` and HTTP 200, so
+   `AuthContext` stores a truthy non-user value, `ProtectedRoute`'s `if (!user)`
+   guard passes, and `AppSidebar` throws on `user.name.charAt(0)`
+   (`app-sidebar.tsx:246` and `:274`) — every authed route shows the error
+   boundary. Confirmed pre-existing (reproduced with this round's changes
+   stashed). This is why no phase in 13–18 carries live authed-UI verification.
+   Cheap fix, not taken here because it is outside every phase's scope: guard
+   `user?.name` in `AppSidebar`, and/or have `customFetch` reject a
+   non-JSON/`text/html` response instead of returning it as data — the latter
+   is the real bug, since any endpoint could be silently "successful" with an
+   HTML body.
+2. **Phases 13–18 have no live database verification.** The `_repro_*` pglite
+   harness from Phases 2/3/5 is not in this tree (excluded from the zip
+   export). Phase 15's `403` and Phase 16's typed-name gate were verified by
+   reading the code against already-verified identical patterns, not by
+   request/click. Both are listed in their own phases' follow-ups.
+3. **`GET /api/notifications` still caps at 50 rows with no pagination**
+   (carried over from Phase 5). `/notifications` silently truncates for a heavy
+   user and the "View all" link over-promises past 50.
+4. **Phases 7, 8, 10, 11 and 12 were delivered but never individually logged.**
+   The Phase 9 entry flags 7 and 8; 10 (`DiscountsManager.tsx`), 11 (checkout
+   discount flow) and 12 (`admin-pending-payments.tsx` wallet section + honest
+   empty/error states) were found implemented in the delivered tree when this
+   round's session picked it up at Phase 13, and were committed as a single
+   sync commit. They have not been re-verified here, so their "Done when"
+   criteria remain formally unconfirmed.
