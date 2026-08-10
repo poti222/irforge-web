@@ -18,6 +18,7 @@ import { useMotionDirection } from "@/hooks/use-motion-direction";
 import { formatToman } from "@/lib/format";
 import { useT } from "@/hooks/use-translation";
 import { TrialWarningDialog } from "@/components/dashboard/trial-warning-dialog";
+import { UpdateDialog } from "@/components/updates/UpdateDialog";
 
 // P7: map each activity type to a distinct icon (sane default for unknowns).
 const ACTIVITY_ICONS: Record<ActivityItemType, LucideIcon> = {
@@ -88,6 +89,8 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <TrialWarningDialog />
+      {/* خودش وقتی آپدیت دیده‌نشده‌ای نیست هیچ چیزی رندر نمی‌کند. */}
+      <UpdateDialog />
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
           {t.title}

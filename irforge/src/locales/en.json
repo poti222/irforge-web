@@ -293,6 +293,18 @@
     "ctaWallet": "Open wallet",
     "ctaBots": "Go to my bots"
   },
+  "updates": {
+    "title": "Site updates",
+    "empty": "No updates published yet.",
+    "loadError": "Couldn't load updates. Please try again.",
+    "notFound": "This update doesn't exist, or it hasn't been published yet.",
+    "back": "Back to updates",
+    "newBadge": "New",
+    "gotIt": "Got it",
+    "version": "Version",
+    "publishedOn": "Published on",
+    "imageAlt": "Update screenshot"
+  },
   "learnBotToken": {
     "back": "Back",
     "badge": "Guide",

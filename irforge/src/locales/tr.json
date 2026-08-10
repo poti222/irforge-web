@@ -293,6 +293,18 @@
     "ctaWallet": "Cüzdanı aç",
     "ctaBots": "Botlarıma git"
   },
+  "updates": {
+    "title": "Site güncellemeleri",
+    "empty": "Henüz yayınlanmış bir güncelleme yok.",
+    "loadError": "Güncellemeler yüklenemedi. Lütfen tekrar deneyin.",
+    "notFound": "Bu güncelleme yok ya da henüz yayınlanmadı.",
+    "back": "Güncellemelere dön",
+    "newBadge": "Yeni",
+    "gotIt": "Anladım",
+    "version": "Sürüm",
+    "publishedOn": "Yayınlanma tarihi",
+    "imageAlt": "Güncelleme görseli"
+  },
   "learnBotToken": {
     "back": "Geri",
     "badge": "Rehber",
