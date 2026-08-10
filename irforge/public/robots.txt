@@ -35,6 +35,8 @@ Disallow: /support
 Disallow: /*/support
 Disallow: /notifications
 Disallow: /*/notifications
+Disallow: /updates
+Disallow: /*/updates
 Disallow: /language
 Disallow: /*/language
 Disallow: /database

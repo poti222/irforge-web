@@ -50,6 +50,7 @@ export const PRIVATE_ROUTES = [
   "/wallet",
   "/support",
   "/notifications",
+  "/updates",
   "/language",
   "/database",
   "/profile",

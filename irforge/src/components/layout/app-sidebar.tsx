@@ -26,6 +26,7 @@ import {
   Languages,
   ClipboardList,
   Database,
+  Sparkles,
   ShoppingBag,
   Receipt,
   LifeBuoy,
@@ -163,6 +164,14 @@ export function AppSidebar() {
                     <Headset />
                     <span>{nav.support}</span>
                     {severityDot && <span className={`ms-auto size-2 shrink-0 rounded-full ${severityDot}`} aria-hidden />}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.startsWith("/updates")} tooltip={nav.updates}>
+                  <Link href="/updates" data-testid="nav-updates" onClick={closeMobileMenu}>
+                    <Sparkles />
+                    <span>{nav.updates}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

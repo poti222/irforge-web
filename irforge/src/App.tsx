@@ -34,6 +34,8 @@ import AdminPendingPayments from "@/pages/admin-pending-payments";
 import AdminSheetPool from "@/pages/admin-sheet-pool";
 import Support from "@/pages/support";
 import Notifications from "@/pages/notifications";
+import Updates from "@/pages/updates";
+import UpdateDetail from "@/pages/update-detail";
 import NotificationDetail from "@/pages/notification-detail";
 import DatabasePage from "@/pages/database";
 
@@ -148,6 +150,10 @@ function Router() {
       <Route path="/support"><ProtectedRoute component={Support} /></Route>
       <Route path="/notifications"><ProtectedRoute component={Notifications} /></Route>
       <Route path="/notifications/:id"><ProtectedRoute component={NotificationDetail} /></Route>
+      {/* «/updates» باید قبل از «/updates/:id» بیاید وگرنه wouter مسیر لیست
+          را هم با پارامتر تطبیق می‌دهد. */}
+      <Route path="/updates"><ProtectedRoute component={Updates} /></Route>
+      <Route path="/updates/:id"><ProtectedRoute component={UpdateDetail} /></Route>
       <Route path="/database"><ProtectedRoute component={DatabasePage} /></Route>
       <Route path="/profile"><ProtectedRoute component={Profile} /></Route>
       
