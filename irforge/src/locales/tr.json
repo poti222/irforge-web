@@ -393,7 +393,545 @@
     "ctaButton": "Hemen başlayın",
     "ctaPricing": "Fiyatları gör",
     "backToHub": "Tüm rehberler",
-    "articles": {}
+    "articles": {
+      "telegram-bot-token": {
+        "h1": "Telegram bot token alma",
+        "lead": "Telegram bot token alma işlemi, Telegram'ın bot oluşturmak için kullandığı kendi botu olan @BotFather üzerinden yapılır. Yaklaşık bir dakika sürer: /newbot gönderirsiniz, bir görünen ad ve bir kullanıcı adı seçersiniz, BotFather size rakam ve harflerden oluşan uzun bir dizi verir. İşte o dizi token'dır ve IrForge dahil herhangi bir platformun botunuzu çalıştırmak için ihtiyaç duyduğu tek şeydir. Bu rehber yedi adımın tamamını, ardından token'ı güvende tutmayı ve sızması hâlinde ne yapılacağını anlatır.",
+        "outcomeTitle": "Elde edeceğiniz sonuç",
+        "outcome": "Telegram tarafında gerçekten var olan, kalıcı bir kullanıcı adı bulunan ve IrForge'a yapıştırabileceğiniz bir token'a sahip çalışır bir bot. Bot henüz bir şey yapmayacak — o kısım komutları eklediğinizde gelir — ama gerçek olacak ve aranabilir olacak.",
+        "prereqTitle": "Başlamadan önce",
+        "prereqs": [
+          "Herhangi bir cihazda oturum açılmış bir Telegram hesabı: telefon, masaüstü veya web.",
+          "Bot için düşündüğünüz bir görünen ad. Boşluk içerebilir, her dilde olabilir ve sonradan değiştirilebilir.",
+          "\"bot\" ile biten bir kullanıcı adı fikri. Bu kalıcıdır, bir an düşünmeye değer.",
+          "Token'ı geçici olarak yapıştıracağınız özel bir yer — grup sohbeti veya ekran görüntüsü değil."
+        ],
+        "mistakesTitle": "Token'ınız bir paroladır",
+        "mistakes": [
+          "Token'a sahip olan herkes botun tam kontrolüne sahiptir — mesajlarını okuyabilir ve onun adına hareket edebilir. Asla paylaşmayın, bir grupta veya ekran görüntüsünde yayımlamayın, herkese açık bir depoya koymayın.",
+          "Token sızdıysa @BotFather'ı açın, /revoke gönderin ve botu seçin. Eski token anında geçersiz olur ve buraya yapıştıracağınız yenisini alırsınız.",
+          "Token'ın yalnızca bir kısmını kopyalamak. Token, ortasında iki nokta bulunan tek bir dizidir; iki noktadan önceki rakamlar da token'a dahildir.",
+          "Yapıştırırken sonda boşluk bırakmak. Telegram token'ı reddeder ve hata bir yazım hatasından çok kimlik doğrulama sorunu gibi görünür.",
+          "Gerçek BotFather yerine ona benzeyen sahte bir hesabı açmak. Bir şey göndermeden önce mavi onay rozetini kontrol edin.",
+          "Uzun vadede istemeyeceğiniz bir kullanıcı adı seçmek. Görünen ad değiştirilebilir, kullanıcı adı değiştirilemez.",
+          "Yardım isterken token'ı ekran görüntüsünde paylaşmak. Bulanıklaştırın ya da hiç göstermeyin."
+        ],
+        "faqTitle": "Sık sorulanlar",
+        "faq": [
+          {
+            "q": "Token ücretli mi?",
+            "a": "Hayır. BotFather ücretsizdir ve Telegram bot oluşturmak ya da API kullanmak için ücret almaz. Ücretli olabilecek şey, botu sizin adınıza çalıştıran hizmettir — Telegram bot fiyatı rehberine bakın."
+          },
+          {
+            "q": "Birden fazla bot oluşturabilir miyim?",
+            "a": "Evet. Tek bir hesap, her biri kendi kullanıcı adı ve token'ına sahip birçok bot oluşturabilir. /mybots ile listeleyip aralarında geçiş yapabilirsiniz."
+          },
+          {
+            "q": "Token'ı kaybedersem ne olur?",
+            "a": "Kalıcı bir kayıp yaşanmaz. BotFather'ı açın, /token gönderin ve botu seçin; token yeniden gösterilir. Başkasının gördüğünü düşünüyorsanız bunun yerine /revoke kullanın."
+          },
+          {
+            "q": "IrForge token'ımı saklıyor mu?",
+            "a": "IrForge, botunuz adına Telegram API'sini çağırmak için token'a ihtiyaç duyar; bu yüzden sunucu tarafında saklanır ve yalnızca bunun için kullanılır. URL'lerde asla görünmez — örneğin bot avatarı, token bir görsel bağlantısında yer almasın diye vekil bir yol üzerinden sunulur."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Token elinizdeyken doğal devam, botu \"var\" durumundan \"insanlara cevap veriyor\" durumuna taşıyan kapsamlı başlangıç rehberidir. Sonrasında BotFather ile nelerin değiştirilebileceğini — açıklama, komut menüsü, profil fotoğrafı — merak ediyorsanız BotFather komutları referansı hepsini kapsar.",
+        "stepsTitle": "Adım adım",
+        "steps": [
+          {
+            "name": "Telegram'ı açın",
+            "text": "Elinizdeki herhangi bir sürümü kullanın — telefon, masaüstü veya web. Yalnızca kendi hesabınızla giriş yapmış olmanız yeterli."
+          },
+          {
+            "name": "@BotFather'ı bulun",
+            "text": "@BotFather'ı aratıp sohbeti açın. Bot oluşturmaya yarayan resmî Telegram botudur — başlamadan önce mavi onay rozetini kontrol edin."
+          },
+          {
+            "name": "/newbot gönderin",
+            "text": "/newbot yazıp gönderin. BotFather aşağıdaki iki soruyu soracak."
+          },
+          {
+            "name": "Bir görünen ad seçin",
+            "text": "Bu, sohbetin üstünde görünen addır, örneğin \"Dükkanım\". Sonradan değiştirilebilir; boşluk ve her dili kabul eder."
+          },
+          {
+            "name": "\"bot\" ile biten bir kullanıcı adı seçin",
+            "text": "Kullanıcı adı benzersiz ve kalıcıdır, bot ile bitmelidir — örneğin my_shop_bot. Alınmışsa BotFather başka bir tane ister."
+          },
+          {
+            "name": "Token'ı kopyalayın",
+            "text": "BotFather aşağıdaki örneğe benzeyen bir satır gönderir. O dizenin tamamı sizin token'ınızdır — fazladan boşluk bırakmadan birebir kopyalayın."
+          },
+          {
+            "name": "IrForge'a yapıştırın",
+            "text": "Buraya dönün, token'ı ödeme sayfasındaki bot token alanına yapıştırın ve siparişi tamamlayın. IrForge o andan itibaren botunuza bağlanır."
+          }
+        ]
+      },
+      "how-to-make-a-telegram-bot": {
+        "h1": "Telegram bot nasıl yapılır: baştan sona",
+        "lead": "Telegram bot nasıl yapılır sorusu, büyük ölçüde işlem sırasını bilmekle ilgilidir. Telegram botu oluşturur ve size bir token verir; bir platform onu çalıştırır; ne söyleyeceğine siz karar verirsiniz. Buradaki hiçbir adım kendi sunucunuzu ya da tek satır kod yazmayı gerektirmez. Bu rehber botu sıfırdan gerçek kullanıcılara cevap verir hâle getirir ve yeni başlayanların genelde takıldığı iki noktayı gösterir.",
+        "outcomeTitle": "Elde edeceğiniz sonuç",
+        "outcome": "Adı, açıklaması, komut menüsü ve bir yabancı gönderdiğinde işe yarar bir şey yapan en az bir komutu olan, canlı bir Telegram botu.",
+        "prereqTitle": "Başlamadan önce",
+        "prereqs": [
+          "Bir Telegram hesabı.",
+          "BotFather'dan alınmış bir token — yoksa önce token rehberini okuyun.",
+          "Botun ilk olarak yapacağı tek işe dair net bir fikir. İyi yapılmış tek iş, yarım kalmış beş işten iyidir."
+        ],
+        "stepsTitle": "Adımlar",
+        "steps": [
+          {
+            "name": "Botu BotFather'da oluşturun",
+            "text": "/newbot gönderin, bir görünen ad ve \"bot\" ile biten bir kullanıcı adı seçin, dönen token'ı kopyalayın."
+          },
+          {
+            "name": "Token'ı bağlayın",
+            "text": "Token'ı IrForge'a yapıştırın. O andan itibaren platform botunuz adına hareket edebilir: gelen mesajları okur ve yanıtlar."
+          },
+          {
+            "name": "İlk komuta karar verin",
+            "text": "/start ile başlayın — her yeni kullanıcı botu açtığında bunu otomatik gönderir. Yanıtı, kısa bir paragrafta botun ne yaptığını ve sonra ne yazılacağını anlatsın."
+          },
+          {
+            "name": "Kendi komutlarınızı ekleyin",
+            "text": "Komut, bir tetikleyici ve bir yanıttır. Adları kısa ve tahmin edilebilir tutun: /siparis, /yardim, /durum. Sabitlenmiş mesaja yazacağınız her şey komut adayıdır."
+          },
+          {
+            "name": "Komut menüsünü yayınlayın",
+            "text": "BotFather'da /setcommands listenizi yayınlar ve Telegram bunu mavi menü düğmesinde gösterir. Kullanıcı ne yazacağını tahmin etmeyi bırakır."
+          },
+          {
+            "name": "Bir yabancı gibi test edin",
+            "text": "Botu ikinci bir hesaptan açın ya da başkasından açmasını isteyin. Komutları siz yazdınız, ne göndereceğinizi biliyorsunuz; gerçek kullanıcı bilmiyor. Eksikler tam orada ortaya çıkar."
+          },
+          {
+            "name": "Bağlantıyı paylaşın",
+            "text": "Botunuz t.me/kullanici_adi_bot adresinde. Bu bağlantı herkes için yeterli — kitlenizin zaten bulunduğu yere koyun."
+          }
+        ],
+        "mistakesTitle": "Yeni başlayanlar nerede takılır",
+        "mistakes": [
+          "/start yanıtına yalnızca \"Hoş geldiniz!\" yazmak. İlk mesaj botu anlatmak için tek şansınız.",
+          "Bir komutu test etmeden on komut eklemek. Önce baştan sona çalışan tek bir komut yayınlayın.",
+          "/setcommands'i unutmak; menü boş kalır ve kullanıcı tahmin etmek zorunda kalır.",
+          "Sessiz botun bozuk olduğunu varsaymak. On seferin dokuzunda token fazladan bir boşlukla yapıştırılmıştır."
+        ],
+        "faqTitle": "Sık sorulanlar",
+        "faq": [
+          {
+            "q": "Kod bilmem gerekiyor mu?",
+            "a": "Hayır. Komutlar ve eklentiler yaygın ihtiyaçları kod yazmadan karşılar. Kodsuz bot rehberi bunun nerede geçerliliğini yitirdiğini anlatıyor."
+          },
+          {
+            "q": "Sunucu kurmam gerekir mi?",
+            "a": "Barındırmalı bir platformda gerekmez. IrForge Telegram'a bir webhook kaydeder ve güncellemeleri sizin yerinize alır; ayakta tutmanız gereken bir şey olmaz."
+          },
+          {
+            "q": "Ne kadar sürer?",
+            "a": "Botu oluşturmak yaklaşık bir dakika. Beğendiğiniz yanıtları yazmak daha uzun sürer — ilk işe yarar bot için bir öğleden sonra ayırın."
+          },
+          {
+            "q": "Adı sonradan değiştirebilir miyim?",
+            "a": "Görünen adı, açıklamayı ve fotoğrafı evet, istediğiniz zaman BotFather'dan. Kullanıcı adı ise kalıcıdır."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Hedefinize uyan biçimi seçin: satış yapıyorsanız mağaza botu, soru yanıtlıyorsanız destek botu. Botun gönderilenleri hatırlamasını istiyorsanız Google Sheets rehberi mümkün olan en basit veritabanını gösteriyor."
+      },
+      "botfather-commands": {
+        "h1": "BotFather komutları: tam referans",
+        "lead": "BotFather komutları, bir Telegram botunda oluşturulduktan sonra herhangi bir şeyi değiştirmenin yoludur. Botun kendisi bir kez /newbot ile oluşturulur; sonrasındaki her şey — adı, açıklaması, menüsü, fotoğrafı, token'ı — normal bir sohbette @BotFather'a gönderilen ayrı bir komuttur. Bu referans önemli komutları, her birinin gerçekte neyi değiştirdiğini ve ne zaman kullanılacağını listeler.",
+        "outcomeTitle": "Elde edeceğiniz sonuç",
+        "outcome": "Hangi komutu ne zaman göndereceğinize dair net bir tablo; bir açıklamayı değiştirmek ya da token yenilemek için artık menülerde dolaşmazsınız.",
+        "prereqTitle": "Başlamadan önce",
+        "prereqs": [
+          "Daha önce /newbot ile oluşturduğunuz bir bot.",
+          "Açık bir @BotFather sohbeti. Aşağıdaki komutlar oraya gönderilir, kendi botunuza değil."
+        ],
+        "stepsTitle": "Bilmeye değer komutlar",
+        "steps": [
+          {
+            "name": "/newbot — bot oluştur",
+            "text": "Önce görünen adı, sonra \"bot\" ile biten kullanıcı adını ister, ardından token'ı verir. Gerçekten bir şey oluşturan tek komut."
+          },
+          {
+            "name": "/mybots — listele ve yönet",
+            "text": "Hesabınızdaki tüm botların menüsünü açar. Yazmak yerine düğmeleri tercih ediyorsanız diğer ayarların çoğuna da buradan ulaşırsınız."
+          },
+          {
+            "name": "/token — token'ı yeniden göster",
+            "text": "Seçtiğiniz botun mevcut token'ını gösterir. Kaybettiğinizde işe yarar, hiçbir şeyi değiştirmez."
+          },
+          {
+            "name": "/revoke — sızan token'ı iptal et",
+            "text": "Eski token'ı anında geçersiz kılar ve yenisini verir. Eski değeri kullanan her servis o an durur; ayrılmadan önce yeni değeri her yere girin."
+          },
+          {
+            "name": "/setcommands — menüyü yayınla",
+            "text": "`komut - açıklama` satırlarını alır ve bunları sohbetteki mavi menü düğmesinin arkasına koyar. /newbot'tan sonraki en değerli komut."
+          },
+          {
+            "name": "/setdescription ve /setabouttext",
+            "text": "Açıklama, kimse Başlat'a basmadan önce boş sohbet ekranında görünür; hakkında metni ise profilde. İkisi de düzgün yazılmayı hak eder — bir botun açılış sayfasına en yakın şeydir."
+          },
+          {
+            "name": "/setuserpic ve /setname",
+            "text": "Profil fotoğrafı ve görünen ad. İkisi de istendiği zaman değişir; kullanıcı adı değişmez."
+          },
+          {
+            "name": "/deletebot — kaldır",
+            "text": "Botu kalıcı olarak siler ve bir süre sonra kullanıcı adını serbest bırakır. Geri alınamaz."
+          }
+        ],
+        "mistakesTitle": "Kolayca yapılan hatalar",
+        "mistakes": [
+          "Bu komutları @BotFather yerine kendi botunuza göndermek. Botunuz onları yok sayar.",
+          "/token demek isterken /revoke kullanmak. /revoke çalışan tüm entegrasyonları anında kırar.",
+          "/setcommands satırlarını baştaki eğik çizgiyle yazmak. Doğru biçim `siparis - Sipariş ver`, eğik çizgisiz."
+        ],
+        "faqTitle": "Sık sorulanlar",
+        "faq": [
+          {
+            "q": "Komut değişiklikleri hemen geçerli olur mu?",
+            "a": "Evet, ancak Telegram istemcileri menüyü önbelleğe alır; yeni listeyi görmek için sohbeti yeniden açmanız gerekebilir."
+          },
+          {
+            "q": "Bunları otomatikleştirebilir miyim?",
+            "a": "Bazılarının Bot API karşılığı var, ama BotFather'ın kendisi yalnızca sohbet üzerinden çalışır. Kodsuz bir kurulumda otomatikleştirmeye ihtiyaç duymazsınız."
+          },
+          {
+            "q": "/revoke botun mesajlarını veya kullanıcılarını siler mi?",
+            "a": "Hayır. Yalnızca token'ı değiştirir; bot, kullanıcı adı ve sohbet geçmişi olduğu gibi kalır."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Botu henüz oluşturmadıysanız token rehberiyle başlayın. Menü ayarlandıktan sonra kapsamlı başlangıç rehberi bu komutların arkasındaki yanıtları yazmayı anlatıyor."
+      },
+      "telegram-shop-bot": {
+        "h1": "Telegram mağaza botu nasıl yapılır",
+        "lead": "Telegram mağaza botu sohbeti bir vitrine dönüştürür: ne sattığınızı gösterir, sipariş alır ve bunu üzerinde işlem yapabileceğiniz bir yere kaydeder. İyi çalışır, çünkü müşterileriniz zaten Telegram'da — kurulacak uygulama ve açılmayı bekleyen ödeme sayfası yok. Bu rehber kurmadan önce nelere karar vereceğinizi, sipariş akışını ve mağaza botlarının genelde nerede tökezlediğini anlatır.",
+        "outcomeTitle": "Elde edeceğiniz sonuç",
+        "outcome": "Ürünlerinizi listeleyen, müşteriyi seçim boyunca yönlendiren, siparişi tamamlamak için gereken bilgileri toplayan ve her siparişi okuyabileceğiniz bir tabloya yazan bir bot.",
+        "prereqTitle": "Başlamadan önce",
+        "prereqs": [
+          "Ad ve fiyatlarıyla bir ürün listesi. Başlangıç için on kalem yeter.",
+          "Ödeme kararı: Telegram içinde, havale ile ya da teslimatta.",
+          "Siparişlerin düşeceği bir yer — en basiti bir Google E-Tablosu."
+        ],
+        "stepsTitle": "Adımlar",
+        "steps": [
+          {
+            "name": "Önce kataloğu yapılandırın",
+            "text": "Ürünleri birkaç kategoriye ayırın. Kırk kalemlik düz bir liste sohbet penceresinde kullanılamaz; on ikişerlik üç kategori gayet iyi çalışır."
+          },
+          {
+            "name": "Gezinme akışını kurun",
+            "text": "/magaza gibi bir komut kategorileri düğme olarak göstersin; kategori seçimi ürünleri, ürün seçimi fiyat ve ayrıntıyı getirsin. Düğmeler serbest metinden iyidir — müşteri ürün adını yazmak zorunda kalmamalı."
+          },
+          {
+            "name": "Siparişi toplayın",
+            "text": "Yalnızca teslimat için gerçekten gereken bilgiyi isteyin: adet, ad, telefon, adres. Fazladan her soru sipariş kaybettirir."
+          },
+          {
+            "name": "Ödemenin nasıl işleyeceğine karar verin",
+            "text": "Dekont yüklemeli havale birçok pazarda en az sürtünmeli seçenektir ve hiçbir ödeme entegrasyonu gerektirmez; siz elle onaylarsınız, bot müşteriye haber verir."
+          },
+          {
+            "name": "Siparişi kaydedin",
+            "text": "Tamamlanan her siparişi tabloya bir satır olarak ekleyin. O satır sizin sipariş defterinizdir: aranabilir, sıralanabilir ve paketleri hazırlayan kişiyle paylaşılabilir."
+          }
+        ],
+        "mistakesTitle": "Mağaza botları nerede tökezler",
+        "mistakes": [
+          "Müşteri henüz bir şey seçmeden adres istemek. Soruları bir satış görevlisinin sırasıyla sorun.",
+          "Onay mesajının olmaması. Müşteri ne sipariş ettiğini ve sırada ne olduğunu görmeli.",
+          "Bir insana ulaşma yolunun bulunmaması. Her zaman konuşmayı bir kişiye devreden bir komut bırakın."
+        ],
+        "faqTitle": "Sık sorulanlar",
+        "faq": [
+          {
+            "q": "Ödemeyi Telegram içinde alabilir mi?",
+            "a": "Telegram sağlayıcılar üzerinden ödemeyi destekler, ama birçok mağaza hiçbir entegrasyon gerektirmeyen havale artı dekont fotoğrafıyla başlar."
+          },
+          {
+            "q": "Kaç ürünü kaldırır?",
+            "a": "Teknik olarak çok; pratikte gezinmeyi iki dokunuşta tutun. Birkaç düzineyi aşınca bir arama komutu ekleyin."
+          },
+          {
+            "q": "Sipariş verisi nerede saklanır?",
+            "a": "IrForge ile kendi Google E-Tablonuza gider; veri sizindir ve platform olmadan da açabilirsiniz."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Google Sheets rehberi siparişlerin nasıl satıra dönüştüğünü ve bir tablonun neyi iyi neyi kötü yaptığını anlatıyor. Satış sonrası soru da yanıtlayacaksanız destek botu rehberi doğal tamamlayıcıdır."
+      },
+      "telegram-support-bot": {
+        "h1": "Telegram destek botu nasıl yapılır",
+        "lead": "Telegram destek botu soruları toplar, onları talebe dönüştürür ve hiçbirinin kalabalık bir gelen kutusunda kaybolmamasını sağlar. Asıl çözdüğü sorun budur: mesajların yanıtlanabildiğinden hızlı geldiği ve en eskilerin sessizce dibe battığı bir destek kanalı. Bu rehber akışı, insana devri ve destek botunu hiç yokmuş olmasından beter yapan hataları anlatır.",
+        "outcomeTitle": "Elde edeceğiniz sonuç",
+        "outcome": "Müşterinin sorusunu alan, kimliği ve zamanıyla birlikte kaydeden, alındığını bildiren ve ekibinizin sırayla ilerleyebileceği bir yere koyan bir bot.",
+        "prereqTitle": "Başlamadan önce",
+        "prereqs": [
+          "Neyi gerçekten desteklediğinize ve neyi başka yere yönlendireceğinize dair bir karar.",
+          "Talepleri okuyacak bir kişi veya ekip. Arkasında kimse olmayan destek botu bir şikâyet üreticisidir.",
+          "Tutabileceğiniz, gerçekçi bir yanıt süresi ifadesi."
+        ],
+        "stepsTitle": "Adımlar",
+        "steps": [
+          {
+            "name": "Selamla değil, beklentiyle başlayın",
+            "text": "İlk yanıt, botun neyde yardımcı olduğunu ve cevabın genelde ne kadar sürdüğünü söylemeli. Buradaki belirsizlik sonraki tüm şikâyetlerin kaynağıdır."
+          },
+          {
+            "name": "Tek ve net bir soru sorun",
+            "text": "\"Sorunu bir mesajda anlatın\" beş alanlı bir formdan iyidir. Konuyu öğrendikten sonra ek soru sorabilirsiniz."
+          },
+          {
+            "name": "Talebi oluşturun",
+            "text": "Mesajı, göndereni ve zamanı saklayın. Bir sorunun iki kez ya da hiç yanıtlanmamasını engelleyen şey bu kayıttır."
+          },
+          {
+            "name": "Her zaman bir insan seçeneği sunun",
+            "text": "Her adımda erişilebilen, konuşmayı bir kişiye devreden tek bir komut. İnsanları destek botundan nefret ettirmenin en hızlı yolu onları içinde kilitlemektir."
+          }
+        ],
+        "mistakesTitle": "Destek botlarını ne başarısız kılar",
+        "mistakes": [
+          "Kimsenin tutmadığı bir yanıt süresi vaat etmek.",
+          "Talep numarasının olmaması; iki taraf da önceki konuşmaya atıf yapamaz.",
+          "Soruyu yanıtlamayan bir sayfanın bağlantısıyla cevap vermek. Yanlış cevap, cevapsızlıktan daha çok güven kaybettirir."
+        ],
+        "faqTitle": "Sık sorulanlar",
+        "faq": [
+          {
+            "q": "Bot otomatik yanıt vermeli mi?",
+            "a": "Yalnızca her seferinde doğru yanıtlayabileceğiniz sorularda: çalışma saatleri, sipariş durumu. Yorum gerektiren her şey bir insana ulaşmalı."
+          },
+          {
+            "q": "Müşteriler talep geçmişini görebilir mi?",
+            "a": "Önceki talepleri listeleyen bir komut eklerseniz evet; tekrar eden soruları gözle görülür biçimde azaltır."
+          },
+          {
+            "q": "Bu bir destek ekibinin yerine geçer mi?",
+            "a": "Hayır. Sırayı düzenler ve size zaman kazandırır; zor soruları sizin yerinize yanıtlamaz."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Talepler ekibinizin çalışacağı bir tabloya düşecekse Google Sheets rehberi bunu anlatıyor. Önce botun kendisini kurmak isterseniz kapsamlı başlangıç rehberiyle başlayın."
+      },
+      "telegram-bot-without-coding": {
+        "h1": "Kodsuz Telegram botu nasıl yapılır",
+        "lead": "Kodsuz telegram botu kurmak, insanların bir bottan gerçekte istediği şeylerin çoğu için gayet mümkündür: karşılama, sık sorulan soruları yanıtlama, sipariş alma, form toplama ve sonucu bir yere yazma. Kodsuz bir bot kurucusu script'in yerine iki şey koyar: sizin tanımladığınız komutlar ve etkinleştirdiğiniz eklentiler. Bu rehber bunun nerede yetmediği konusunda dürüst, çünkü bu sorunun işe yarar cevabı sınırları da içerir.",
+        "outcomeTitle": "Elde edeceğiniz sonuç",
+        "outcome": "Tamamen bir panel üzerinden kurulmuş çalışan bir bot ve hangi gelecekteki gereksinimlerin gerçekten bir geliştirici istediğine dair net bir fikir.",
+        "prereqTitle": "Başlamadan önce",
+        "prereqs": [
+          "BotFather'dan alınmış bir bot token'ı.",
+          "Kitlenizin en çok sorduğu soruların listesi. İlk komutlarınız bunlardır."
+        ],
+        "stepsTitle": "Adımlar",
+        "steps": [
+          {
+            "name": "Kod değil komut yazın",
+            "text": "Her komut bir tetikleyici ve bir yanıttır. /start ile ve en sık yanıtladığınız üç soruyla başlayın."
+          },
+          {
+            "name": "Yazamayacağınız davranış için eklenti kullanın",
+            "text": "Sabit bir yanıtın ötesindeki her şey — form toplama, tabloya yazma, size bildirim — yazdığınız mantık değil, etkinleştirdiğiniz bir eklentidir."
+          },
+          {
+            "name": "Verinizi bağlayın",
+            "text": "Botu bir elektronik tabloya yönlendirin; yanıtları sabit metin yerine gerçek ve değişen bilgiyi yansıtsın."
+          },
+          {
+            "name": "Botu hiç görmemiş biriyle test edin",
+            "text": "Kodsuz bot da kodlu bot gibi aynı yerde tökezler: yazarı sihirli kelimeleri bilir, kullanıcı bilmez."
+          }
+        ],
+        "mistakesTitle": "Kodsuz nerede biter",
+        "mistakes": [
+          "Gerçekten özel mantık: çok koşullu fiyatlandırma kuralları, dış sistemlere bağlı hesaplamalar.",
+          "Hazır bağlayıcısı olmayan yazılımlarla anlık entegrasyon.",
+          "Özel performans gereksinimleri olan çok yüksek mesaj hacimleri. Botların çoğu buraya hiç ulaşmaz, ama tavanın olmadığını söylemek dürüst olmaz."
+        ],
+        "faqTitle": "Sık sorulanlar",
+        "faq": [
+          {
+            "q": "Kodsuz bot, kodlu bottan kötü müdür?",
+            "a": "Yaygın durumlarda hayır; kullanıcı farkı anlayamaz. Fark günlük yanıtlarda değil, sıra dışı mantıkta ortaya çıkar."
+          },
+          {
+            "q": "Sonradan özel koda geçebilir miyim?",
+            "a": "Evet. Bot ve token'ı size aittir; başka bir yere yönlendirmek yeniden kurulum değil, bir yapılandırma değişikliğidir."
+          },
+          {
+            "q": "Bir şey barındırmam gerekir mi?",
+            "a": "Hayır. Platform Telegram güncellemelerini webhook üzerinden alır ve botu sizin için çalıştırır."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Kapsamlı başlangıç rehberi aynı kurulumu baştan sona gösteriyor. Sizi kodsuz seçeneğe iten şey maliyetse, Telegram bot fiyatı analizi bunu bir geliştiriciye ödemekle karşılaştırıyor."
+      },
+      "telegram-bot-google-sheets": {
+        "h1": "Telegram botunuzun veritabanı olarak Google Sheets",
+        "lead": "Telegram bot google sheets ile eşleştiğinde, hâlihazırda okuyabildiğiniz bir veritabanınız olur. Her sipariş, talep veya form gönderimi bir satıra dönüşür; tabloyu açar ve botun ne yaptığını olduğu gibi görürsünüz. Küçük bir işletme için bu bir taviz değil, çoğu zaman doğru cevaptır; çünkü alternatif, ekipten kimsenin açamadığı gerçek bir veritabanıdır. Bu rehber tablonun neyi iyi, neyi kötü yaptığını ve ikisinin nasıl bağlandığını anlatır.",
+        "outcomeTitle": "Elde edeceğiniz sonuç",
+        "outcome": "Kendi Google hesabınızdaki, insanlar botu kullandıkça yapılandırılmış satırlarla dolan, size ait bir elektronik tablo.",
+        "prereqTitle": "Başlamadan önce",
+        "prereqs": [
+          "Bir Google hesabı ve boş bir tablo.",
+          "Sütunlarınıza dair net bir fikir. Sonradan değiştirmek mümkün ama veri geldikten sonra can sıkıcı."
+        ],
+        "stepsTitle": "Adımlar",
+        "steps": [
+          {
+            "name": "Sütunları bottan önce tasarlayın",
+            "text": "Her olay için bir satır, her bilgi için bir sütun. Zaman damgasını ve kimden geldiğini mutlaka ekleyin; bir hafta içinde ikisine de ihtiyaç duyacaksınız."
+          },
+          {
+            "name": "Her amaca ayrı sekme verin",
+            "text": "Siparişler bir sekmede, destek talepleri başka bir sekmede. Hepsini tek tabloda karıştırmak, veriyi sonradan kullanılamaz kılan hatadır."
+          },
+          {
+            "name": "Tabloyu bağlayın",
+            "text": "IrForge tablonuzu Google Sheets API üzerinden okur ve yazar; her olay için bir satır ekler ve bot canlı veriyle yanıt vermesi gerektiğinde geri okur."
+          },
+          {
+            "name": "Tabloyu tablo gibi kullanın",
+            "text": "Veri akmaya başlayınca sıradan tablo araçları — filtreler, sıralama, pivot tablo — raporlama katmanınız olur. Asıl kazanç budur."
+          }
+        ],
+        "mistakesTitle": "Tablo neyi kötü yapar",
+        "mistakes": [
+          "Çok yüksek yazma hacimleri. Tablo günde yüzlerce satır için uygundur, dakikada binlerce için değil.",
+          "Katı doğruluk garantileri. Aynı anda gelen iki yazma, gerçek bir veritabanının engelleyeceği şekilde iç içe geçebilir.",
+          "Ölçekli hassas veri. Tablonun güvenliği paylaşım ayarları kadardır ve bunlarda hata yapmak kolaydır."
+        ],
+        "faqTitle": "Sık sorulanlar",
+        "faq": [
+          {
+            "q": "Veriyi kim sahiplenir?",
+            "a": "Siz. Tablo sizin Google hesabınızdadır, platform ona yazar. Erişimi iptal etseniz de tüm satırlar sizde kalır."
+          },
+          {
+            "q": "Tabloyu elle düzenlersem?",
+            "a": "Sorun değil, hatta çoğu zaman yararlıdır — bir siparişi kargolandı diye işaretlemek gibi. Yeter ki bot çalışırken sütunları taşımayın veya yeniden adlandırmayın."
+          },
+          {
+            "q": "Ne zaman gerçek veritabanına geçmeliyim?",
+            "a": "Yazmaların geciktiğini fark ettiğinizde ya da eşzamanlılık altında doğruluk önem kazandığında. Botların çoğu oraya hiç ulaşmaz."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Mağaza botu rehberi bu satırların siparişler için nasıl göründüğünü, destek botu rehberi ise aynısını talepler için gösteriyor."
+      },
+      "telegram-bot-cost": {
+        "h1": "Bir Telegram botu gerçekte ne kadara mal olur",
+        "lead": "Telegram bot fiyatı sorusunun dürüst cevabı şu: Telegram'ın kendisi ücretsiz, etrafındaki her şey değil. Botu oluşturmak ve Bot API'yi kullanmak hiçbir şeye mal olmaz. Ödediğiniz şey onu kuran kişi, çalıştığı yer ve çalışır tutan kişidir. Bu rehber bu üçünü ayırır; böylece başkasının teklifinden tahmin yürütmek yerine kendi durumunuzu fiyatlandırırsınız.",
+        "outcomeTitle": "Elde edeceğiniz sonuç",
+        "outcome": "Hangi maliyetlerin sizi ilgilendirdiğine ve nasıl kurduğunuza göre hangilerinin tamamen ortadan kalktığına dair net bir görüş.",
+        "prereqTitle": "Başlamadan önce",
+        "prereqs": [
+          "Botun ne yapması gerektiğine dair kabaca bir fikir. Fiyatı teknolojiden çok kapsam belirler."
+        ],
+        "stepsTitle": "Adımlar",
+        "steps": [
+          {
+            "name": "Sıfırdan başlayın: Telegram ücretsiz",
+            "text": "Bot oluşturmak için ücret yok, API için ücret yok, mesaj başına ücret yok. Size sunulan her fiyat iş gücü ya da altyapı içindir, asla Telegram'ın kendisi için değil."
+          },
+          {
+            "name": "Kurulumu fiyatlandırın",
+            "text": "Özel kodlanmış bir bot geliştirici zamanı demektir ve mantığınız sıra dışılaştıkça artar. Kodsuz bir kurucu bunu abonelikle değiştirir: esneklik karşılığında maliyet ve hız."
+          },
+          {
+            "name": "Barındırmayı fiyatlandırın",
+            "text": "Özel bir bot sürekli açık kalan bir sunucu ve kullandığı veritabanını gerektirir. Barındırmalı platform bunu aboneliğe katar; ayrıca çalıştıracağınız bir şey kalmaz."
+          },
+          {
+            "name": "Bakımı fiyatlandırın — herkesin unuttuğu kalem",
+            "text": "Telegram değişir, gereksinimler değişir, işler en uygunsuz anda bozulur. Özel bot bunun için birini hazırda ister; platform bunu üstlenir. Bir yıllık ölçekte genelde en büyük gizli maliyet budur."
+          }
+        ],
+        "mistakesTitle": "Tahminler nerede yanılır",
+        "mistakes": [
+          "Tek seferlik kurulum bedelini aylık abonelikle, bir zaman ufku seçmeden karşılaştırmak. Bir yıl veya daha uzun süre üzerinden kıyaslayın.",
+          "Bakımı tamamen unutmak; bu, özel geliştirmeyi olduğundan ucuz gösterir.",
+          "Henüz sahip olmadığınız ölçek için ödeme yapmak. Size uyan en küçük planla başlayın; yükseltmek kolay, fazladan almak israftır."
+        ],
+        "faqTitle": "Sık sorulanlar",
+        "faq": [
+          {
+            "q": "Ücretsiz Telegram botu mümkün mü?",
+            "a": "Kendiniz kurar ve barındırırsanız ve zamanınızı bedava sayarsanız evet. API bedava; maliyet emeğin kendisi."
+          },
+          {
+            "q": "Özel geliştirme mi platform mu?",
+            "a": "Botunuz bir mağazaya, destek masasına veya forma benziyorsa platform. Mantığınız gerçekten sıra dışıysa özel geliştirme — kodsuz rehberi bu sınırı tam olarak tarif ediyor."
+          },
+          {
+            "q": "Fiyatı en çok ne yükseltir?",
+            "a": "Sıra dışı mantık ve hazır bağlayıcısı olmayan sistemlerle entegrasyon. Küçük ölçekte mesaj hacmi nadiren belirleyicidir."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Güncel planları fiyatlandırma sayfasında görebilir, kodsuz rehberini okuyarak gereksinimlerinizin bir platformun kapsamı içinde mi dışında mı olduğunu değerlendirebilirsiniz."
+      },
+      "telegram-bot-webhook-vs-polling": {
+        "h1": "Telegram webhook mu polling mi: botunuz hangisini kullanmalı",
+        "lead": "Telegram bir bota mesaj almanın iki yolunu sunar. Polling'de botunuz Telegram'a sürekli \"yeni bir şey var mı?\" diye sorar. Webhook'ta ise bir şey olduğu anda Telegram sizin sunucunuzu çağırır. Telegram webhook vs polling meselesi büyük ölçüde bağlantıyı kimin başlattığıyla ilgilidir ve bu tek fark gecikmeyi, maliyeti ve ihtiyaç duyacağınız altyapıyı belirler. Karşılaştırma, laf kalabalığı olmadan şöyle.",
+        "outcomeTitle": "Elde edeceğiniz sonuç",
+        "outcome": "Savunabileceğiniz bir karar ve barındırmalı bir platformun neden seçtiği seçeneği seçtiğine dair bir anlayış.",
+        "prereqTitle": "Başlamadan önce",
+        "prereqs": [
+          "Bir bot token'ı. Her iki yöntem de aynı token'ı ve aynı API'yi kullanır — bu bir teslimat tercihi, yeniden kurulum değil."
+        ],
+        "stepsTitle": "Her biri nasıl çalışır",
+        "steps": [
+          {
+            "name": "Polling — soran sizin botunuz",
+            "text": "Kodunuz getUpdates'i bir döngüde çağırır. Yerelde çalıştırması basittir, herkese açık bir URL ve sertifika gerektirmez; bu da geliştirme sırasında idealdir. Bedeli, hiçbir şey olmadığında bile çalışmaya ve sormaya devam etmesi gereken bir süreçtir."
+          },
+          {
+            "name": "Webhook — sizi Telegram çağırır",
+            "text": "Bir kez herkese açık bir HTTPS adresi kaydedersiniz ve Telegram her güncellemeyi oraya POST eder. Daha düşük gecikme, boşa giden istek yok, yoklanacak bir şey yok — ama geçerli sertifikalı, açık bir uç nokta gerekir."
+          },
+          {
+            "name": "Güvenlik: çağıranı doğrulayın",
+            "text": "Webhook adresi herkese açıktır, yani oraya her şey POST edebilir. Telegram her çağrıda başlık olarak gönderilen gizli bir token'ı destekler; IrForge her bot için bir tane türetir ve doğrular, böylece sahte güncellemeler reddedilir."
+          },
+          {
+            "name": "IrForge ne yapıyor",
+            "text": "IrForge botunuz için bir webhook kaydeder ve güncellemeleri bu yolla alır. Ayakta tutmanız gereken bir polling döngüsü ve bakımını üstleneceğiniz bir sunucu olmaz."
+          }
+        ],
+        "mistakesTitle": "Yaygın yanlış anlamalar",
+        "mistakes": [
+          "\"Webhook daha hızlıdır\" doğrudur ama genelde asıl mesele bu değildir — gerçek kazanç, bot boştayken istek harcamamaktır.",
+          "İkisini aynı anda kullanamazsınız. Webhook ayarlamak, siz onu silene kadar getUpdates'i devre dışı bırakır; bir dağıtımdan sonra susan botun webhook'u çoğu zaman üzerine yazılmıştır.",
+          "Webhook geçerli HTTPS ister. Kendinden imzalı veya süresi dolmuş sertifika, kullanıcı açısından sessizce başarısız olur."
+        ],
+        "faqTitle": "Sık sorulanlar",
+        "faq": [
+          {
+            "q": "Yeni başlayan için hangisi iyi?",
+            "a": "Platformunuzun zaten yönettiği hangisiyse o. Kodu kendiniz yazıyorsanız geliştirirken polling kullanın, canlıda webhook'a geçin."
+          },
+          {
+            "q": "Webhook daha mı pahalı?",
+            "a": "Herkese açık bir HTTPS uç noktası ister; barındırmalı platformlarda bu zaten vardır. Maliyet kendi sunucunuzu işlettiğinizde ortaya çıkar."
+          },
+          {
+            "q": "Sonradan değiştirebilir miyim?",
+            "a": "Evet, istediğiniz zaman. Geçmek için webhook kaydedin, geri dönmek için silin."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Kodu kendiniz yazmıyorsanız burada karar vermeniz gereken bir şey yok — başlangıç rehberi kurulumun tamamını anlatıyor. BotFather referansı ise güncellemeler akmaya başladıktan sonra başka neleri ayarlayabileceğinizi listeliyor."
+      }
+    }
   },
   "pricing": {
     "title": "IrForge fiyatlandırma",

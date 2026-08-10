@@ -393,7 +393,545 @@
     "ctaButton": "Get started",
     "ctaPricing": "See pricing",
     "backToHub": "All guides",
-    "articles": {}
+    "articles": {
+      "telegram-bot-token": {
+        "h1": "How to get a Telegram bot token",
+        "lead": "To get a Telegram bot token you talk to @BotFather, Telegram's own bot for creating bots. It takes about a minute: you send /newbot, pick a display name and a username, and BotFather replies with a long string of digits and letters. That string is the token, and it is the only thing any platform — IrForge included — needs in order to run your bot. This guide walks through all seven steps, then covers how to keep the token safe and what to do if it leaks.",
+        "outcomeTitle": "What you'll end up with",
+        "outcome": "A working Telegram bot that exists on Telegram's side, has a permanent username, and a token you can paste into IrForge to bring it to life. The bot won't do anything yet — that comes when you add commands — but it will be real, findable and yours.",
+        "prereqTitle": "Before you start",
+        "prereqs": [
+          "A Telegram account, signed in on any device — phone, desktop or web.",
+          "A display name in mind for the bot. It can contain spaces and any language, and you can change it later.",
+          "A username idea that ends in \"bot\". This one is permanent, so give it a moment's thought.",
+          "Somewhere private to paste the token temporarily — not a group chat, not a screenshot."
+        ],
+        "mistakesTitle": "Your token is a password",
+        "mistakes": [
+          "Anyone holding the token has full control of your bot — they can read its messages and act as it. Never share it, never post it in a group or a screenshot, and never commit it to a public repository.",
+          "If a token has leaked, open @BotFather, send /revoke and pick the bot. The old token stops working immediately and you get a new one to paste in here.",
+          "Copying only part of the token. It is one continuous string with a colon in the middle; the digits before the colon are the bot's numeric id and they are part of the token.",
+          "Adding a trailing space when pasting. Telegram will reject the token and the error looks like an authentication failure rather than a typo.",
+          "Opening a lookalike account instead of the real @BotFather. Check for the blue verified badge before sending anything.",
+          "Choosing a username you don't want long-term. The display name is editable; the username is not.",
+          "Posting the token in a screenshot when asking for help. Blur it, or better, never show it."
+        ],
+        "faqTitle": "Questions people ask",
+        "faq": [
+          {
+            "q": "Is the bot token free?",
+            "a": "Yes. BotFather is free and Telegram does not charge for creating bots or for the API. What can cost money is the service that runs your bot for you — see the guide on what a Telegram bot costs."
+          },
+          {
+            "q": "Can I have more than one bot?",
+            "a": "Yes. BotFather lets one account create many bots, each with its own username and its own token. Use /mybots to list them and switch between them."
+          },
+          {
+            "q": "What happens if I lose the token?",
+            "a": "Nothing is lost permanently. Open @BotFather, send /token and choose the bot, and it will show the token again. If you think someone else has seen it, use /revoke instead."
+          },
+          {
+            "q": "Does IrForge store my token?",
+            "a": "IrForge needs the token to call Telegram's API on your bot's behalf, so it is stored server-side and used only for that. It is never shown in URLs — the bot avatar, for instance, is served through a proxy route precisely so the token never appears in an image link."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "With the token in hand, the natural next read is the full beginner walkthrough, which takes the bot from \"exists\" to \"answers people\". If you want the complete list of what BotFather can change afterwards — description, commands menu, profile photo — the BotFather command reference covers each one.",
+        "stepsTitle": "Step by step",
+        "steps": [
+          {
+            "name": "Open Telegram",
+            "text": "Use any Telegram app you already have — phone, desktop or web. You need to be signed in to your own account."
+          },
+          {
+            "name": "Find @BotFather",
+            "text": "Search for @BotFather and open the chat. It is Telegram's official bot for creating bots — check for the blue verified badge before you start."
+          },
+          {
+            "name": "Send /newbot",
+            "text": "Type /newbot and send it. BotFather will walk you through the two questions below."
+          },
+          {
+            "name": "Choose a display name",
+            "text": "This is the name people see at the top of the chat, for example \"My Shop\". You can change it later, and it may contain spaces and any language."
+          },
+          {
+            "name": "Choose a username ending in \"bot\"",
+            "text": "The username is unique and permanent, and must end in \"bot\" — for example my_shop_bot. If the name is taken, BotFather asks for another one."
+          },
+          {
+            "name": "Copy the token",
+            "text": "BotFather replies with a line that looks like the example below. That whole string is your token — copy it exactly, with no extra spaces."
+          },
+          {
+            "name": "Paste it into IrForge",
+            "text": "Come back here, paste the token into the bot token field at checkout, and finish the order. IrForge connects to your bot from that point on."
+          }
+        ]
+      },
+      "how-to-make-a-telegram-bot": {
+        "h1": "How to make a Telegram bot, start to finish",
+        "lead": "Learning how to make a Telegram bot is mostly a matter of knowing the order of operations. Telegram creates the bot and hands you a token; a platform runs it; you decide what it says. Nothing here needs a server of your own or a line of code. This walkthrough takes a bot from nothing to answering real people, and points out the two places beginners usually get stuck.",
+        "outcomeTitle": "What you'll end up with",
+        "outcome": "A live Telegram bot with a name, a description, a commands menu and at least one command that does something useful when a stranger sends it.",
+        "prereqTitle": "Before you start",
+        "prereqs": [
+          "A Telegram account.",
+          "A bot token from BotFather — see the token guide if you don't have one yet.",
+          "A rough idea of the single job your bot should do first. One job, done well, beats five half-finished."
+        ],
+        "stepsTitle": "The steps",
+        "steps": [
+          {
+            "name": "Create the bot in BotFather",
+            "text": "Send /newbot, choose a display name and a username ending in \"bot\", and copy the token BotFather replies with."
+          },
+          {
+            "name": "Connect the token",
+            "text": "Paste the token into IrForge. From that moment the platform can act as your bot: read incoming messages and reply to them."
+          },
+          {
+            "name": "Decide the first command",
+            "text": "Start with /start — it is the first thing every new user sends, automatically, when they open your bot. Make its reply explain in one short paragraph what the bot does and what to type next."
+          },
+          {
+            "name": "Add your own commands",
+            "text": "A command is a trigger and a response. Keep names short and predictable: /order, /help, /status. Anything you would put in a pinned message is a candidate."
+          },
+          {
+            "name": "Set the commands menu",
+            "text": "Back in BotFather, /setcommands publishes your list so Telegram shows it in the blue menu button. Users stop guessing what to type."
+          },
+          {
+            "name": "Test as a stranger",
+            "text": "Open the bot from a second account, or ask someone else to. You wrote the commands, so you know what to send; a real user does not. That is where gaps show up."
+          },
+          {
+            "name": "Share the link",
+            "text": "Your bot lives at t.me/your_bot_username. That link is all anyone needs — put it wherever your audience already is."
+          }
+        ],
+        "mistakesTitle": "Where beginners get stuck",
+        "mistakes": [
+          "Writing a /start reply that says \"Welcome!\" and nothing else. The first message is your only chance to explain the bot.",
+          "Adding ten commands before testing one. Ship one that works end to end first.",
+          "Forgetting /setcommands, so the menu stays empty and users have to guess.",
+          "Assuming a silent bot is broken. Nine times out of ten the token was pasted with a stray space."
+        ],
+        "faqTitle": "Questions people ask",
+        "faq": [
+          {
+            "q": "Do I need to know how to code?",
+            "a": "No. Commands and plugins cover the common cases without any code. The no-code guide explains exactly where that stops being true."
+          },
+          {
+            "q": "Do I need to run a server?",
+            "a": "Not with a hosted platform. IrForge registers a webhook with Telegram and receives updates for you, so there is nothing to keep online yourself."
+          },
+          {
+            "q": "How long does this take?",
+            "a": "Creating the bot takes about a minute. Writing replies you're happy with takes longer — plan an afternoon for a first useful bot."
+          },
+          {
+            "q": "Can I change the name later?",
+            "a": "The display name, description and photo, yes, any time in BotFather. The username is permanent."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "Pick the shape that matches your goal: a shop bot if you're selling, a support bot if you're answering questions. If you want the bot to remember what people send it, the Google Sheets guide shows the simplest possible database."
+      },
+      "botfather-commands": {
+        "h1": "BotFather commands: the complete reference",
+        "lead": "BotFather commands are how you change anything about a Telegram bot after it exists. The bot itself is created once with /newbot; everything afterwards — its name, its description, its menu, its photo, its token — is a separate command sent to @BotFather in a normal chat. This reference lists the ones that matter, what each actually changes, and when you'd reach for it.",
+        "outcomeTitle": "What you'll end up with",
+        "outcome": "A clear picture of which command to send when, so you stop hunting through menus every time you want to change a description or rotate a token.",
+        "prereqTitle": "Before you start",
+        "prereqs": [
+          "A bot you already created with /newbot.",
+          "The @BotFather chat open. Every command below is sent there, not to your own bot."
+        ],
+        "stepsTitle": "The commands worth knowing",
+        "steps": [
+          {
+            "name": "/newbot — create a bot",
+            "text": "Asks for a display name, then a username ending in \"bot\", then replies with the token. This is the only command that creates anything."
+          },
+          {
+            "name": "/mybots — list and manage",
+            "text": "Opens an inline menu of every bot on your account. Most other settings are also reachable from here if you prefer buttons to typing."
+          },
+          {
+            "name": "/token — show the token again",
+            "text": "Displays the current token for a bot you pick. Useful when you've lost it; it does not change anything."
+          },
+          {
+            "name": "/revoke — invalidate a leaked token",
+            "text": "Immediately kills the old token and issues a new one. Any service still using the old value stops working at once, so re-paste it everywhere before you walk away."
+          },
+          {
+            "name": "/setcommands — publish the menu",
+            "text": "Takes a list of `command - description` lines and puts them behind the blue menu button in your bot's chat. The single highest-value command after /newbot."
+          },
+          {
+            "name": "/setdescription and /setabouttext",
+            "text": "The description shows on the empty chat screen before anyone presses Start; the about text shows on the bot's profile. Both are worth writing properly — they are the closest thing a bot has to a landing page."
+          },
+          {
+            "name": "/setuserpic and /setname",
+            "text": "Profile photo and display name. Both changeable any time; the username is not."
+          },
+          {
+            "name": "/deletebot — remove it",
+            "text": "Permanently deletes the bot and frees its username after a delay. There is no undo."
+          }
+        ],
+        "mistakesTitle": "Easy mistakes",
+        "mistakes": [
+          "Sending these to your own bot instead of to @BotFather. Your bot will simply ignore them.",
+          "Using /revoke when you meant /token. /revoke breaks every running integration instantly.",
+          "Writing /setcommands entries with a leading slash. The format is `order - Place an order`, without the slash."
+        ],
+        "faqTitle": "Questions people ask",
+        "faq": [
+          {
+            "q": "Do command changes take effect immediately?",
+            "a": "Yes, though Telegram clients cache the menu, so you may need to reopen the chat to see a new /setcommands list."
+          },
+          {
+            "q": "Can I automate these?",
+            "a": "Some have Bot API equivalents, but BotFather itself is chat-only. For a no-code setup you won't need to automate them."
+          },
+          {
+            "q": "Does /revoke delete my bot's messages or users?",
+            "a": "No. It only replaces the token. The bot, its username and its chat history are untouched."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "If you haven't created the bot yet, start with the token guide. Once the menu is set, the full beginner walkthrough covers writing the replies behind those commands."
+      },
+      "telegram-shop-bot": {
+        "h1": "How to build a Telegram shop bot",
+        "lead": "A Telegram shop bot turns a chat into a storefront: it shows what you sell, takes an order, and records it somewhere you can act on. It works well because your customers are already in Telegram — there is no app to install and no checkout page to load. This guide covers what to decide before you build, the order flow itself, and where shop bots usually go wrong.",
+        "outcomeTitle": "What you'll end up with",
+        "outcome": "A bot that lists your products, walks a customer through choosing one, collects the details you need to fulfil the order, and writes every order into a sheet you can read.",
+        "prereqTitle": "Before you start",
+        "prereqs": [
+          "A product list with names and prices. Ten items is plenty to start.",
+          "A decision about payment: inside Telegram, by bank transfer, or on delivery.",
+          "Somewhere orders should land — a Google Sheet is the simplest option."
+        ],
+        "stepsTitle": "The steps",
+        "steps": [
+          {
+            "name": "Structure the catalogue first",
+            "text": "Group products into a handful of categories. A flat list of forty items is unusable in a chat window; three categories of a dozen each is fine."
+          },
+          {
+            "name": "Build the browse flow",
+            "text": "One command such as /shop shows categories as buttons; picking a category shows its products; picking a product shows price and details. Buttons beat free text — a customer should never have to spell a product name."
+          },
+          {
+            "name": "Collect the order",
+            "text": "Ask only for what you genuinely need to fulfil: quantity, name, phone, address. Every extra question loses orders."
+          },
+          {
+            "name": "Decide how payment works",
+            "text": "Bank transfer with a receipt upload is the lowest-friction option in many markets and needs no payment integration; you confirm manually and the bot tells the customer."
+          },
+          {
+            "name": "Write the order down",
+            "text": "Push each completed order to a sheet as a row. That row is your order book — searchable, sortable and shareable with whoever packs the parcels."
+          }
+        ],
+        "mistakesTitle": "Where shop bots go wrong",
+        "mistakes": [
+          "Asking for the address before the customer has chosen anything. Order the questions the way a shop assistant would.",
+          "No confirmation message. The customer needs to see a summary of what they ordered and what happens next.",
+          "No way to reach a human. Always leave one command that hands over to a person."
+        ],
+        "faqTitle": "Questions people ask",
+        "faq": [
+          {
+            "q": "Can it take payments inside Telegram?",
+            "a": "Telegram supports payments through providers, but many shops start with bank transfer plus a receipt photo, which needs no integration at all."
+          },
+          {
+            "q": "How many products can it handle?",
+            "a": "Technically a lot; practically, keep browsing to two taps. Beyond a few dozen items, add a search command."
+          },
+          {
+            "q": "Where is the order data stored?",
+            "a": "With IrForge it goes into your own Google Sheet, so you own it and can open it without the platform."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "The Google Sheets guide explains how orders become rows and what a sheet is and isn't good at. If you also need to answer questions after the sale, the support bot guide is the natural companion."
+      },
+      "telegram-support-bot": {
+        "h1": "How to build a Telegram support bot",
+        "lead": "A Telegram support bot collects questions, turns them into tickets, and makes sure none of them get lost in a busy inbox. That is the real problem it solves: a support channel where messages arrive faster than anyone can answer them, and the oldest ones quietly sink. This guide covers the flow, the handover to a human, and the mistakes that make a support bot feel worse than no bot at all.",
+        "outcomeTitle": "What you'll end up with",
+        "outcome": "A bot that takes a customer's question, records it with their identity and the time, tells them it was received, and puts it somewhere your team can work through in order.",
+        "prereqTitle": "Before you start",
+        "prereqs": [
+          "A decision about what you actually support, and what you'll redirect elsewhere.",
+          "A person or team who will read the tickets. A support bot with nobody behind it is a complaint generator.",
+          "Realistic response-time wording you can honour."
+        ],
+        "stepsTitle": "The steps",
+        "steps": [
+          {
+            "name": "Open with expectations, not a greeting",
+            "text": "The first reply should say what the bot can help with and how long an answer usually takes. Vagueness here creates every subsequent complaint."
+          },
+          {
+            "name": "Ask one clear question",
+            "text": "\"Describe the problem in a message\" beats a five-field form. You can ask follow-ups once you know what it is about."
+          },
+          {
+            "name": "Create the ticket",
+            "text": "Store the message, who sent it and when. That record is what stops a question from being answered twice or not at all."
+          },
+          {
+            "name": "Always offer a human",
+            "text": "One command that escalates to a person, available at every step. The fastest way to make people hate a support bot is to trap them in it."
+          }
+        ],
+        "mistakesTitle": "What makes support bots fail",
+        "mistakes": [
+          "Promising a response time nobody keeps.",
+          "No ticket reference, so neither side can refer back to the conversation.",
+          "Answering with a link to a page that doesn't answer the question. A wrong answer costs more trust than no answer."
+        ],
+        "faqTitle": "Questions people ask",
+        "faq": [
+          {
+            "q": "Should the bot answer automatically?",
+            "a": "Only for questions you can answer correctly every time — opening hours, order status. Anything judgement-based should reach a person."
+          },
+          {
+            "q": "Can customers see their ticket history?",
+            "a": "Yes, if you add a command that lists their previous tickets. It cuts repeat questions noticeably."
+          },
+          {
+            "q": "Does this replace a support team?",
+            "a": "No. It organises the queue and buys response time; it does not answer hard questions for you."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "If tickets should land in a spreadsheet your team can work from, the Google Sheets guide shows how. To build the bot itself first, start with the full beginner walkthrough."
+      },
+      "telegram-bot-without-coding": {
+        "h1": "How to build a Telegram bot without coding",
+        "lead": "Building a Telegram bot without coding is realistic for most of what people actually want a bot to do: greet people, answer common questions, take an order, collect a form, write the result somewhere. A no-code builder replaces the script with two things — commands you define and plugins you enable. This guide is honest about where that stops working, because the useful version of this answer includes the limits.",
+        "outcomeTitle": "What you'll end up with",
+        "outcome": "A working bot built entirely through a panel, plus a clear sense of which future requirements would genuinely need a developer.",
+        "prereqTitle": "Before you start",
+        "prereqs": [
+          "A bot token from BotFather.",
+          "A list of the questions your audience asks most. Those are your first commands."
+        ],
+        "stepsTitle": "The steps",
+        "steps": [
+          {
+            "name": "Write the commands, not the code",
+            "text": "Each command is a trigger and a response. Start with /start and the three questions you answer most often."
+          },
+          {
+            "name": "Use plugins for behaviour you can't type",
+            "text": "Anything beyond a fixed reply — collecting a form, writing to a sheet, notifying you — is a plugin you enable rather than logic you write."
+          },
+          {
+            "name": "Connect your data",
+            "text": "Point the bot at a spreadsheet and its answers can reflect real, changing information instead of hardcoded text."
+          },
+          {
+            "name": "Test with someone who hasn't seen it",
+            "text": "A no-code bot fails the same way a coded one does: the author knows the magic words and the user doesn't."
+          }
+        ],
+        "mistakesTitle": "Where no-code stops",
+        "mistakes": [
+          "Genuinely custom logic — pricing rules with many conditions, calculations that depend on external systems.",
+          "Real-time integration with software that has no ready connector.",
+          "Very high message volumes with bespoke performance requirements. Most bots never reach this, but it's dishonest to pretend the ceiling isn't there."
+        ],
+        "faqTitle": "Questions people ask",
+        "faq": [
+          {
+            "q": "Is a no-code bot worse than a coded one?",
+            "a": "For the common cases, no — the user cannot tell. The difference shows up in unusual logic, not in everyday replies."
+          },
+          {
+            "q": "Can I move to custom code later?",
+            "a": "Yes. The bot and its token belong to you; pointing them at something else is a configuration change, not a rebuild."
+          },
+          {
+            "q": "Do I need to host anything?",
+            "a": "No. The platform receives Telegram's updates through a webhook and runs the bot for you."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "The full beginner walkthrough shows the same build end to end. If cost is what's driving the no-code question, the pricing breakdown compares it against paying a developer."
+      },
+      "telegram-bot-google-sheets": {
+        "h1": "Using Google Sheets as your Telegram bot's database",
+        "lead": "Pairing a Telegram bot with Google Sheets gives you a database you can already read. Every order, ticket or form submission becomes a row; you open the sheet and see exactly what the bot has been doing. For a small operation that is not a compromise — it is usually the right answer, because the alternative is a real database nobody on the team can open. This guide covers what a sheet is good at, what it is bad at, and how the two connect.",
+        "outcomeTitle": "What you'll end up with",
+        "outcome": "A spreadsheet you own, in your own Google account, filling up with structured rows as people use your bot.",
+        "prereqTitle": "Before you start",
+        "prereqs": [
+          "A Google account and a blank spreadsheet.",
+          "A clear idea of your columns. Changing them later is possible but annoying once there is data."
+        ],
+        "stepsTitle": "The steps",
+        "steps": [
+          {
+            "name": "Design the columns before the bot",
+            "text": "One row per event, one column per fact. Always include a timestamp and who it came from — you will want both within a week."
+          },
+          {
+            "name": "Give each purpose its own tab",
+            "text": "Orders in one tab, support tickets in another. Mixing them into one sheet is the mistake that makes the data unusable later."
+          },
+          {
+            "name": "Connect the sheet",
+            "text": "IrForge reads and writes your spreadsheet through the Google Sheets API, appending a row per event and reading back where the bot needs to answer with live data."
+          },
+          {
+            "name": "Use the sheet as a sheet",
+            "text": "Once data is arriving, the ordinary spreadsheet tools — filters, sorting, a pivot table — are your reporting layer. This is the real payoff."
+          }
+        ],
+        "mistakesTitle": "What a sheet is bad at",
+        "mistakes": [
+          "Very high write volumes. A sheet is fine for hundreds of rows a day, not thousands per minute.",
+          "Strict correctness guarantees. Two writes at the same instant can interleave in ways a real database would prevent.",
+          "Sensitive data at scale. A sheet is as secure as its sharing settings, and those are easy to get wrong."
+        ],
+        "faqTitle": "Questions people ask",
+        "faq": [
+          {
+            "q": "Who owns the data?",
+            "a": "You do. The spreadsheet lives in your Google account; the platform writes to it. You can revoke access and still have every row."
+          },
+          {
+            "q": "What if I edit the sheet by hand?",
+            "a": "That's fine and often useful — marking an order as shipped, for example. Just don't reorder or rename columns while the bot is running."
+          },
+          {
+            "q": "When should I move to a real database?",
+            "a": "When you notice writes lagging, or when correctness under concurrency starts to matter. Most bots never get there."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "The shop bot guide shows what those rows look like for orders, and the support bot guide does the same for tickets."
+      },
+      "telegram-bot-cost": {
+        "h1": "What a Telegram bot actually costs",
+        "lead": "The honest answer to what a Telegram bot costs is that Telegram itself is free and everything around it is not. Creating the bot and using the Bot API costs nothing. What you pay for is someone building it, somewhere to run it, and someone keeping it working. This guide separates those three so you can price your own situation instead of guessing from someone else's quote.",
+        "outcomeTitle": "What you'll end up with",
+        "outcome": "A clear view of which costs apply to you, and which disappear depending on how you build.",
+        "prereqTitle": "Before you start",
+        "prereqs": [
+          "A rough idea of what the bot must do. Scope drives price far more than technology does."
+        ],
+        "stepsTitle": "The steps",
+        "steps": [
+          {
+            "name": "Start from zero: Telegram is free",
+            "text": "No fee to create a bot, no fee for the API, no per-message charge. Any price you're quoted is for work or infrastructure, never for Telegram itself."
+          },
+          {
+            "name": "Price the build",
+            "text": "A custom-coded bot is developer time, and it scales with how unusual your logic is. A no-code builder replaces this with a subscription — the trade is flexibility for cost and speed."
+          },
+          {
+            "name": "Price the hosting",
+            "text": "A custom bot needs a server that stays online, plus whatever database it uses. A hosted platform folds this into the subscription; there is nothing separate to run."
+          },
+          {
+            "name": "Price the maintenance — the one people forget",
+            "text": "Telegram changes, requirements change, things break at inconvenient times. A custom bot needs someone on call for that; a platform absorbs it. This is usually the largest hidden cost over a year."
+          }
+        ],
+        "mistakesTitle": "Where estimates go wrong",
+        "mistakes": [
+          "Comparing a one-off build price against a monthly subscription without picking a time horizon. Compare over a year or more.",
+          "Forgetting maintenance entirely, which makes custom development look cheaper than it is.",
+          "Paying for scale you don't have yet. Start on the smallest plan that fits; upgrading is easy, over-buying is wasted."
+        ],
+        "faqTitle": "Questions people ask",
+        "faq": [
+          {
+            "q": "Is a free Telegram bot possible?",
+            "a": "Yes, if you build and host it yourself and your time is free. The API costs nothing; the effort is the cost."
+          },
+          {
+            "q": "Custom development or a platform?",
+            "a": "A platform if your bot resembles a shop, a support desk or a form. Custom if your logic is genuinely unusual — the no-code guide describes that line precisely."
+          },
+          {
+            "q": "What drives the price up most?",
+            "a": "Unusual logic and integrations with systems that have no ready connector. Message volume rarely matters at small scale."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "See the current plans on the pricing page, and read the no-code guide to judge whether your requirements sit inside or outside what a platform covers."
+      },
+      "telegram-bot-webhook-vs-polling": {
+        "h1": "Telegram webhook vs polling: which should your bot use",
+        "lead": "Telegram gives a bot two ways to receive messages. With polling, your bot repeatedly asks Telegram \"anything new?\". With a webhook, Telegram calls your server the moment something happens. Webhook vs polling is mostly a question of who initiates the connection, and that single difference decides latency, cost and how much infrastructure you need. Here is the comparison without the hand-waving.",
+        "outcomeTitle": "What you'll end up with",
+        "outcome": "A decision you can defend, and an understanding of why a hosted platform picks the option it picks.",
+        "prereqTitle": "Before you start",
+        "prereqs": [
+          "A bot token. Both methods use the same token and the same API — this is a delivery choice, not a rebuild."
+        ],
+        "stepsTitle": "How each one works",
+        "steps": [
+          {
+            "name": "Polling — your bot asks",
+            "text": "Your code calls getUpdates in a loop. Simple to run locally, needs no public URL and no certificate, which makes it ideal while developing. The cost is a process that must keep running and keep asking, even when nothing is happening."
+          },
+          {
+            "name": "Webhook — Telegram calls you",
+            "text": "You register a public HTTPS URL once and Telegram POSTs each update to it. Lower latency, no wasted requests, and nothing to poll — but you need a public endpoint with a valid certificate."
+          },
+          {
+            "name": "Security: verify the caller",
+            "text": "A webhook URL is public, so anything can POST to it. Telegram supports a secret token sent as a header on every call; IrForge derives one per bot and checks it, so forged updates are rejected."
+          },
+          {
+            "name": "What IrForge does",
+            "text": "IrForge registers a webhook for your bot and receives updates that way. There is no polling loop for you to keep alive and no server for you to maintain."
+          }
+        ],
+        "mistakesTitle": "Common misunderstandings",
+        "mistakes": [
+          "\"Webhooks are faster\" is true but usually not the point — the real gain is not burning requests when the bot is idle.",
+          "You cannot use both at once. Setting a webhook disables getUpdates until you remove it; a bot that goes silent after a deploy has often had its webhook overwritten.",
+          "A webhook needs valid HTTPS. A self-signed or expired certificate fails silently from the user's point of view."
+        ],
+        "faqTitle": "Questions people ask",
+        "faq": [
+          {
+            "q": "Which is better for a beginner?",
+            "a": "Whichever your platform already handles. If you're writing code yourself, poll while developing and switch to a webhook in production."
+          },
+          {
+            "q": "Does a webhook cost more?",
+            "a": "It needs a public HTTPS endpoint, which a hosted platform already provides. Self-hosting is where the cost shows up."
+          },
+          {
+            "q": "Can I switch later?",
+            "a": "Yes, at any time. Register a webhook to switch to it, delete it to go back to polling."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "If you're not writing the code yourself, none of this needs a decision — the beginner walkthrough covers the whole setup. The BotFather reference lists what else you can configure once updates are flowing."
+      }
+    }
   },
   "pricing": {
     "title": "IrForge pricing",
