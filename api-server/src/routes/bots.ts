@@ -2444,9 +2444,23 @@ router.delete("/bots/:botId/plugins/:pluginId", requireBotOwnership, async (req:
 // manager.rename_spreadsheet + registry.register_tenant): validate access,
 // rename the file "IrForge — <name>", set bots.sheetId, and register the
 // token→sheet mapping in the registry `tenants` tab so the runtime reads it.
-router.post("/bots/:botId/sheet", requireBotOwnership, async (req: any, res) => {
+// SECURITY [Phase 15]: this was `requireBotOwnership`, which let a bot's owner
+// repoint their own bot at a different Spreadsheet. The sheet is the bot's
+// database and is handed out from the platform-managed pool, so changing it is
+// an operator action, not a customer one. Now `requireSuperAdmin` — and since
+// that middleware doesn't scope :botId to the caller (a super admin acts on
+// any bot), the bot row is loaded explicitly here instead of via req.bot.
+router.post("/bots/:botId/sheet", requireSuperAdmin, async (req: any, res) => {
   try {
-    const bot = req.bot;
+    const [bot] = await db
+      .select()
+      .from(botsTable)
+      .where(eq(botsTable.id, req.params.botId))
+      .limit(1);
+    if (!bot) {
+      res.status(404).json({ error: "Bot not found" });
+      return;
+    }
     const sheetId = String(req.body?.sheetId ?? "").trim();
     if (!isValidSheetId(sheetId)) {
       res.status(400).json({ error: "شناسه شیت نامعتبر است. فقط ID خودِ Spreadsheet را وارد کنید (نه لینک کامل)." });

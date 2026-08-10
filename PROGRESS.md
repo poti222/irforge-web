@@ -662,3 +662,39 @@ route while `api-server` is not running** — Vite answers `GET /api/me` with
 this phase's changes stashed, on `/en/dashboard` as well. Not fixed here (out
 of scope), but `AppSidebar` guarding `user?.name` would make dev-without-API
 usable and is cheap.
+
+## Phase 15 — Only admins may change a bot's Google Sheet  [DONE 2026-08-10]
+Files touched: `api-server/src/routes/bots.ts`,
+`irforge/src/components/bots/BotSettingsForm.tsx`.
+
+1. **Server-side (the actual fix)**: `POST /api/bots/:botId/sheet` was
+   `requireBotOwnership` — a bot's own owner could repoint their bot at any
+   spreadsheet they controlled. Guard changed to `requireSuperAdmin` (the local
+   one already defined in this file and used by ~15 other routes here). A plain
+   user, including the bot's owner, now gets `403 {"error":"Super admin only"}`
+   from the middleware before the handler runs.
+2. Because `requireBotOwnership` was also what populated `req.bot`, and
+   `requireSuperAdmin` deliberately does *not* scope `:botId` to the caller
+   (a super admin must be able to act on anyone's bot), the handler now loads
+   the bot row explicitly by `:botId` and returns `404` if it doesn't exist.
+   Everything downstream (`bot.id`, `bot.name`, `bot.sheetId`) is unchanged.
+3. `BotSettingsForm.tsx`: `useAuth()` → `isSuperAdmin`. For non-super-admins the
+   Spreadsheet ID renders read-only (a `font-mono` bordered block, `dir="ltr"`,
+   `data-testid="bot-sheet-id-readonly"`) with a muted line saying the sheet is
+   platform-managed and linking to `/tickets` for changes; the input and the
+   "Register sheet" button are not rendered at all. The "Open current sheet"
+   link stays for both roles — visibility was never the problem, mutation was.
+   Super admins keep the editable form exactly as it was.
+
+Decisions / deviations: none — the prompt's diagnosis matched the code.
+
+Verification: `pnpm --filter @workspace/api-server typecheck` — no new errors;
+the lines reported in `bots.ts` are the pre-existing `TS6305`/`TS7006` baseline
+(all cascade from `lib/db/dist` not being prebuilt) and none fall in the edited
+range. `pnpm --filter @workspace/api-server build` → `Build complete →
+dist/index.cjs`. `pnpm --filter @workspace/irforge typecheck` — only the Phase 0
+baseline error (`AllBotsTable.tsx:68`).
+Follow-ups left open: the 403 path was verified by reading the middleware
+(identical to the one already covering `/sheet-pool/*`), not by a live request —
+no DB harness exists in this tree. Worth one live check as a plain user if a
+harness is rebuilt.

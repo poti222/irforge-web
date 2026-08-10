@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,10 +21,16 @@ import {
 import { Loader2, Save, Trash2, Eye, EyeOff, KeyRound, RefreshCw, Database, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function BotSettingsForm({ bot }: { bot: Bot }) {
   const { lang } = useLanguage();
   const fa = lang === "fa";
+  const { user } = useAuth();
+  // Phase 15: the sheet is platform-managed. The server now enforces this
+  // (POST /bots/:botId/sheet is requireSuperAdmin), so this flag only decides
+  // whether to render a form that would 403 anyway.
+  const isSuperAdmin = user?.role === "super_admin";
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
@@ -207,30 +213,59 @@ export function BotSettingsForm({ bot }: { bot: Bot }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Database className="h-4 w-4" /> {fa ? "گوگل‌شیت بات (دیتابیس)" : "Bot Google Sheet (database)"}</CardTitle>
           <CardDescription>
-            {fa
-              ? "شناسه شیت اختصاصی این بات را وارد کن؛ بات خرید خودکار از همین شیت می‌خواند و می‌نویسد. اول شیت را با ایمیل سرویس‌اکانت به‌عنوان Editor به اشتراک بگذار."
-              : "Set this bot's own spreadsheet ID; the auto-purchase bot reads/writes it. Share the sheet with the service-account email as Editor first."}
+            {isSuperAdmin
+              ? (fa
+                  ? "شناسه شیت اختصاصی این بات را وارد کن؛ بات خرید خودکار از همین شیت می‌خواند و می‌نویسد. اول شیت را با ایمیل سرویس‌اکانت به‌عنوان Editor به اشتراک بگذار."
+                  : "Set this bot's own spreadsheet ID; the auto-purchase bot reads/writes it. Share the sheet with the service-account email as Editor first.")
+              : (fa
+                  ? "شیت این بات توسط پلتفرم مدیریت می‌شود."
+                  : "This bot's sheet is managed by the platform.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="set-sheet">{fa ? "Google Spreadsheet ID" : "Google Spreadsheet ID"}</Label>
-            <Input
-              id="set-sheet" dir="ltr" className="font-mono text-sm"
-              placeholder={fa ? "مثلاً 1AbC…XyZ" : "e.g. 1AbC…XyZ"}
-              value={sheetId}
-              onChange={(e) => setSheetId(e.target.value)}
-              data-testid="bot-sheet-id"
-            />
-            <p className="text-xs text-muted-foreground">
-              {fa ? "فقط ID خودِ شیت (بخش وسط لینک)، نه کل آدرس." : "Just the ID (the middle part of the URL), not the whole link."}
-            </p>
-          </div>
+          {isSuperAdmin ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="set-sheet">{fa ? "Google Spreadsheet ID" : "Google Spreadsheet ID"}</Label>
+              <Input
+                id="set-sheet" dir="ltr" className="font-mono text-sm"
+                placeholder={fa ? "مثلاً 1AbC…XyZ" : "e.g. 1AbC…XyZ"}
+                value={sheetId}
+                onChange={(e) => setSheetId(e.target.value)}
+                data-testid="bot-sheet-id"
+              />
+              <p className="text-xs text-muted-foreground">
+                {fa ? "فقط ID خودِ شیت (بخش وسط لینک)، نه کل آدرس." : "Just the ID (the middle part of the URL), not the whole link."}
+              </p>
+            </div>
+          ) : (
+            // Visibility was never the problem — mutation was. The owner still
+            // sees which sheet backs their bot, and can open it, but the input
+            // and the register button are gone.
+            <div className="space-y-1.5">
+              <Label>{fa ? "Google Spreadsheet ID" : "Google Spreadsheet ID"}</Label>
+              <p
+                dir="ltr"
+                className="break-all rounded-md border bg-muted/50 px-3 py-2 font-mono text-sm text-muted-foreground"
+                data-testid="bot-sheet-id-readonly"
+              >
+                {currentSheetId ?? (fa ? "—" : "—")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {fa ? "برای تغییر شیت، یک " : "To change the sheet, "}
+                <Link href="/tickets" className="font-medium text-primary hover:underline">
+                  {fa ? "تیکت ثبت کن" : "open a ticket"}
+                </Link>
+                {fa ? "." : "."}
+              </p>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={saveSheet} disabled={savingSheet} data-testid="save-bot-sheet">
-              {savingSheet ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Save className="me-2 h-4 w-4" />}
-              {fa ? "ثبت شیت" : "Register sheet"}
-            </Button>
+            {isSuperAdmin && (
+              <Button onClick={saveSheet} disabled={savingSheet} data-testid="save-bot-sheet">
+                {savingSheet ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Save className="me-2 h-4 w-4" />}
+                {fa ? "ثبت شیت" : "Register sheet"}
+              </Button>
+            )}
             {currentSheetId && (
               <a href={`https://docs.google.com/spreadsheets/d/${currentSheetId}`} target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" size="sm">
