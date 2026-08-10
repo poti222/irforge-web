@@ -1511,3 +1511,39 @@ Decisions:
   become editable afterwards, or the verification means nothing.
 - The legacy `POST /auth/register` still works and is untouched. It should be
   removed once nothing calls it; the new page no longer does.
+
+## Phase 5 — Login: phone + password + mandatory code  [DONE 2026-08-10]
+
+Files touched: `api-server/src/routes/auth.ts`, `irforge/src/pages/login.tsx`,
+locales ×5
+
+Decisions:
+
+- `POST /auth/login` is now step one and **creates no session** even on
+  perfectly valid credentials. It writes a `login_challenges` row, sends the
+  code to the user's Telegram, and returns `{ challengeId, expiresInSeconds,
+  destinationHint }` where the hint is masked (`@ali***`).
+- `POST /auth/login/verify` consumes the challenge and issues the session.
+  Five attempts, then the challenge is marked consumed and the user restarts
+  from the password screen.
+- ⚠️ **"No such phone" and "wrong password" are indistinguishable**, in both
+  message *and* timing. `genericFail()` pads every failure to a 400 ms floor —
+  without that, the faster "user not found" path leaks which phone numbers have
+  accounts and turns login into a discovery tool.
+- ⚠️ **Legacy users are handled in this phase, not later.** Every account
+  created before this feature has no `telegramId` and therefore cannot receive
+  a code. They are neither waved through with a password-only session nor
+  locked out: the endpoint returns `409 { code: "telegram_required", deepLink }`,
+  minting a `purpose: "link"` token and reusing the Phase 3 machinery, and the
+  UI turns that into a "your account needs Telegram connected" screen.
+- There is deliberately **no "remember this device"**. A second factor that can
+  be switched off is one checkbox away from not existing for an attacker who
+  already has the password.
+- Per-phone limit (5 failures / 15 min → 15 min block) is applied here and
+  **reset on success**; the per-IP limit wraps both endpoints.
+- The login page is a three-state machine (`credentials | code |
+  needs_telegram`) sharing `CodeInput` with registration.
+- Email login is visibly disabled with the same "coming soon" badge as register.
+- A "lost access to your Telegram?" link sits on the credentials screen and
+  routes to support, so the failure mode has a visible path instead of being a
+  dead end (Phase 8 builds the other end of it).
