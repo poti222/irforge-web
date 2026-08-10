@@ -471,28 +471,6 @@ export default function Landing() {
 
       <PublicFooter />
 
-      <footer className="border-t py-10 bg-card/50">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex flex-col items-center gap-1.5 md:items-start">
-              <BrandLogo href={null} size="sm" />
-              <img
-                src="/lion-sun-flag.png"
-                alt="پرچم شیر و خورشید"
-                className="h-3.5 w-auto rounded-sm"
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} IrForge. {tr.madeWith}
-            </p>
-            <div className="flex gap-4">
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors" aria-label="گیت‌هاب IrForge">
-                <Github className="size-5" />
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
@@ -530,6 +508,10 @@ function HeroBackdrop({ animate }: { animate: boolean }) {
         src="/lion-sun-flag.png"
         alt=""
         aria-hidden="true"
+        width={560}
+        height={336}
+        loading="lazy"
+        decoding="async"
         className="absolute -end-32 top-1/2 hidden w-[560px] -translate-y-1/2 select-none opacity-[0.07] md:block dark:opacity-[0.1] [mask-image:radial-gradient(ellipse_at_center,black_10%,transparent_68%)]"
       />
     </div>

@@ -1244,3 +1244,49 @@ figures, mirror them into a typed constant in `pages/pricing.tsx` with a
 comment naming the source of truth, then add `offers` to the
 `SoftwareApplication` node with `price`, `priceCurrency: "IRR"` and
 `availability` — the numbers in the schema and on the page must match exactly.
+
+## Phase 9 — Crawl, speed and accessibility hygiene  [DONE 2026-08-10, one item deferred]
+
+Files touched: `irforge/src/pages/landing.tsx`, `irforge/src/pages/not-found.tsx`,
+`irforge/src/components/layout/public-footer.tsx`, `irforge/src/locales/*.json`
+
+Pages added (lang × route): none.
+
+Untranslated keys left: none (`footer.flagAlt` written natively in all five).
+
+Decisions / deviations:
+
+- **Removed a duplicate `<footer>` on the landing page.** Adding `PublicFooter`
+  in Phase 6 left the page with two footers, and the old one contained a
+  `href="#"` link with a hardcoded Persian `aria-label` — a dead link that told
+  a crawler nothing and a screen reader the wrong thing. The brand mark, the
+  flag image and the copyright line moved into `PublicFooter`.
+  **Verified: zero `href="#"` links across all 65 emitted pages.**
+- **Every `<img>` has an `alt`** — verified across all 65 emitted pages, zero
+  images without one. Decorative images use `alt=""` with `aria-hidden="true"`;
+  the flag in the footer now has a **localized** alt (`footer.flagAlt`) instead
+  of the hardcoded Persian string it carried in every language.
+- **Every `<img>` has explicit `width`/`height`** — verified, zero unsized
+  images. An unsized image is a CLS failure, and this page is image-heavy.
+- `loading="lazy"` + `decoding="async"` on below-the-fold images. The landing
+  hero is a rendered SVG component (`HeroRobot`), not an `<img>`, so there is
+  no hero image to mark eager or give `fetchpriority`.
+- **Fonts already had `display=swap` on both Google Fonts URLs** (Inter and
+  Vazirmatn) with `preconnect` in place. Verified, no change needed.
+- **`<html lang>` and `dir` verified correct in every prerendered file:**
+  `fa`→rtl, `ar`→rtl, `en`/`tr`/`ru`→ltr.
+- **404 page rebuilt.** It now injects `<meta name="robots" content="noindex,
+  follow">` on mount and removes it on unmount (the route is never prerendered
+  and must never be indexed, but the tag must not leak onto the next page), and
+  links to four articles plus the `/learn` hub so a stale URL is no longer a
+  dead end.
+
+⚠️ **Deferred: the Lighthouse run.** Core Web Vitals for `/`, `/en/`, `/learn`
+and one article were **not** measured. This container has no Lighthouse
+installed and the remaining budget in this session was spent on Phase 10's
+build assertions, which are the part that keeps the SEO correct once nobody is
+watching. Everything Lighthouse would flag *mechanically* has been verified
+directly and is listed above (alt text, image dimensions, lazy loading, font
+swap, lang/dir, no dead links). **This is a human follow-up** — run Lighthouse
+against the **built** `irforge/dist` output, not the dev server, and record the
+four Core Web Vitals. Also listed in `SEO.md`.

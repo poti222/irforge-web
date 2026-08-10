@@ -79,8 +79,19 @@ export function PublicFooter() {
         </div>
       </div>
 
-      <div className="border-t py-6 text-center text-xs text-muted-foreground">
-        {t.rights.replace("{year}", "2026")}
+      <div className="flex flex-col items-center gap-2 border-t py-6 text-center text-xs text-muted-foreground">
+        {/* Explicit width/height so the image reserves its box before it
+            loads — an unsized image is a Cumulative Layout Shift. */}
+        <img
+          src="/lion-sun-flag.png"
+          alt={t.flagAlt}
+          width={64}
+          height={38}
+          loading="lazy"
+          decoding="async"
+          className="h-3.5 w-auto rounded-sm"
+        />
+        <p>{t.rights.replace("{year}", "2026")}</p>
       </div>
     </footer>
   );
