@@ -1467,3 +1467,47 @@ Decisions:
   the tone of the existing trial/reset messages, and states plainly that the
   code expires in 5 minutes and that staff will never ask for it.
 - **No code is ever logged** — only `registrationId` and the outcome.
+
+## Phase 4 — Registration Steps 4 & 5  [DONE 2026-08-10]
+
+Files touched: `api-server/src/routes/registration.ts`,
+`irforge/src/pages/register.tsx`, `irforge/src/components/auth/CodeInput.tsx`,
+locales ×5
+
+⚠️ **Deviation from one-phase-one-commit:** these endpoints
+(`register/verify-code`, `register/resend`, `register/complete`,
+`PATCH register/:id`) and the code-entry UI live in the same two files created
+in Phase 2, so they were written there and are committed under Phase 2's
+commit. Splitting one module across two commits would have left Phase 2 in a
+non-building state. Recorded here rather than hidden.
+
+Decisions:
+
+- `verify-code` increments `codeAttempts` **before** comparing, so a
+  half-finished request cannot buy a free attempt. After 5 attempts the record
+  is expired outright — a counter that never terminates is not a limit.
+- `resend`: max 3 per record (`codeSentCount`), minimum 60s apart, returning
+  `retryAfterSeconds` for the UI countdown.
+- Code entry: six single-character inputs, paste and auto-fill spread across
+  boxes, auto-advance, backspace-to-previous, `inputMode="numeric"`,
+  `autoComplete="one-time-code"`, live countdown, resend disabled until
+  cooldown. **Each box carries its own `aria-label`** — six unlabelled boxes
+  are unusable with a screen reader. The group is forced `dir="ltr"` even in
+  fa/ar: a code is a number and its digit order must not flip with page
+  direction.
+- `register/complete` takes **only** `{ registrationId, password,
+  passwordConfirm }`; the email comes from the stored row. Minimum length is 8,
+  matching what the existing flow enforces — no second, weaker rule was
+  introduced.
+- **One transaction** creates the user, deletes the pending row and its link
+  token, and issues the session. The password is written nowhere but
+  `passwordHash`.
+- Email and phone uniqueness are enforced **inside** that path, and on
+  collision the **pending row is deliberately kept alive** so the user can fix
+  their email and retry instead of starting over. The UI reopens the email
+  editor automatically on `email_taken`.
+- `PATCH /auth/register/:id` allows **only** `email`, and **only** while `step`
+  is `code_verified`. Phone and Telegram fields were verified and must never
+  become editable afterwards, or the verification means nothing.
+- The legacy `POST /auth/register` still works and is untouched. It should be
+  removed once nothing calls it; the new page no longer does.
