@@ -15,7 +15,6 @@
  *     tab "bot_settings" → A: key (bot id),   B: value (JSON)
  *     tab "panels"       → A: key (panel id), B: value (JSON)
  *     tab "forms"        → A: key (form id),  B: value (JSON)
- *     tab "discounts"    → A: key (code),     B: value (JSON)
  *     tab "payments"     → A: key (pay id),   B: value (JSON)
  *     tab "referrals"    → A: key (user id),  B: value (JSON)
  *     tab "promos"       → A: key (promo id), B: value (JSON)
@@ -24,6 +23,13 @@
  *   SHEETS_REGISTRY_ID  (bot registry)
  *     tab "tenants"    → A: key (bot_token),  B: value (JSON)
  *     tab "sheet_pool" → A: key (sheet_id),   B: value (JSON)
+ *
+ *   Discount codes are NOT synced from here. They never touch Postgres at
+ *   all — Google Sheets (this same SHEETS_DATA_ID spreadsheet, tab
+ *   "discounts" + "discount_redemptions") is their only home. See
+ *   api-server/src/lib/discountStore.ts, which reuses the `upsertKV` /
+ *   `deleteKVByKey` / `dataSheetId` helpers below directly (exported for
+ *   that purpose) instead of going through a syncX() mirror function.
  *
  *   deletion_queue is NOT a key/value tab like the ones above — it's an
  *   append-only coordination queue (see docs/DELETION_POLICY.md) consumed
@@ -42,11 +48,14 @@ type KVRow = [string, string]; // [key, JSON-stringified value]
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
-function dataSheetId(): string | null {
-  // SHEETS_DATA_ID is a separate, unrelated business-data mirror spreadsheet
-  // (Postgres is the source of truth for it) — out of scope for the
-  // registry-name unification, so no second name/fallback here. See
-  // docs/DATA_UNIFICATION.md.
+/**
+ * Resolve the business-data spreadsheet id. For every tab documented above
+ * (users, bots, orders, ...) Postgres remains the source of truth and this
+ * is just a mirror. The one exception is the "discounts" / "discount_redemptions"
+ * tabs, which discountStore.ts owns as the *only* copy of that data — no
+ * second name/fallback here either way. See docs/DATA_UNIFICATION.md.
+ */
+export function dataSheetId(): string | null {
   return process.env.SHEETS_DATA_ID ?? null;
 }
 
@@ -97,8 +106,9 @@ async function findRowByKey(spreadsheetId: string, tab: string, key: string): Pr
   return -1;
 }
 
-/** Upsert a key-value row on a tab. */
-async function upsertKV(spreadsheetId: string, tab: string, key: string, value: object) {
+/** Upsert a key-value row on a tab. Exported for discountStore.ts (discounts
+ *  live only in Sheets, so it needs to write, not just mirror, this way). */
+export async function upsertKV(spreadsheetId: string, tab: string, key: string, value: object) {
   await ensureHeader(spreadsheetId, tab);
   const jsonValue = JSON.stringify(value);
   const row: KVRow = [key, jsonValue];
@@ -110,8 +120,8 @@ async function upsertKV(spreadsheetId: string, tab: string, key: string, value: 
   }
 }
 
-/** Delete a row by key (read-filter-rewrite). */
-async function deleteKVByKey(spreadsheetId: string, tab: string, key: string) {
+/** Delete a row by key (read-filter-rewrite). Exported for discountStore.ts. */
+export async function deleteKVByKey(spreadsheetId: string, tab: string, key: string) {
   const rows = await readSheet(spreadsheetId, tab);
   if (!rows || rows.length <= 1) return;
   const filtered = rows.filter((r, i) => i === 0 || r[0] !== key);
@@ -302,29 +312,6 @@ export function syncPaymentUpsert(payment: {
       createdAt: payment.createdAt instanceof Date ? payment.createdAt.toISOString() : payment.createdAt,
     });
   }, `payment-upsert:${payment.id}`);
-}
-
-// ── DISCOUNTS ──────────────────────────────────────────────────────────────
-
-export function syncDiscountUpsert(discount: {
-  code: string; type: string; value: number; maxUses?: number | null;
-  usedCount?: number; expiresAt?: Date | string | null; createdAt: Date | string;
-}) {
-  const spreadsheetId = dataSheetId();
-  if (!spreadsheetId) return;
-  bg(async () => {
-    await upsertKV(spreadsheetId, "discounts", discount.code, {
-      ...discount,
-      expiresAt: discount.expiresAt instanceof Date ? discount.expiresAt.toISOString() : (discount.expiresAt ?? null),
-      createdAt: discount.createdAt instanceof Date ? discount.createdAt.toISOString() : discount.createdAt,
-    });
-  }, `discount-upsert:${discount.code}`);
-}
-
-export function syncDiscountDelete(code: string) {
-  const spreadsheetId = dataSheetId();
-  if (!spreadsheetId) return;
-  bg(() => deleteKVByKey(spreadsheetId, "discounts", code), `discount-delete:${code}`);
 }
 
 // ── REFERRALS ──────────────────────────────────────────────────────────────
