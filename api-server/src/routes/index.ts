@@ -19,6 +19,8 @@ import superAdminRouter from "./superAdmin.js";
 import telegramWebhookRouter from "./telegramWebhook.js";
 // سیستم اعلان‌های جدید سایت (تریال و آینده)
 import notificationsRouter from "./notifications.js";
+// Phase 9: کدهای تخفیف
+import discountsRouter from "./discounts.js";
 
 const router: IRouter = Router();
 
@@ -41,5 +43,6 @@ router.use(superAdminRouter);
 // G8
 router.use(telegramWebhookRouter);
 router.use(notificationsRouter);
+router.use(discountsRouter);
 
 export default router;
