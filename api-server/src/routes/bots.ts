@@ -16,6 +16,7 @@
  */
 
 import { logger } from "../lib/logger";
+import { requireCompleteProfile } from "../lib/profile";
 import { Router } from "express";
 import {
   db,
@@ -523,7 +524,7 @@ router.get("/bots", requireAuth, async (req: any, res) => {
 // ─── POST /api/bots ──────────────────────────────────────────────────────────
 // FIX [Group 3]: فلوی کامل — فیش پرداخت + pending_payment
 
-router.post("/bots", requireAuth, async (req: any, res) => {
+router.post("/bots", requireAuth, requireCompleteProfile(), async (req: any, res) => {
   try {
     const { name, description, token, paymentDescription, receiptUrl, amount } = req.body;
 
@@ -797,7 +798,7 @@ router.get("/payments/me", requireAuth, async (req: any, res) => {
 // Z6: buy a bot paid directly from wallet balance (no receipt/pending review).
 // Deducts the amount and creates an already-approved bot with an admin code.
 
-router.post("/bots/wallet-purchase", requireAuth, async (req: any, res) => {
+router.post("/bots/wallet-purchase", requireAuth, requireCompleteProfile(), async (req: any, res) => {
   try {
     const { name, token, description, amount, phone, telegramId, discountCode } = req.body;
     if (!name || !token) {

@@ -1643,3 +1643,82 @@ Follow-up: user notification on reset currently goes through the audit log and
 the operator; wiring an email notification requires an email channel, which
 this platform does not yet have (recovery deliberately runs on Telegram only).
 Recorded as a known gap rather than silently skipped.
+
+## Phase 10 — Admin view of incomplete registrations  [DONE 2026-08-10]
+
+Files touched: `api-server/src/routes/admin.ts`,
+`irforge/src/components/admin/PendingRegistrations.tsx` (new),
+`irforge/src/pages/admin.tsx`
+
+Decisions:
+
+- `GET /api/admin/pending-registrations` (`requireAdmin`), paginated, newest
+  first, filterable by `step`, with a count badge on the tab.
+- ⚠️ **`codeHash`, `sourceIp` and `userAgent` are never selected into the
+  response.** The hash is a credential; the other two have no business use and
+  exist solely for abuse investigation.
+- Completed registrations are absent by construction — the row is deleted
+  inside the same transaction that creates the user.
+- The drop-off `step` column is the actual product signal: a pile of rows stuck
+  at `telegram_pending` means the linking step is broken or confusing, and that
+  should be visible within a day rather than a quarter.
+- Per-row delete and a bulk "older than 30 days" purge, both behind an
+  `AlertDialog`.
+- ⚠️ **This is personal data belonging to people who did not finish signing up
+  and agreed to nothing.** The panel is deliberately read-only reporting: no
+  export button, no bulk email, no bulk Telegram message, no marketing use, and
+  a permanent in-panel warning saying so. Messaging someone who abandoned a
+  signup form is unsolicited contact, and doing it with a phone number they
+  never confirmed you could use is worse. If that is ever wanted it needs a
+  consent checkbox at Step 2, not a quiet addition here.
+
+## Phase 11 — Guest access  [DONE 2026-08-10]
+
+Files touched: `api-server/src/routes/guest.ts` (new),
+`api-server/src/middleware/guest.ts` (new), `api-server/src/routes/auth.ts`,
+`api-server/src/routes/index.ts`
+
+Decisions:
+
+- ⚠️ **A guest is not a `users` row.** No `role: "guest"` record is created. It
+  would collide with the new partial unique phone index, pollute every user
+  count and billing query, and force the login route to special-case
+  password-less rows forever. Guests live in `guest_sessions`.
+- ⚠️ **The guest token is a distinct type** (`guest_<uuid>`) and
+  **`requireAuth` default-denies it explicitly** — the check is the first thing
+  the guard does, returning `401 { code: "guest_not_allowed" }`. Read-only
+  routes opt in one at a time via `allowGuest`. If guest identity flowed
+  through the same path as user identity, one missed check would turn every
+  authenticated endpoint anonymous; this is the highest-risk part of the
+  feature and the reason for default-deny.
+- `allowGuest` sets `req.isGuest` and `req.guestId` and deliberately **does not
+  set `req.userId`**, so no downstream code can mistake a guest for the owner
+  of data. `denyGuestWrite` returns `403 { code: "guest_forbidden" }`.
+- `GET /guest/me` returns `{ guest: true, id, expiresAt }` and deliberately
+  does not imitate the user shape — no fake profile fields.
+- Guest sessions expire in 30 days and are removed by the Phase 1 boot cleanup.
+- `POST /guest/convert` marks `convertedUserId`; the cart carries over and
+  everything else is discarded, which the banner states rather than implies.
+
+## Phase 12 — Purchase gate: complete profile required  [DONE 2026-08-10]
+
+Files touched: `api-server/src/lib/profile.ts` (new),
+`api-server/src/routes/bots.ts`, `api-server/src/routes/wallet.ts`
+
+Decisions:
+
+- One helper, `checkProfile` / `assertProfileComplete`, returning the list of
+  missing fields, plus a `requireCompleteProfile()` middleware.
+- **Enforced server-side** on `POST /bots`, `POST /bots/wallet-purchase` and
+  `POST /wallet/deposit`, returning `403 { error: "profile_incomplete",
+  missing: [...] }` so the UI can name exactly what is absent. A client-side
+  check alone is not a gate.
+- The existing `users.profileComplete` column is **recomputed and persisted**
+  by the same helper rather than adding a second column.
+- ⚠️ **`telegramUsername` is a soft-blocking requirement with a self-service
+  path, not a hard field.** It is optional on Telegram's side — a real account
+  can have none and the Bot API simply omits it — so treating it like the
+  others would block legitimate buyers who never set one. `ProfileCheck`
+  therefore exposes `onlyUsernameMissing`, and the UI turns that specific case
+  into "set a username in Telegram (Settings → Username)" with a re-check
+  action, instead of an unsatisfiable requirement with no instructions.

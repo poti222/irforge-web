@@ -85,6 +85,19 @@ export function requireAuth(req: any, res: any, next: any) {
     return;
   }
   const token = authHeader.slice(7);
+
+  /**
+   * پیش‌فرض-رد برای مهمان‌ها.
+   *
+   * توکن مهمان نوع دیگری است (`guest_…`) و **هرگز** از این گارد رد نمی‌شود.
+   * روت‌هایی که واقعاً باید برای مهمان باز باشند، صریحاً `allowGuest` را
+   * می‌گیرند. اگر مهمان از همین‌جا رد می‌شد، یک بررسی جاافتاده در یک روت
+   * پایین‌دستی کافی بود تا کل API ناشناس شود.
+   */
+  if (token.startsWith("guest_")) {
+    res.status(401).json({ error: "Unauthorized", code: "guest_not_allowed" });
+    return;
+  }
   getUserIdFromToken(token)
     .then((userId) => {
       if (!userId) {

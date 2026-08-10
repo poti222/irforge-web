@@ -17,8 +17,9 @@ import { UsersTable } from "@/components/admin/UsersTable";
 import { PlansManager, ADMIN_PLANS_KEY } from "@/components/admin/PlansManager";
 import { AnnouncementsManager } from "@/components/admin/AnnouncementsManager";
 import { UpdatesManager, ADMIN_UPDATES_KEY } from "@/components/admin/UpdatesManager";
+import { PendingRegistrations, PENDING_REGISTRATIONS_KEY } from "@/components/admin/PendingRegistrations";
 import { DiscountsManager } from "@/components/admin/DiscountsManager";
-import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, Percent, Sparkles } from "lucide-react";
+import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, Percent, Sparkles, UserPlus } from "lucide-react";
 
 // Each tab's query keys, so the refresh control invalidates exactly what the
 // active tab renders. The tab components export their own keys where they have
@@ -31,6 +32,7 @@ const TAB_KEYS: Record<string, QueryKey[]> = {
   plans: [ADMIN_PLANS_KEY, getListPlansQueryKey()],
   announcements: [getListAnnouncementsQueryKey()],
   updates: [ADMIN_UPDATES_KEY],
+  pending: [PENDING_REGISTRATIONS_KEY],
   discounts: [["admin-discounts"]],
 };
 
@@ -77,6 +79,7 @@ export default function Admin() {
           {isSuperAdmin && <TabsTrigger value="plans"><Package className="me-2 h-4 w-4" /> {fa ? "پلن‌ها" : "Plans"}</TabsTrigger>}
           <TabsTrigger value="announcements"><Megaphone className="me-2 h-4 w-4" /> {fa ? "اعلان‌ها" : "Announcements"}</TabsTrigger>
           <TabsTrigger value="updates"><Sparkles className="me-2 h-4 w-4" /> {fa ? "آپدیت‌ها" : "Updates"}</TabsTrigger>
+          <TabsTrigger value="pending"><UserPlus className="me-2 h-4 w-4" /> {fa ? "ثبت‌نام‌های ناتمام" : "Pending signups"}</TabsTrigger>
           {isSuperAdmin && <TabsTrigger value="discounts"><Percent className="me-2 h-4 w-4" /> {fa ? "تخفیف‌ها" : "Discounts"}</TabsTrigger>}
         </TabsList>
 
@@ -88,6 +91,7 @@ export default function Admin() {
         <TabsContent value="announcements"><AnnouncementsManager /></TabsContent>
         {/* مثل اعلان‌ها برای admin و super_admin هر دو باز است (روت‌های سرور requireAdmin هستند). */}
         <TabsContent value="updates"><UpdatesManager /></TabsContent>
+        <TabsContent value="pending"><PendingRegistrations /></TabsContent>
         {isSuperAdmin && <TabsContent value="discounts"><DiscountsManager /></TabsContent>}
       </Tabs>
     </div>

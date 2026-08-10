@@ -1,7 +1,7 @@
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, usersTable, botsTable, announcementsTable, userPlansTable, plansTable } from "@workspace/db";
-import { eq, and, gte, sql, desc } from "drizzle-orm";
+import { db, usersTable, botsTable, announcementsTable, userPlansTable, plansTable, pendingRegistrationsTable } from "@workspace/db";
+import { eq, and, gte, sql, desc, count, lt } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAdmin, requireAuth } from "./auth";
 import { syncUserUpsert, syncUserDelete } from "../lib/sheetsSync";
@@ -290,3 +290,93 @@ router.delete("/admin/announcements/:announcementId", requireAdmin, async (req: 
 });
 
 export default router;
+
+// ─── GET /api/admin/pending-registrations ────────────────────────────────────
+// ثبت‌نام‌های نیمه‌کاره، برای دیدن اینکه مردم کجا رها می‌کنند.
+//
+// ⚠️ این داده‌ی شخصی است: نام، شماره و ایمیل واقعیِ کسانی که ثبت‌نامشان را
+// **تمام نکرده‌اند** و با هیچ چیزی موافقت نکرده‌اند. این یک نمای گزارشیِ
+// فقط-خواندنی است: نه دکمه‌ی خروجی، نه ایمیل گروهی، نه پیام گروهی تلگرام، نه
+// استفاده‌ی بازاریابی. پیام‌دادن به کسی که فرم ثبت‌نام را رها کرده تماسِ
+// ناخواسته است، و انجامش با شماره‌ای که هرگز تأیید نکرده می‌شود از آن بدتر.
+// اگر روزی چنین چیزی لازم شد، به یک چک‌باکس رضایت در گام ۲ نیاز دارد.
+//
+// `codeHash` یک اعتبارنامه است و `sourceIp`/`userAgent` کاربرد تجاری ندارند —
+// هیچ‌کدام از سرور بیرون نمی‌روند.
+router.get("/admin/pending-registrations", requireAdmin, async (req: any, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const perPage = Math.min(100, Math.max(1, Number(req.query.perPage) || 25));
+    const stepFilter = typeof req.query.step === "string" ? req.query.step : "";
+
+    const where = stepFilter ? eq(pendingRegistrationsTable.step, stepFilter) : undefined;
+
+    const rows = await db
+      .select()
+      .from(pendingRegistrationsTable)
+      .where(where)
+      .orderBy(desc(pendingRegistrationsTable.createdAt))
+      .limit(perPage)
+      .offset((page - 1) * perPage);
+
+    const [{ value: total }] = await db
+      .select({ value: count() })
+      .from(pendingRegistrationsTable)
+      .where(where);
+
+    res.json({
+      items: rows.map((r) => ({
+        id: r.id,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        email: r.email,
+        phone: r.phone,
+        telegramUsername: r.telegramUsername,
+        step: r.step,
+        createdAt: r.createdAt.toISOString(),
+        lastActivityAt: r.lastActivityAt.toISOString(),
+      })),
+      page,
+      perPage,
+      total,
+    });
+  } catch (err) {
+    logger.error({ err }, "List pending registrations error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// DELETE /api/admin/pending-registrations/:id
+router.delete("/admin/pending-registrations/:id", requireAdmin, async (req: any, res) => {
+  try {
+    const deleted = await db
+      .delete(pendingRegistrationsTable)
+      .where(eq(pendingRegistrationsTable.id, req.params.id))
+      .returning({ id: pendingRegistrationsTable.id });
+    if (deleted.length === 0) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, "Delete pending registration error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/admin/pending-registrations/purge — حذف گروهی قدیمی‌تر از N روز
+router.post("/admin/pending-registrations/purge", requireAdmin, async (req: any, res) => {
+  try {
+    const days = Math.min(365, Math.max(1, Number(req.body?.olderThanDays) || 30));
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const deleted = await db
+      .delete(pendingRegistrationsTable)
+      .where(lt(pendingRegistrationsTable.createdAt, cutoff))
+      .returning({ id: pendingRegistrationsTable.id });
+    logger.info({ actor: req.userId, count: deleted.length, days }, "Purged pending registrations");
+    res.json({ success: true, deleted: deleted.length });
+  } catch (err) {
+    logger.error({ err }, "Purge pending registrations error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
