@@ -360,6 +360,32 @@ ALTER TABLE bots ADD COLUMN IF NOT EXISTS order_telegram_id TEXT;
 -- the bot token). This column holds the Telegram file_id the proxy route
 -- re-resolves to a short-lived file_path on every request.
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS avatar_file_id TEXT;
+
+-- ─── DISCOUNT_CODES / DISCOUNT_REDEMPTIONS (Phase 9) ────────────────────────
+CREATE TABLE IF NOT EXISTS discount_codes (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,           -- همیشه UPPERCASE ذخیره می‌شود
+  kind TEXT NOT NULL,                  -- percent | fixed
+  value INTEGER NOT NULL,              -- percent: 1-100 | fixed: مبلغ تومان
+  max_uses INTEGER,                    -- null = نامحدود
+  used_count INTEGER NOT NULL DEFAULT 0,
+  expires_at TIMESTAMPTZ,              -- null = بدون انقضا
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_by TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS discount_redemptions (
+  id TEXT PRIMARY KEY,
+  code_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  order_amount INTEGER NOT NULL,
+  discount_amount INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS discount_redemptions_code_id_idx ON discount_redemptions(code_id);
+CREATE INDEX IF NOT EXISTS discount_redemptions_user_id_idx ON discount_redemptions(user_id);
 `;
 
 async function migrate() {
