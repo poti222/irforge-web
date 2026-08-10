@@ -116,6 +116,27 @@ export function requireAdmin(req: any, res: any, next: any) {
   });
 }
 
+/**
+ * فقط super_admin.
+ *
+ * `requireAdmin` اینجا **کافی نیست**: صفحه‌های پشت این گارد می‌توانند نقش‌ها را
+ * عوض کنند، و ادمینی که بتواند به خودش super_admin بدهد، عملاً super_admin است.
+ */
+export function requireSuperAdmin(req: any, res: any, next: any) {
+  requireAuth(req, res, async () => {
+    const [user] = await db
+      .select({ role: usersTable.role })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.userId))
+      .limit(1);
+    if (!user || user.role !== "super_admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    next();
+  });
+}
+
 function sessionExpiresAt(): Date {
   const d = new Date();
   d.setDate(d.getDate() + 30);

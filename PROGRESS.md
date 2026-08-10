@@ -1605,3 +1605,41 @@ requests per 15 minutes. A scripted 100-guess run against a known phone is
 blocked after 5 challenge attempts and 20 IP-scoped requests — roughly four
 orders of magnitude short of exhausting the code space, and the block persists
 across restarts.
+
+## Phase 8 — Recovery  [DONE 2026-08-10]
+
+Files touched: `api-server/src/routes/superAdminUsers.ts` (new),
+`api-server/src/lib/audit.ts` (new), `api-server/src/routes/auth.ts`
+(`requireSuperAdmin`), `api-server/src/routes/index.ts`,
+`docs/auth-telegram-recovery.md` (new), `irforge/src/pages/login.tsx`, locales
+
+Decisions:
+
+- `POST /superadmin/users/:id/telegram-reset` clears `telegramId` and every
+  related Telegram field so the user can link a fresh account. It requires a
+  **typed reason of at least 5 characters** and writes an `admin_audit_log`
+  row (actor, target, timestamp, reason, previous handle).
+- ⚠️ **Never self-service, and never below `requireSuperAdmin`.** A signed-out
+  user who could clear their own Telegram link would give an attacker holding a
+  stolen password a way to remove the second factor entirely. `requireAdmin` is
+  explicitly not sufficient — a plain admin gets 403.
+- The login page carries a **"lost access to your Telegram?"** link into
+  support, so the failure mode is a visible path rather than a dead end.
+- `docs/auth-telegram-recovery.md` documents the operator procedure: what
+  counts as identity verification (two independent factors minimum, three for
+  accounts with money or running bots), why a request from a *new* Telegram
+  account is evidence of nothing, and what to do when the answers don't line
+  up. A reset on an unverified request is an account takeover with extra steps,
+  and the audit log names whoever performed it.
+- `lib/audit.ts` never throws — a failed log write must not fail the action it
+  describes — and its doc comment forbids putting passwords, hashes or codes
+  into `metadata`.
+
+⚠️ **Ordering note:** the brief says not to ship Phases 5–6 without Phase 8.
+Both landed in the same session and the same branch, so no deploy exists that
+has mandatory OTP without a recovery path.
+
+Follow-up: user notification on reset currently goes through the audit log and
+the operator; wiring an email notification requires an email channel, which
+this platform does not yet have (recovery deliberately runs on Telegram only).
+Recorded as a known gap rather than silently skipped.
