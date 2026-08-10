@@ -1,5 +1,6 @@
 import { logger } from "../lib/logger";
 import { requireCompleteProfile } from "../lib/profile";
+import { blockWhileImpersonating } from "../middleware/impersonation";
 import { Router } from "express";
 import { db, walletsTable, walletTransactionsTable, usersTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
@@ -66,7 +67,7 @@ router.get("/wallet/transactions", requireAuth, async (req: any, res) => {
 });
 
 // POST /api/wallet/deposit — card-to-card or USDT (gateway is disabled/coming soon)
-router.post("/wallet/deposit", requireAuth, requireCompleteProfile(), async (req: any, res) => {
+router.post("/wallet/deposit", requireAuth, blockWhileImpersonating, requireCompleteProfile(), async (req: any, res) => {
   try {
     const { method, amount, receiptUrl, txHash } = req.body;
     const amt = Number(amount);
@@ -98,7 +99,7 @@ router.post("/wallet/deposit", requireAuth, requireCompleteProfile(), async (req
 });
 
 // POST /api/wallet/spend — pay from balance (funds already verified, no review)
-router.post("/wallet/spend", requireAuth, async (req: any, res) => {
+router.post("/wallet/spend", requireAuth, blockWhileImpersonating, async (req: any, res) => {
   try {
     const amt = Number(req.body?.amount);
     if (!amt || amt <= 0) { res.status(400).json({ error: "A positive amount is required" }); return; }

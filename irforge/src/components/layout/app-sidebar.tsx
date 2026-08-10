@@ -226,6 +226,14 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.startsWith("/admin/users")} tooltip={nav.manageUsers}>
+                    <Link href="/admin/users" data-testid="nav-admin-users-super" onClick={closeMobileMenu}>
+                      <Users />
+                      <span>{nav.manageUsers}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={location === "/admin/pending-payments"} tooltip={nav.pendingPayments}>
                     <Link href="/admin/pending-payments" data-testid="nav-pending-payments" onClick={closeMobileMenu}>
                       <ClipboardList />
