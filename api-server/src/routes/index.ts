@@ -27,6 +27,8 @@ import updatesRouter from "./updates.js";
 import registrationRouter from "./registration.js";
 // مدیریت کاربران توسط super_admin (بازیابی، رمز، نقش، جعل هویت، ممیزی)
 import superAdminUsersRouter from "./superAdminUsers.js";
+// دسترسی مهمان (توکن جدا، پیش‌فرض-رد)
+import guestRouter from "./guest.js";
 
 const router: IRouter = Router();
 
@@ -53,5 +55,6 @@ router.use(discountsRouter);
 router.use(updatesRouter);
 router.use(registrationRouter);
 router.use(superAdminUsersRouter);
+router.use(guestRouter);
 
 export default router;

@@ -1,4 +1,5 @@
 import { logger } from "../lib/logger";
+import { requireCompleteProfile } from "../lib/profile";
 import { Router } from "express";
 import { db, walletsTable, walletTransactionsTable, usersTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
@@ -65,7 +66,7 @@ router.get("/wallet/transactions", requireAuth, async (req: any, res) => {
 });
 
 // POST /api/wallet/deposit — card-to-card or USDT (gateway is disabled/coming soon)
-router.post("/wallet/deposit", requireAuth, async (req: any, res) => {
+router.post("/wallet/deposit", requireAuth, requireCompleteProfile(), async (req: any, res) => {
   try {
     const { method, amount, receiptUrl, txHash } = req.body;
     const amt = Number(amount);
