@@ -1,19 +1,42 @@
+import { useState } from "react";
+import type { QueryKey } from "@tanstack/react-query";
+import {
+  getAdminGetStatsQueryKey,
+  getAdminListUsersQueryKey,
+  getListPlansQueryKey,
+  getListAnnouncementsQueryKey,
+} from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/hooks/use-language";
 import { AdminOverview } from "@/components/admin/AdminOverview";
-import { AllBotsTable } from "@/components/admin/AllBotsTable";
-import { PaymentApprovals } from "@/components/admin/PaymentApprovals";
+import { AllBotsTable, ADMIN_BOTS_KEY } from "@/components/admin/AllBotsTable";
+import { PaymentApprovals, WALLET_KEY } from "@/components/admin/PaymentApprovals";
 import { UsersTable } from "@/components/admin/UsersTable";
-import { PlansManager } from "@/components/admin/PlansManager";
+import { PlansManager, ADMIN_PLANS_KEY } from "@/components/admin/PlansManager";
 import { AnnouncementsManager } from "@/components/admin/AnnouncementsManager";
 import { DiscountsManager } from "@/components/admin/DiscountsManager";
 import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, Percent } from "lucide-react";
+
+// Each tab's query keys, so the refresh control invalidates exactly what the
+// active tab renders. The tab components export their own keys where they have
+// local ones, so this map references them rather than restating the literals.
+const TAB_KEYS: Record<string, QueryKey[]> = {
+  overview: [getAdminGetStatsQueryKey()],
+  bots: [ADMIN_BOTS_KEY],
+  users: [getAdminListUsersQueryKey()],
+  payments: [WALLET_KEY],
+  plans: [ADMIN_PLANS_KEY, getListPlansQueryKey()],
+  announcements: [getListAnnouncementsQueryKey()],
+  discounts: [["admin-discounts"]],
+};
 
 export default function Admin() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { user } = useAuth();
+  const [tab, setTab] = useState("overview");
   // R6 RBAC: all-bots, payments and plan management stay super_admin-only —
   // their APIs are requireSuperAdmin server-side, so showing the tabs to a
   // plain admin would just render a 403.
@@ -25,18 +48,25 @@ export default function Admin() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-          {fa ? "پنل مدیریت" : "Admin panel"}
-        </h1>
-        <p className="text-muted-foreground">
-          {isSuperAdmin
-            ? (fa ? "کنترل کامل پلتفرم" : "Full platform control")
-            : (fa ? "نمای کلی، کاربران و اعلان‌ها" : "Overview, users and announcements")}
-        </p>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            {fa ? "پنل مدیریت" : "Admin panel"}
+          </h1>
+          <p className="text-muted-foreground">
+            {isSuperAdmin
+              ? (fa ? "کنترل کامل پلتفرم" : "Full platform control")
+              : (fa ? "نمای کلی، کاربران و اعلان‌ها" : "Overview, users and announcements")}
+          </p>
+        </div>
+        <RefreshButton
+          className="ms-auto shrink-0"
+          queryKeys={TAB_KEYS[tab] ?? []}
+          label={fa ? "به‌روزرسانی" : "Refresh"}
+        />
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="overview"><LayoutDashboard className="me-2 h-4 w-4" /> {fa ? "نمای کلی" : "Overview"}</TabsTrigger>
           {isSuperAdmin && <TabsTrigger value="bots"><Bot className="me-2 h-4 w-4" /> {fa ? "همه ربات‌ها" : "All Bots"}</TabsTrigger>}

@@ -23,6 +23,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { RefreshButton } from "@/components/ui/refresh-button";
 import { ReceiptLightbox } from "@/components/ui/receipt-lightbox";
+// Shared with the admin panel's Payments tab, which owns this cache entry —
+// a second literal here would be exactly the drift the export exists to avoid.
+import { WALLET_KEY } from "@/components/admin/PaymentApprovals";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
 import { formatToman } from "@/lib/format";
@@ -39,7 +42,6 @@ type WalletDeposit = {
   user: { id: string; name: string; email: string } | null;
 };
 
-const WALLET_KEY = ["wallet-deposits"] as const;
 
 /**
  * A failed query can mean three very different things, and collapsing all of
@@ -194,7 +196,10 @@ export default function AdminPendingPayments() {
               {totalPending.toLocaleString(fa ? "fa-IR" : "en-US")}
             </Badge>
           )}
-          <RefreshButton queryKeys={[WALLET_KEY, ["admin", "pending-payments"]]} />
+          <RefreshButton
+            queryKeys={[WALLET_KEY, ["admin", "pending-payments"]]}
+            label={fa ? "به‌روزرسانی" : "Refresh"}
+          />
         </div>
       </div>
 

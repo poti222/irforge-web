@@ -553,3 +553,45 @@ spec wasn't regenerated — nothing in the prompt's Phase 9 scope required it).
 Live end-to-end verification (actually applying a code through a real DB) is
 still owed once a harness exists again; noting this explicitly rather than
 claiming it was done.
+
+## Phase 13 — Refresh buttons  [DONE 2026-08-10]
+Files touched: `irforge/src/components/ui/refresh-button.tsx` (new),
+`irforge/src/pages/admin.tsx`, `irforge/src/components/bots/BotStatsPanel.tsx`,
+`irforge/src/pages/admin-pending-payments.tsx`, `irforge/src/pages/admin-sheet-pool.tsx`.
+
+1. New reusable `<RefreshButton queryKeys={QueryKey[]} label? />`: an outline
+   icon button that invalidates every key on click and drives its spinner from
+   `useIsFetching({ predicate })` — not local state — so it reflects real query
+   state (including background refetches it didn't start). Disabled while any
+   watched key is fetching, so it can't be double-fired mid-flight. Spin is
+   suppressed under `useReducedMotion()`. The predicate uses a deep-partial
+   prefix `keyMatches` mirroring how `invalidateQueries` matches filter keys,
+   so it works for both flat `["admin-bots"]` keys and the generated client's
+   `[{ url, ... }]`-shaped keys.
+2. Placed it in four headers:
+   - Admin panel: made `<Tabs>` controlled (`value`/`onValueChange` + `useState`)
+     so the button can invalidate the **active tab's** keys via a `TAB_KEYS`
+     map (overview→stats, bots, users, payments→wallet-deposits, plans,
+     announcements, discounts).
+   - `BotStatsPanel`: invalidates `getGetBotStatsQueryKey(botId)` from the
+     Live/uptime row.
+   - Pending-payments page: invalidates both `["wallet-deposits"]` and
+     `["admin","pending-payments"]` (its two sections).
+   - Sheet-pool page: invalidates `["admin","sheet-pool"]`.
+
+Decisions / deviations:
+- The tab query keys are mostly **local, unexported** constants inside each tab
+  component (`ADMIN_BOTS_KEY`, `WALLET_KEY`, `ADMIN_PLANS_KEY`, the
+  `["admin-discounts"]` literal). Rather than export/refactor all of them, the
+  `TAB_KEYS` map in `admin.tsx` re-states the same literal values and reuses the
+  generated key helpers (`getAdminGetStatsQueryKey`, `getAdminListUsersQueryKey`,
+  `getListPlansQueryKey`, `getListAnnouncementsQueryKey`) that already exist —
+  no change to the tab components themselves.
+- `label` is passed localised (fa/en) by each caller so the single shared
+  component stays i18n-agnostic, matching the inline-`fa` style of these pages.
+
+Verification: `pnpm --filter @workspace/irforge typecheck` — only the
+pre-existing Phase 0 baseline error (`AllBotsTable.tsx:68`), no new errors.
+`pnpm --filter @workspace/irforge build` clean, 10 pages prerendered,
+robots/sitemap assertions still pass.
+Follow-ups left open: none.

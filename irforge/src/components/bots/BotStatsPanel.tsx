@@ -67,7 +67,11 @@ export function BotStatsPanel({ botId, status }: { botId: string; status: string
             {stats && ` · ${fa ? "آپ‌تایم" : "uptime"} ${stats.uptime}%`}
           </span>
         </div>
-        <RefreshButton queryKeys={[getGetBotStatsQueryKey(botId)]} />
+        <RefreshButton
+          className="shrink-0"
+          queryKeys={[getGetBotStatsQueryKey(botId)]}
+          label={fa ? "به‌روزرسانی آمار" : "Refresh stats"}
+        />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

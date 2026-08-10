@@ -15,9 +15,9 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { RefreshButton } from "@/components/ui/refresh-button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
@@ -166,7 +166,11 @@ export default function AdminSheetPool() {
             {fa ? "شیت‌های آماده که موقع تأیید پرداخت به بات‌ها اختصاص داده می‌شن." : "Ready sheets assigned to bots when a payment is approved."}
           </p>
         </div>
-        <RefreshButton queryKeys={[["admin", "sheet-pool"]]} className="ms-auto" />
+        <RefreshButton
+          className="ms-auto shrink-0"
+          queryKeys={[["admin", "sheet-pool"]]}
+          label={fa ? "به‌روزرسانی" : "Refresh"}
+        />
       </div>
 
       {/* counts */}
