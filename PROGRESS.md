@@ -698,3 +698,43 @@ Follow-ups left open: the 403 path was verified by reading the middleware
 (identical to the one already covering `/sheet-pool/*`), not by a live request —
 no DB harness exists in this tree. Worth one live check as a plain user if a
 harness is rebuilt.
+
+## Phase 16 — Delete-bot warning must state the real consequences  [DONE 2026-08-10]
+Files touched: `irforge/src/components/bots/BotSettingsForm.tsx`,
+`irforge/src/locales/{en,fa,ar,tr,ru}.json`.
+
+1. The dialog body now states all three consequences as separate paragraphs:
+   the bot is deleted permanently and cannot be restored (naming the bot); its
+   commands, plugins and stored data go with it; and — styled
+   `font-medium text-destructive`, because it's the part people miss — no refund
+   is issued and any remaining paid time is forfeited.
+2. Header is destructive-styled: `AlertDialogTitle` is `text-destructive` with a
+   leading `AlertTriangle`.
+3. Typed-name gate: a labelled `Input` under the body; the destructive action is
+   `disabled` until the trimmed input exactly equals the trimmed bot name
+   (case-sensitive — a name differing only by case is not the name the user was
+   asked to type). Closing the dialog resets the field, so reopening never
+   starts with the button already enabled.
+4. `AlertDialogCancel` remains first in the footer and keeps shadcn's default
+   focus, so Enter/Escape still cancel rather than destroy.
+
+Decisions / deviations:
+- **Deliberately mixed i18n styles in this one file.** `BotSettingsForm.tsx`
+  uses the inline `fa ? … : …` pattern throughout, which covers only two
+  languages; this phase's "Done when" requires the warning "in all five
+  locales". The two can't both be honoured, so the dialog copy moved to a new
+  `deleteBot` namespace in the locale files (read via `useT("deleteBot")`) and
+  the rest of the file was left on the inline pattern. Flagged inline with a
+  comment at the `useT` call so the next editor knows it was a decision, not
+  drift. Name interpolation uses the repo's existing `{name}` +
+  `String.replace` convention (see `database.tsx`'s `{count}`).
+- `AlertDialogDescription` is rendered `asChild` around a `<div>`: it renders a
+  `<p>` by default, and the three-paragraph body would otherwise nest `<p>`
+  inside `<p>` (invalid, and React would warn).
+
+Verification: `pnpm --filter @workspace/irforge typecheck` — only the Phase 0
+baseline error (`AllBotsTable.tsx:68`). Locale round-trip is byte-stable, so the
+five locale diffs are purely additive (10 lines each).
+Follow-ups left open: the enable/disable behaviour was not click-tested in a
+browser — the bot workspace is behind auth and no API server/DB harness exists
+in this tree (see the Phase 14 note on dev-without-API crashing).

@@ -18,9 +18,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Save, Trash2, Eye, EyeOff, KeyRound, RefreshCw, Database, ExternalLink } from "lucide-react";
+import { Loader2, Save, Trash2, Eye, EyeOff, KeyRound, RefreshCw, Database, ExternalLink, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
+import { useT } from "@/hooks/use-translation";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function BotSettingsForm({ bot }: { bot: Bot }) {
@@ -31,6 +32,10 @@ export function BotSettingsForm({ bot }: { bot: Bot }) {
   // (POST /bots/:botId/sheet is requireSuperAdmin), so this flag only decides
   // whether to render a form that would 403 anyway.
   const isSuperAdmin = user?.role === "super_admin";
+  // The rest of this file uses the inline `fa ? … : …` pattern, which only
+  // covers two languages. Phase 16 requires the delete warning in all five,
+  // so this one dialog reads from the locale files instead.
+  const td = useT("deleteBot");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
@@ -39,6 +44,7 @@ export function BotSettingsForm({ bot }: { bot: Bot }) {
   const [description, setDescription] = useState(bot.description ?? "");
   const [token, setToken] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [showCode, setShowCode] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [adminCode, setAdminCode] = useState(bot.adminCode ?? null);
@@ -49,6 +55,10 @@ export function BotSettingsForm({ bot }: { bot: Bot }) {
 
   const updateBot = useUpdateBot();
   const deleteBot = useDeleteBot();
+
+  // Exact match, only trimmed — a name differing by case or by a stray
+  // character is not the name the user was asked to type.
+  const deleteNameMatches = deleteConfirmText.trim() === bot.name.trim();
 
   function handleSave() {
     if (!name.trim()) {
@@ -293,25 +303,54 @@ export function BotSettingsForm({ bot }: { bot: Bot }) {
         </CardContent>
       </Card>
 
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+      <AlertDialog
+        open={confirmDelete}
+        onOpenChange={(open) => {
+          setConfirmDelete(open);
+          // Reset the typed confirmation whenever the dialog closes, so
+          // reopening it never starts with the button already enabled.
+          if (!open) setDeleteConfirmText("");
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{fa ? "حذف ربات؟" : "Delete bot?"}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {fa
-                ? `ربات «${bot.name}» و همه داده‌های آن برای همیشه حذف می‌شوند.`
-                : `“${bot.name}” and all of its data will be permanently deleted.`}
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="size-5 shrink-0" />
+              {td.title}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-start">
+                <p>{td.permanent.replace("{name}", bot.name)}</p>
+                <p>{td.dataLoss}</p>
+                <p className="font-medium text-destructive">{td.noRefund}</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {/* Typed-name gate: this is irreversible AND unrefundable, so a
+              single click is not enough friction. */}
+          <div className="space-y-1.5">
+            <Label htmlFor="confirm-bot-name">{td.confirmLabel}</Label>
+            <Input
+              id="confirm-bot-name"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={td.confirmPlaceholder.replace("{name}", bot.name)}
+              autoComplete="off"
+              data-testid="confirm-bot-name"
+            />
+          </div>
+
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteBot.isPending}>{fa ? "انصراف" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteBot.isPending}>{td.cancel}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); handleDelete(); }}
-              disabled={deleteBot.isPending}
+              disabled={deleteBot.isPending || !deleteNameMatches}
               className="bg-red-600 hover:bg-red-700"
+              data-testid="confirm-delete-bot"
             >
               {deleteBot.isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-              {fa ? "حذف دائمی" : "Delete permanently"}
+              {td.confirmCta}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

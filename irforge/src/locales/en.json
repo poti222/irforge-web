@@ -323,5 +323,15 @@
     "nextTitle": "Got your token?",
     "nextBody": "Head back to checkout and paste it in to finish creating your bot.",
     "nextCta": "Back to checkout"
+  },
+  "deleteBot": {
+    "title": "Delete this bot permanently?",
+    "permanent": "“{name}” will be deleted permanently. This cannot be undone and the bot cannot be restored.",
+    "dataLoss": "Its commands, plugins and all stored data are deleted along with it.",
+    "noRefund": "No refund is issued. Any remaining paid time on this bot is forfeited.",
+    "confirmLabel": "Type the bot's name to confirm",
+    "confirmPlaceholder": "Type “{name}” here",
+    "cancel": "Cancel",
+    "confirmCta": "Delete permanently"
   }
 }

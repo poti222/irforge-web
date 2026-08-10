@@ -323,5 +323,15 @@
     "nextTitle": "Token'ı aldınız mı?",
     "nextBody": "Ödeme sayfasına dönüp yapıştırın ve bot oluşturmayı tamamlayın.",
     "nextCta": "Ödemeye dön"
+  },
+  "deleteBot": {
+    "title": "Bu bot kalıcı olarak silinsin mi?",
+    "permanent": "“{name}” kalıcı olarak silinecek. Bu işlem geri alınamaz ve bot geri getirilemez.",
+    "dataLoss": "Komutları, eklentileri ve saklanan tüm verileri de birlikte silinir.",
+    "noRefund": "Herhangi bir geri ödeme yapılmaz. Bu bot için kalan ücretli süre hakkınız yanar.",
+    "confirmLabel": "Onaylamak için botun adını yazın",
+    "confirmPlaceholder": "“{name}” yazın",
+    "cancel": "İptal",
+    "confirmCta": "Kalıcı olarak sil"
   }
 }
