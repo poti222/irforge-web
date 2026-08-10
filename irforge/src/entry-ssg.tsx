@@ -30,7 +30,7 @@ import {
   type ArticleSlug,
 } from "./lib/learn-content";
 
-export { PRIVATE_ROUTES };
+export { PRIVATE_ROUTES, ALL_LANGS };
 
 /**
  * Build-time render entry. `scripts/ssg.mjs` imports this from the SSR bundle

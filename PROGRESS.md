@@ -1290,3 +1290,41 @@ directly and is listed above (alt text, image dimensions, lazy loading, font
 swap, lang/dir, no dead links). **This is a human follow-up** — run Lighthouse
 against the **built** `irforge/dist` output, not the dev server, and record the
 four Core Web Vitals. Also listed in `SEO.md`.
+
+## Phase 10 — Verification and handover  [DONE 2026-08-10]
+
+Files touched: `irforge/scripts/ssg.mjs`, `irforge/src/entry-ssg.tsx`,
+`SEO.md` (new, repo root)
+
+Pages added (lang × route): none.
+
+Untranslated keys left: none — the build now prints this count itself.
+
+Decisions / deviations:
+
+- **`assertPageSeo()` added to `scripts/ssg.mjs`.** Fails the build on:
+  - a duplicate `<title>` across two emitted pages (names both paths),
+  - a page missing canonical, hreflang, or JSON-LD,
+  - an hreflang set that isn't reciprocal — missing *or* unexpected `hreflang`
+    values, checked against `ALL_LANGS` + `x-default`.
+- **`PUBLIC_ROUTES` entries with no `ROUTE_SEO` record are caught earlier and
+  harder** than this assertion could manage: `routeSeo()` throws during render,
+  before any page is written, with a message naming the four files to touch.
+  Verified in Phase 1.
+- **Build summary added:** pages emitted, sitemap URL count, languages, and any
+  remaining `TODO_TRANSLATE_*` keys (currently none).
+- `ALL_LANGS` is now re-exported from `entry-ssg.tsx` so `ssg.mjs` can assert
+  against the real language list rather than a second hardcoded copy.
+- **`SEO.md` written**, covering the URL architecture, the exact four files to
+  touch for a new public page (six for a new article), the no-invented-facts
+  policy, the translation requirement, and the human-only follow-ups.
+
+**Done-when verified:** temporarily pointed `shopBotTitle` at
+`supportBotTitle` in `en.json`. The build failed with
+`SEO assertions failed (1): duplicate <title> "How to Build a Telegram Support
+Bot | IrForge" on: /en/learn/telegram-shop-bot, /en/learn/telegram-support-bot`.
+Reverted, build green again.
+
+Final build state: **65 pages · 65 sitemap URLs · 5 languages · 0 duplicate
+titles · 0 TODO_TRANSLATE keys**, all five assertion suites passing
+(robots coverage, brand assets, per-page SEO, plus the two render-time throws).

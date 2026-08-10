@@ -20,7 +20,7 @@ const pkgRoot = resolve(here, "..");
 const distDir = join(pkgRoot, "dist");
 const templatePath = join(distDir, "index.html");
 
-const { renderPage, allPages, sitemapEntries, PRIVATE_ROUTES } = await import(
+const { renderPage, allPages, sitemapEntries, PRIVATE_ROUTES, ALL_LANGS } = await import(
   pathToFileURL(join(pkgRoot, "dist-ssg", "entry-ssg.mjs")).href
 );
 
@@ -292,11 +292,92 @@ function assertBrandAssets() {
   return BRAND_ASSETS.length;
 }
 
+
+/**
+ * Per-page SEO assertions.
+ *
+ * These are the part of this work that survives everyone forgetting about it:
+ * they turn "someone should check the canonical is still there" into a build
+ * failure. Each one encodes a mistake that is invisible in a browser and
+ * expensive in search results.
+ *
+ * `ROUTE_SEO` coverage is enforced earlier and harder — `routeSeo()` in
+ * lib/lang-routing.ts throws while rendering, before a page is ever written —
+ * so a missing registry entry never reaches this stage.
+ */
+function assertPageSeo(emitted) {
+  const problems = [];
+
+  // 1. Duplicate <title> across two emitted pages. Dozens of URLs sharing one
+  //    title is the thin/duplicate-content pattern this project exists to fix.
+  const byTitle = new Map();
+  for (const page of emitted) {
+    const list = byTitle.get(page.title) ?? [];
+    list.push(page.path);
+    byTitle.set(page.title, list);
+  }
+  for (const [title, paths] of byTitle) {
+    if (paths.length > 1) {
+      problems.push(`duplicate <title> "${title}" on: ${paths.join(", ")}`);
+    }
+  }
+
+  for (const page of emitted) {
+    const html = readFileSync(page.file, "utf8");
+
+    // 2. Canonical, hreflang and JSON-LD must all be present.
+    if (!/<link rel="canonical"/i.test(html)) {
+      problems.push(`${page.path}: no canonical`);
+    }
+    if (!/<link rel="alternate" hreflang=/i.test(html)) {
+      problems.push(`${page.path}: no hreflang`);
+    }
+    if (!/<script type="application\/ld\+json">/i.test(html)) {
+      problems.push(`${page.path}: no JSON-LD`);
+    }
+
+    // 3. The hreflang set must be reciprocal: every language plus x-default,
+    //    each pointing at this same route. A set that isn't reciprocal is
+    //    ignored wholesale by Google rather than partially honoured.
+    const found = [...html.matchAll(/<link rel="alternate" hreflang="([^"]+)" href="([^"]+)"/gi)];
+    const expected = new Set([...ALL_LANGS, "x-default"]);
+    const seen = new Set(found.map(([, hl]) => hl));
+    for (const hl of expected) {
+      if (!seen.has(hl)) problems.push(`${page.path}: hreflang missing "${hl}"`);
+    }
+    for (const hl of seen) {
+      if (!expected.has(hl)) problems.push(`${page.path}: unexpected hreflang "${hl}"`);
+    }
+  }
+
+  if (problems.length) {
+    throw new Error(
+      `SEO assertions failed (${problems.length}):\n  ${problems.join("\n  ")}`
+    );
+  }
+  return emitted.length;
+}
+
+/** Any TODO_TRANSLATE_* keys still sitting in the locale files. */
+function pendingTranslations() {
+  const out = [];
+  for (const lang of ALL_LANGS) {
+    const file = join(pkgRoot, "src", "locales", `${lang}.json`);
+    if (!existsSync(file)) continue;
+    const raw = readFileSync(file, "utf8");
+    const hits = raw.match(/TODO_TRANSLATE_[A-Za-z]+/g);
+    if (hits) out.push(`${lang}: ${hits.length}`);
+  }
+  return out;
+}
+
 const pages = allPages();
 let bytes = 0;
+const emitted = [];
 for (const { lang, route } of pages) {
   const page = renderPage(lang, route);
   const out = renderToFile(page);
+  emitted.push({ path: page.path, lang: page.lang, title: page.title, file: out });
   const size = Buffer.byteLength(readFileSync(out));
   bytes += size;
   console.log(
@@ -311,3 +392,16 @@ const ruleCount = assertRobotsCoverage();
 console.log(`robots.txt: ${ruleCount} disallow rules, all private routes covered`);
 const assetCount = assertBrandAssets();
 console.log(`brand assets: ${assetCount} present and crawlable`);
+const checked = assertPageSeo(emitted);
+console.log(`SEO assertions: ${checked} pages have a unique title, canonical, reciprocal hreflang and JSON-LD`);
+
+// ── Build summary ──────────────────────────────────────────────────────────
+const todos = pendingTranslations();
+console.log(
+  `\nsummary: ${pages.length} pages · ${urls} sitemap URLs · ${ALL_LANGS.length} languages (${ALL_LANGS.join(", ")})`
+);
+console.log(
+  todos.length
+    ? `TODO_TRANSLATE keys remaining → ${todos.join(", ")}`
+    : "TODO_TRANSLATE keys remaining: none"
+);
