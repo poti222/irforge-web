@@ -25,6 +25,8 @@ import discountsRouter from "./discounts.js";
 import updatesRouter from "./updates.js";
 // ثبت‌نام پنج‌مرحله‌ای با تأیید شماره از طریق تلگرام
 import registrationRouter from "./registration.js";
+// مدیریت کاربران توسط super_admin (بازیابی، رمز، نقش، جعل هویت، ممیزی)
+import superAdminUsersRouter from "./superAdminUsers.js";
 
 const router: IRouter = Router();
 
@@ -50,5 +52,6 @@ router.use(notificationsRouter);
 router.use(discountsRouter);
 router.use(updatesRouter);
 router.use(registrationRouter);
+router.use(superAdminUsersRouter);
 
 export default router;
