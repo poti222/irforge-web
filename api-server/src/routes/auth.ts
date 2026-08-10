@@ -7,11 +7,14 @@ import { syncUserUpsert, syncSessionUpsert, syncSessionDelete } from "../lib/she
 import { verifyTelegramAuth, verifyTelegramInitData } from "../lib/telegramAuth";
 import { hashPassword, verifyPassword } from "../lib/password";
 import { sendTelegramMessage } from "../lib/telegram";
+import { generateCode, hashCode, verifyCode as verifyOtp, isExpired } from "../lib/otp";
 
-/** sha256 hash of a reset code — codes are never stored in plaintext */
-function hashResetCode(code: string): string {
-  return crypto.createHash("sha256").update(code.trim().toUpperCase() + "irforge_reset").digest("hex");
-}
+/**
+ * کد بازیابی رمز حالا از `lib/otp.ts` می‌آید — همان تولیدکننده، همان هش و
+ * همان مقایسه‌ی timing-safe که ثبت‌نام و ورود استفاده می‌کنند. قبلاً اینجا یک
+ * پیاده‌سازی دوم (randomBytes + sha256 با نمک متفاوت و مقایسه‌ی `===`) وجود
+ * داشت؛ دو پیاده‌سازیِ کد یعنی دو جا برای اشتباه‌کردن.
+ */
 
 const router = Router();
 
@@ -459,10 +462,10 @@ router.post("/auth/forgot-password", async (req, res) => {
     }
 
     // Same generator/pattern as the per-bot admin code (8 hex chars, short-lived).
-    const code = crypto.randomBytes(4).toString("hex").toUpperCase();
+    const code = generateCode();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     await db.update(usersTable)
-      .set({ resetCodeHash: hashResetCode(code), resetCodeExpiresAt: expiresAt })
+      .set({ resetCodeHash: hashCode(code), resetCodeExpiresAt: expiresAt })
       .where(eq(usersTable.id, user.id));
 
     await sendTelegramMessage(
@@ -498,8 +501,10 @@ router.post("/auth/reset-password", async (req, res) => {
       !user ||
       !user.resetCodeHash ||
       !user.resetCodeExpiresAt ||
-      user.resetCodeExpiresAt < new Date() ||
-      hashResetCode(String(code)) !== user.resetCodeHash
+      isExpired(user.resetCodeExpiresAt) ||
+      // مقایسه‌ی timing-safe؛ `!==` روی رشته به‌محض اولین بایت متفاوت
+      // برمی‌گشت و همان اختلاف زمانی به مهاجم اجازه‌ی حدسِ بایت‌به‌بایت می‌داد.
+      !verifyOtp(String(code), user.resetCodeHash)
     ) {
       res.status(400).json({ error: "Invalid or expired code" });
       return;
