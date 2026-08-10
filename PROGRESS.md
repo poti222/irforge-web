@@ -846,3 +846,36 @@ walked: see Known issues #1.
    round's session picked it up at Phase 13, and were committed as a single
    sync commit. They have not been re-verified here, so their "Done when"
    criteria remain formally unconfirmed.
+
+## Merge note — reconciling with a parallel Phase 13  [2026-08-10]
+
+When this round came to push, `gh/main` had moved 49 commits ahead of the tree
+this session started from, and those commits contained a **partially-complete
+Phase 13** done in parallel: the tab components had been changed to `export`
+their query keys (`ADMIN_BOTS_KEY`, `WALLET_KEY`, `ADMIN_PLANS_KEY`), and
+`RefreshButton` call sites had been added to `BotStatsPanel`,
+`admin-pending-payments` and `admin-sheet-pool` — but
+`irforge/src/components/ui/refresh-button.tsx` was never committed, so that tree
+imports a module that does not exist and does not build.
+
+Rather than force-push over it, this round's six commits were rebased onto
+`gh/main` (`git rebase --onto gh/main <sync-commit>`), dropping this session's
+"sync delivered tree" commit since `gh/main` already contained that content.
+Three files conflicted; all were resolved as a **union of both intents**:
+
+- `BotStatsPanel.tsx` — kept the parallel version's nested
+  `flex items-center justify-between` structure (cleaner than the `ms-auto`
+  this session used) and kept this session's localised `label`.
+- `admin-pending-payments.tsx` / `admin-sheet-pool.tsx` — removed the duplicate
+  `RefreshButton` import each conflict produced, kept the labelled call site.
+- `admin.tsx` — `TAB_KEYS` now imports the newly-exported `ADMIN_BOTS_KEY`,
+  `WALLET_KEY` and `ADMIN_PLANS_KEY` instead of restating those literals, which
+  is what the parallel work exported them for.
+- `admin-pending-payments.tsx` also now imports `WALLET_KEY` from
+  `PaymentApprovals` instead of declaring its own copy — the exact drift the
+  export's own comment says it exists to prevent.
+
+Net effect: the missing `refresh-button.tsx` is supplied, `main` builds again,
+and no parallel work was discarded. Post-rebase gates: `pnpm -r build` clean
+(api-server + 15 prerendered pages, robots/sitemap/brand assertions pass);
+`pnpm -r typecheck` unchanged from baseline.
