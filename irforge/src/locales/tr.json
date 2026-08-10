@@ -943,8 +943,56 @@
   },
   "pricing": {
     "title": "IrForge fiyatlandırma",
-    "intro": "Planlar, her birinin içeriği ve faturalamanın işleyişi.",
-    "learnLink": "Telegram bot rehberlerini okuyun"
+    "intro": "Planlar, her birinin içeriği ve faturalamanın işleyişi. Her plan tek bir hesap içindir; botlar paketlerle eklenir.",
+    "breadcrumbLabel": "Sayfa yolu",
+    "tiersTitle": "Planlar",
+    "tiers": {
+      "trial": {
+        "name": "Deneme",
+        "description": "Bir pakete bağlanmadan önce bir botu deneyin.",
+        "features": [
+          "Süre sınırlı tek bot",
+          "Komutlar ve eklentiler",
+          "Deneme bitmeden önce bildirim"
+        ]
+      },
+      "starter": {
+        "name": "Başlangıç",
+        "description": "Küçük bir mağaza veya destek masası için tek canlı bot.",
+        "features": [
+          "Tek üretim botu",
+          "Veritabanı olarak Google Sheets",
+          "Standart destek"
+        ]
+      },
+      "growth": {
+        "name": "Büyüme",
+        "description": "Kullanım arttıkça daha fazla bot ve daha fazla alan.",
+        "features": [
+          "Birden fazla bot",
+          "Daha yüksek kaynak tahsisi",
+          "Öncelikli destek"
+        ]
+      }
+    },
+    "priceNote": "Güncel fiyatlar giriş yaptıktan sonra planlar ekranında görünür. Burada yayınlanmaz, çünkü değişebilirler ve bu sayfa doğrulayamadığı bir rakamı yazmaz.",
+    "faqTitle": "Faturalama soruları",
+    "faq": [
+      {
+        "q": "Denemem bitince ne olur?",
+        "a": "Bir paket satın alana kadar o botun hizmeti durur. Bitiş tarihi yaklaşırken önceden bildirim alırsınız, yani habersiz gerçekleşmez."
+      },
+      {
+        "q": "Planı sonradan değiştirebilir miyim?",
+        "a": "Evet. Planlar hesap düzeyindedir ve giriş yaptıktan sonra planlar ekranından değiştirilebilir."
+      },
+      {
+        "q": "Telegram'a bir ödeme yapıyor muyum?",
+        "a": "Hayır. Telegram bot oluşturmak ya da Bot API için ücret almaz. Ödediğiniz her şey botun çalıştırılması ve desteklenmesi içindir."
+      }
+    ],
+    "cta": "Hemen başlayın",
+    "learnLink": "Rehberleri okuyun"
   },
   "footer": {
     "productTitle": "Ürün",

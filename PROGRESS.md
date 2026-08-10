@@ -1203,3 +1203,44 @@ Decisions / deviations:
   declares 9 questions, the page renders 9 `<details>` blocks, and every schema
   question string is present in the markup. Adding a `q10` to the locale files
   would appear in both places with **no code change**.
+
+## Phase 8 — Public pricing page  [DONE 2026-08-10]
+
+Files touched: `irforge/src/pages/pricing.tsx`, `irforge/src/locales/*.json`
+(`/pricing` was added to `PUBLIC_ROUTES` and `ROUTE_SEO` back in Phase 3)
+
+Pages added (lang × route): `/pricing` × 5 (already counted in Phase 3's 65).
+
+Untranslated keys left: none.
+
+Decisions / deviations:
+
+- ⚠️ **`/pricing` ships without numbers, deliberately.** Two independent
+  reasons, both verified in the code rather than assumed:
+  1. `GET /api/plans` is behind `requireAuth` (`api-server/src/routes/plans.ts`
+     line 33), so it **cannot** be read at build time.
+  2. Prices live in the `plans` table (`plans.price`, a `real` column) and are
+     edited by admins at runtime via `PATCH /api/admin/plans/:planId`. There is
+     no fixed price in this repository to mirror into a typed constant.
+
+  The brief is explicit about this case: *"If pricing genuinely isn't fixed
+  yet, ship the page describing tiers without numbers and say so in
+  PROGRESS.md — never publish a price you can't confirm."* That is what
+  happened. The page describes three tiers qualitatively (Trial / Starter /
+  Growth), and says plainly in-page that current figures are on the signed-in
+  plans screen and are not quoted here.
+- **`offers` remains omitted** from the `SoftwareApplication` node, exactly as
+  the header comment in `structured-data.ts` instructs. Verified: zero
+  occurrences of `offers` in the emitted HTML. No `Product`/`Offer` node was
+  added, because a price in schema that disagrees with the real one is a
+  structured-data violation.
+- **`/plans` stays private and `Disallow`ed.** The public page does not link to
+  it or expose the purchase flow; its CTA goes to `/register`.
+- The billing FAQ uses the same `<details>` pattern, so its answers are in the
+  prerendered markup.
+
+**To turn prices on later** (documented again in `SEO.md`): publish real
+figures, mirror them into a typed constant in `pages/pricing.tsx` with a
+comment naming the source of truth, then add `offers` to the
+`SoftwareApplication` node with `price`, `priceCurrency: "IRR"` and
+`availability` — the numbers in the schema and on the page must match exactly.

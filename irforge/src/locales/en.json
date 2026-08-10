@@ -943,8 +943,56 @@
   },
   "pricing": {
     "title": "IrForge pricing",
-    "intro": "Plans, what each one includes, and how billing works.",
-    "learnLink": "Read the Telegram bot guides"
+    "intro": "Plans, what each one includes, and how billing works. Every plan is for one hosted Telegram bot builder account; bots are added per package.",
+    "breadcrumbLabel": "Breadcrumb",
+    "tiersTitle": "The plans",
+    "tiers": {
+      "trial": {
+        "name": "Trial",
+        "description": "Try a bot before committing to a package.",
+        "features": [
+          "One bot, time-limited",
+          "Commands and plugins",
+          "Notifications before the trial ends"
+        ]
+      },
+      "starter": {
+        "name": "Starter",
+        "description": "A single live bot for a small shop or support desk.",
+        "features": [
+          "One production bot",
+          "Google Sheets as your database",
+          "Standard support"
+        ]
+      },
+      "growth": {
+        "name": "Growth",
+        "description": "More bots and more room as usage grows.",
+        "features": [
+          "Multiple bots",
+          "Higher resource allocation",
+          "Priority support"
+        ]
+      }
+    },
+    "priceNote": "Current prices are shown on the plans screen after you sign in. They are not published here because they can change and this page will not quote a figure it cannot confirm.",
+    "faqTitle": "Billing questions",
+    "faq": [
+      {
+        "q": "What happens when my trial ends?",
+        "a": "Service for that bot stops until you buy a package. You get notifications in advance as the end date approaches, so it never happens without warning."
+      },
+      {
+        "q": "Can I change plan later?",
+        "a": "Yes. Plans are per account and can be changed from the plans screen once you are signed in."
+      },
+      {
+        "q": "Do I pay Telegram anything?",
+        "a": "No. Telegram charges nothing for creating bots or for the Bot API. Everything you pay covers running and supporting the bot."
+      }
+    ],
+    "cta": "Get started",
+    "learnLink": "Read the guides"
   },
   "footer": {
     "productTitle": "Product",
