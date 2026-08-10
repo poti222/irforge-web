@@ -19,5 +19,7 @@ export * from "./telegramLinkTokens";
 export * from "./notifications";
 // آپدیت‌های سایت (تغییرات و امکانات جدید + مودال یک‌باره)
 export * from "./updates";
+// ثبت‌نام/ورود دومرحله‌ای، محدودسازی نرخ، مهمان، لاگ ممیزی
+export * from "./auth";
 // Phase 9: کدهای تخفیف — دیگر جدول Postgres ندارد؛ داده‌ی کدهای تخفیف کامل
 // در Google Sheets نگه‌داری می‌شود (ببینید api-server/src/lib/discountStore.ts).
