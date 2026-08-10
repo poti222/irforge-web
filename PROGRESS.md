@@ -1722,3 +1722,63 @@ Decisions:
   therefore exposes `onlyUsernameMissing`, and the UI turns that specific case
   into "set a username in Telegram (Settings → Username)" with a re-check
   action, instead of an unsatisfiable requirement with no instructions.
+
+## Phase 13 — Super Admin → Users  [DONE 2026-08-10]
+
+Files touched: `api-server/src/routes/superAdminUsers.ts`,
+`api-server/src/middleware/impersonation.ts` (new),
+`api-server/src/routes/bots.ts`, `api-server/src/routes/wallet.ts`,
+`irforge/src/pages/admin-users.tsx` (new),
+`irforge/src/pages/admin-user-detail.tsx` (new), `irforge/src/App.tsx`,
+`irforge/src/components/layout/app-sidebar.tsx`,
+`irforge/src/lib/lang-routing.ts`, `irforge/public/robots.txt`
+
+Decisions:
+
+- ⚠️ **Phase 13's "super admin can see users' passwords" was not built, and
+  must not be.** Passwords are bcrypt hashes — a deliberately one-way
+  transformation with no decryption step. Making them readable would mean
+  storing them reversibly, and then: one database leak exposes every customer's
+  plaintext password (and, through reuse, their email and banking accounts); no
+  user could ever be told their password is private, because it wouldn't be;
+  and every "the admin changed my order / drained my wallet" dispute becomes
+  unanswerable, because staff *could* have logged in as anyone.
+
+  What was delivered instead is what the underlying need actually is:
+  **set** a new password, and **impersonate** through a fully audited
+  read-only session. Neither ever touches the user's credential.
+  **No response body in this feature contains a password or a hash** —
+  `publicUser()` never selects `passwordHash` rather than deleting it later.
+  Where a "show password" field would sit, the UI renders the explanation.
+- `/admin/users` — searchable (name, email, phone, @username), filterable by
+  role and status, paginated, with bot counts from a single grouped query.
+- `/admin/users/:id` — cards for Identity, Telegram, Account, Security and
+  Audit.
+  - **Identity**: name, email, phone all editable. Changing email or phone
+    **clears the corresponding verified flag** — an admin edit is not
+    verification.
+  - **Telegram**: numeric ID (read-only, copy button) and @username, plus the
+    Phase 8 reset behind a typed-reason dialog.
+  - **Account**: role/status/plan. Changes to or from `super_admin` require a
+    confirmation that **names the exact privilege** being granted.
+  - **Security**: set password, sign out everywhere, impersonate.
+  - **Audit**: the log, readable — an audit log nobody can read is decoration.
+- Every mutation writes an `admin_audit_log` row with actor, target, action and
+  a typed reason; destructive actions are disabled in the UI until a reason of
+  at least 5 characters is written, and rejected server-side without one.
+- **Setting a password** revokes every session for that user and notifies them
+  through the platform bot. **That notification is not optional** — a password
+  change the owner never hears about is indistinguishable from a compromise.
+- **Impersonation** issues a 30-minute session with an `imp_<actorId>_<random>`
+  token. `blockWhileImpersonating` is applied to `POST /bots`,
+  `POST /bots/wallet-purchase`, `POST /wallet/deposit` and `POST /wallet/spend`,
+  returning `403 { code: "impersonation_readonly" }`. Impersonation is for
+  seeing, not for acting, and the real actor is recoverable from the token
+  itself.
+- ⚠️ **All of it is `requireSuperAdmin`, newly added in `auth.ts`.**
+  `requireAdmin` is not sufficient: this screen can change roles, and an admin
+  who can grant themselves `super_admin` *is* a super admin. `/admin/users` and
+  `/admin/users/:id` are `superAdminOnly` on the client too.
+- Both routes were added to `PRIVATE_ROUTES` **and** to `robots.txt` in bare
+  and language-prefixed form, in this same phase — `ssg.mjs` asserts the pairing
+  and fails the build otherwise.

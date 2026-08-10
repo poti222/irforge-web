@@ -218,6 +218,7 @@ export const PRIVATE_ROUTES = [
   "/database",
   "/profile",
   "/admin",
+  "/admin/users",
   "/login",
   "/register",
   "/forgot-password",

@@ -39,12 +39,14 @@ import Tickets from "@/pages/tickets";
 import WalletPage from "@/pages/wallet";
 import Profile from "@/pages/profile";
 import Admin from "@/pages/admin";
-import AdminUsers from "@/pages/admin-users";
+
 import AdminPendingPayments from "@/pages/admin-pending-payments";
 import AdminSheetPool from "@/pages/admin-sheet-pool";
 import Support from "@/pages/support";
 import Notifications from "@/pages/notifications";
 import Updates from "@/pages/updates";
+import AdminUsers from "@/pages/admin-users";
+import AdminUserDetail from "@/pages/admin-user-detail";
 import UpdateDetail from "@/pages/update-detail";
 import NotificationDetail from "@/pages/notification-detail";
 import DatabasePage from "@/pages/database";
@@ -187,7 +189,10 @@ function Router() {
       <Route path="/profile"><ProtectedRoute component={Profile} /></Route>
       
       <Route path="/admin"><ProtectedRoute component={Admin} adminOnly /></Route>
-      <Route path="/admin/users"><ProtectedRoute component={AdminUsers} adminOnly /></Route>
+      {/* super_admin only — این صفحه می‌تواند نقش عوض کند، و ادمینی که بتواند
+          به خودش super_admin بدهد عملاً super_admin است. */}
+      <Route path="/admin/users"><ProtectedRoute component={AdminUsers} superAdminOnly /></Route>
+      <Route path="/admin/users/:id"><ProtectedRoute component={AdminUserDetail} superAdminOnly /></Route>
       <Route path="/admin/pending-payments"><ProtectedRoute component={AdminPendingPayments} superAdminOnly /></Route>
       <Route path="/admin/sheet-pool"><ProtectedRoute component={AdminSheetPool} superAdminOnly /></Route>
 
