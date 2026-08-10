@@ -1805,3 +1805,68 @@ Decisions:
   `retryAfterSeconds`), and too-many-attempts (which resets to the first step).
 - `docs/auth-flows.md` documents both flows with diagrams, plus why the
   registration order is inverted, the OTP rules and the rate limits.
+
+## Final pass — Auth / Guest / Admin  [DONE 2026-08-10]
+
+Gates, all green:
+
+- `node --check api-server/migrate.mjs`
+- `pnpm --filter @workspace/api-server run build`
+- `pnpm --filter @workspace/irforge run build` — 65 pages, 65 sitemap URLs,
+  0 duplicate titles, 0 `TODO_TRANSLATE` keys, robots coverage and per-page SEO
+  assertions passing (the new `/admin/users` routes required matching
+  `robots.txt` lines, which the assertion enforced).
+- `pnpm --filter @workspace/api-server run test` — 4/4 passing
+  (`api-server/test/auth-guards.test.mjs`, new).
+- All five locale files parse with **identical key sets** (609 keys each).
+
+Automated assertions requested by the brief:
+
+- ✅ `requireAuth` rejects a guest token — the guard's first action is an
+  explicit `token.startsWith("guest_")` rejection returning
+  `401 { code: "guest_not_allowed" }`.
+- ✅ `requireSuperAdmin` rejects an `admin` token — only `role === "super_admin"`
+  passes; `admin` and `user` both get 403.
+
+### Known issues
+
+1. ⚠️ **`pnpm -r typecheck` was not used as a gate.** It has pre-existing
+   failures across the repo that predate this work (documented earlier in this
+   file). esbuild/vite are the real build gates here and both are green. The
+   new code was not typechecked in isolation — worth doing once the
+   pre-existing errors are cleared.
+2. ⚠️ **`pnpm -r lint` was not run** — no lint script is configured in this
+   workspace.
+3. ⚠️ **The flows were not walked in a browser.** No runtime environment with a
+   database, a Telegram bot token or a public webhook URL exists in this
+   container, so registration, login, guest browsing and impersonation are
+   verified by build and by construction, **not** by manual walkthrough in
+   fa/en × light/dark × phone viewport. That walkthrough remains outstanding
+   and is the highest-value next step before shipping.
+4. **Guest read-only route opt-ins are not yet applied to specific endpoints.**
+   The machinery is complete and default-deny (`allowGuest`, `denyGuestWrite`,
+   `requireAuth` rejecting guest tokens), but no existing route has been opted
+   in yet — which is the safe direction to be incomplete in. The guest landing
+   banner, guest profile screen and cart carry-over UI are likewise not built.
+5. **Phase 12's UI half is partially built.** The server gate is enforced on
+   all three purchase endpoints and returns `{ error: "profile_incomplete",
+   missing: [...] }`; the checkout checklist and the "Account identity" profile
+   card with the Telegram-username re-check button are not yet on the client.
+   The gate holds regardless, because it is server-side.
+6. **Email notification on Telegram reset** is not wired — the platform has no
+   email channel (recovery deliberately runs on Telegram only). The audit log
+   and the operator procedure cover the gap.
+7. **`POST /auth/register`** (the legacy one-shot endpoint) still exists and is
+   unused by the new UI. Remove once nothing calls it.
+
+### Manual steps for Ali
+
+- Set **`TELEGRAM_BOT_USERNAME`** in the Railway environment (e.g. `irforge_bot`,
+  without the `@`). Registration deep links return 503 without it.
+- **Never set `AUTH_DEV_ECHO_CODES`** in production. It is off by default and
+  logs a loud boot warning when on.
+- Restart the service after deploy so `api-server/migrate.mjs` creates the new
+  tables and runs the expiry cleanup.
+- Before the phone unique index can be created, the migration will **stop the
+  boot** if duplicate phone numbers exist, listing them. Deduplicate manually —
+  nothing is deleted automatically.
