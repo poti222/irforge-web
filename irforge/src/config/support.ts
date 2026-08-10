@@ -27,6 +27,16 @@ export const EDUCATION_CHANNEL_URL = "https://t.me/irforge_Education";
 /** Display form of the education channel, e.g. for a handle chip. */
 export const EDUCATION_CHANNEL_HANDLE = "@irforge_Education";
 
+/**
+ * Public Instagram account. Like the education channel this is a real brand
+ * profile, not a placeholder, so it is safe to publish in Organization.sameAs
+ * (see src/lib/structured-data.ts).
+ */
+export const INSTAGRAM_URL = "https://instagram.com/ir_forge";
+
+/** Display form of the Instagram account. */
+export const INSTAGRAM_HANDLE = "@ir_forge";
+
 // TODO [settings stage]: override these from the values stored in the owner's
 // Google Sheet (read via the settings endpoint) instead of the hardcoded
 // defaults below.

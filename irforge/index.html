@@ -37,19 +37,9 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
     <!--
-      NOTE [hreflang]: the language switcher (en/fa/ar/tr/ru) swaps content
-      client-side via localStorage against a single URL (irforge.ir/), it
-      doesn't route to language-specific URLs like /en/ or ?lang=en. hreflang
-      tags are a promise to search engines that *different URLs* serve
-      *different languages* — pointing several hreflang variants at the same
-      URL is at best ignored and at worst flagged as invalid. So there's
-      intentionally no hreflang block here. If English (or another language)
-      search traffic becomes a priority, the real fix is language-specific
-      routes (e.g. /en/*) rendered with that language's content server-side
-      or via a static prerender, each with its own canonical + hreflang set
-      pointing at the others. Until then, Google will index the fa_IR
-      version reflected in this file's lang/og:locale, which matches what
-      irforge.ir actually shows by default.
+      hreflang/canonical are NOT in this template: scripts/ssg.mjs injects a
+      full reciprocal set (plus x-default) per prerendered page. See
+      src/lib/lang-routing.ts for the URL architecture.
     -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

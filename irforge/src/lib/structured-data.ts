@@ -1,25 +1,29 @@
 import { DEFAULT_LANG, type Lang } from "./i18n";
 import { PUBLIC_ROUTES, SITE_ORIGIN, absoluteUrl, ancestorRoutes } from "./lang-routing";
+import { EDUCATION_CHANNEL_URL, INSTAGRAM_URL } from "@/config/support";
 
 /**
  * JSON-LD emitted into every prerendered page, in that page's language.
  *
- * Two deliberate omissions, both because the alternative would be publishing
- * a claim we can't back:
+ * One deliberate omission, because the alternative would be publishing a
+ * claim we can't back:
  *
- *  - `sameAs` on Organization. The only handles in the codebase live in
- *    src/config/support.ts and are labelled PLACEHOLDER values. Pointing
- *    Google at profiles that may not exist is worse than saying nothing.
- *    Fill SOCIAL_PROFILES below once the real accounts are confirmed.
  *  - `offers` on SoftwareApplication. Pricing sits behind auth (/plans is
  *    disallowed in robots.txt), so there is no public price to quote.
  *
- * Both are wired up and will start emitting the moment the constants below
- * are filled in — no schema surgery needed.
+ * It is wired up and will start emitting the moment a public price exists —
+ * no schema surgery needed.
  */
 
-/** Real, confirmed brand profiles. Empty until someone verifies them. */
-export const SOCIAL_PROFILES: string[] = [];
+/**
+ * Real, confirmed brand profiles, published as `Organization.sameAs`.
+ *
+ * Both are read from src/config/support.ts so the schema, the support page and
+ * the learn pages can never quote different handles. Only add a profile that
+ * actually loads — a `sameAs` pointing at a dead account is worse than an
+ * omitted one, because it tells Google the brand is somewhere it isn't.
+ */
+export const SOCIAL_PROFILES: string[] = [EDUCATION_CHANNEL_URL, INSTAGRAM_URL];
 
 /**
  * Set to the search results URL template once the site actually has search,

@@ -120,6 +120,20 @@ function renderToFile(page) {
   html = setMetaContent(html, "name", "twitter:url", page.canonical);
   html = setMetaContent(html, "property", "og:locale", OG_LOCALE[page.lang] ?? "fa_IR");
 
+  // og:locale:alternate for the other four languages. Facebook/LinkedIn and
+  // friends read these to pick the right card for the viewer's locale; without
+  // them each page looks like an island rather than one of five translations.
+  // Stripped first so a re-run can't stack duplicates.
+  html = html.replace(/\s*<meta property="og:locale:alternate"[^>]*>/gi, "");
+  const otherLocales = Object.entries(OG_LOCALE)
+    .filter(([code]) => code !== page.lang)
+    .map(([, locale]) => `    <meta property="og:locale:alternate" content="${locale}" />`)
+    .join("\n");
+  html = html.replace(
+    /(<meta property="og:locale" content="[^"]*" \/>)/i,
+    `$1\n${otherLocales}`
+  );
+
   // Per-language social card when one has been dropped into public/og/,
   // otherwise the shared card. Falling back per language means a partial set
   // is safe to ship — no page ever points at an image that 404s.
