@@ -1782,3 +1782,26 @@ Decisions:
 - Both routes were added to `PRIVATE_ROUTES` **and** to `robots.txt` in bare
   and language-prefixed form, in this same phase — `ssg.mjs` asserts the pairing
   and fails the build otherwise.
+
+## Phase 9 — Polish and translation  [DONE 2026-08-10]
+
+Files touched: `irforge/src/locales/*.json`, `docs/auth-flows.md` (new)
+
+Decisions:
+
+- Every new user-facing string is in all five locales, written natively per
+  language — the `auth` namespace gained ~45 keys across `en/fa/ar/tr/ru`.
+  Verified: all five files parse and have identical key sets.
+- **RTL**: logical properties throughout (`ms-`/`me-`/`ps-`/`pe-`/`text-start`).
+  The one deliberate exception is the code input, which is forced `dir="ltr"`
+  even in fa/ar — a 6-digit code is a number and its digit order must not flip
+  with page direction. Back arrows use `isRtlLang(lang) ? ArrowRight :
+  ArrowLeft`.
+- **Screen readers**: each of the six code boxes carries its own `aria-label`
+  ("Digit 3"), the group has `role="group"` with a label, and the countdown is
+  `aria-live="polite"`. Six unlabelled boxes are unusable without this.
+- Loading, error and expired states exist for every step: expired code, expired
+  registration, resend limit, rate limit (with a live countdown against
+  `retryAfterSeconds`), and too-many-attempts (which resets to the first step).
+- `docs/auth-flows.md` documents both flows with diagrams, plus why the
+  registration order is inverted, the OTP rules and the rate limits.
