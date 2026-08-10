@@ -1328,3 +1328,57 @@ Reverted, build green again.
 Final build state: **65 pages · 65 sitemap URLs · 5 languages · 0 duplicate
 titles · 0 TODO_TRANSLATE keys**, all five assertion suites passing
 (robots coverage, brand assets, per-page SEO, plus the two render-time throws).
+
+---
+
+# AUTH, GUEST ACCESS & USER ADMINISTRATION — IrForge_Auth_Guest_Admin_ClaudeCode_Prompt.md
+
+## Phase 1 — Schema  [DONE 2026-08-10]
+
+Files touched: `lib/db/src/schema/auth.ts` (new), `lib/db/src/schema/users.ts`,
+`lib/db/src/schema/telegramLinkTokens.ts`, `lib/db/src/schema/index.ts`,
+`lib/db/migrations/0017_auth_guest_admin.sql` (new), `api-server/migrate.mjs`
+
+Decisions:
+
+- Six new tables (`pending_registrations`, `login_challenges`,
+  `auth_rate_limits`, `guest_sessions`, `admin_audit_log`) plus
+  `users.phone_verified` and two new `telegram_link_tokens` columns.
+- **`users.phone` is unique via a partial index** (`WHERE phone IS NOT NULL`),
+  created in the migration rather than with drizzle's `.unique()` so the
+  partial predicate survives. Legacy rows may have no phone, and Postgres does
+  not collide NULLs.
+- **The migration fails loudly on real duplicates.** `postSteps()` queries for
+  duplicate phones *before* creating the index and `process.exit(1)`s with the
+  offending numbers listed. **No row is ever deleted or nulled** — deduping is
+  a deliberate human decision, not something a boot script should do silently.
+  (No duplicates could be checked against production data from this
+  environment; the guard is what makes that safe.)
+- `login_challenges` is deliberately separate from `users.resetCodeHash`: if
+  they shared storage a password-reset code could satisfy a login and vice
+  versa. Two flows with different trust levels must not consume each other's
+  codes.
+- `telegram_link_tokens.user_id` relaxed to nullable, with a **CHECK
+  constraint** asserting exactly one of `user_id` / `pending_registration_id`
+  is set — enforced by the database, not by convention.
+- `guest_sessions` is **not** a `users` row with `role: "guest"`. That would
+  collide with the new unique phone index, pollute every user count and billing
+  query, and force the login route to special-case password-less rows forever.
+- `pending_registrations` carries **two independent clocks**: `code_expires_at`
+  (5 min, the code) and `expires_at` (7 days, the record, so abandoned signups
+  stay visible for Phase 10).
+- `source_ip` / `user_agent` are abuse-forensics only — never surfaced in any
+  user-facing or admin view, never copied onto the `users` row.
+
+**Cleanup on Railway:** there is no separate cron, so `cleanupExpired()` runs at
+**boot**, in `api-server/migrate.mjs`, on the same path the migration itself
+takes (`start.sh` → `node /app/api-server/migrate.mjs`). It deletes expired
+pending registrations, expired guest sessions, and login challenges more than a
+day past expiry, logging the counts. For a service that redeploys regularly this
+is sufficient; if that stops being true, wire the same function to a Railway
+cron. Without it `pending_registrations` becomes the largest table in the
+database.
+
+Follow-ups: none blocking. The root `migrate.mjs` remains dead code (marked as
+such earlier this session); all runtime DDL went into `api-server/migrate.mjs`,
+which is the path that actually runs on deploy.

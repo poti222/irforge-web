@@ -10,7 +10,16 @@ import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const telegramLinkTokensTable = pgTable("telegram_link_tokens", {
   token: text("token").primaryKey(),
-  userId: text("user_id").notNull(),
+  /**
+   * برای `purpose: "link"` پر است (کاربر لاگین‌کرده). برای `purpose: "register"`
+   * هنوز کاربری وجود ندارد، پس null است و به‌جایش pendingRegistrationId پر
+   * می‌شود. دقیقاً یکی از این دو باید ست باشد — در مایگریشن با CHECK تضمین
+   * شده، نه فقط با قرارداد.
+   */
+  userId: text("user_id"),
+  /** link | register */
+  purpose: text("purpose").notNull().default("link"),
+  pendingRegistrationId: text("pending_registration_id"),
   used: boolean("used").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

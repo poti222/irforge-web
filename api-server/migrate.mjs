@@ -416,6 +416,83 @@ CREATE TABLE IF NOT EXISTS user_update_views (
 -- جایی برای ارجاع نداشت (ctaForType فقط از روی type لینک می‌ساخت).
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS ref_id TEXT;
 
+-- ─── AUTH: ثبت‌نام/ورود دومرحله‌ای، مهمان، لاگ ممیزی ──────────────────────
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS pending_registrations (
+  id TEXT PRIMARY KEY,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  telegram_id TEXT,
+  telegram_chat_id TEXT,
+  telegram_username TEXT,
+  telegram_first_name TEXT,
+  telegram_last_name TEXT,
+  telegram_photo_file_id TEXT,
+  code_hash TEXT,
+  code_expires_at TIMESTAMPTZ,
+  code_attempts INTEGER NOT NULL DEFAULT 0,
+  code_sent_count INTEGER NOT NULL DEFAULT 0,
+  verified_at TIMESTAMPTZ,
+  step TEXT NOT NULL DEFAULT 'identity',
+  locale TEXT,
+  source_ip TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_activity_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS pending_registrations_step_idx ON pending_registrations(step, created_at DESC);
+CREATE INDEX IF NOT EXISTS pending_registrations_expires_idx ON pending_registrations(expires_at);
+CREATE INDEX IF NOT EXISTS pending_registrations_telegram_idx ON pending_registrations(telegram_id);
+
+CREATE TABLE IF NOT EXISTS login_challenges (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  code_expires_at TIMESTAMPTZ NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  consumed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS login_challenges_user_idx ON login_challenges(user_id);
+CREATE INDEX IF NOT EXISTS login_challenges_expires_idx ON login_challenges(code_expires_at);
+
+ALTER TABLE telegram_link_tokens ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'link';
+ALTER TABLE telegram_link_tokens ADD COLUMN IF NOT EXISTS pending_registration_id TEXT;
+ALTER TABLE telegram_link_tokens ALTER COLUMN user_id DROP NOT NULL;
+
+CREATE TABLE IF NOT EXISTS auth_rate_limits (
+  key TEXT PRIMARY KEY,
+  count INTEGER NOT NULL DEFAULT 0,
+  window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  blocked_until TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS guest_sessions (
+  id TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  locale TEXT,
+  converted_user_id TEXT
+);
+CREATE INDEX IF NOT EXISTS guest_sessions_expires_idx ON guest_sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+  id TEXT PRIMARY KEY,
+  actor_user_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_user_id TEXT,
+  reason TEXT,
+  metadata JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS admin_audit_log_target_idx ON admin_audit_log(target_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS admin_audit_log_actor_idx ON admin_audit_log(actor_user_id, created_at DESC);
+
 -- ─── DISCOUNT_CODES / DISCOUNT_REDEMPTIONS — REMOVED FROM POSTGRES ──────────
 -- Discount data (codes + redemption audit log) now lives entirely in Google
 -- Sheets — see api-server/src/lib/discountStore.ts. Postgres must not hold
@@ -425,11 +502,70 @@ DROP TABLE IF EXISTS discount_redemptions;
 DROP TABLE IF EXISTS discount_codes;
 `;
 
+
+/**
+ * ایندکس یکتای جزئی روی users.phone + CHECK مالکیت توکن لینک.
+ *
+ * این دو عمداً از رشته‌ی SQL اصلی جدا هستند: هر کدام می‌توانند روی داده‌ی
+ * واقعی شکست بخورند و باید **با صدای بلند** شکست بخورند، نه اینکه بی‌صدا از
+ * کنارشان رد شویم. مخصوصاً شماره‌ی تکراری: هیچ ردیفی حذف یا null نمی‌شود —
+ * پاک‌سازی باید آگاهانه و دستی انجام شود.
+ */
+async function postSteps(client) {
+  const dupes = await client.query(`
+    SELECT phone, count(*)::int AS n
+    FROM users WHERE phone IS NOT NULL AND phone <> ''
+    GROUP BY phone HAVING count(*) > 1
+  `);
+  if (dupes.rows.length > 0) {
+    console.error(
+      "[migrate] Cannot create the unique phone index: duplicate phone numbers exist.\n" +
+      "[migrate] No rows were changed. Resolve these first:\n" +
+      dupes.rows.map((r) => `  ${r.phone} → ${r.n} users`).join("\n")
+    );
+    process.exit(1);
+  }
+  await client.query(
+    "CREATE UNIQUE INDEX IF NOT EXISTS users_phone_unique_idx ON users(phone) WHERE phone IS NOT NULL"
+  );
+
+  // دقیقاً یکی از user_id / pending_registration_id
+  await client.query(`
+    DO $$ BEGIN
+      ALTER TABLE telegram_link_tokens ADD CONSTRAINT telegram_link_tokens_owner_chk
+        CHECK ((user_id IS NOT NULL) <> (pending_registration_id IS NOT NULL));
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+}
+
+/**
+ * پاک‌سازی رکوردهای منقضی.
+ *
+ * روی Railway کرون جداگانه‌ای وجود ندارد، پس این در **بوت** اجرا می‌شود —
+ * همان مسیری که خودِ مایگریشن از آن می‌آید. برای سرویسی که مرتب دیپلوی و
+ * ری‌استارت می‌شود کافی است؛ اگر روزی نبود، همین تابع را به یک Railway cron
+ * وصل کنید. بدون این، pending_registrations بزرگ‌ترین جدول دیتابیس می‌شود.
+ */
+async function cleanupExpired(client) {
+  const pend = await client.query("DELETE FROM pending_registrations WHERE expires_at < NOW()");
+  const guests = await client.query("DELETE FROM guest_sessions WHERE expires_at < NOW()");
+  const chall = await client.query(
+    "DELETE FROM login_challenges WHERE code_expires_at < NOW() - INTERVAL '1 day'"
+  );
+  console.log(
+    `[migrate] cleanup: ${pend.rowCount} pending registrations, ` +
+    `${guests.rowCount} guest sessions, ${chall.rowCount} login challenges`
+  );
+}
+
 async function migrate() {
   const client = await pool.connect();
   try {
     console.log("[migrate] Running migrations...");
     await client.query(SQL);
+    await postSteps(client);
+    await cleanupExpired(client);
     console.log("[migrate] Done.");
   } catch (err) {
     console.error("[migrate] Error:", err.message);
