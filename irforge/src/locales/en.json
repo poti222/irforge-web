@@ -205,11 +205,16 @@
     "comingSoon": "Coming soon",
     "overviewActiveToday": "Active users today",
     "noDataYet": "No data yet",
-    "botLink": "Bot link",
-    "copyId": "Copy ID",
+    "identityTitle": "Bot identity",
+    "botAvatarAlt": "Bot profile picture",
+    "copyBotId": "Copy bot ID",
+    "copyUsername": "Copy username",
     "copied": "Copied",
+    "botIdCopiedToast": "Bot ID copied to clipboard",
+    "usernameCopiedToast": "Username copied to clipboard",
     "openInTelegram": "Open in Telegram",
     "qrHint": "Scan this code to open the bot",
+    "noTelegramIdentity": "This bot's Telegram identity isn't available yet — check back after it finishes syncing.",
     "languageSectionNotice": "Bot language settings will move here soon."
   },
   "marketplace": {
