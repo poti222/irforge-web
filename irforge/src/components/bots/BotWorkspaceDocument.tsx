@@ -9,15 +9,10 @@ import {
   Settings,
   Globe,
   Lock,
-  Copy,
-  Check,
-  ExternalLink,
   type LucideIcon,
 } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
 import type { Bot } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
@@ -28,6 +23,7 @@ import { PluginsManager } from "@/components/bots/PluginsManager";
 import { BotStatsPanel } from "@/components/bots/BotStatsPanel";
 import { BotSettingsForm } from "@/components/bots/BotSettingsForm";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
+import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
 import type { LocaleShape } from "@/hooks/use-translation";
 
 type SectionKey = "overview" | "profile" | "commands" | "plugins" | "stats" | "language" | "settings";
@@ -49,71 +45,6 @@ const SECTION_META: {
   { key: "language", icon: Globe, labelKey: "sectionLanguage", locked: true },
   { key: "settings", icon: Settings, labelKey: "sectionSettings" },
 ];
-
-/**
- * QR code + copyable @username for the bot, under the overview cards.
- *
- * Scanning is how someone actually gets a bot in front of a customer, so the
- * code encodes the same t.me link the username points at. A bot with no
- * username yet has nothing to link to, so the card is omitted entirely rather
- * than rendering a QR for a dead URL.
- */
-function BotLinkCard({ bot }: { bot: Bot }) {
-  const t = useT("botWorkspace");
-  const [copied, setCopied] = useState(false);
-
-  if (!bot.username) return null;
-  const handle = `@${bot.username}`;
-  const link = `https://t.me/${bot.username}`;
-
-  function copy() {
-    // writeText rejects when the page isn't a secure context or the permission
-    // is denied; unhandled that surfaces as an uncaught rejection in the
-    // console. The visual confirmation is best-effort either way.
-    void navigator.clipboard?.writeText(handle).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm">{t.botLink}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
-        <div className="rounded-lg bg-white p-2">
-          {/* fixed white plate: a QR on a dark card is unreadable to scanners */}
-          <QRCodeSVG value={link} size={116} level="M" marginSize={0} />
-        </div>
-
-        <div className="flex min-w-0 flex-1 flex-col items-center gap-2 sm:items-start">
-          <a
-            href={link}
-            target="_blank"
-            rel="noopener noreferrer"
-            dir="ltr"
-            className="truncate font-mono text-base font-semibold text-primary hover:underline"
-          >
-            {handle}
-          </a>
-          <p className="text-xs text-muted-foreground">{t.qrHint}</p>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={copy}>
-              {copied ? <Check className="me-1.5 size-3.5" /> : <Copy className="me-1.5 size-3.5" />}
-              {copied ? t.copied : t.copyId}
-            </Button>
-            <Button type="button" variant="ghost" size="sm" asChild>
-              <a href={link} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="me-1.5 size-3.5" />
-                {t.openInTelegram}
-              </a>
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 /**
  * Q5: the bot workspace as a single "document" shell — a narrow sidebar for
@@ -195,6 +126,8 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
           <motion.div key={section} {...anim}>
             {section === "overview" && (
               <div className="space-y-4">
+                <BotIdentityCard bot={bot} />
+
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewTotalUsers}</CardTitle></CardHeader>
@@ -221,8 +154,6 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
                     <CardContent><div className="text-2xl font-bold">{nf(bot.pluginCount)}</div></CardContent>
                   </Card>
                 </div>
-
-                <BotLinkCard bot={bot} />
               </div>
             )}
             {section === "language" && (
