@@ -898,6 +898,7 @@ and no parallel work was discarded. Post-rebase gates: `pnpm -r build` clean
 | 9 — /updates pages | DONE | `pages/updates.tsx` (cards with title, version, date, `line-clamp-2` body, «جدید» badge for unseen; loading/error/empty all present) and `pages/update-detail.tsx` (full body, gallery via the same `ReceiptLightbox`, RTL-aware back arrow with `isRtlLang(lang) ? ArrowRight : ArrowLeft`). Routes added inside the protected block with `/updates` **before** `/updates/:id`. Sidebar gained a `Sparkles` item (`data-testid="nav-updates"`, `closeMobileMenu`, `isActive={location.startsWith("/updates")}`) labelled from `common.updates`, placed before Database. `vite.config.ssg.ts` untouched: these pages are protected, so `/updates` was added to `PRIVATE_ROUTES` and two matching `Disallow` lines to `robots.txt` — the build's robots-coverage assertion fails loudly without them (it did, and that's how the omission was caught). Prerender still emits exactly 15 public pages. |
 | 10 — updates ↔ notifications | DONE | `refId` now flows end to end: `AppNotification.refId: string \| null` in `use-notifications.ts`, `refId: n.refId` / `refId: row.refId` in both response mappings in `api-server/src/routes/notifications.ts`, and `ctaForType(type, refId?)` returns `{ href: "/updates/<id>", key: "update" }` for `site_update` ahead of the other branches (the only CTA whose destination depends on a record rather than just the type). `"update"` added to the return union and `update: t.ctaUpdate` to the label map in `notification-detail.tsx`; `notifications.ctaUpdate` added in all five locales. `ctaForType` has exactly one call site, so no other caller needed updating. |
 | 11 — translations (5 languages) | DONE | `common.updates` (sidebar label), `notifications.ctaUpdate`, and the `updates` namespace (`title`, `empty`, `loadError`, `notFound`, `back`, `newBadge`, `gotIt`, `version`, `publishedOn`, `imageAlt`) exist in all five locales. Arabic / Turkish / Russian are written natively, **not** copied from English. Verified: all five files parse, and all five have byte-identical key sets — 334 keys each, zero missing and zero extra against `en.json`. No hardcoded string is left on the user-facing path (`updates.tsx`, `update-detail.tsx`, `UpdateDialog.tsx` all read from `useT("updates")`). The admin `UpdatesManager` deliberately keeps the repo's `fa ? "..." : "..."` convention — the admin panel is bilingual, not five-lingual. Two extra keys beyond the brief: `notFound` (the detail page needs to tell 404 apart from a load failure, same as `notification-detail.tsx`) and `imageAlt` (gallery images must have localized alt text). |
+| 12 — final verification | DONE | See the checklist and the hand-over notes below. |
 
 **Baseline (pre-existing, not introduced by this round):**
 
@@ -905,3 +906,33 @@ and no parallel work was discarded. Post-rebase gates: `pnpm -r build` clean
 - `irforge` build emits `src/components/ui/command.tsx (2:0): Error when using sourcemap for reporting an error` — a rollup sourcemap notice, not a build failure. Left alone.
 - `tsc --noEmit` has pre-existing errors across the repo and is **not** the build gate for this work; esbuild/vite are. Not touched.
 - Prerender baseline: 15 pages, sitemap 15 URLs, robots 34 disallow rules — all assertions pass.
+
+## Phase 12 — verification checklist (announcements fix + site updates)
+
+Gates, all green on the final tree:
+
+- `pnpm install` → `pnpm --filter @workspace/api-server run build` → `pnpm --filter @workspace/irforge run build`
+- `node --check api-server/migrate.mjs`
+- Prerender unchanged from baseline: 15 pages, sitemap 15 URLs, robots 36 disallow rules (2 added for `/updates`), brand assets present.
+
+Checked by hand:
+
+- [x] `announcements` is created in `api-server/migrate.mjs` (exactly one `CREATE TABLE IF NOT EXISTS announcements`).
+- [x] `AnnouncementsManager` has a real error state — red card + retry, not an infinite skeleton.
+- [x] All five Phase-3 DDL statements are idempotent (`IF NOT EXISTS` on three tables, two indexes, and the `ref_id` column).
+- [x] Publishing an already-published update returns `400 {"error":"Already published"}`, so the notification fan-out cannot run twice.
+- [x] Closing the modal via **all three** paths — the X, «متوجه شدم», and an outside click — goes through `onOpenChange`/`dismiss` and records seen.
+- [x] A `site_update` notification links to `/updates/:id` via `refId`.
+- [x] Every one of the 9 new endpoints carries `requireAuth` or `requireAdmin` (9 of 9 matched; none unguarded).
+
+### کارهای دستی برای Ali
+
+1. **بعد از deploy روی Railway باید سرویس ری‌استارت شود.** `migrate.mjs` فقط
+   در بوت اجرا می‌شود، و تا وقتی اجرا نشده نه جدول `announcements` ساخته
+   می‌شود و نه جدول‌های آپدیت. **تا قبل از ری‌استارت، باگ اعلان‌ها دقیقاً سر
+   جای خودش است** — انتشار اعلان همچنان «Internal server error» می‌دهد.
+2. هیچ متغیر محیطی جدیدی این تسک اضافه نمی‌کند.
+3. سقف عکس‌ها به `express.json({ limit: "10mb" })` در `api-server/src/app.ts`
+   گره خورده است: ۸ عکس × ۸۰۰KB بعد از base64 حدود ۸٫۵MB می‌شود، یعنی همین
+   حالا روی لبه است. اگر خواستی سقف عکس را بالا ببری، **اول** لیمیت اکسپرس
+   را بالا ببر، وگرنه کاربر یک ۴۱۳ بی‌توضیح می‌گیرد.
