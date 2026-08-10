@@ -1575,3 +1575,33 @@ Decisions:
   none, so nothing needed gating; the notice explains that disconnecting would
   block login until another account is connected. If unlink is ever added it
   must be gated behind an immediate re-link.
+
+## Phase 7 — Rate limiting and abuse control  [DONE 2026-08-10]
+
+Files touched: `api-server/src/middleware/rateLimit.ts` (created in Phase 2),
+`api-server/src/routes/auth.ts`, `api-server/src/routes/registration.ts`
+
+Decisions:
+
+- Applied to all five endpoints the brief names: `/auth/login`,
+  `/auth/login/verify`, `/auth/register/start`, `/auth/register/verify-code`,
+  `/auth/register/resend`.
+- Limits: **per phone** 5 failed logins / 15 min → 15-minute block (reset on a
+  successful login); **per IP** 20 auth requests / 15 min; **per record** the
+  5-attempt cap from Phases 4–5; **resend** 3 per record, 60s apart.
+- `429` responses always carry `retryAfterSeconds`, which both the login and
+  register pages count down against.
+- ⚠️ **State lives in `auth_rate_limits` in Postgres, never in process memory.**
+  The service runs on Railway: a restart or a second instance must not reset
+  the counter, or the limit is one deploy away from being bypassed. The block
+  therefore survives a restart by construction.
+- If the limiter itself errors, it **allows** the request and logs the error.
+  Locking every user out of the site because of one database hiccup is worse
+  than briefly losing the limit — but it is logged so it cannot pass unnoticed.
+
+**Brute-force maths:** a 6-digit code is 1,000,000 possibilities. Per challenge
+the cap is 5 guesses, after which the challenge is dead; per IP it is 20
+requests per 15 minutes. A scripted 100-guess run against a known phone is
+blocked after 5 challenge attempts and 20 IP-scoped requests — roughly four
+orders of magnitude short of exhausting the code space, and the block persists
+across restarts.
