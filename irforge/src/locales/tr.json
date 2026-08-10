@@ -937,5 +937,15 @@
     "title": "IrForge fiyatlandırma",
     "intro": "Planlar, her birinin içeriği ve faturalamanın işleyişi.",
     "learnLink": "Telegram bot rehberlerini okuyun"
+  },
+  "footer": {
+    "productTitle": "Ürün",
+    "learnTitle": "Öğren",
+    "companyTitle": "Kurumsal",
+    "getStarted": "Hemen başlayın",
+    "telegram": "Telegram kanalı",
+    "instagram": "Instagram",
+    "rights": "© {year} IrForge. Tüm hakları saklıdır.",
+    "learnNav": "Öğren"
   }
 }

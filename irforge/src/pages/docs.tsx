@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { PublicFooter } from "@/components/layout/public-footer";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -86,6 +87,7 @@ const fadeUp = {
 export default function Docs() {
   const t = useT("common");
   const seo = useT("seo");
+  const footerT = useT("footer");
   useSEO({ title: seo.docsTitle, description: seo.docsDescription, route: "/docs" });
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -100,12 +102,17 @@ export default function Docs() {
               </span>
             </div>
           </div>
+          <div className="flex shrink-0 items-center gap-1">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/learn">{footerT.learnNav}</Link>
+          </Button>
           <Button variant="ghost" size="sm" className="shrink-0" asChild>
             <Link href="/" data-testid="link-back-home" aria-label={t.backToHome}>
               <ArrowLeft className="sm:me-2 size-4 rtl-flip" />
               <span className="hidden sm:inline">{t.backToHome}</span>
             </Link>
           </Button>
+          </div>
         </div>
       </header>
 
@@ -232,6 +239,8 @@ export default function Docs() {
           </Button>
         </motion.div>
       </motion.main>
+
+      <PublicFooter />
     </div>
   );
 }

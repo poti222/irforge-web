@@ -28,6 +28,17 @@ import { BotChatMockup } from "@/components/landing/BotChatMockup";
 import { MiniAnalyticsChart } from "@/components/landing/MiniAnalyticsChart";
 import { PluginRail } from "@/components/landing/PluginRail";
 import { FaqSection } from "@/components/landing/FaqSection";
+import { PublicFooter } from "@/components/layout/public-footer";
+import { useLanguage } from "@/hooks/use-language";
+import { articleFor, type ArticleSlug } from "@/lib/learn-content";
+
+/** The four guides worth surfacing on the homepage, highest intent first. */
+const FEATURED_GUIDES: ArticleSlug[] = [
+  "how-to-make-a-telegram-bot",
+  "telegram-bot-token",
+  "telegram-shop-bot",
+  "telegram-bot-cost",
+];
 import { useIsMobileViewport } from "@/components/landing/use-is-mobile-viewport";
 import { RevealItem, VIEWPORT_ONCE, revealContainer, revealItem } from "@/components/landing/motion";
 import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
@@ -48,6 +59,8 @@ export default function Landing() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const tr = useT("landing");
   const seo = useT("seo");
+  const footerT = useT("footer");
+  const { lang } = useLanguage();
 
   // Keeps the client-side title/description in step with the prerendered head
   // when the visitor switches language without a reload.
@@ -153,6 +166,11 @@ export default function Landing() {
         <div className="container mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-2">
           <BrandLogo href={null} className="sm:gap-3 min-w-0" />
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Public nav entry into the content hub. Root-relative: the router
+                base already supplies the language prefix. */}
+            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+              <Link href="/learn">{footerT.learnNav}</Link>
+            </Button>
             <ThemeToggleButton className="rounded-full" />
 
             <LanguageSwitcher />
@@ -417,7 +435,41 @@ export default function Landing() {
             </div>
           </div>
         </motion.section>
+
+        {/* ── Latest guides ────────────────────────────────────────────────
+            A real entry point into /learn from the highest-authority page,
+            using the articles' own titles rather than generic link text. */}
+        <section className="border-t py-16 md:py-20">
+          <div className="container mx-auto px-4">
+            <div className="mx-auto mb-8 max-w-2xl text-center">
+              <h2 className="text-3xl font-bold tracking-tight md:text-4xl">{footerT.learnTitle}</h2>
+            </div>
+            <ul className="mx-auto grid max-w-4xl gap-3 sm:grid-cols-2">
+              {FEATURED_GUIDES.map((slug) => {
+                const content = articleFor(lang, slug);
+                if (!content) return null;
+                return (
+                  <li key={slug}>
+                    <Link href={`/learn/${slug}`} className="block h-full">
+                      <div className="h-full rounded-xl border bg-card p-5 transition-colors hover:border-primary/50">
+                        <h3 className="font-semibold">{content.h1}</h3>
+                        <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{content.lead}</p>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mt-6 text-center">
+              <Button asChild variant="outline">
+                <Link href="/learn">{footerT.learnNav}</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
       </main>
+
+      <PublicFooter />
 
       <footer className="border-t py-10 bg-card/50">
         <div className="container mx-auto px-4">

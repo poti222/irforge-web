@@ -937,5 +937,15 @@
     "title": "أسعار IrForge",
     "intro": "الخطط وما تتضمّنه كل واحدة وطريقة الفوترة.",
     "learnLink": "اقرأ أدلة بوتات تيليجرام"
+  },
+  "footer": {
+    "productTitle": "المنتج",
+    "learnTitle": "التعلّم",
+    "companyTitle": "عنّا",
+    "getStarted": "ابدأ الآن",
+    "telegram": "قناة تيليجرام",
+    "instagram": "إنستغرام",
+    "rights": "© {year} IrForge. جميع الحقوق محفوظة.",
+    "learnNav": "التعلّم"
   }
 }

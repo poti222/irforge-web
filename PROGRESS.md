@@ -1133,3 +1133,39 @@ Decisions / deviations:
 - Verified node sets on emitted HTML: article page → Article + HowTo + FAQPage;
   non-step article → Article + FAQPage; `/learn` → CollectionPage; `/` →
   FAQPage only, as before.
+
+## Phase 6 — Internal linking and navigation  [DONE 2026-08-10]
+
+Files touched: `irforge/src/components/layout/public-footer.tsx` (new),
+`irforge/src/pages/landing.tsx`, `irforge/src/pages/docs.tsx`,
+`irforge/src/pages/learn/index.tsx`, `irforge/src/pages/learn/ArticleLayout.tsx`,
+`irforge/src/pages/pricing.tsx`, `irforge/src/locales/*.json`
+
+Pages added (lang × route): none — linking only.
+
+Untranslated keys left: none (new `footer` namespace written natively in all five).
+
+Decisions / deviations:
+
+- **A real public footer now renders on every public page** — landing, docs,
+  the hub, all nine articles and pricing. Columns: Product, Learn (all nine
+  articles by their real titles), Company (Telegram + Instagram). This was the
+  highest-leverage change available: a crawler landing on any public page can
+  now reach the entire hub in one hop.
+- **"Learn" added to the public header** on both landing and docs.
+- **"Latest guides" section on the landing page**, surfacing four articles with
+  their own titles and lead paragraphs, plus a link to the hub.
+- **Every internal link is a wouter `<Link href="/...">` with a root-relative
+  path.** The router `base` already carries the language prefix; hardcoding one
+  would produce `/en/en/...`. **Verified across all 65 emitted pages: zero
+  doubled language prefixes.**
+- `siteNavigation()` picked up `/learn` and `/pricing` automatically — it has
+  been driven by `PUBLIC_ROUTES` since Phase 1, so no change was needed here.
+  That is the Phase 1 refactor paying for itself.
+- Docs ↔ learn cross-linking is served by the shared footer plus the header
+  link, rather than by hand-placed links inside the docs prose.
+
+**Done-when check:** from `https://irforge.ir/tr/`, all 10 Turkish `/learn`
+URLs are reachable in **one** click (counted in the emitted `tr/index.html`),
+and `/tr/docs` + `/tr/pricing` likewise — so all 12 Turkish public pages sit
+within the ≤2-click requirement with a click to spare.

@@ -937,5 +937,15 @@
     "title": "IrForge pricing",
     "intro": "Plans, what each one includes, and how billing works.",
     "learnLink": "Read the Telegram bot guides"
+  },
+  "footer": {
+    "productTitle": "Product",
+    "learnTitle": "Learn",
+    "companyTitle": "Company",
+    "getStarted": "Get started",
+    "telegram": "Telegram channel",
+    "instagram": "Instagram",
+    "rights": "© {year} IrForge. All rights reserved.",
+    "learnNav": "Learn"
   }
 }

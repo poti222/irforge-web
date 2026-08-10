@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { PublicFooter } from "@/components/layout/public-footer";
 import { ChevronDown, Clock, Send, ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -60,6 +61,7 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
     .filter((r) => r.content);
 
   return (
+    <>
     <div className="mx-auto max-w-3xl space-y-10 px-4 py-8">
       {/* Breadcrumb trail, mirroring the BreadcrumbList in the page's JSON-LD. */}
       <nav aria-label={t.breadcrumbLabel} className="text-sm text-muted-foreground">
@@ -217,5 +219,7 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
         </Link>
       </Button>
     </div>
+      <PublicFooter />
+    </>
   );
 }

@@ -937,5 +937,15 @@
     "title": "Тарифы IrForge",
     "intro": "Планы, что входит в каждый и как устроена оплата.",
     "learnLink": "Читать руководства по Telegram-ботам"
+  },
+  "footer": {
+    "productTitle": "Продукт",
+    "learnTitle": "Обучение",
+    "companyTitle": "О нас",
+    "getStarted": "Начать",
+    "telegram": "Telegram-канал",
+    "instagram": "Instagram",
+    "rights": "© {year} IrForge. Все права защищены.",
+    "learnNav": "Обучение"
   }
 }

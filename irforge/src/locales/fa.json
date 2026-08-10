@@ -937,5 +937,15 @@
     "title": "تعرفه‌های IrForge",
     "intro": "پلن‌ها، امکانات هرکدام، و شیوه‌ی صورت‌حساب.",
     "learnLink": "خواندن راهنماهای ساخت ربات تلگرام"
+  },
+  "footer": {
+    "productTitle": "محصول",
+    "learnTitle": "آموزش",
+    "companyTitle": "ما",
+    "getStarted": "شروع کنید",
+    "telegram": "کانال تلگرام",
+    "instagram": "اینستاگرام",
+    "rights": "© {year} IrForge. تمام حقوق محفوظ است.",
+    "learnNav": "آموزش"
   }
 }

@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { PublicFooter } from "@/components/layout/public-footer";
 import { BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/hooks/use-language";
@@ -23,6 +24,7 @@ export default function LearnHub() {
   );
 
   return (
+    <>
     <div className="mx-auto max-w-3xl space-y-8 px-4 py-8">
       <nav aria-label={t.breadcrumbLabel} className="text-sm text-muted-foreground">
         <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -60,5 +62,7 @@ export default function LearnHub() {
         </ul>
       </section>
     </div>
+      <PublicFooter />
+    </>
   );
 }

@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { PublicFooter } from "@/components/layout/public-footer";
 import { useT } from "@/hooks/use-translation";
 import { useSEO } from "@/hooks/use-seo";
 
@@ -18,6 +19,7 @@ export default function Pricing() {
   useSEO({ title: seo.pricingTitle, description: seo.pricingDescription, route: "/pricing" });
 
   return (
+    <>
     <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
       <header className="space-y-3">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{t.title}</h1>
@@ -30,5 +32,7 @@ export default function Pricing() {
         </Link>
       </p>
     </div>
+      <PublicFooter />
+    </>
   );
 }
