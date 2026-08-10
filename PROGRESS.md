@@ -1169,3 +1169,37 @@ Decisions / deviations:
 URLs are reachable in **one** click (counted in the emitted `tr/index.html`),
 and `/tr/docs` + `/tr/pricing` likewise — so all 12 Turkish public pages sit
 within the ≤2-click requirement with a click to spare.
+
+## Phase 7 — Expand the homepage FAQ  [DONE 2026-08-10]
+
+Files touched: `irforge/src/lib/faq-content.ts` (new),
+`irforge/src/components/landing/FaqSection.tsx`, `irforge/src/entry-ssg.tsx`,
+`irforge/src/locales/*.json`
+
+Pages added (lang × route): none.
+
+Untranslated keys left: none — q6–q9 written natively in all five languages.
+
+Decisions / deviations:
+
+- **The off-by-one is fixed at the source.** `FaqSection` rendered a hardcoded
+  `q1..q5`; `faqFor()` in `entry-ssg.tsx` looped to 6. A `q6` added to the
+  locales would have entered FAQPage schema while never rendering — schema
+  without visible content. Both now call `faqEntries(lang)` in the new
+  `lib/faq-content.ts`, which discovers however many `qN`/`aN` pairs exist.
+- `faqEntries` **stops at the first gap** rather than skipping it. A missing
+  `q3` with a present `q4` means the locale file is wrong, and silently
+  renumbering would hide the mistake. There is also a hard `MAX_QUESTIONS`
+  stop so a malformed file can't loop forever.
+- **Expanded 5 → 9 questions.** The four new ones mirror real search queries
+  and were answered from the code, not from assumption:
+  data location (`api-server/src/lib/sheets.ts` — the owner's own Google Sheet
+  via the Sheets API), token safety (`lib/telegram.ts` — server-side only, and
+  the avatar proxy route exists precisely so the token never lands in an image
+  URL), trial expiry (`lib/trial.ts` — service for that bot stops until a
+  package is bought, with advance notifications), and interface languages
+  (`lib/i18n.ts` — exactly the five listed).
+- **Done-when verified on emitted HTML** for `/`, `/en/` and `/ru/`: the schema
+  declares 9 questions, the page renders 9 `<details>` blocks, and every schema
+  question string is present in the markup. Adding a `q10` to the locale files
+  would appear in both places with **no code change**.

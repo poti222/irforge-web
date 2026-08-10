@@ -280,7 +280,15 @@
     "q4": "Can I build a store or support bot?",
     "a4": "Yes. Custom commands plus payment, moderation and AI-reply plugins cover shop bots, customer-support bots and most other workflows.",
     "q5": "Where do I learn how to build a Telegram bot?",
-    "a5": "Start with the documentation: quick start, defining commands with arguments, and writing a plugin are all covered with working examples."
+    "a5": "Start with the documentation: quick start, defining commands with arguments, and writing a plugin are all covered with working examples.",
+    "q6": "Where is my bot's data stored?",
+    "a6": "Your bot's data goes into a Google Sheet in your own Google account. IrForge reads and writes it through the Google Sheets API, so you can open the spreadsheet at any time and the records stay yours even if you stop using the platform.",
+    "q7": "Is it safe to give IrForge my Telegram bot token?",
+    "a7": "The token is stored server-side and used only to call Telegram's API on your bot's behalf. It never appears in a URL — the bot's avatar, for example, is served through a proxy route specifically so the token can't leak in an image link. If you ever want to cut access, /revoke in BotFather invalidates it instantly.",
+    "q8": "What happens when the trial ends?",
+    "a8": "When a bot's trial expires the service for that bot stops until you buy a package. IrForge warns you in advance with notifications as the end date approaches, so it doesn't happen without notice.",
+    "q9": "Which languages does IrForge support?",
+    "a9": "The interface is available in five languages: English, Persian, Arabic, Turkish and Russian. Your bot itself can talk to its users in any language you write its replies in."
   },
   "database": {
     "readOnlyBadge": "Read-only",

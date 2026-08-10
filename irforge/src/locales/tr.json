@@ -280,7 +280,15 @@
     "q4": "Mağaza veya destek botu yapabilir miyim?",
     "a4": "Evet. Özel komutlar ile ödeme, moderasyon ve yapay zeka yanıt eklentileri; mağaza botlarını, müşteri destek botlarını ve çoğu iş akışını kapsar.",
     "q5": "Telegram bot yapımını nereden öğrenirim?",
-    "a5": "Dokümantasyondan başlayın: hızlı başlangıç, argümanlı komut tanımlama ve eklenti yazma, çalışan örneklerle anlatılıyor."
+    "a5": "Dokümantasyondan başlayın: hızlı başlangıç, argümanlı komut tanımlama ve eklenti yazma, çalışan örneklerle anlatılıyor.",
+    "q6": "Botumun verileri nerede saklanıyor?",
+    "a6": "Botunuzun verileri kendi Google hesabınızdaki bir E-Tabloya gider. IrForge bunu Google Sheets API üzerinden okur ve yazar; tabloyu istediğiniz an açabilirsiniz ve platformu kullanmayı bıraksanız bile kayıtlar sizde kalır.",
+    "q7": "Telegram bot token'ımı IrForge'a vermek güvenli mi?",
+    "a7": "Token sunucu tarafında saklanır ve yalnızca botunuz adına Telegram API'sini çağırmak için kullanılır. Hiçbir URL'de görünmez — bot avatarı, token bir görsel bağlantısında sızmasın diye vekil bir yol üzerinden sunulur. Erişimi kesmek isterseniz BotFather'daki /revoke onu anında geçersiz kılar.",
+    "q8": "Deneme süresi bitince ne olur?",
+    "a8": "Bir botun denemesi dolduğunda, bir paket satın alana kadar o botun hizmeti durur. IrForge bitiş tarihi yaklaşırken bildirimlerle önceden uyarır; yani habersiz gerçekleşmez.",
+    "q9": "IrForge hangi dilleri destekliyor?",
+    "a9": "Arayüz beş dilde: İngilizce, Farsça, Arapça, Türkçe ve Rusça. Botunuzun kendisi ise yanıtlarını hangi dilde yazarsanız o dilde konuşabilir."
   },
   "database": {
     "readOnlyBadge": "Salt okunur",

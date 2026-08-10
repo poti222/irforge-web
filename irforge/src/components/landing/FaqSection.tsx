@@ -1,10 +1,15 @@
 import { ChevronDown } from "lucide-react";
 import { motion } from "framer-motion";
 import { useT } from "@/hooks/use-translation";
+import { useLanguage } from "@/hooks/use-language";
+import { faqEntries } from "@/lib/faq-content";
 import { RevealItem, VIEWPORT_ONCE, revealContainer, revealItem } from "./motion";
 
 /**
  * Landing FAQ.
+ *
+ * The question set comes from lib/faq-content.ts, which entry-ssg.tsx also
+ * uses to build the FAQPage schema, so the two cannot drift.
  *
  * Built on native <details>/<summary> rather than the Radix accordion on
  * purpose: Radix unmounts collapsed content, so the answers would be absent
@@ -15,14 +20,11 @@ import { RevealItem, VIEWPORT_ONCE, revealContainer, revealItem } from "./motion
  */
 export function FaqSection({ reduce, stagger }: { reduce: boolean; stagger: number }) {
   const faq = useT("faq");
+  const { lang } = useLanguage();
 
-  const items = [
-    { q: faq.q1, a: faq.a1 },
-    { q: faq.q2, a: faq.a2 },
-    { q: faq.q3, a: faq.a3 },
-    { q: faq.q4, a: faq.a4 },
-    { q: faq.q5, a: faq.a5 },
-  ].filter((item) => item.q && item.a);
+  // Single source of truth, shared with the FAQPage schema in entry-ssg.tsx —
+  // the page and the schema can no longer declare different question sets.
+  const items = faqEntries(lang);
 
   if (!items.length) return null;
 

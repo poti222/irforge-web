@@ -21,6 +21,7 @@ import {
 } from "./lib/lang-routing";
 
 import { structuredData } from "./lib/structured-data";
+import { faqEntries } from "./lib/faq-content";
 import {
   ARTICLE_SLUGS,
   articleFor,
@@ -157,17 +158,11 @@ export function renderPage(lang: Lang, route: string): RenderedPage {
 
 /**
  * FAQ entries rendered on the landing page, mirrored into FAQPage schema.
- * Empty until Phase 5 adds the copy — the schema simply omits the node.
+ * Shared with `components/landing/FaqSection.tsx` via `lib/faq-content.ts` so
+ * the schema can never declare a question the page doesn't render.
  */
 function faqFor(lang: Lang): { q: string; a: string }[] {
-  const ns: any = { ...LOCALES.en.faq, ...(LOCALES[lang] as any)?.faq };
-  const out: { q: string; a: string }[] = [];
-  for (let i = 1; i <= 6; i++) {
-    const q = ns[`q${i}`];
-    const a = ns[`a${i}`];
-    if (q && a) out.push({ q, a });
-  }
-  return out;
+  return faqEntries(lang);
 }
 
 /** Every page the build should emit. */
