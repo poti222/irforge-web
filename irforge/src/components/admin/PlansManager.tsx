@@ -25,7 +25,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
 
-const ADMIN_PLANS_KEY = ["admin-plans"] as const;
+// Exported so the admin panel's header RefreshButton (Phase 13) can watch/
+// invalidate this tab's data without duplicating the key.
+export const ADMIN_PLANS_KEY = ["admin-plans"] as const;
 
 type FormState = {
   id: string | null;
