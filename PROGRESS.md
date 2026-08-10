@@ -1430,3 +1430,40 @@ Decisions:
 Follow-ups: `forgot-password` is refactored onto `lib/otp.ts` in Phase 3, per
 the brief's ordering. The legacy `POST /auth/register` still works and is
 untouched.
+
+## Phase 3 — The bot: link, capture the phone, send the code  [DONE 2026-08-10]
+
+Files touched: `api-server/src/routes/telegramWebhook.ts`,
+`api-server/src/routes/auth.ts`, `api-server/src/lib/otp.ts`,
+`api-server/src/lib/registrationBot.ts`
+
+Decisions:
+
+- `lib/otp.ts` is now the **only** code implementation. `forgot-password` was
+  refactored onto it in this phase: it previously had its own generator
+  (`randomBytes` + a different salt) and compared with `!==`. Both are gone —
+  it now uses `generateCode()`, `hashCode()` and the timing-safe `verifyCode()`.
+  A `!==` on a string returns at the first differing byte, and that timing
+  difference is what lets an attacker guess a code byte by byte.
+- The webhook branches on `purpose`. **`"link"` behaviour is untouched.**
+- `"register"` order is deliberate: check "does this Telegram already own a
+  user?" → atomically consume the token → store Telegram fields → ask for the
+  contact. Consuming earlier would cost a rejected user their link as well.
+- ⚠️ **`contact.user_id === message.from.id` is verified.** Telegram lets a user
+  forward *anyone's* contact card through the `request_contact` button; without
+  this check, someone could register with a number they don't own. A mismatch
+  is rejected and the button is re-offered.
+- Phone is normalised to E.164 (`normalizePhone`), and a number already on a
+  `users` row aborts with "sign in instead".
+- **Idempotency, three layers:** a `seen update_id` set for the common retry
+  case; the token consumed by a conditional `UPDATE … WHERE used = false`; and
+  the code sent only by an `UPDATE … WHERE step = 'telegram_pending'` that
+  returns rows. A replayed webhook therefore sends no second code and
+  double-consumes nothing. The in-memory set is explicitly *not* the safety
+  mechanism — the two conditional updates are, and those are atomic in the
+  database, so a second instance cannot bypass them.
+- Handlers never throw out of the request; the route still 200s immediately.
+- Bot copy is Persian by default with the other four locales available, matching
+  the tone of the existing trial/reset messages, and states plainly that the
+  code expires in 5 minutes and that staff will never ask for it.
+- **No code is ever logged** — only `registrationId` and the outcome.

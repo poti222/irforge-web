@@ -1,24 +1,41 @@
 /**
- * routes/telegramWebhook.ts — G8: "اتصال با ربات"
+ * routes/telegramWebhook.ts — G8: "اتصال با ربات" + ثبت‌نام از داخل بات
  *
  * تلگرام آپدیت‌های بات پلتفرم (TELEGRAM_BOT_TOKEN) رو اینجا POST می‌کنه.
- * تنها چیزی که برامون مهمه پیام /start <token> هست: توکنی که
- * POST /api/auth/telegram/link/start ساخته رو پیدا می‌کنه، مصرفش می‌کنه و
- * حساب تلگرام فرستنده رو به کاربر صاحب اون توکن وصل می‌کنه.
+ * دو نوع توکن `/start <token>` وجود داره و روی `purpose` شاخه می‌خوره:
+ *
+ *   purpose = "link"      کاربرِ لاگین‌کرده حسابش رو وصل می‌کنه (رفتار قبلی،
+ *                          دست‌نخورده).
+ *   purpose = "register"  ثبت‌نام تازه: تلگرام وصل می‌شه، شماره با دکمه‌ی
+ *                          request_contact گرفته می‌شه و کد فرستاده می‌شه.
  *
  * امنیت: تلگرام هدر X-Telegram-Bot-Api-Secret-Token رو با مقداری که موقع
- * setWebhook دادیم (registerTelegramWebhookIfConfigured) برمی‌گردونه؛ بدون
- * تطابق این هدر، درخواست نادیده گرفته می‌شه.
+ * setWebhook دادیم برمی‌گردونه؛ بدون تطابق این هدر، درخواست نادیده گرفته می‌شه.
+ *
+ * **ایدمپوتنسی**: تلگرام وبهوک‌های ناموفق رو retry می‌کنه، پس هر `update_id`
+ * فقط یک‌بار پردازش می‌شه (جدول processed در حافظه + مصرف اتمیک توکن). بدون
+ * این، یک retry می‌تونست کد دوم بفرسته یا توکن رو دوبار مصرف کنه.
  *
  * همیشه سریع 200 برمی‌گردونیم تا تلگرام رو retry-storm نکنیم؛ خطاها فقط لاگ
- * می‌شن.
+ * می‌شن و هیچ‌وقت از هندلر بیرون پرتاب نمی‌شن.
  */
 import { Router } from "express";
 import crypto from "crypto";
-import { db, usersTable, telegramLinkTokensTable } from "@workspace/db";
+import {
+  db,
+  usersTable,
+  telegramLinkTokensTable,
+  pendingRegistrationsTable,
+} from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { sendTelegramMessage, telegramWebhookSecret, getTelegramUserPhotoFileId } from "../lib/telegram";
+import {
+  sendTelegramMessage,
+  telegramWebhookSecret,
+  getTelegramUserPhotoFileId,
+} from "../lib/telegram";
+import { askForContact, sendRegistrationCode, sendPlain } from "../lib/registrationBot";
+import { codeExpiry, generateCode, hashCode, normalizePhone } from "../lib/otp";
 
 const router = Router();
 
@@ -27,6 +44,28 @@ function timingEqual(a: string, b: string): boolean {
   const bb = Buffer.from(b);
   if (ab.length !== bb.length) return false;
   return crypto.timingSafeEqual(ab, bb);
+}
+
+/**
+ * `update_id`هایی که همین اینستنس تازه پردازش کرده.
+ *
+ * پوشش کاملِ چند-اینستنسی نیست و لازم هم نیست: عملیات‌های واقعاً حساس
+ * (مصرف توکن، ارسال کد) خودشان با یک UPDATE شرطی اتمیک محافظت شده‌اند. این
+ * فقط جلوی کار تکراری در حالت رایج retry را می‌گیرد.
+ */
+const seenUpdates = new Set<number>();
+const SEEN_LIMIT = 1000;
+
+function alreadyProcessed(updateId: unknown): boolean {
+  if (typeof updateId !== "number") return false;
+  if (seenUpdates.has(updateId)) return true;
+  seenUpdates.add(updateId);
+  if (seenUpdates.size > SEEN_LIMIT) {
+    // قدیمی‌ترین‌ها را دور بریز — Set ترتیب درج را نگه می‌دارد.
+    const drop = seenUpdates.values().next().value;
+    if (drop !== undefined) seenUpdates.delete(drop);
+  }
+  return false;
 }
 
 router.post("/telegram/webhook", async (req, res) => {
@@ -44,16 +83,25 @@ router.post("/telegram/webhook", async (req, res) => {
       return;
     }
 
+    if (alreadyProcessed(req.body?.update_id)) return;
+
     const message = req.body?.message;
-    const text: string | undefined = message?.text;
     const from = message?.from;
     const chat = message?.chat;
-    if (!text || !from || !chat || from.is_bot) return;
-    if (!text.startsWith("/start")) return;
+    if (!from || !chat || from.is_bot) return;
 
     const chatId = String(chat.id);
-    const token = text.trim().split(/\s+/)[1];
 
+    // ── اشتراک‌گذاری شماره از دکمه‌ی request_contact ──────────────────────
+    if (message.contact) {
+      await handleContact(botToken, chatId, from, message.contact);
+      return;
+    }
+
+    const text: string | undefined = message?.text;
+    if (!text || !text.startsWith("/start")) return;
+
+    const token = text.trim().split(/\s+/)[1];
     if (!token) {
       await sendTelegramMessage(
         botToken,
@@ -74,11 +122,17 @@ router.post("/telegram/webhook", async (req, res) => {
       await sendTelegramMessage(
         botToken,
         chatId,
-        "این لینک اتصال منقضی یا نامعتبر است. لطفاً از داخل سایت دوباره روی «اتصال با ربات» بزنید."
+        "این لینک منقضی یا نامعتبر است. لطفاً از داخل سایت دوباره شروع کنید."
       );
       return;
     }
 
+    if (row.purpose === "register") {
+      await handleRegisterStart(botToken, chatId, from, row);
+      return;
+    }
+
+    // ── purpose = "link": رفتار قبلی، بدون تغییر ─────────────────────────
     const telegramId = String(from.id);
     const existing = await db
       .select()
@@ -116,12 +170,192 @@ router.post("/telegram/webhook", async (req, res) => {
     };
     if (photoProxyUrl) updateData.avatar = photoProxyUrl;
 
-    await db.update(usersTable).set(updateData).where(eq(usersTable.id, row.userId));
+    await db.update(usersTable).set(updateData).where(eq(usersTable.id, row.userId!));
 
     await sendTelegramMessage(botToken, chatId, "✅ حساب تلگرام شما با موفقیت به IRForge متصل شد.");
   } catch (err) {
     logger.error({ err }, "Telegram webhook error");
   }
 });
+
+/**
+ * `/start <token>` با `purpose = "register"`.
+ *
+ * ترتیب عمدی است: اول بررسی «این تلگرام قبلاً کاربر دارد؟»، بعد مصرف اتمیک
+ * توکن، بعد ذخیره، بعد درخواست شماره. اگر توکن زودتر مصرف می‌شد، یک کاربرِ
+ * ردشده لینکش را هم از دست می‌داد.
+ */
+async function handleRegisterStart(
+  botToken: string,
+  chatId: string,
+  from: any,
+  tokenRow: typeof telegramLinkTokensTable.$inferSelect,
+) {
+  const pendingId = tokenRow.pendingRegistrationId;
+  if (!pendingId) return;
+
+  const [pending] = await db
+    .select()
+    .from(pendingRegistrationsTable)
+    .where(eq(pendingRegistrationsTable.id, pendingId))
+    .limit(1);
+  if (!pending || pending.expiresAt < new Date()) {
+    await sendTelegramMessage(
+      botToken,
+      chatId,
+      "این لینک منقضی شده است. لطفاً دوباره از سایت شروع کنید."
+    );
+    return;
+  }
+
+  const telegramId = String(from.id);
+
+  // یک حساب تلگرام، یک حساب پلتفرم. اگر مشترک باشد، عامل دوم بین دو حساب
+  // مشترک می‌شود و دیگر عامل نیست.
+  const [owned] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, telegramId))
+    .limit(1);
+  if (owned) {
+    await sendTelegramMessage(
+      botToken,
+      chatId,
+      "این حساب تلگرام قبلاً به یک حساب IRForge وصل شده است. لطفاً از سایت وارد شوید."
+    );
+    return;
+  }
+
+  const consumed = await db
+    .update(telegramLinkTokensTable)
+    .set({ used: true })
+    .where(
+      and(
+        eq(telegramLinkTokensTable.token, tokenRow.token),
+        eq(telegramLinkTokensTable.used, false),
+      ),
+    )
+    .returning();
+  if (consumed.length === 0) return; // retry موازی — دوباره پیام نده
+
+  const photoFileId = await getTelegramUserPhotoFileId(botToken, from.id);
+
+  await db
+    .update(pendingRegistrationsTable)
+    .set({
+      telegramId,
+      telegramChatId: chatId,
+      telegramUsername: from.username ?? null,
+      telegramFirstName: from.first_name ?? null,
+      telegramLastName: from.last_name ?? null,
+      telegramPhotoFileId: photoFileId,
+      step: "telegram_pending",
+      lastActivityAt: new Date(),
+    })
+    .where(eq(pendingRegistrationsTable.id, pendingId));
+
+  logger.info({ registrationId: pendingId }, "Registration: Telegram connected, asking for contact");
+  await askForContact(chatId, pending.locale);
+}
+
+/**
+ * پیام `message.contact` — کاربر دکمه‌ی اشتراک شماره را زده.
+ *
+ * **بررسی حیاتی:** `contact.user_id` باید با `from.id` یکی باشد. تلگرام اجازه
+ * می‌دهد کاربر کارت مخاطبِ **هر کسی** را از همین دکمه بفرستد؛ بدون این بررسی،
+ * می‌شد با شماره‌ای که مالکش نیستی ثبت‌نام کرد.
+ */
+async function handleContact(botToken: string, chatId: string, from: any, contact: any) {
+  const [pending] = await db
+    .select()
+    .from(pendingRegistrationsTable)
+    .where(eq(pendingRegistrationsTable.telegramChatId, chatId))
+    .limit(1);
+
+  if (!pending || pending.expiresAt < new Date()) return;
+
+  // یک ثبت‌نام که قبلاً کد گرفته نباید با ارسال دوباره‌ی مخاطب، کد دوم بگیرد.
+  if (pending.step !== "telegram_pending") return;
+
+  if (String(contact.user_id ?? "") !== String(from.id)) {
+    logger.warn({ registrationId: pending.id }, "Registration: forwarded contact rejected");
+    await sendPlain(
+      chatId,
+      {
+        fa: "⚠️ این شماره متعلق به حساب شما نیست. لطفاً با دکمه‌ی «ارسال شماره‌ی من» شماره‌ی خودتان را بفرستید.",
+        en: "⚠️ That contact isn't yours. Please use the “Share my number” button to send your own number.",
+        ar: "⚠️ هذا الرقم ليس رقمك. استخدم زر «مشاركة رقمي» لإرسال رقمك أنت.",
+        tr: "⚠️ Bu numara size ait değil. Kendi numaranızı “Numaramı paylaş” düğmesiyle gönderin.",
+        ru: "⚠️ Этот контакт не ваш. Отправьте свой номер кнопкой «Отправить мой номер».",
+      },
+      pending.locale,
+    );
+    await askForContact(chatId, pending.locale);
+    return;
+  }
+
+  const phone = normalizePhone(contact.phone_number);
+  if (!phone) {
+    await sendPlain(
+      chatId,
+      {
+        fa: "شماره‌ی دریافتی معتبر نبود. لطفاً دوباره تلاش کنید.",
+        en: "That number wasn't valid. Please try again.",
+        ar: "الرقم غير صالح. حاول مرة أخرى.",
+        tr: "Numara geçersizdi. Lütfen tekrar deneyin.",
+        ru: "Номер оказался некорректным. Попробуйте ещё раз.",
+      },
+      pending.locale,
+    );
+    return;
+  }
+
+  const [taken] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.phone, phone))
+    .limit(1);
+  if (taken) {
+    await sendPlain(
+      chatId,
+      {
+        fa: "این شماره قبلاً در IRForge ثبت شده است. لطفاً از سایت وارد شوید.",
+        en: "This number is already registered with IRForge. Please sign in on the site.",
+        ar: "هذا الرقم مسجّل بالفعل في IRForge. سجّل الدخول من الموقع.",
+        tr: "Bu numara IRForge'da zaten kayıtlı. Lütfen siteden giriş yapın.",
+        ru: "Этот номер уже зарегистрирован в IRForge. Войдите на сайте.",
+      },
+      pending.locale,
+    );
+    return;
+  }
+
+  const code = generateCode();
+
+  // ارسال کد فقط اگر همین حالا هنوز در گام telegram_pending باشیم — همان
+  // UPDATE شرطی که یک retry موازی را از فرستادن کد دوم بازمی‌دارد.
+  const advanced = await db
+    .update(pendingRegistrationsTable)
+    .set({
+      phone,
+      codeHash: hashCode(code),
+      codeExpiresAt: codeExpiry(),
+      codeSentCount: (pending.codeSentCount ?? 0) + 1,
+      codeAttempts: 0,
+      step: "code_sent",
+      lastActivityAt: new Date(),
+    })
+    .where(
+      and(
+        eq(pendingRegistrationsTable.id, pending.id),
+        eq(pendingRegistrationsTable.step, "telegram_pending"),
+      ),
+    )
+    .returning({ id: pendingRegistrationsTable.id });
+  if (advanced.length === 0) return;
+
+  logger.info({ registrationId: pending.id }, "Registration: phone verified, code sent");
+  await sendRegistrationCode(chatId, code, pending.locale);
+}
 
 export default router;
