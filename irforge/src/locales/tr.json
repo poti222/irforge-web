@@ -205,11 +205,16 @@
     "comingSoon": "Yakında",
     "overviewActiveToday": "Bugün aktif kullanıcılar",
     "noDataYet": "Henüz veri yok",
-    "botLink": "Bot bağlantısı",
-    "copyId": "Kimliği kopyala",
+    "identityTitle": "Bot kimliği",
+    "botAvatarAlt": "Bot profil resmi",
+    "copyBotId": "Bot kimliğini kopyala",
+    "copyUsername": "Kullanıcı adını kopyala",
     "copied": "Kopyalandı",
+    "botIdCopiedToast": "Bot kimliği panoya kopyalandı",
+    "usernameCopiedToast": "Kullanıcı adı panoya kopyalandı",
     "openInTelegram": "Telegram'da aç",
     "qrHint": "Botu açmak için bu kodu tarayın",
+    "noTelegramIdentity": "Bu botun Telegram kimliği henüz hazır değil — birazdan tekrar kontrol edin.",
     "languageSectionNotice": "Bot dili ayarları yakında buraya taşınacak."
   },
   "marketplace": {
