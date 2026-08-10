@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
   ShoppingCart, Trash2, Blocks, Bot as BotIcon, Wallet, Loader2, ArrowLeft, ArrowRight,
+  Tag, X,
 } from "lucide-react";
 import { useCart, CartBot } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +29,28 @@ function isBotItemComplete(item: CartBot) {
   return REQUIRED_BOT_FIELDS.every((f) => item[f]?.trim());
 }
 
+type DiscountReason = "not_found" | "inactive" | "expired" | "exhausted";
+
+type AppliedDiscount = {
+  code: string;
+  kind: "percent" | "fixed";
+  value: number;
+  discountAmount: number;
+  finalAmount: number;
+};
+
+function discountReasonText(reason: string | undefined, fa: boolean): string {
+  const messages: Record<DiscountReason, { fa: string; en: string }> = {
+    not_found: { fa: "کد تخفیف پیدا نشد", en: "Discount code not found" },
+    inactive: { fa: "این کد تخفیف غیرفعال است", en: "This discount code is inactive" },
+    expired: { fa: "این کد تخفیف منقضی شده است", en: "This discount code has expired" },
+    exhausted: { fa: "سقف استفاده از این کد تخفیف پر شده است", en: "This discount code has reached its usage limit" },
+  };
+  const entry = reason && reason in messages ? messages[reason as DiscountReason] : null;
+  if (!entry) return fa ? "کد تخفیف نامعتبر است" : "Invalid discount code";
+  return fa ? entry.fa : entry.en;
+}
+
 export default function Checkout() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
@@ -38,6 +61,10 @@ export default function Checkout() {
   const { items, total, remove, clear, updateBot } = useCart();
 
   const [busy, setBusy] = useState(false);
+  const [discountInput, setDiscountInput] = useState("");
+  const [discountBusy, setDiscountBusy] = useState(false);
+  const [discountErrorMsg, setDiscountErrorMsg] = useState<string | null>(null);
+  const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscount | null>(null);
 
   const BackArrow = fa ? ArrowRight : ArrowLeft;
 
@@ -71,9 +98,54 @@ export default function Checkout() {
 
   const canPay = items.length > 0 && allBotsComplete && !hasDuplicateTokens;
 
+  const hasBotItems = botItems.length > 0;
+  const payableTotal = appliedDiscount ? appliedDiscount.finalAmount : total;
+
+  // The applied discount was quoted against a specific cart total — if the cart
+  // changes (an item removed, a plugin added) after applying, that quote is
+  // stale. Drop it rather than silently keep showing a wrong final amount.
+  useEffect(() => {
+    if (appliedDiscount && appliedDiscount.discountAmount + appliedDiscount.finalAmount !== total) {
+      setAppliedDiscount(null);
+      setDiscountErrorMsg(fa ? "سبد خرید تغییر کرد؛ کد تخفیف دوباره اعمال شود." : "Your cart changed; re-apply the discount code.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]);
+
+  async function applyDiscount() {
+    const code = discountInput.trim();
+    if (!code) return;
+    setDiscountBusy(true);
+    setDiscountErrorMsg(null);
+    try {
+      const result = await customFetch<{ valid: boolean; kind: "percent" | "fixed"; value: number; discountAmount: number; finalAmount: number }>(
+        "/api/discounts/validate",
+        { method: "POST", body: JSON.stringify({ code, amount: total }) }
+      );
+      setAppliedDiscount({
+        code: code.toUpperCase(),
+        kind: result.kind,
+        value: result.value,
+        discountAmount: result.discountAmount,
+        finalAmount: result.finalAmount,
+      });
+    } catch (err: any) {
+      setAppliedDiscount(null);
+      setDiscountErrorMsg(discountReasonText(err?.data?.reason, fa));
+    } finally {
+      setDiscountBusy(false);
+    }
+  }
+
+  function removeDiscount() {
+    setAppliedDiscount(null);
+    setDiscountInput("");
+    setDiscountErrorMsg(null);
+  }
+
   async function checkout() {
     if (!canPay) return;
-    if (balance < total) {
+    if (balance < payableTotal) {
       toast({
         variant: "destructive",
         title: fa ? "موجودی کیف پول کافی نیست" : "Insufficient wallet balance",
@@ -84,6 +156,10 @@ export default function Checkout() {
     }
     setBusy(true);
     const touchedBots = new Set<string>();
+    // The discount, if any, is only sent with the first bot purchase in the cart —
+    // the server re-validates and applies it once, atomically, inside that request's
+    // transaction. It isn't split across multiple items or sent to plugin purchases.
+    let discountCodeToSend = appliedDiscount?.code ?? null;
     try {
       for (const item of items) {
         if (item.kind === "plugin") {
@@ -102,8 +178,10 @@ export default function Checkout() {
               amount: item.price,
               phone: item.phone,
               telegramId: item.telegramId,
+              discountCode: discountCodeToSend,
             }),
           });
+          discountCodeToSend = null; // applied once
         }
         remove(item.key); // drop each as it succeeds so a mid-way failure keeps the rest
       }
@@ -114,10 +192,21 @@ export default function Checkout() {
         queryClient.invalidateQueries({ queryKey: getListBotPluginsQueryKey(botId) });
         queryClient.invalidateQueries({ queryKey: getGetBotQueryKey(botId) });
       });
+      setAppliedDiscount(null);
+      setDiscountInput("");
       toast({ title: fa ? "خرید با موفقیت انجام شد" : "Checkout complete" });
       setLocation("/bots");
     } catch (err: any) {
-      toast({ variant: "destructive", title: fa ? "خطا در پرداخت" : "Checkout failed", description: err?.data?.error || err?.message });
+      // A discount code that was valid at "Apply" time but died before this request
+      // (exhausted by a race, deactivated, expired) comes back with a reason code —
+      // surface that plainly instead of a generic failure, and drop the stale quote
+      // so a retry doesn't resend a dead code.
+      if (err?.data?.code && ["not_found", "inactive", "expired", "exhausted"].includes(err.data.code)) {
+        setAppliedDiscount(null);
+        toast({ variant: "destructive", title: fa ? "کد تخفیف دیگر معتبر نیست" : "Discount code no longer valid", description: discountReasonText(err.data.code, fa) });
+      } else {
+        toast({ variant: "destructive", title: fa ? "خطا در پرداخت" : "Checkout failed", description: err?.data?.error || err?.message });
+      }
     } finally {
       setBusy(false);
     }
@@ -251,12 +340,69 @@ export default function Checkout() {
         <CardContent className="space-y-3 p-4">
           <div className="flex items-center justify-between text-sm">
             <span className="flex items-center gap-1 text-muted-foreground"><Wallet className="size-3.5" /> {fa ? "موجودی" : "Balance"}</span>
-            <span className={balance < total ? "text-red-500" : ""}>{formatToman(balance, lang)}</span>
+            <span className={balance < payableTotal ? "text-red-500" : ""}>{formatToman(balance, lang)}</span>
           </div>
           <div className="flex items-center justify-between font-semibold">
             <span>{fa ? "جمع کل" : "Total"}</span>
-            <span>{formatToman(total, lang)}</span>
+            <span className={appliedDiscount ? "text-muted-foreground line-through" : ""}>{formatToman(total, lang)}</span>
           </div>
+
+          {appliedDiscount && (
+            <div className="flex items-center justify-between text-sm text-green-600 dark:text-green-500">
+              <span className="flex items-center gap-1">
+                <Tag className="size-3.5" />
+                {fa ? `تخفیف (${appliedDiscount.code})` : `Discount (${appliedDiscount.code})`}
+              </span>
+              <span className="flex items-center gap-1">
+                −{formatToman(appliedDiscount.discountAmount, lang)}
+                <button
+                  type="button"
+                  onClick={removeDiscount}
+                  className="ms-1 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label={fa ? "حذف کد تخفیف" : "Remove discount code"}
+                >
+                  <X className="size-3.5" />
+                </button>
+              </span>
+            </div>
+          )}
+          {appliedDiscount && (
+            <div className="flex items-center justify-between text-base font-bold">
+              <span>{fa ? "قابل پرداخت" : "Payable"}</span>
+              <span>{formatToman(appliedDiscount.finalAmount, lang)}</span>
+            </div>
+          )}
+
+          {!appliedDiscount && hasBotItems && (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                dir="ltr"
+                placeholder={fa ? "کد تخفیف" : "Discount code"}
+                value={discountInput}
+                onChange={(e) => { setDiscountInput(e.target.value); setDiscountErrorMsg(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyDiscount(); } }}
+                className="flex-1 font-mono uppercase"
+                disabled={discountBusy}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!discountInput.trim() || discountBusy}
+                onClick={applyDiscount}
+              >
+                {discountBusy ? <Loader2 className="size-4 animate-spin" /> : (fa ? "اعمال" : "Apply")}
+              </Button>
+            </div>
+          )}
+          {discountErrorMsg && !appliedDiscount && hasBotItems && (
+            <p className="text-xs font-medium text-red-500">{discountErrorMsg}</p>
+          )}
+          {!hasBotItems && (
+            <p className="text-xs text-muted-foreground">
+              {fa ? "کد تخفیف فقط روی خرید بات جدید اعمال می‌شود، نه افزونه‌ها." : "Discount codes apply to new bot purchases, not plugins."}
+            </p>
+          )}
+
           <Separator />
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1" disabled={busy} onClick={clear}>
