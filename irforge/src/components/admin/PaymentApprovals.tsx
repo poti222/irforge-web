@@ -17,7 +17,10 @@ type WalletDeposit = {
   user: { id: string; name: string; email: string } | null;
 };
 
-const WALLET_KEY = ["wallet-deposits"] as const;
+// Exported so both the admin panel's header RefreshButton (Phase 13) and the
+// super-admin Pending Payments page (Phase 12) can watch/invalidate the same
+// wallet-deposits cache entry.
+export const WALLET_KEY = ["wallet-deposits"] as const;
 
 export function PaymentApprovals() {
   const { lang } = useLanguage();
