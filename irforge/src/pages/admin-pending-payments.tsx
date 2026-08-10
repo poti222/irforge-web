@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { ReceiptLightbox } from "@/components/ui/receipt-lightbox";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
@@ -187,11 +188,14 @@ export default function AdminPendingPayments() {
               : "Wallet deposits and bot-order receipts awaiting review."}
           </p>
         </div>
-        {totalPending > 0 && (
-          <Badge variant="secondary" className="ms-auto">
-            {totalPending.toLocaleString(fa ? "fa-IR" : "en-US")}
-          </Badge>
-        )}
+        <div className="ms-auto flex items-center gap-2">
+          {totalPending > 0 && (
+            <Badge variant="secondary">
+              {totalPending.toLocaleString(fa ? "fa-IR" : "en-US")}
+            </Badge>
+          )}
+          <RefreshButton queryKeys={[WALLET_KEY, ["admin", "pending-payments"]]} />
+        </div>
       </div>
 
       {/* ── Wallet deposits ─────────────────────────────────────────────── */}
