@@ -1,5 +1,5 @@
 import { DEFAULT_LANG, type Lang } from "./i18n";
-import { SITE_ORIGIN, absoluteUrl } from "./lang-routing";
+import { PUBLIC_ROUTES, SITE_ORIGIN, absoluteUrl, ancestorRoutes } from "./lang-routing";
 
 /**
  * JSON-LD emitted into every prerendered page, in that page's language.
@@ -45,12 +45,13 @@ export interface SchemaStrings {
   title: string;
   /** page description, already language-specific */
   description: string;
-  /** breadcrumb label for the site root */
-  homeLabel: string;
-  /** breadcrumb + nav label for the docs page */
-  docsLabel: string;
-  /** breadcrumb + nav label for the public bot-token guide */
-  botTokenLabel: string;
+  /**
+   * Short label per public route, already language-specific — the source for
+   * both breadcrumb names and site-navigation names. Replaced the three
+   * hardcoded `homeLabel`/`docsLabel`/`botTokenLabel` fields, which meant
+   * every new route needed a new field and a new `if` in two functions.
+   */
+  routeLabels: Record<string, string>;
 }
 
 function organization() {
@@ -100,11 +101,23 @@ function softwareApplication(lang: Lang, s: SchemaStrings) {
   };
 }
 
+/**
+ * Breadcrumb trail built from the route's own segments, not from a per-route
+ * `if`. `/learn/telegram-bot-token` becomes Home → Learn → <page title>.
+ *
+ * The leaf uses the page title rather than the short nav label, because that
+ * is what a breadcrumb rich result should read as; ancestors use their short
+ * labels. Segments that aren't themselves public routes are skipped, so the
+ * trail never links somewhere that doesn't exist.
+ */
 function breadcrumbs(lang: Lang, route: string, s: SchemaStrings) {
-  const items = [{ name: s.homeLabel, item: absoluteUrl(lang, "/") }];
-  if (route === "/docs") items.push({ name: s.docsLabel, item: absoluteUrl(lang, "/docs") });
-  if (route === "/learn/bot-token")
-    items.push({ name: s.botTokenLabel, item: absoluteUrl(lang, "/learn/bot-token") });
+  const items = [{ name: s.routeLabels["/"], item: absoluteUrl(lang, "/") }];
+  for (const ancestor of ancestorRoutes(route)) {
+    items.push({ name: s.routeLabels[ancestor] ?? ancestor, item: absoluteUrl(lang, ancestor) });
+  }
+  if (route !== "/") {
+    items.push({ name: s.title, item: absoluteUrl(lang, route) });
+  }
   return {
     "@type": "BreadcrumbList",
     itemListElement: items.map((it, i) => ({
@@ -122,23 +135,11 @@ function breadcrumbs(lang: Lang, route: string, s: SchemaStrings) {
  * would point crawlers straight at pages robots.txt tells them to skip.
  */
 function siteNavigation(lang: Lang, s: SchemaStrings) {
-  return [
-    {
-      "@type": "SiteNavigationElement",
-      name: s.homeLabel,
-      url: absoluteUrl(lang, "/"),
-    },
-    {
-      "@type": "SiteNavigationElement",
-      name: s.docsLabel,
-      url: absoluteUrl(lang, "/docs"),
-    },
-    {
-      "@type": "SiteNavigationElement",
-      name: s.botTokenLabel,
-      url: absoluteUrl(lang, "/learn/bot-token"),
-    },
-  ];
+  return PUBLIC_ROUTES.map((route) => ({
+    "@type": "SiteNavigationElement",
+    name: s.routeLabels[route] ?? route,
+    url: absoluteUrl(lang, route),
+  }));
 }
 
 /** FAQPage — only where the page actually renders those questions. */

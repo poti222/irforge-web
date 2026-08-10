@@ -12,9 +12,11 @@ import {
   ALL_LANGS,
   PRIVATE_ROUTES,
   PUBLIC_ROUTES,
+  ROUTE_SEO,
   SITEMAP_LASTMOD,
   absoluteUrl,
   langPath,
+  routeSeo,
 } from "./lib/lang-routing";
 
 import { structuredData } from "./lib/structured-data";
@@ -47,12 +49,45 @@ export interface RenderedPage {
   keywords: string;
 }
 
+/** The `seo` namespace for one language, with English filling any gap. */
+function seoNs(lang: Lang): Record<string, string> {
+  return { ...(LOCALES.en.seo as any), ...((LOCALES[lang]?.seo as any) ?? {}) };
+}
+
+/**
+ * Title/description/keywords for one route, looked up through `ROUTE_SEO`.
+ *
+ * A route with no registry entry throws (see `routeSeo`); a registry entry
+ * pointing at a locale key that doesn't exist throws here. Both are build-time
+ * failures on purpose — the alternative is a page that ships with the wrong
+ * title and nobody notices for months.
+ */
 function seoFor(lang: Lang, route: string) {
-  const ns = { ...LOCALES.en.seo, ...(LOCALES[lang]?.seo ?? {}) };
-  if (route === "/docs") return { title: ns.docsTitle, description: ns.docsDescription };
-  if (route === "/learn/bot-token")
-    return { title: ns.botTokenTitle, description: ns.botTokenDescription };
-  return { title: ns.homeTitle, description: ns.homeDescription };
+  const ns = seoNs(lang);
+  const entry = routeSeo(route);
+  const title = ns[entry.titleKey];
+  const description = ns[entry.descKey];
+  if (!title || !description) {
+    throw new Error(
+      `[seo] Route "${route}" maps to locale keys "${entry.titleKey}"/"${entry.descKey}", ` +
+        `but they are missing from the "seo" namespace (checked ${lang}, then en).`,
+    );
+  }
+  return {
+    title,
+    description,
+    keywords: entry.keywordsKey ? (ns[entry.keywordsKey] ?? "") : "",
+  };
+}
+
+/** Short label per public route, for breadcrumbs and site navigation. */
+function routeLabels(lang: Lang): Record<string, string> {
+  const ns = seoNs(lang);
+  const out: Record<string, string> = {};
+  for (const [route, entry] of Object.entries(ROUTE_SEO)) {
+    out[route] = ns[entry.navKey] ?? route;
+  }
+  return out;
 }
 
 /**
@@ -77,19 +112,12 @@ export function renderPage(lang: Lang, route: string): RenderedPage {
 
   const ssrPath = langPath(lang, route);
   const html = renderToString(<App ssrPath={ssrPath} />);
-  const { title, description } = seoFor(lang, route);
-  const ns = { ...LOCALES.en.seo, ...(LOCALES[lang]?.seo ?? {}) };
+  const { title, description, keywords } = seoFor(lang, route);
 
   const graph = structuredData(
     lang,
     route,
-    {
-      title,
-      description,
-      homeLabel: ns.navHome,
-      docsLabel: ns.navDocs,
-      botTokenLabel: ns.navBotToken,
-    },
+    { title, description, routeLabels: routeLabels(lang) },
     faqFor(lang)
   );
 
@@ -104,7 +132,7 @@ export function renderPage(lang: Lang, route: string): RenderedPage {
     alternates: alternatesFor(route),
     // </script> inside a JSON string would close the tag early
     jsonLd: JSON.stringify(graph).replace(/</g, "\\u003c"),
-    keywords: (ns as any).keywords ?? "",
+    keywords,
   };
 }
 

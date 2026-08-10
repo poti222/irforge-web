@@ -936,3 +936,43 @@ Checked by hand:
    گره خورده است: ۸ عکس × ۸۰۰KB بعد از base64 حدود ۸٫۵MB می‌شود، یعنی همین
    حالا روی لبه است. اگر خواستی سقف عکس را بالا ببری، **اول** لیمیت اکسپرس
    را بالا ببر، وگرنه کاربر یک ۴۱۳ بی‌توضیح می‌گیرد.
+
+---
+
+# SEO BUILD-OUT — IrForge_SEO_ClaudeCode_Prompt.md
+
+## Phase 1 — Make the SEO plumbing route-aware  [DONE 2026-08-10]
+
+Files touched: `irforge/src/lib/lang-routing.ts`, `irforge/src/lib/structured-data.ts`,
+`irforge/src/entry-ssg.tsx`
+
+Pages added (lang × route): none — plumbing only, still 15 emitted pages.
+
+Untranslated keys left: none.
+
+Decisions / deviations:
+
+- The `ROUTE_SEO` registry lives in `lang-routing.ts`, not `entry-ssg.tsx` as
+  the brief suggested. Both `entry-ssg.tsx` and `structured-data.ts` need it,
+  and `lang-routing.ts` already owns `PUBLIC_ROUTES` — putting the registry
+  next to the route list keeps the two from drifting, and avoids
+  `structured-data.ts` importing from the SSR entry point.
+- `routeSeo(route)` **throws** for a route in `PUBLIC_ROUTES` with no registry
+  entry, and `seoFor` throws again if the registry points at a locale key that
+  doesn't exist. Verified by temporarily adding `/dummy-route` to
+  `PUBLIC_ROUTES`: the build fails with the full explanation of which four
+  things to add. Reverted after the check.
+- `SchemaStrings` lost `homeLabel`/`docsLabel`/`botTokenLabel` in favour of a
+  single `routeLabels: Record<string, string>` map. The three-field shape meant
+  every new route required a new field plus a new `if` in both `breadcrumbs()`
+  and `siteNavigation()` — the exact coupling this phase exists to remove.
+- `breadcrumbs()` now walks the route's own segments via `ancestorRoutes()`,
+  skipping any intermediate path that isn't itself a public route (so a trail
+  never links to a 404). The leaf uses the page **title**, ancestors use their
+  short nav labels.
+- `siteNavigation()` is now a `PUBLIC_ROUTES.map(...)`, so a new public route
+  joins the nav schema automatically.
+- No new locale keys were needed yet: the three existing routes already had
+  `homeTitle`/`docsTitle`/`botTokenTitle` and their nav labels, and the brief
+  asked for those to be migrated into the registry rather than renamed. New
+  `seo.routes` copy arrives with the routes themselves in Phase 3.
