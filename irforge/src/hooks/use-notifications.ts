@@ -15,6 +15,11 @@ export type AppNotification = {
   title: string;
   message: string;
   read: boolean;
+  /**
+   * ارجاع اختیاری به رکورد مرتبط. فعلاً فقط برای type = "site_update" پر
+   * می‌شود و id همان آپدیت است، تا لینک /updates/:id ساخته شود.
+   */
+  refId: string | null;
   createdAt: string;
 };
 

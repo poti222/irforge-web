@@ -292,7 +292,8 @@
     "ctaInvoices": "Faturaları gör",
     "ctaBuyBot": "Paketleri gör",
     "ctaWallet": "Cüzdanı aç",
-    "ctaBots": "Botlarıma git"
+    "ctaBots": "Botlarıma git",
+    "ctaUpdate": "Güncellemeyi gör"
   },
   "updates": {
     "title": "Site güncellemeleri",

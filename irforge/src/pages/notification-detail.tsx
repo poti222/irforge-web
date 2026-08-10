@@ -37,9 +37,9 @@ export default function NotificationDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.id, data?.read]);
 
-  const cta = data ? ctaForType(data.type) : null;
+  const cta = data ? ctaForType(data.type, data.refId) : null;
   const ctaLabel = cta
-    ? ({ tickets: t.ctaTickets, invoices: t.ctaInvoices, buyBot: t.ctaBuyBot, wallet: t.ctaWallet, bots: t.ctaBots }[cta.key])
+    ? ({ tickets: t.ctaTickets, invoices: t.ctaInvoices, buyBot: t.ctaBuyBot, wallet: t.ctaWallet, bots: t.ctaBots, update: t.ctaUpdate }[cta.key])
     : null;
 
   return (

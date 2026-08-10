@@ -46,7 +46,13 @@ export function severityIcon(severity: Severity, className = "size-4 shrink-0") 
  * لینکِ «کارِ بعدی» برای هر نوع اعلان — از روی `type` مشتق می‌شود، چون
  * جدول اعلان‌ها جایی برای URL ندارد.
  */
-export function ctaForType(type: string): { href: string; key: "tickets" | "invoices" | "buyBot" | "wallet" | "bots" } | null {
+export function ctaForType(
+  type: string,
+  refId?: string | null,
+): { href: string; key: "tickets" | "invoices" | "buyBot" | "wallet" | "bots" | "update" } | null {
+  // اول از همه: اعلانِ آپدیت سایت به خودِ آن آپدیت لینک می‌دهد. تنها نوعی که
+  // مقصدش به یک رکورد مشخص وابسته است، نه فقط به type.
+  if (type === "site_update" && refId) return { href: `/updates/${refId}`, key: "update" };
   if (type.startsWith("ticket_")) return { href: "/tickets", key: "tickets" };
   if (type.startsWith("purchase_") || type.startsWith("payment_") || type.startsWith("order_")) {
     return { href: "/invoices", key: "invoices" };

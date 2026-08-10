@@ -35,6 +35,7 @@ router.get("/notifications", requireAuth, async (req: any, res) => {
         title: n.title,
         message: n.message,
         read: n.read,
+        refId: n.refId,
         createdAt: n.createdAt.toISOString(),
       }))
     );
@@ -68,6 +69,7 @@ router.get("/notifications/:id", requireAuth, async (req: any, res) => {
       title: row.title,
       message: row.message,
       read: row.read,
+      refId: row.refId,
       createdAt: row.createdAt.toISOString(),
     });
   } catch (err) {
