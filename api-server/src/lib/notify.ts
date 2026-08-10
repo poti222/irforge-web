@@ -27,6 +27,12 @@ export type NotificationInput = {
   message: string;
   botId?: string | null;
   dedupeKey?: string | null;
+  /**
+   * ارجاع اختیاری به رکوردی که اعلان درباره‌اش است (مثلاً id یک site update).
+   * فرانت از روی آن لینک مقصد را می‌سازد؛ بدون این، اعلان فقط از روی `type`
+   * قابل مسیریابی بود و نمی‌شد به یک رکورد مشخص اشاره کرد.
+   */
+  refId?: string | null;
 };
 
 /**
@@ -59,6 +65,7 @@ export async function createNotification(input: NotificationInput): Promise<void
       message: input.message,
       read: false,
       dedupeKey: input.dedupeKey ?? null,
+      refId: input.refId ?? null,
     });
   } catch (err) {
     logger.warn({ err, type: input.type, userId: input.userId }, "createNotification failed (non-fatal)");
@@ -102,6 +109,7 @@ export async function createNotificationsBulk(
         message: input.message,
         read: false,
         dedupeKey: input.dedupeKey ?? null,
+        refId: input.refId ?? null,
       })),
     );
   } catch (err) {
