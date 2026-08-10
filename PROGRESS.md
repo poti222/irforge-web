@@ -738,3 +738,61 @@ five locale diffs are purely additive (10 lines each).
 Follow-ups left open: the enable/disable behaviour was not click-tested in a
 browser — the bot workspace is behind auth and no API server/DB harness exists
 in this tree (see the Phase 14 note on dev-without-API crashing).
+
+## Phase 17 — Language picker and animated theme toggle in the sidebar menu  [DONE 2026-08-10]
+Files touched: `irforge/src/components/layout/app-sidebar.tsx`,
+`irforge/src/components/layout/language-options.tsx` (new),
+`irforge/src/components/layout/language-switcher.tsx`,
+`irforge/src/hooks/use-theme-sweep.ts` (new),
+`irforge/src/components/layout/theme-toggle-button.tsx`.
+
+1. **Language.** The single `DropdownMenuItem onClick={toggleLang}` (which
+   cycled one step forward through `LANGUAGES` per click — hence "changes
+   randomly") is replaced by a `DropdownMenuSub` whose `DropdownMenuSubContent`
+   lists all five languages with flag, native name and a `Check` on the active
+   one, calling `setLang(code)` directly. `toggleLang` is gone from this file's
+   `useLanguage()` destructuring.
+2. **Shared list, not a copy.** The rows were extracted from
+   `language-switcher.tsx` into `LanguageOptions` (renders bare
+   `DropdownMenuItem`s; the caller supplies the content wrapper, which is what
+   lets the same component sit inside both a `DropdownMenuContent` and a
+   `DropdownMenuSubContent`). `LanguageSwitcher` now consumes it, so the header
+   and the sidebar cannot drift. `LanguageOptions` takes an optional
+   `onSelected` so the sidebar can also close the mobile sheet.
+3. **Theme.** The View-Transitions circular sweep moved out of
+   `ThemeToggleButton` into `useThemeSweep()` → `{ isDark, toggleTheme(originEl?) }`.
+   `ThemeToggleButton` passes its own button ref; the sidebar menu item passes
+   `e.currentTarget`, so the sweep starts from whichever control was actually
+   clicked. Reduced-motion and no-View-Transitions fallbacks are untouched —
+   they already lived in `useRunViewTransition`, which runs the update
+   synchronously in both cases, so the extracted hook never branches on them.
+
+Verification: `pnpm --filter @workspace/irforge typecheck` — only the Phase 0
+baseline error. `build` clean (15 pages). Exercised live in the browser on the
+public landing page (the header switcher uses the same extracted component):
+opening the menu lists exactly 5 items — 🇬🇧English / 🇮🇷فارسی / 🇸🇦العربية /
+🇹🇷Türkçe / 🇷🇺Русский — and choosing Türkçe moved the URL to `/tr/` with
+`<html lang="tr">`. Theme toggle flipped `dark`→`light` with
+`document.startViewTransition` present, confirming the extracted hook drives the
+real sweep path and not the fallback.
+Follow-ups left open: the submenu itself was verified through the shared
+component on the public page; the sidebar footer menu that hosts it is behind
+auth and was not click-tested (no API/DB harness — see Phase 14's note).
+
+## Phase 18 — Remove the duplicate brand mark in the app header  [DONE 2026-08-10]
+Files touched: none — **already satisfied in the delivered tree.**
+
+Verified rather than changed:
+- `App.tsx`'s `AuthedRoute` header contains only `<SidebarTrigger />` and
+  `<HeaderControls />`. There is no `BrandLogo`, no `header-brand-home` testid,
+  no `mx-1 h-5 w-px` separator, and no `BrandLogo` import anywhere in the file.
+- `app-sidebar.tsx` renders exactly one lockup, `<SidebarBrandHeader href="/">`,
+  carrying a comment that already cites "Phase 18's own spec". `href="/"` is
+  resolved by wouter against `base` (`BASE_URL` + `langPrefix(lang)`), so it
+  lands on `/en/` for an English visitor and `/` for Persian, with no
+  hardcoded prefix that could double into `/en/en/`.
+
+So this phase was completed in an earlier round (the pre-branch "Update
+App.tsx" / "Update app-sidebar.tsx" commits) and simply never logged — the same
+situation the Phase 9 entry recorded for Phases 7 and 8. Recording it here so
+the ledger is complete; no commit of its own.

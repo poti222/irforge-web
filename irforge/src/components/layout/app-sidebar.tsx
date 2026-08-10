@@ -34,14 +34,18 @@ import {
   Globe,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useTheme } from "next-themes";
+import { useThemeSweep } from "@/hooks/use-theme-sweep";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
+import { LanguageOptions } from "@/components/layout/language-options";
 import { Badge } from "@/components/ui/badge";
 import { getDisplayAvatar } from "@/lib/avatar";
 import { useLanguage } from "@/hooks/use-language";
@@ -53,8 +57,8 @@ import { severityDotClass } from "@/lib/notification-severity";
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
-  const { setTheme, theme } = useTheme();
-  const { lang, toggleLang } = useLanguage();
+  const { isDark, toggleTheme } = useThemeSweep();
+  const { lang } = useLanguage();
   const nav = useT("common");
   const { isMobile, setOpenMobile } = useSidebar();
   // همان کوئری‌ای که زنگوله‌ی هدر استفاده می‌کند (react-query کش مشترک دارد،
@@ -66,7 +70,6 @@ export function AppSidebar() {
   if (!user) return null;
 
   const avatarSrc = getDisplayAvatar(user);
-  const isDark = theme === "dark";
 
   // On phones the sidebar is a slide-over sheet. Tapping a nav item should
   // navigate AND close the sheet so the selected page is revealed.
@@ -295,15 +298,25 @@ export function AppSidebar() {
               </Link>
             </DropdownMenuItem>
 
-            <DropdownMenuItem onClick={() => setTheme(isDark ? "light" : "dark")}>
+            {/* Sweep from this menu item's own element, so the circular
+                transition starts where the user actually clicked — identical
+                animation to the header's ThemeToggleButton. */}
+            <DropdownMenuItem onClick={(e) => toggleTheme(e.currentTarget)}>
               {isDark ? <Sun className="me-2 size-4" /> : <Moon className="me-2 size-4" />}
               <span>{nav.toggleTheme}</span>
             </DropdownMenuItem>
 
-            <DropdownMenuItem onClick={toggleLang}>
-              <Languages className="me-2 size-4" />
-              <span>{nav.changeLanguage}</span>
-            </DropdownMenuItem>
+            {/* A submenu listing all five languages, rather than a single item
+                that cycled forward one step per click (which read as random). */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Languages className="me-2 size-4" />
+                <span>{nav.changeLanguage}</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="min-w-[10rem] p-1">
+                <LanguageOptions onSelected={closeMobileMenu} />
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
 
             <div className="h-px bg-border my-1" />
 

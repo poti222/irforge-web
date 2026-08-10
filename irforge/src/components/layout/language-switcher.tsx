@@ -1,11 +1,11 @@
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Check, Languages } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import { Languages } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { LanguageOptions } from "@/components/layout/language-options";
 import { useLanguage } from "@/hooks/use-language";
 import { LANGUAGES } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -16,10 +16,12 @@ import { cn } from "@/lib/utils";
  * می‌کنه، و هر آیتم با framer-motion به‌صورت staggered وارد می‌شه. انتخاب
  * زبان جدید همون کراس‌فید صفحه‌ای که useLanguage/setLang با View Transitions
  * API انجام می‌ده رو trigger می‌کنه.
+ *
+ * ردیف‌های زبان در `LanguageOptions` مشترک‌اند تا منوی کناری هم دقیقاً همین
+ * ظاهر را داشته باشد.
  */
 export function LanguageSwitcher({ className = "" }: { className?: string }) {
-  const { lang, setLang } = useLanguage();
-  const reduce = useReducedMotion();
+  const { lang } = useLanguage();
   const current = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0];
 
   return (
@@ -41,41 +43,7 @@ export function LanguageSwitcher({ className = "" }: { className?: string }) {
 
       <DropdownMenuContent align="end" className="min-w-[10rem] p-1">
         <AnimatePresence>
-          {LANGUAGES.map((l, i) => {
-            const active = l.code === lang;
-            return (
-              <DropdownMenuItem
-                key={l.code}
-                onSelect={(e) => {
-                  e.preventDefault();
-                  if (!active) setLang(l.code);
-                }}
-                className="p-0 focus:bg-transparent"
-              >
-                <motion.div
-                  initial={reduce ? false : { opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={reduce ? { duration: 0 } : { duration: 0.18, delay: i * 0.03, ease: "easeOut" }}
-                  className={cn(
-                    "flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-sm transition-colors",
-                    active ? "bg-primary/10 text-primary" : "hover:bg-accent hover:text-accent-foreground"
-                  )}
-                >
-                  <span className="text-base leading-none">{l.flag}</span>
-                  <span className="flex-1 text-start">{l.nativeName}</span>
-                  {active && (
-                    <motion.span
-                      initial={reduce ? false : { scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ duration: 0.15 }}
-                    >
-                      <Check className="size-3.5" />
-                    </motion.span>
-                  )}
-                </motion.div>
-              </DropdownMenuItem>
-            );
-          })}
+          <LanguageOptions />
         </AnimatePresence>
       </DropdownMenuContent>
     </DropdownMenu>

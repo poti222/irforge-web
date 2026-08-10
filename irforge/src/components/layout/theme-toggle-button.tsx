@@ -1,8 +1,7 @@
 import { useRef } from "react";
-import { useTheme } from "next-themes";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
-import { useRunViewTransition } from "@/hooks/use-view-transition";
+import { useThemeSweep } from "@/hooks/use-theme-sweep";
 
 /**
  * Z7/W2: a single animated icon that morphs between sun and moon (rotate +
@@ -13,54 +12,17 @@ import { useRunViewTransition } from "@/hooks/use-view-transition";
  * View Transitions support (older Safari/Firefox).
  */
 export function ThemeToggleButton({ className = "" }: { className?: string }) {
-  const { theme, setTheme } = useTheme();
   const reduce = useReducedMotion();
-  const runViewTransition = useRunViewTransition();
   const btnRef = useRef<HTMLButtonElement>(null);
-  const isDark = theme === "dark";
-
-  function handleClick() {
-    const next = isDark ? "light" : "dark";
-    const btn = btnRef.current;
-    if (!btn) {
-      setTheme(next);
-      return;
-    }
-
-    const rect = btn.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + rect.height / 2;
-    // Pythagorean radius from the toggle's corner to the viewport's farthest corner.
-    const endRadius = Math.hypot(
-      Math.max(x, window.innerWidth - x),
-      Math.max(y, window.innerHeight - y)
-    );
-
-    runViewTransition(
-      () => setTheme(next),
-      () => {
-        (document.documentElement as any).animate(
-          {
-            clipPath: [
-              `circle(0px at ${x}px ${y}px)`,
-              `circle(${endRadius}px at ${x}px ${y}px)`,
-            ],
-          },
-          {
-            duration: 650, // deliberately slower than the 300ms UI timing elsewhere (W1/W4)
-            easing: "ease-out",
-            pseudoElement: "::view-transition-new(root)",
-          }
-        );
-      }
-    );
-  }
+  // The sweep itself lives in useThemeSweep so the sidebar menu can produce an
+  // identical one from its own element.
+  const { isDark, toggleTheme } = useThemeSweep();
 
   return (
     <button
       ref={btnRef}
       type="button"
-      onClick={handleClick}
+      onClick={() => toggleTheme(btnRef.current)}
       aria-label="Toggle theme"
       className={`relative inline-flex size-9 items-center justify-center overflow-hidden rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:text-primary ${className}`}
     >
