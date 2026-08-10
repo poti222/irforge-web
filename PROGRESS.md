@@ -879,3 +879,18 @@ Net effect: the missing `refresh-button.tsx` is supplied, `main` builds again,
 and no parallel work was discarded. Post-rebase gates: `pnpm -r build` clean
 (api-server + 15 prerendered pages, robots/sitemap/brand assertions pass);
 `pnpm -r typecheck` unchanged from baseline.
+
+---
+
+# ANNOUNCEMENTS FIX + SITE UPDATES — IrForge_Announcements_Fix_And_Updates_ClaudeCode_Prompt.md
+
+| Phase | Status | Notes |
+|---|---|---|
+| 0 — baseline | DONE | `pnpm install`, `pnpm --filter @workspace/api-server run build`, `pnpm --filter @workspace/irforge run build` all green before any change. Pre-existing baseline warnings recorded below; none are regressions and none are touched by this round. |
+
+**Baseline (pre-existing, not introduced by this round):**
+
+- `api-server` esbuild emits one warning: `"import.meta" is not available with the "cjs" output format` at `src/app.ts:18:33`. The file already guards this at runtime; left alone.
+- `irforge` build emits `src/components/ui/command.tsx (2:0): Error when using sourcemap for reporting an error` — a rollup sourcemap notice, not a build failure. Left alone.
+- `tsc --noEmit` has pre-existing errors across the repo and is **not** the build gate for this work; esbuild/vite are. Not touched.
+- Prerender baseline: 15 pages, sitemap 15 URLs, robots 34 disallow rules — all assertions pass.
