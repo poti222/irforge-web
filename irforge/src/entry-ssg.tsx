@@ -13,6 +13,7 @@ import {
   PRIVATE_ROUTES,
   PUBLIC_ROUTES,
   ROUTE_SEO,
+  SITE_ORIGIN,
   SITEMAP_LASTMOD,
   absoluteUrl,
   langPath,
@@ -20,6 +21,13 @@ import {
 } from "./lib/lang-routing";
 
 import { structuredData } from "./lib/structured-data";
+import {
+  ARTICLE_SLUGS,
+  articleFor,
+  articleRoute,
+  type ArticleContent,
+  type ArticleSlug,
+} from "./lib/learn-content";
 
 export { PRIVATE_ROUTES };
 
@@ -114,10 +122,21 @@ export function renderPage(lang: Lang, route: string): RenderedPage {
   const html = renderToString(<App ssrPath={ssrPath} />);
   const { title, description, keywords } = seoFor(lang, route);
 
+  // Per-language OG card, matching what ssg.mjs writes into og:image.
+  const image = `${SITE_ORIGIN}/og/og-${lang}.png`;
+
+  const slug = ARTICLE_SLUGS.find((s) => articleRoute(s) === route) ?? null;
+  const article: ArticleContent | null = slug ? articleFor(lang, slug) : null;
+  const articles =
+    route === "/learn"
+      ? ARTICLE_SLUGS.map((s) => ({ slug: s as ArticleSlug, content: articleFor(lang, s) }))
+          .filter((a): a is { slug: ArticleSlug; content: ArticleContent } => Boolean(a.content))
+      : undefined;
+
   const graph = structuredData(
     lang,
     route,
-    { title, description, routeLabels: routeLabels(lang) },
+    { title, description, routeLabels: routeLabels(lang), article, articles, image },
     faqFor(lang)
   );
 

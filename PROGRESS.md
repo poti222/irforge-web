@@ -1099,3 +1099,37 @@ Decisions / deviations:
 - Verified in emitted HTML: all three `<details>` blocks and their answer text
   are present on `/en/learn/telegram-shop-bot`, and `id="step-N"` anchors exist
   on the step-by-step articles ready for Phase 5's `HowTo` schema.
+
+## Phase 5 — Article, HowTo and FAQ schema  [DONE 2026-08-10]
+
+Files touched: `irforge/src/lib/structured-data.ts`, `irforge/src/entry-ssg.tsx`
+
+Pages added (lang × route): none — schema only.
+
+Untranslated keys left: none.
+
+Decisions / deviations:
+
+- **`Article`** on all 45 `/learn/*` pages: `headline` truncated to 110 chars,
+  `description`, `inLanguage`, `datePublished`, `dateModified`, `author` and
+  `publisher` both `{"@id": ORG_ID}`, `mainEntityOfPage` = canonical,
+  `image` = that language's OG card.
+- **`HowTo`** on the three step-by-step articles only (`telegram-bot-token`,
+  `how-to-make-a-telegram-bot`, `botfather-commands`). Steps and their
+  `#step-N` anchors are generated from the **same array** that `ArticleLayout`
+  renders as `id`s, so they cannot drift. Verified on the emitted HTML: 7 of 7
+  anchors on the token article resolve to a real `id` in the DOM.
+- **`FAQPage` per article**, built from that article's own Q&A. Previously
+  `faqPage()` fired only on `/`. Every answer is in the rendered markup because
+  the layout uses `<details>`, not Radix.
+- **`CollectionPage` + `ItemList`** on `/learn`, listing all nine articles in
+  order with their real titles.
+- **Dates come from `ARTICLE_DATES` in `lib/learn-content.ts`, not build time**
+  — the same principle as `SITEMAP_LASTMOD`. `dateModified` is a hand-edited
+  constant, so it is stable across rebuilds **by construction**: there is no
+  code path that can make it move without someone editing the file.
+- Nothing is emitted that isn't backed by visible content. No `Review`, no
+  `AggregateRating`, no `offers` (still omitted — see Phase 8).
+- Verified node sets on emitted HTML: article page → Article + HowTo + FAQPage;
+  non-step article → Article + FAQPage; `/learn` → CollectionPage; `/` →
+  FAQPage only, as before.

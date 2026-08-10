@@ -1,6 +1,14 @@
 import { DEFAULT_LANG, type Lang } from "./i18n";
 import { PUBLIC_ROUTES, SITE_ORIGIN, absoluteUrl, ancestorRoutes } from "./lang-routing";
 import { EDUCATION_CHANNEL_URL, INSTAGRAM_URL } from "@/config/support";
+import {
+  ARTICLE_DATES,
+  ARTICLE_SLUGS,
+  HOWTO_SLUGS,
+  articleRoute,
+  type ArticleContent,
+  type ArticleSlug,
+} from "./learn-content";
 
 /**
  * JSON-LD emitted into every prerendered page, in that page's language.
@@ -56,6 +64,12 @@ export interface SchemaStrings {
    * every new route needed a new field and a new `if` in two functions.
    */
   routeLabels: Record<string, string>;
+  /** This page's article copy, when it is a /learn/* article. */
+  article?: ArticleContent | null;
+  /** Every article's copy in this language — used by the /learn ItemList. */
+  articles?: { slug: ArticleSlug; content: ArticleContent }[];
+  /** This language's OG card, absolute. */
+  image?: string;
 }
 
 function organization() {
@@ -146,6 +160,92 @@ function siteNavigation(lang: Lang, s: SchemaStrings) {
   }));
 }
 
+
+/** Slug for a `/learn/<slug>` route, or null for anything else. */
+function articleSlugFor(route: string): ArticleSlug | null {
+  const match = ARTICLE_SLUGS.find((slug) => articleRoute(slug) === route);
+  return match ?? null;
+}
+
+/**
+ * `Article` for a /learn page.
+ *
+ * `datePublished`/`dateModified` come from the hand-maintained `ARTICLE_DATES`,
+ * never from build time. A `dateModified` that moves on every deploy without
+ * the content changing is a false signal, and repeating it teaches the crawler
+ * to ignore the field entirely.
+ */
+function articleNode(lang: Lang, route: string, slug: ArticleSlug, s: SchemaStrings) {
+  const canonical = absoluteUrl(lang, route);
+  const dates = ARTICLE_DATES[slug];
+  return {
+    "@type": "Article",
+    "@id": `${canonical}#article`,
+    // Google truncates headlines past ~110 characters.
+    headline: (s.article?.h1 ?? s.title).slice(0, 110),
+    description: s.description,
+    inLanguage: lang,
+    datePublished: dates.published,
+    dateModified: dates.modified,
+    author: { "@id": ORG_ID },
+    publisher: { "@id": ORG_ID },
+    mainEntityOfPage: canonical,
+    ...(s.image ? { image: s.image } : {}),
+  };
+}
+
+/**
+ * `HowTo` for the step-by-step articles.
+ *
+ * Each step's `url` points at the `#step-N` anchor that `ArticleLayout`
+ * renders as an `id` on the corresponding `<li>`. A HowTo whose steps don't
+ * resolve to visible page content is a structured-data violation, so the
+ * anchors and this node are generated from the same array.
+ */
+function howToNode(lang: Lang, route: string, s: SchemaStrings) {
+  const canonical = absoluteUrl(lang, route);
+  const steps = s.article?.steps ?? [];
+  if (steps.length === 0) return null;
+  return {
+    "@type": "HowTo",
+    "@id": `${canonical}#howto`,
+    name: s.article?.h1 ?? s.title,
+    description: s.description,
+    inLanguage: lang,
+    step: steps.map((step, i) => ({
+      "@type": "HowToStep",
+      position: i + 1,
+      name: step.name,
+      text: step.text,
+      url: `${canonical}#step-${i + 1}`,
+    })),
+  };
+}
+
+/** `CollectionPage` + `ItemList` for the /learn hub. */
+function collectionNode(lang: Lang, s: SchemaStrings) {
+  const canonical = absoluteUrl(lang, "/learn");
+  const items = s.articles ?? [];
+  return {
+    "@type": "CollectionPage",
+    "@id": `${canonical}#collection`,
+    name: s.title,
+    description: s.description,
+    inLanguage: lang,
+    url: canonical,
+    mainEntity: {
+      "@type": "ItemList",
+      numberOfItems: items.length,
+      itemListElement: items.map((item, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        name: item.content.h1,
+        url: absoluteUrl(lang, articleRoute(item.slug)),
+      })),
+    },
+  };
+}
+
 /** FAQPage — only where the page actually renders those questions. */
 function faqPage(faq: { q: string; a: string }[]) {
   return {
@@ -175,7 +275,23 @@ export function structuredData(
     breadcrumbs(lang, route, s),
     ...siteNavigation(lang, s),
   ];
-  // the FAQ only exists on the landing page
+
+  const slug = articleSlugFor(route);
+  if (slug) {
+    graph.push(articleNode(lang, route, slug, s));
+    if (HOWTO_SLUGS.includes(slug)) {
+      const howTo = howToNode(lang, route, s);
+      if (howTo) graph.push(howTo);
+    }
+    // Each article carries its own FAQ, rendered as <details> so every answer
+    // is in the HTML whether or not it is expanded.
+    const articleFaq = s.article?.faq ?? [];
+    if (articleFaq.length) graph.push(faqPage(articleFaq));
+  }
+
+  if (route === "/learn") graph.push(collectionNode(lang, s));
+
+  // the landing FAQ only exists on the landing page
   if (route === "/" && faq.length) graph.push(faqPage(faq));
 
   return { "@context": "https://schema.org", "@graph": graph };
