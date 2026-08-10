@@ -205,11 +205,16 @@
     "comingSoon": "به‌زودی",
     "overviewActiveToday": "کاربران فعال امروز",
     "noDataYet": "هنوز داده‌ای نیست",
-    "botLink": "لینک بات",
-    "copyId": "کپی آیدی",
+    "identityTitle": "هویت بات",
+    "botAvatarAlt": "تصویر پروفایل بات",
+    "copyBotId": "کپی آیدی بات",
+    "copyUsername": "کپی نام کاربری",
     "copied": "کپی شد",
+    "botIdCopiedToast": "آیدی بات کپی شد",
+    "usernameCopiedToast": "نام کاربری کپی شد",
     "openInTelegram": "باز کردن در تلگرام",
     "qrHint": "برای باز کردن بات، این کد را اسکن کنید",
+    "noTelegramIdentity": "هویت تلگرامی این بات هنوز آماده نیست — کمی بعد دوباره سر بزنید.",
     "languageSectionNotice": "تنظیمات زبان بات به‌زودی از همین‌جا در دسترس خواهد بود."
   },
   "marketplace": {
