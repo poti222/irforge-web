@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, usersTable, sessionsTable, botsTable, telegramLinkTokensTable } from "@workspace/db";
+import { db, usersTable, sessionsTable, botsTable, telegramLinkTokensTable, loginChallengesTable } from "@workspace/db";
 import { eq, and, gt, count } from "drizzle-orm";
 import crypto from "crypto";
 import { logger } from "../lib/logger";
@@ -7,7 +7,18 @@ import { syncUserUpsert, syncSessionUpsert, syncSessionDelete } from "../lib/she
 import { verifyTelegramAuth, verifyTelegramInitData } from "../lib/telegramAuth";
 import { hashPassword, verifyPassword } from "../lib/password";
 import { sendTelegramMessage } from "../lib/telegram";
-import { generateCode, hashCode, verifyCode as verifyOtp, isExpired } from "../lib/otp";
+import {
+  CODE_TTL_MS,
+  MAX_CODE_ATTEMPTS,
+  codeExpiry,
+  generateCode,
+  hashCode,
+  isExpired,
+  normalizePhone,
+  verifyCode as verifyOtp,
+} from "../lib/otp";
+import { sendLoginCode } from "../lib/registrationBot";
+import { authRateLimit, hit, phoneKey, reset, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS } from "../middleware/rateLimit";
 
 /**
  * کد بازیابی رمز حالا از `lib/otp.ts` می‌آید — همان تولیدکننده، همان هش و
@@ -153,41 +164,181 @@ router.post("/auth/register", async (req, res) => {
   }
 });
 
-// POST /api/auth/login
-router.post("/auth/login", async (req, res) => {
+// ─── POST /api/auth/login ────────────────────────────────────────────────────
+// گام یک از دو. **هیچ نشستی اینجا ساخته نمی‌شود** حتی با اطلاعات کاملاً درست:
+// یک چالش ساخته می‌شود و کد به تلگرام کاربر می‌رود. «مرا به خاطر بسپار» وجود
+// ندارد؛ عامل دوم یا همیشه هست یا اصلاً نیست.
+router.post("/auth/login", authRateLimit("login"), async (req, res) => {
+  const startedAt = Date.now();
+
+  /**
+   * پاسخ یکسان برای «شماره وجود ندارد» و «رمز غلط».
+   *
+   * علاوه بر متن یکسان، زمان پاسخ هم یکسان‌سازی می‌شود: اگر مسیر «کاربر پیدا
+   * نشد» سریع‌تر برگردد، همان اختلاف زمان می‌گوید کدام شماره‌ها حساب دارند و
+   * اندپوینت به ابزار کشف شماره تبدیل می‌شود.
+   */
+  const genericFail = async () => {
+    const elapsed = Date.now() - startedAt;
+    const floor = 400;
+    if (elapsed < floor) await new Promise((r) => setTimeout(r, floor - elapsed));
+    res.status(401).json({ error: "Invalid credentials", code: "invalid_credentials" });
+  };
+
   try {
-    const { email, password } = req.body;
-    const users = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.email, email))
-      .limit(1);
-    const user = users[0];
-    // BUG FIX: guard against null passwordHash — bcrypt.compare throws on null,
-    // which causes HTTP 500 instead of 401
+    const phone = normalizePhone(req.body?.phone);
+    const password = req.body?.password;
+    if (!phone || typeof password !== "string" || password === "") {
+      await genericFail();
+      return;
+    }
+
+    // بلاک per-phone بعد از ۵ ورود ناموفق در ۱۵ دقیقه.
+    const blocked = await hit(phoneKey(phone), PHONE_FAIL_LIMIT, PHONE_BLOCK_MS);
+    if (!blocked.allowed) {
+      res.status(429).json({
+        error: "Too many attempts. Please try again later.",
+        code: "rate_limited",
+        retryAfterSeconds: blocked.retryAfterSeconds,
+      });
+      return;
+    }
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
     if (!user || !user.passwordHash || !(await verifyPassword(password, user.passwordHash))) {
-      res.status(401).json({ error: "Invalid credentials" });
+      await genericFail();
       return;
     }
     if (user.status === "banned" || user.status === "suspended") {
       res.status(403).json({ error: "Account suspended" });
       return;
     }
+
+    // حساب‌های ساخته‌شده پیش از این فیچر تلگرام ندارند و نمی‌توانند کد بگیرند.
+    // نه اجازه‌ی عبور بدون عامل دوم، نه قفل‌شدن: یک وضعیت مشخص برمی‌گردد که UI
+    // آن را به صفحه‌ی «حسابت باید به تلگرام وصل شود» با لینک عمیق تبدیل می‌کند،
+    // و همان ماشین فاز ۳ را با purpose = "link" دوباره استفاده می‌کند.
+    if (!user.telegramId) {
+      const linkToken = crypto.randomBytes(16).toString("hex");
+      await db.insert(telegramLinkTokensTable).values({
+        token: linkToken,
+        userId: user.id,
+        purpose: "link",
+        expiresAt: new Date(Date.now() + LINK_TOKEN_TTL_MS),
+      });
+      const username = process.env.TELEGRAM_BOT_USERNAME?.replace(/^@/, "") ?? null;
+      res.status(409).json({
+        error: "This account needs Telegram connected before signing in",
+        code: "telegram_required",
+        deepLink: username ? `https://t.me/${username}?start=${linkToken}` : null,
+      });
+      return;
+    }
+
+    await reset(phoneKey(phone));
+
+    const code = generateCode();
+    const challengeId = crypto.randomUUID();
+    await db.insert(loginChallengesTable).values({
+      id: challengeId,
+      userId: user.id,
+      codeHash: hashCode(code),
+      codeExpiresAt: codeExpiry(),
+    });
+    await sendLoginCode(user.telegramId, code, null);
+
+    logger.info({ userId: user.id }, "Login challenge issued");
+    res.json({
+      challengeId,
+      expiresInSeconds: Math.floor(CODE_TTL_MS / 1000),
+      // اشاره‌ی ماسک‌شده به مقصد، نه خودِ مقصد.
+      destinationHint: user.telegramUsername
+        ? `@${user.telegramUsername.slice(0, 3)}***`
+        : "Telegram",
+    });
+  } catch (err) {
+    logger.error({ err }, "Login error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/auth/login/verify ─────────────────────────────────────────────
+// گام دو: کد را بررسی می‌کند و نشست را صادر می‌کند.
+router.post("/auth/login/verify", authRateLimit("login_verify"), async (req, res) => {
+  try {
+    const challengeId = req.body?.challengeId;
+    if (typeof challengeId !== "string" || challengeId === "") {
+      res.status(400).json({ error: "Invalid challenge", code: "invalid_challenge" });
+      return;
+    }
+
+    const [challenge] = await db
+      .select()
+      .from(loginChallengesTable)
+      .where(eq(loginChallengesTable.id, challengeId))
+      .limit(1);
+
+    // مصرف‌شده، منقضی یا ناموجود — همه یک پیام می‌گیرند.
+    if (!challenge || challenge.consumedAt || isExpired(challenge.codeExpiresAt)) {
+      res.status(400).json({ error: "This code has expired", code: "challenge_expired" });
+      return;
+    }
+
+    const attempts = challenge.attempts + 1;
+    await db
+      .update(loginChallengesTable)
+      .set({ attempts })
+      .where(eq(loginChallengesTable.id, challengeId));
+
+    if (attempts > MAX_CODE_ATTEMPTS) {
+      await db
+        .update(loginChallengesTable)
+        .set({ consumedAt: new Date() })
+        .where(eq(loginChallengesTable.id, challengeId));
+      logger.warn({ userId: challenge.userId }, "Login challenge killed after too many attempts");
+      res.status(429).json({ error: "Too many attempts", code: "too_many_attempts" });
+      return;
+    }
+
+    if (!verifyOtp(String(req.body?.code ?? ""), challenge.codeHash)) {
+      res.status(400).json({
+        error: "The code is incorrect",
+        code: "invalid_code",
+        attemptsLeft: Math.max(0, MAX_CODE_ATTEMPTS - attempts),
+      });
+      return;
+    }
+
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, challenge.userId))
+      .limit(1);
+    if (!user) {
+      res.status(400).json({ error: "This code has expired", code: "challenge_expired" });
+      return;
+    }
+
+    await db
+      .update(loginChallengesTable)
+      .set({ consumedAt: new Date() })
+      .where(eq(loginChallengesTable.id, challengeId));
+
     await db.update(usersTable).set({ lastLogin: new Date() }).where(eq(usersTable.id, user.id));
     const token = generateToken(user.id);
     const loginSessionExpiry = sessionExpiresAt();
     await db.insert(sessionsTable).values({ token, userId: user.id, expiresAt: loginSessionExpiry });
     syncSessionUpsert({ token, userId: user.id, expiresAt: loginSessionExpiry });
+
     const [{ value: botCount }] = await db
       .select({ value: count() })
       .from(botsTable)
       .where(eq(botsTable.userId, user.id));
-    res.json({
-      user: toAuthUser(user, botCount),
-      token,
-    });
+
+    logger.info({ userId: user.id }, "Login completed");
+    res.json({ user: toAuthUser(user, botCount), token });
   } catch (err) {
-    logger.error({ err }, "Login error");
+    logger.error({ err }, "Login verify error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

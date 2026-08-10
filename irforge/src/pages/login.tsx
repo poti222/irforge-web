@@ -1,220 +1,253 @@
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { useAuth } from "@/contexts/AuthContext";
-import { Link } from "wouter";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
+import { customFetch, getGetMeQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { GlowButton } from "@/components/ui/glow-button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import { Shake } from "@/components/ui/shake";
-import { useSEO } from "@/hooks/use-seo";
-import { LoginMascot } from "@/components/auth/LoginMascot";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, ArrowLeft, ArrowRight, Phone, Mail, LifeBuoy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
-import { BrandLogo } from "@/components/layout/brand-home";
-import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
-import { LanguageSwitcher } from "@/components/layout/language-switcher";
+import { useSEO } from "@/hooks/use-seo";
 import { useT } from "@/hooks/use-translation";
+import { useLanguage } from "@/hooks/use-language";
+import { isRtlLang } from "@/lib/i18n";
+import { BrandLogo } from "@/components/layout/brand-home";
+import { CodeInput } from "@/components/auth/CodeInput";
+import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 
-const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
-  adminCode: z.string().optional(),
-});
+/**
+ * ورود دومرحله‌ای: شماره + رمز → کد در تلگرام → نشست.
+ *
+ * کد در **هر** ورود لازم است. «این دستگاه را به خاطر بسپار» عمداً وجود ندارد:
+ * عامل دومی که می‌شود خاموشش کرد، برای مهاجمی که رمز را دارد یعنی فقط یک
+ * چک‌باکس فاصله تا حساب.
+ */
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+type Step = "credentials" | "code" | "needs_telegram";
 
 export default function Login() {
-  useSEO({ title: "ورود | IrForge", noindex: true });
-  const { login } = useAuth();
+  const t = useT("auth") as Record<string, string>;
+  const { lang } = useLanguage();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorShake, setErrorShake] = useState(0); // W6: shake form on error
-  const tr = useT("auth");
+  const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
+  const BackArrow = isRtlLang(lang) ? ArrowRight : ArrowLeft;
 
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-      adminCode: "",
-    },
-  });
+  useSEO({ title: t.signIn ?? "Sign in | IrForge", noindex: true });
 
-  // W7: mascot reactivity — focus state + live field lengths + the V1 reveal toggle.
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
-  const [passwordShown, setPasswordShown] = useState(false);
-  const emailValue = form.watch("email");
-  const passwordValue = form.watch("password");
+  const [step, setStep] = useState<Step>("credentials");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  async function onSubmit(data: LoginFormValues) {
-    setIsLoading(true);
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [destination, setDestination] = useState<string>("Telegram");
+  const [code, setCode] = useState("");
+  const [codeInvalid, setCodeInvalid] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [linkDeepLink, setLinkDeepLink] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (secondsLeft <= 0) return;
+    const id = window.setInterval(() => setSecondsLeft((n) => Math.max(0, n - 1)), 1000);
+    return () => window.clearInterval(id);
+  }, [secondsLeft]);
+
+  function fail(err: any) {
+    const retry = err?.data?.retryAfterSeconds;
+    toast({
+      variant: "destructive",
+      title: t.genericAuthError,
+      description:
+        typeof retry === "number"
+          ? (t.rateLimited ?? "").replace("{n}", String(retry))
+          : undefined,
+    });
+  }
+
+  async function submitCredentials() {
+    setBusy(true);
     try {
-      // Pass adminCode as part of login if filled
-      await (login as any)({ email: data.email, password: data.password, adminCode: data.adminCode || undefined });
-      toast({
-        title: tr.welcomeBackTitle,
-        description: tr.welcomeBackDesc,
+      const res = await customFetch<{
+        challengeId: string;
+        expiresInSeconds: number;
+        destinationHint: string;
+      }>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ phone: phone.trim(), password }),
       });
-    } catch (error: any) {
-      setErrorShake((c) => c + 1);
-      toast({
-        variant: "destructive",
-        title: tr.loginFailedTitle,
-        description: error?.message || tr.loginFailedDefaultDesc,
-      });
+      setChallengeId(res.challengeId);
+      setDestination(res.destinationHint);
+      setSecondsLeft(res.expiresInSeconds);
+      setCode("");
+      setStep("code");
+    } catch (err: any) {
+      // کاربر قدیمی بدون تلگرام: نه رد، نه عبور بدون عامل دوم — هدایت به اتصال.
+      if (err?.data?.code === "telegram_required") {
+        setLinkDeepLink(err.data.deepLink ?? null);
+        setStep("needs_telegram");
+        return;
+      }
+      fail(err);
     } finally {
-      setIsLoading(false);
+      setBusy(false);
+    }
+  }
+
+  async function verify(entered: string) {
+    if (!challengeId || entered.length !== 6) return;
+    setBusy(true);
+    setCodeInvalid(false);
+    try {
+      const res = await customFetch<{ user: any; token: string }>("/api/auth/login/verify", {
+        method: "POST",
+        body: JSON.stringify({ challengeId, code: entered }),
+      });
+      localStorage.setItem("token", res.token);
+      queryClient.setQueryData(getGetMeQueryKey(), res.user);
+      navigate("/dashboard");
+    } catch (err: any) {
+      setCodeInvalid(true);
+      setCode("");
+      if (err?.data?.code === "too_many_attempts" || err?.data?.code === "challenge_expired") {
+        setStep("credentials");
+        setChallengeId(null);
+        toast({ variant: "destructive", title: t.tooManyAttempts });
+        return;
+      }
+      fail(err);
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-background relative">
-      {/* Top controls */}
-      <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-          data-testid="link-back-home"
-        >
-          <ArrowLeft className="size-4" />
-          {tr.backToHome}
-        </Link>
-        <div className="flex items-center gap-2">
-          <ThemeToggleButton />
-          <LanguageSwitcher />
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
+      <div className="w-full max-w-md space-y-6">
+        <div className="flex justify-center">
+          <BrandLogo href="/" />
         </div>
-      </div>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
-        <BrandLogo className="mb-8 hover:opacity-80 transition-opacity" />
-        <h2 className="text-center text-2xl font-bold tracking-tight text-foreground">
-          {tr.signInAccount}
-        </h2>
-        <p className="mt-2 text-center text-sm text-muted-foreground">
-          {tr.noAccount}{" "}
-          <Link href="/register" className="font-medium text-primary hover:underline">
-            {tr.registerNow}
-          </Link>
-        </p>
-      </div>
+        {step === "credentials" && (
+          <form
+            className="space-y-4"
+            onSubmit={(e) => { e.preventDefault(); void submitCredentials(); }}
+          >
+            <h1 className="text-2xl font-bold tracking-tight">{t.signInAccount}</h1>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-[400px]">
-        <LoginMascot
-          className="mx-auto mb-4 size-20"
-          emailLength={emailValue?.length ?? 0}
-          emailFocused={emailFocused}
-          passwordFocused={passwordFocused}
-          passwordLength={passwordValue?.length ?? 0}
-          showPassword={passwordShown}
-        />
-        <Shake trigger={errorShake} className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit, () => setErrorShake((c) => c + 1))} className="space-y-5">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{tr.emailAddress}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        placeholder="developer@example.com"
-                        {...field}
-                        onFocus={() => setEmailFocused(true)}
-                        onBlur={() => { field.onBlur(); setEmailFocused(false); }}
-                        data-testid="input-login-email"
-                        disabled={isLoading}
-                        className="bg-background"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+            <div className="space-y-1.5">
+              <Label htmlFor="login-phone">{t.loginPhone}</Label>
+              <Input
+                id="login-phone"
+                dir="ltr"
+                inputMode="tel"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
               />
-
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center justify-between">
-                      <FormLabel>{tr.password}</FormLabel>
-                      <Link href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
-                        {tr.forgotPassword}
-                      </Link>
-                    </div>
-                    <FormControl>
-                      <PasswordInput
-                        placeholder="••••••••"
-                        {...field}
-                        onFocusedChange={setPasswordFocused}
-                        show={passwordShown}
-                        onShowChange={setPasswordShown}
-                        data-testid="input-login-password"
-                        disabled={isLoading}
-                        className="bg-background"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="login-pass">{t.loginPassword}</Label>
+              <PasswordInput
+                id="login-pass"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
               />
+            </div>
 
-              {/* Admin Code Field */}
-              <FormField
-                control={form.control}
-                name="adminCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-muted-foreground text-xs font-medium">
-                      {tr.adminCode}
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="text"
-                        placeholder={tr.adminCodePlaceholder}
-                        {...field}
-                        data-testid="input-login-admin-code"
-                        disabled={isLoading}
-                        className="bg-background border-dashed text-xs"
-                      />
-                    </FormControl>
-                    <p className="text-[11px] text-muted-foreground/70 mt-1">{tr.adminCodeHint}</p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <GlowButton type="submit" className="w-full" disabled={busy}>
+              {busy && <Loader2 className="me-2 size-4 animate-spin" />}
+              {t.loginContinue}
+            </GlowButton>
 
-              <Button
-                type="submit"
-                className="w-full h-11"
-                disabled={isLoading}
-                data-testid="button-login-submit"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="me-2 h-4 w-4 animate-spin" />
-                    {tr.signingIn}
-                  </>
-                ) : (
-                  tr.signIn
-                )}
-              </Button>
-            </form>
-          </Form>
-        </Shake>
+            {/* ایمیل مثل ثبت‌نام، دیده می‌شود ولی غیرفعال است. */}
+            <div className="flex items-center gap-2 rounded-lg border p-3 opacity-60" aria-disabled="true">
+              <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="text-sm">{t.methodEmail}</span>
+              <Badge variant="secondary" className="ms-auto">{t.comingSoon}</Badge>
+            </div>
+
+            <p className="text-center text-sm text-muted-foreground">
+              {t.noAccount}{" "}
+              <Link href="/register" className="text-primary hover:underline">{t.registerNow}</Link>
+            </p>
+
+            {/* مسیر مشخص به‌جای بن‌بست، برای کسی که تلگرامش را از دست داده. */}
+            <Link
+              href="/support?topic=telegram-lost"
+              className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <LifeBuoy className="size-3.5" aria-hidden="true" />
+              {t.lostTelegram}
+            </Link>
+          </form>
+        )}
+
+        {step === "code" && (
+          <div className="space-y-5">
+            <div className="space-y-1">
+              <h1 className="text-2xl font-bold tracking-tight">{t.loginCodeTitle}</h1>
+              <p className="text-sm text-muted-foreground">
+                {(t.loginCodeDesc ?? "").replace("{dest}", destination)}
+              </p>
+            </div>
+
+            <CodeInput
+              value={code}
+              onChange={setCode}
+              onComplete={(c) => void verify(c)}
+              disabled={busy}
+              invalid={codeInvalid}
+            />
+
+            <p className="text-center text-sm text-muted-foreground" aria-live="polite">
+              {secondsLeft > 0
+                ? (t.codeExpiresIn ?? "").replace(
+                    "{t}",
+                    `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`,
+                  )
+                : t.codeExpired}
+            </p>
+
+            <GlowButton
+              className="w-full"
+              disabled={busy || code.length !== 6}
+              onClick={() => void verify(code)}
+            >
+              {busy && <Loader2 className="me-2 size-4 animate-spin" />}
+              {t.loginVerify}
+            </GlowButton>
+
+            <Button variant="ghost" className="w-full" onClick={() => setStep("credentials")}>
+              <BackArrow className="me-2 size-4" /> {t.back}
+            </Button>
+          </div>
+        )}
+
+        {step === "needs_telegram" && (
+          <div className="space-y-4">
+            <h1 className="text-2xl font-bold tracking-tight">{t.needsTelegram}</h1>
+            <p className="text-sm text-muted-foreground">{t.needsTelegramDesc}</p>
+            <TelegramLinkPanel mode="register" deepLink={linkDeepLink} waiting />
+            <Button variant="ghost" className="w-full" onClick={() => setStep("credentials")}>
+              <BackArrow className="me-2 size-4" /> {t.back}
+            </Button>
+
+            <Card>
+              <CardContent className="flex items-start gap-3 p-4">
+                <Phone className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <p className="text-xs text-muted-foreground">{t.lostTelegramDesc}</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );
