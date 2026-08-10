@@ -205,11 +205,16 @@
     "comingSoon": "Скоро",
     "overviewActiveToday": "Активные пользователи сегодня",
     "noDataYet": "Пока нет данных",
-    "botLink": "Ссылка на бота",
-    "copyId": "Скопировать ID",
+    "identityTitle": "Личность бота",
+    "botAvatarAlt": "Аватар бота",
+    "copyBotId": "Скопировать ID бота",
+    "copyUsername": "Скопировать имя пользователя",
     "copied": "Скопировано",
+    "botIdCopiedToast": "ID бота скопирован",
+    "usernameCopiedToast": "Имя пользователя скопировано",
     "openInTelegram": "Открыть в Telegram",
     "qrHint": "Отсканируйте код, чтобы открыть бота",
+    "noTelegramIdentity": "Telegram-профиль бота пока недоступен — загляните позже.",
     "languageSectionNotice": "Настройки языка бота скоро появятся здесь."
   },
   "marketplace": {
