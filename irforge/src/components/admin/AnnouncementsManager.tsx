@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Megaphone, Trash2, Loader2, Plus } from "lucide-react";
+import { Megaphone, Trash2, Loader2, Plus, AlertTriangle, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 
@@ -45,7 +45,10 @@ export function AnnouncementsManager() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: items, isLoading } = useListAnnouncements();
+  // isError/error هم لازم است: تا قبل از این، وقتی GET با ۵۰۰ می‌ترکید
+  // (جدول announcements اصلاً ساخته نشده بود) کامپوننت فقط isLoading را چک
+  // می‌کرد و برای همیشه روی skeleton گیر می‌کرد — باگ کاملاً بی‌صدا بود.
+  const { data: items, isLoading, isError, error, refetch, isFetching } = useListAnnouncements();
   const createAnn = useCreateAnnouncement();
   const deleteAnn = useDeleteAnnouncement();
 
@@ -123,6 +126,28 @@ export function AnnouncementsManager() {
         </h3>
         {isLoading ? (
           <div className="space-y-2">{[1, 2].map((i) => <div key={i} className="h-16 animate-pulse rounded-md bg-muted" />)}</div>
+        ) : isError ? (
+          <Card className="border-red-500/40 bg-red-500/5">
+            <CardContent className="space-y-3 p-4">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-medium text-red-500">
+                    {fa ? "خطا در بارگذاری اعلان‌ها" : "Failed to load announcements"}
+                  </p>
+                  <p className="break-words text-xs text-muted-foreground">
+                    {serverMessage(error) ?? (fa ? "خطای ناشناخته" : "Unknown error")}
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+                {isFetching
+                  ? <Loader2 className="me-2 h-4 w-4 animate-spin" />
+                  : <RefreshCw className="me-2 h-4 w-4" />}
+                {fa ? "تلاش دوباره" : "Try again"}
+              </Button>
+            </CardContent>
+          </Card>
         ) : items && items.length > 0 ? (
           items.map((a) => (
             <Card key={a.id}>

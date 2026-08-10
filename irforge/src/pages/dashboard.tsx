@@ -67,6 +67,9 @@ export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: activity, isLoading: activityLoading } = useGetDashboardActivity();
   // R5b: surface platform announcements created in the admin panel.
+  // عمداً حالت خطا ندارد: اگر این کوئری شکست بخورد نوار اعلان‌ها فقط پنهان
+  // می‌ماند و هیچ توستی به کاربر نشان داده نمی‌شود — یک بنر تزئینی نباید
+  // داشبورد را پر از خطا کند. (retry از queryClient گلوبال می‌آید: retry: 1.)
   const { data: announcements } = useQuery({
     queryKey: ["announcements"],
     queryFn: () => customFetch<DashboardAnnouncement[]>("/api/announcements"),

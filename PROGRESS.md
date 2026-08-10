@@ -886,8 +886,9 @@ and no parallel work was discarded. Post-rebase gates: `pnpm -r build` clean
 
 | Phase | Status | Notes |
 |---|---|---|
-| 1 — announcements 500 fix | DONE | Added the missing `CREATE TABLE IF NOT EXISTS announcements` (+ `announcements_created_at_idx`) to `api-server/migrate.mjs`, the migration `start.sh` actually runs. Mirror added at `lib/db/migrations/0015_announcements.sql` for drizzle parity. Root `migrate.mjs` marked `DEAD CODE` (not executed) without touching its body. **This fix only takes effect after a deploy/restart on Railway**, because `migrate.mjs` runs at boot — until the service restarts, the announcements bug is still live in production. |
 | 0 — baseline | DONE | `pnpm install`, `pnpm --filter @workspace/api-server run build`, `pnpm --filter @workspace/irforge run build` all green before any change. Pre-existing baseline warnings recorded below; none are regressions and none are touched by this round. |
+| 1 — announcements 500 fix | DONE | Added the missing `CREATE TABLE IF NOT EXISTS announcements` (+ `announcements_created_at_idx`) to `api-server/migrate.mjs`, the migration `start.sh` actually runs. Mirror added at `lib/db/migrations/0015_announcements.sql` for drizzle parity. Root `migrate.mjs` marked `DEAD CODE` (not executed) without touching its body. **This fix only takes effect after a deploy/restart on Railway**, because `migrate.mjs` runs at boot — until the service restarts, the announcements bug is still live in production. |
+| 2 — announcements UI error state | DONE | `AnnouncementsManager` now reads `isError`/`error`/`refetch` from `useListAnnouncements()` and renders a red error card with `serverMessage(error)` and a «تلاش دوباره» button, ordered `isLoading → isError → data → empty`. Previously only `isLoading` was checked, so a 500 left the list on an infinite skeleton — the exact silent failure this round was reported for. `dashboard.tsx`'s `["announcements"]` query stays deliberately silent (banner just hides, no toast); global `retry: 1` confirmed in `App.tsx`. |
 
 **Baseline (pre-existing, not introduced by this round):**
 
