@@ -42,7 +42,9 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   error: "destructive",
 };
 
-const ADMIN_BOTS_KEY = ["admin-bots"];
+// Exported so the admin panel's header RefreshButton (Phase 13) can watch/
+// invalidate this tab's data without duplicating the key.
+export const ADMIN_BOTS_KEY = ["admin-bots"];
 
 export function AllBotsTable() {
   const { lang } = useLanguage();
