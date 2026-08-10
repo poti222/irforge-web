@@ -29,11 +29,9 @@ import {
   usersTable,
   walletsTable,
   walletTransactionsTable,
-  discountCodesTable,
-  discountRedemptionsTable,
 } from "@workspace/db";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
-import { computeDiscount, type DiscountKind } from "../lib/discounts";
+import { reserveDiscount, DiscountCodeError, type DiscountReservation } from "../lib/discountStore";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { encryptToken, decryptToken } from "../lib/tokenCrypto";
@@ -367,78 +365,24 @@ async function deductWallet(userId: string, amount: number, note: string, execut
 }
 
 // ─── Discount-code application (Phase 11) ───────────────────────────────────
-// Shared by any wallet purchase that accepts an optional discount code. The
-// code is re-validated from scratch here — a client-supplied discountAmount
-// or finalAmount is never trusted — and this is meant to run inside the same
-// db.transaction() as the wallet deduction, row-locked, so a code can't be
-// spent past its maxUses by two concurrent purchases racing each other.
-
-type DiscountReason = "not_found" | "inactive" | "expired" | "exhausted";
-
-class DiscountCodeError extends Error {
-  constructor(public reason: DiscountReason, message: string) {
-    super(message);
-  }
-}
+// Shared by any wallet purchase that accepts an optional discount code.
+// Discount data lives only in Google Sheets now (see lib/discountStore.ts),
+// not Postgres, so it can no longer be locked/validated/incremented inside
+// the same db.transaction() as the wallet deduction. Instead this is a
+// two-phase flow:
+//   1. reserveDiscount() (called by the route below, before the Postgres
+//      transaction) validates the code and computes finalAmount, but does
+//      NOT spend it yet.
+//   2. The route runs the wallet-deduction transaction using finalAmount.
+//   3. On success the route calls reservation.commit() — only then does the
+//      code's usedCount actually increment and get audit-logged.
+//      On failure it calls reservation.release() — the code is left
+//      completely untouched, so a failed purchase can never burn a use.
 
 /** Thrown inside a purchase transaction to signal a clean rollback — the wallet
- *  balance couldn't cover the (possibly discounted) total, so nothing should
- *  commit, including any discount-code redemption already staged in the same tx. */
+ *  balance couldn't cover the (possibly discounted) total. Discount-code
+ *  release (not commit) happens in the route's catch block for this case. */
 class InsufficientBalanceError extends Error {}
-
-const DISCOUNT_ERROR_MESSAGES_FA: Record<DiscountReason, string> = {
-  not_found: "کد تخفیف پیدا نشد",
-  inactive: "این کد تخفیف غیرفعال است",
-  expired: "این کد تخفیف منقضی شده است",
-  exhausted: "سقف استفاده از این کد تخفیف پر شده است",
-};
-
-/**
- * Locks and validates a discount code inside an in-flight transaction, then
- * atomically records its use: increments `usedCount` and writes an audit
- * `discount_redemptions` row. Returns the discounted amount to actually
- * charge. Throws `DiscountCodeError` (never a bare 500) when the code can't
- * be applied — including when it became exhausted between the checkout-page
- * quote and this purchase, which is exactly what the row lock prevents from
- * silently charging full price instead.
- */
-async function applyDiscountCode(
-  tx: any,
-  rawCode: string,
-  userId: string,
-  orderAmount: number,
-): Promise<{ discountAmount: number; finalAmount: number; codeId: string }> {
-  const code = rawCode.trim().toUpperCase();
-  const [row] = await tx
-    .select()
-    .from(discountCodesTable)
-    .where(eq(discountCodesTable.code, code))
-    .for("update")
-    .limit(1);
-
-  if (!row) throw new DiscountCodeError("not_found", DISCOUNT_ERROR_MESSAGES_FA.not_found);
-  if (!row.active) throw new DiscountCodeError("inactive", DISCOUNT_ERROR_MESSAGES_FA.inactive);
-  if (row.expiresAt && row.expiresAt.getTime() < Date.now()) {
-    throw new DiscountCodeError("expired", DISCOUNT_ERROR_MESSAGES_FA.expired);
-  }
-  if (row.maxUses != null && row.usedCount >= row.maxUses) {
-    throw new DiscountCodeError("exhausted", DISCOUNT_ERROR_MESSAGES_FA.exhausted);
-  }
-
-  const { discountAmount, finalAmount } = computeDiscount(row.kind as DiscountKind, row.value, orderAmount);
-
-  await tx.update(discountCodesTable).set({ usedCount: sql`${discountCodesTable.usedCount} + 1` }).where(eq(discountCodesTable.id, row.id));
-  await tx.insert(discountRedemptionsTable).values({
-    id: crypto.randomUUID(),
-    codeId: row.id,
-    userId,
-    orderAmount: Math.round(orderAmount),
-    discountAmount,
-    createdAt: new Date(),
-  });
-
-  return { discountAmount, finalAmount, codeId: row.id };
-}
 
 // ─── Registry reconciliation ──────────────────────────────────────────────────
 // FIX: Google Sheets (registry `tenants` tab) is now the real source of truth
@@ -878,35 +822,43 @@ router.post("/bots/wallet-purchase", requireAuth, async (req: any, res) => {
     // Base price is still whatever the checkout flow sends (unchanged, pre-existing
     // behaviour — out of Phase 11's scope). What Phase 11 changes is that a discount
     // code is never trusted as a client-supplied final amount: it's re-validated and
-    // the payable figure is recomputed from `price` here, inside the same transaction
-    // that spends the wallet and records the code's use, so a code can't be replayed
-    // past its maxUses by a race, and a client can't just send a smaller `amount`.
+    // the payable figure is recomputed from `price` here. The code itself lives in
+    // Google Sheets (not Postgres), so it's reserved before the wallet transaction
+    // and only actually spent (usedCount incremented + audit row written) after that
+    // transaction commits — see the two-phase flow documented above applyDiscountCode.
     const price = Number(amount) || 0;
     let finalAmount = price;
     let discountAmount = 0;
     let appliedCodeId: string | null = null;
+    let discountReservation: DiscountReservation | null = null;
+
+    if (typeof discountCode === "string" && discountCode.trim()) {
+      try {
+        discountReservation = await reserveDiscount(discountCode, req.userId, price);
+      } catch (err) {
+        if (err instanceof DiscountCodeError) {
+          res.status(400).json({ error: err.message, code: err.reason });
+          return;
+        }
+        throw err;
+      }
+      finalAmount = discountReservation.finalAmount;
+      discountAmount = discountReservation.discountAmount;
+      appliedCodeId = discountReservation.codeId;
+    }
 
     try {
       await db.transaction(async (tx: any) => {
-        if (typeof discountCode === "string" && discountCode.trim()) {
-          const applied = await applyDiscountCode(tx, discountCode, req.userId, price);
-          finalAmount = applied.finalAmount;
-          discountAmount = applied.discountAmount;
-          appliedCodeId = applied.codeId;
-        }
         const ok = await deductWallet(req.userId, finalAmount, `Bot purchase: ${name}`, tx);
         if (!ok) {
-          // Roll back the whole transaction, including any discount-code redemption
-          // already staged above — an order that can't be paid for never happened,
-          // so it must not consume the code's usedCount.
+          // Roll back the wallet transaction — the discount-code reservation is
+          // released (never committed) right below, so an order that can't be
+          // paid for never consumes the code's usedCount.
           throw new InsufficientBalanceError();
         }
       });
     } catch (err) {
-      if (err instanceof DiscountCodeError) {
-        res.status(400).json({ error: err.message, code: err.reason });
-        return;
-      }
+      discountReservation?.release();
       if (err instanceof InsufficientBalanceError) {
         await createNotification({
           userId: req.userId,
@@ -919,6 +871,19 @@ router.post("/bots/wallet-purchase", requireAuth, async (req: any, res) => {
         return;
       }
       throw err;
+    }
+
+    // Payment cleared — now actually spend the code (increments usedCount +
+    // writes the audit row in Sheets). Best-effort in the sense that a failure
+    // here is logged, not surfaced to the user: the funds were already
+    // captured, so failing the request now would be worse than a code whose
+    // usedCount is briefly out of sync with reality.
+    if (discountReservation) {
+      try {
+        await discountReservation.commit();
+      } catch (err) {
+        logger.error({ err, code: discountCode }, "Discount redemption commit failed after successful payment");
+      }
     }
 
     const botId = crypto.randomUUID();
