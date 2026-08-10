@@ -1,5 +1,6 @@
 import { useGetBotStats, getGetBotStatsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { UserCheck, Users, Terminal, Blocks } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -53,17 +54,20 @@ export function BotStatsPanel({ botId, status }: { botId: string; status: string
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <span className="relative flex h-2.5 w-2.5">
-          {isLive && (
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-          )}
-          <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${isLive ? "bg-emerald-500" : "bg-muted-foreground"}`} />
-        </span>
-        <span className="text-sm text-muted-foreground">
-          {isLive ? (fa ? "زنده" : "Live") : (fa ? "غیرفعال" : "Offline")}
-          {stats && ` · ${fa ? "آپ‌تایم" : "uptime"} ${stats.uptime}%`}
-        </span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2.5 w-2.5">
+            {isLive && (
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            )}
+            <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${isLive ? "bg-emerald-500" : "bg-muted-foreground"}`} />
+          </span>
+          <span className="text-sm text-muted-foreground">
+            {isLive ? (fa ? "زنده" : "Live") : (fa ? "غیرفعال" : "Offline")}
+            {stats && ` · ${fa ? "آپ‌تایم" : "uptime"} ${stats.uptime}%`}
+          </span>
+        </div>
+        <RefreshButton queryKeys={[getGetBotStatsQueryKey(botId)]} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
