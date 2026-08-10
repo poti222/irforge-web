@@ -17,5 +17,5 @@ export * from "./wallet";
 export * from "./telegramLinkTokens";
 // سیستم اعلان‌های جدید (تریال و آینده)
 export * from "./notifications";
-// Phase 9: کدهای تخفیف
-export * from "./discounts";
+// Phase 9: کدهای تخفیف — دیگر جدول Postgres ندارد؛ داده‌ی کدهای تخفیف کامل
+// در Google Sheets نگه‌داری می‌شود (ببینید api-server/src/lib/discountStore.ts).
