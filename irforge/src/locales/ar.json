@@ -205,11 +205,16 @@
     "comingSoon": "قريبًا",
     "overviewActiveToday": "المستخدمون النشطون اليوم",
     "noDataYet": "لا توجد بيانات بعد",
-    "botLink": "رابط البوت",
-    "copyId": "نسخ المعرّف",
+    "identityTitle": "هوية البوت",
+    "botAvatarAlt": "صورة ملف البوت",
+    "copyBotId": "نسخ معرّف البوت",
+    "copyUsername": "نسخ اسم المستخدم",
     "copied": "تم النسخ",
+    "botIdCopiedToast": "تم نسخ معرّف البوت",
+    "usernameCopiedToast": "تم نسخ اسم المستخدم",
     "openInTelegram": "فتح في تيليجرام",
     "qrHint": "امسح هذا الرمز لفتح البوت",
+    "noTelegramIdentity": "هوية البوت على تيليجرام غير متاحة بعد — تحقق مرة أخرى بعد قليل.",
     "languageSectionNotice": "ستنتقل إعدادات لغة البوت إلى هنا قريبًا."
   },
   "marketplace": {
