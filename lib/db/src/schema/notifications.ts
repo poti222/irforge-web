@@ -29,6 +29,13 @@ export const notificationsTable = pgTable("notifications", {
   message: text("message").notNull(),
   read: boolean("read").notNull().default(false),
   dedupeKey: text("dedupe_key"),
+  /**
+   * ارجاع اختیاری به رکوردی که اعلان درباره‌اش است. فعلاً فقط برای
+   * `type = "site_update"` پر می‌شود و مقدارش id همان site update است، تا
+   * فرانت بتواند لینک /updates/:id بسازد (قبلاً ctaForType فقط از روی type
+   * لینک درمی‌آورد و هیچ راهی برای اشاره به یک رکورد مشخص نبود).
+   */
+  refId: text("ref_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
