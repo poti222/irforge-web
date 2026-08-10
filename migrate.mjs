@@ -1,3 +1,5 @@
+/* DEAD CODE: مایگریشنی که واقعاً اجرا می‌شود api-server/migrate.mjs است
+   (start.sh آن را صدا می‌زند). این فایل قدیمی و از رده خارج است. */
 /**
  * migrate.mjs
  * Creates all tables if they don't exist. Runs before server start.

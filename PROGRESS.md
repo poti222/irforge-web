@@ -886,6 +886,7 @@ and no parallel work was discarded. Post-rebase gates: `pnpm -r build` clean
 
 | Phase | Status | Notes |
 |---|---|---|
+| 1 — announcements 500 fix | DONE | Added the missing `CREATE TABLE IF NOT EXISTS announcements` (+ `announcements_created_at_idx`) to `api-server/migrate.mjs`, the migration `start.sh` actually runs. Mirror added at `lib/db/migrations/0015_announcements.sql` for drizzle parity. Root `migrate.mjs` marked `DEAD CODE` (not executed) without touching its body. **This fix only takes effect after a deploy/restart on Railway**, because `migrate.mjs` runs at boot — until the service restarts, the announcements bug is still live in production. |
 | 0 — baseline | DONE | `pnpm install`, `pnpm --filter @workspace/api-server run build`, `pnpm --filter @workspace/irforge run build` all green before any change. Pre-existing baseline warnings recorded below; none are regressions and none are touched by this round. |
 
 **Baseline (pre-existing, not introduced by this round):**

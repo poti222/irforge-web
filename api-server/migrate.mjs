@@ -361,6 +361,22 @@ ALTER TABLE bots ADD COLUMN IF NOT EXISTS order_telegram_id TEXT;
 -- re-resolves to a short-lived file_path on every request.
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS avatar_file_id TEXT;
 
+-- ─── ANNOUNCEMENTS ─────────────────────────────────────────────────────────
+-- FIX: این جدول در schema (lib/db/src/schema/activity.ts) و در روت‌های
+-- admin.ts وجود داشت ولی هیچ‌وقت در هیچ مایگریشنی ساخته نمی‌شد — نه اینجا و
+-- نه در lib/db/migrations/*.sql. نتیجه: POST /api/admin/announcements با
+-- «relation "announcements" does not exist» می‌ترکید و به کاربر فقط
+-- «Internal server error» نشان داده می‌شد، و GET هم ۵۰۰ می‌داد و لیست ادمین
+-- برای همیشه روی skeleton گیر می‌کرد.
+CREATE TABLE IF NOT EXISTS announcements (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'info',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS announcements_created_at_idx ON announcements(created_at DESC);
+
 -- ─── DISCOUNT_CODES / DISCOUNT_REDEMPTIONS — REMOVED FROM POSTGRES ──────────
 -- Discount data (codes + redemption audit log) now lives entirely in Google
 -- Sheets — see api-server/src/lib/discountStore.ts. Postgres must not hold
