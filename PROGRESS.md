@@ -1870,3 +1870,58 @@ Automated assertions requested by the brief:
 - Before the phone unique index can be created, the migration will **stop the
   boot** if duplicate phone numbers exist, listing them. Deduplicate manually —
   nothing is deleted automatically.
+
+---
+
+# REGISTRATION FIXES ROUND 3 — `IrForge_Registration_Fixes_Round3.md`
+
+## Phase 1 — A back control on every step  [DONE 2026-08-11]
+Files touched: `irforge/src/components/auth/AuthStepHeader.tsx` (new),
+`irforge/src/pages/register.tsx`, `irforge/src/pages/login.tsx`,
+`api-server/src/routes/registration.ts`, all five `irforge/src/locales/*.json`.
+
+Decisions / deviations:
+- `AuthStepHeader` carries the back control, title, optional description and a
+  "Step n of m" indicator. `onBack` is optional; when omitted the button is not
+  rendered at all rather than rendered disabled. The row has `min-h-9` so a step
+  without a back button doesn't shift its title upward. The `isRtlLang` arrow
+  flip survived the refactor and now lives in exactly one place instead of being
+  duplicated in `register.tsx` and `login.tsx` — both of those dropped their
+  local `BackArrow`, `isRtlLang` and (in login) `useLanguage` imports.
+- Back targets are as specified: identity→method, telegram→identity,
+  code→telegram, login code→credentials. `finish` deliberately renders the
+  indicator with no back control.
+- **Item 5 needed a real server change.** `register/start` only ever inserted;
+  every back-and-forward would have orphaned a `pending_registrations` row and
+  issued a fresh link token. It now accepts an optional `registrationId` and,
+  when that row is live *and still at `identity`/`telegram_pending`*, patches it
+  instead of inserting. The step guard is mine, not in the prompt: once the code
+  is verified the phone and Telegram identity are settled, so letting identity be
+  rewritten underneath them would invalidate the verification. The existing link
+  token is reused and only reissued if it has expired, so returning to the
+  telegram step doesn't hand the user a dead QR. Ownership is proved by holding
+  the unguessable `registrationId` — the same contract `/status` and `PATCH /:id`
+  already use, not a new one.
+- **Item 6 was a real bug, not just a lifecycle check.** The poller's cleanup was
+  already correct, but `refreshStatus` unconditionally advanced `step` from the
+  server's report, so going back from `code` to `telegram` was useless: the very
+  next poll read `code_sent` and threw the user straight back. Auto-advance is now
+  gated on the server step having *changed* (`lastServerStepRef`), with an
+  explicit `{ force: true }` for the cases where jumping is what the user asked
+  for — the "continue" button and the post-refresh restore. `goBack` records the
+  current server step as seen before navigating, so the next poll is a no-op.
+- Login's back from `code` clears `challengeId`, the entered digits and the
+  countdown. A code issued for one login attempt staying valid after the user
+  retypes their phone would be a loose end, and the prompt calls this step
+  "abandons the challenge".
+- `stepIndicator` added to all five locales next to the existing `back` key.
+  Locale files were edited key-wise, not reserialised — the diff is one line each.
+
+Verification: `pnpm --filter @workspace/irforge typecheck` — only the pre-existing
+`AllBotsTable.tsx:70` error from the Phase 0 baseline. `pnpm -r build` green: 65
+prerendered pages, 65 sitemap URLs, all SEO assertions pass, no untranslated keys.
+
+Follow-ups left open: the back-and-forth-five-times check in "Done when" is a
+DB-level assertion (no duplicate `pending_registrations` rows) that needs a live
+Postgres; the code path is written to reuse one row, but it has not been observed
+against a real database in this session.

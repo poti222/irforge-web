@@ -9,15 +9,15 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowLeft, ArrowRight, Phone, Mail, Pencil } from "lucide-react";
+import { Loader2, Phone, Mail, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/use-seo";
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
-import { isRtlLang } from "@/lib/i18n";
 import { BrandLogo } from "@/components/layout/brand-home";
 import { CodeInput } from "@/components/auth/CodeInput";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
+import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
 
 /**
  * ثبت‌نام پنج‌مرحله‌ای.
@@ -35,6 +35,9 @@ import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 type Step = "method" | "identity" | "telegram" | "code" | "finish";
 
 const STORAGE_KEY = "irforge_registration_id";
+
+/** روش → هویت → تلگرام → کد → رمز عبور. */
+const TOTAL_STEPS = 5;
 
 interface RegStatus {
   registrationId: string;
@@ -59,7 +62,6 @@ export default function Register() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
-  const BackArrow = isRtlLang(lang) ? ArrowRight : ArrowLeft;
 
   useSEO({ title: t.createAccount ?? "Sign up | IrForge", noindex: true });
 
@@ -83,47 +85,82 @@ export default function Register() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
 
   const pollRef = useRef<number | null>(null);
+  // آخرین گامی که **سرور** گزارش کرده. جلو بردن خودکار فقط وقتی مجاز است که
+  // این مقدار تغییر کند — یعنی کاربر واقعاً کاری در بات انجام داده باشد.
+  // بدون این، برگشتن از «کد» به «تلگرام» بی‌فایده بود: اولین poll وضعیت
+  // `code_sent` را می‌دید و کاربر را فوراً به همان صفحه‌ای که از آن آمده بود
+  // پرت می‌کرد.
+  const lastServerStepRef = useRef<string | null>(null);
 
   // بازیابی بعد از رفرش.
   useEffect(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY);
     if (saved) {
       setRegistrationId(saved);
-      void refreshStatus(saved);
+      void refreshStatus(saved, { force: true });
     }
     // فقط یک‌بار در mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function refreshStatus(id: string) {
+  function stepForServer(serverStep: string): Step | null {
+    if (serverStep === "identity" || serverStep === "telegram_pending") return "telegram";
+    if (serverStep === "code_sent") return "code";
+    if (serverStep === "code_verified") return "finish";
+    return null;
+  }
+
+  /**
+   * `force` یعنی «کاربر همین الان صریحاً درخواست کرد» (دکمه‌ی ادامه، یا
+   * بازیابی بعد از رفرش) — آنجا پریدن به گام سرور همان چیزی است که می‌خواهد.
+   * بدون `force`، فقط یک **تغییر** در گام سرور کاربر را جلو می‌برد.
+   */
+  async function refreshStatus(id: string, opts: { force?: boolean } = {}) {
     try {
       const s = await customFetch<RegStatus>(`/api/auth/register/${id}/status`);
       setStatus(s);
       setEmail((prev) => prev || (s.email ?? ""));
-      // سرور مرجع گام است.
-      if (s.step === "identity") setStep("telegram");
-      else if (s.step === "telegram_pending") setStep("telegram");
-      else if (s.step === "code_sent") setStep("code");
-      else if (s.step === "code_verified") setStep("finish");
+
+      const changed = lastServerStepRef.current !== s.step;
+      lastServerStepRef.current = s.step;
+
+      if (opts.force || changed) {
+        const target = stepForServer(s.step);
+        if (target) setStep(target);
+      }
       return s;
     } catch {
       // رکورد منقضی یا حذف شده — از اول.
       sessionStorage.removeItem(STORAGE_KEY);
       setRegistrationId(null);
+      lastServerStepRef.current = null;
       setStep("method");
       return null;
     }
   }
 
   // در گام تلگرام، وضعیت را poll می‌کنیم تا لحظه‌ای که کد ارسال شد رد شویم.
+  // با تغییر `step` این افکت تمیز می‌شود، پس بازگشت به گام قبل تایمر را
+  // متوقف می‌کند و برگشتن دوباره یکی تازه می‌سازد.
   useEffect(() => {
     if (step !== "telegram" || !registrationId) return;
     pollRef.current = window.setInterval(() => void refreshStatus(registrationId), 3000);
     return () => {
-      if (pollRef.current) window.clearInterval(pollRef.current);
+      if (pollRef.current) {
+        window.clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, registrationId]);
+
+  /** بازگشت یک گام. هیچ‌وقت حالت سرور را دور نمی‌ریزد. */
+  function goBack(to: Step) {
+    // گام فعلی سرور را به‌عنوان «دیده‌شده» ثبت می‌کنیم تا poll بعدی کاربر را
+    // بلافاصله به همان‌جایی که از آن برگشته پرت نکند.
+    if (status?.step) lastServerStepRef.current = status.step;
+    setStep(to);
+  }
 
   // شمارش معکوس اعتبار کد.
   useEffect(() => {
@@ -156,7 +193,7 @@ export default function Register() {
     if (!firstName.trim() || !lastName.trim() || !email.trim()) return;
     setBusy(true);
     try {
-      const res = await customFetch<{ registrationId: string; deepLink: string }>(
+      const res = await customFetch<{ registrationId: string; deepLink: string; step?: string }>(
         "/api/auth/register/start",
         {
           method: "POST",
@@ -165,12 +202,16 @@ export default function Register() {
             lastName: lastName.trim(),
             email: email.trim(),
             locale: lang,
+            // اگر از گام تلگرام برگشته باشیم، همین رکورد به‌روزرسانی می‌شود و
+            // ردیف در انتظار تازه‌ای ساخته نمی‌شود.
+            registrationId,
           }),
         },
       );
       setRegistrationId(res.registrationId);
       setDeepLink(res.deepLink);
       sessionStorage.setItem(STORAGE_KEY, res.registrationId);
+      lastServerStepRef.current = res.step ?? null;
       setStep("telegram");
     } catch (err) {
       fail(err);
@@ -284,7 +325,8 @@ export default function Register() {
         {/* ── گام ۱: انتخاب روش ─────────────────────────────────────────── */}
         {step === "method" && (
           <div className="space-y-4">
-            <h1 className="text-center text-2xl font-bold tracking-tight">{t.methodTitle}</h1>
+            {/* گام اول: بازگشتی وجود ندارد، پس فقط نشانگر گام. */}
+            <AuthStepHeader title={t.methodTitle} step={1} total={TOTAL_STEPS} />
 
             <button
               type="button"
@@ -331,8 +373,13 @@ export default function Register() {
             className="space-y-4"
             onSubmit={(e) => { e.preventDefault(); void startRegistration(); }}
           >
-            <h1 className="text-2xl font-bold tracking-tight">{t.identityTitle}</h1>
-            <p className="text-sm text-muted-foreground">{t.identityDesc}</p>
+            <AuthStepHeader
+              title={t.identityTitle}
+              description={t.identityDesc}
+              step={2}
+              total={TOTAL_STEPS}
+              onBack={() => goBack("method")}
+            />
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -353,22 +400,26 @@ export default function Register() {
               {busy && <Loader2 className="me-2 size-4 animate-spin" />}
               {t.continue}
             </GlowButton>
-            <Button type="button" variant="ghost" className="w-full" onClick={() => setStep("method")}>
-              <BackArrow className="me-2 size-4" /> {t.back}
-            </Button>
           </form>
         )}
 
         {/* ── گام ۳: اتصال تلگرام ───────────────────────────────────────── */}
         {step === "telegram" && (
           <div className="space-y-4">
-            <h1 className="text-2xl font-bold tracking-tight">{t.telegramTitle}</h1>
-            <p className="text-sm text-muted-foreground">{t.telegramDesc}</p>
+            <AuthStepHeader
+              title={t.telegramTitle}
+              description={t.telegramDesc}
+              step={3}
+              total={TOTAL_STEPS}
+              // رکورد در انتظار زنده می‌ماند؛ برگشتن به هویت همان
+              // `registrationId` را دوباره می‌فرستد و ردیف تازه‌ای نمی‌سازد.
+              onBack={() => goBack("identity")}
+            />
             <TelegramLinkPanel mode="register" deepLink={deepLink} waiting />
             <Button
               variant="ghost"
               className="w-full"
-              onClick={() => registrationId && void refreshStatus(registrationId)}
+              onClick={() => registrationId && void refreshStatus(registrationId, { force: true })}
             >
               {t.continue}
             </Button>
@@ -378,10 +429,15 @@ export default function Register() {
         {/* ── گام ۴: کد ─────────────────────────────────────────────────── */}
         {step === "code" && (
           <div className="space-y-5">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-bold tracking-tight">{t.codeTitle}</h1>
-              <p className="text-sm text-muted-foreground">{t.codeDesc}</p>
-            </div>
+            {/* بازگشت فقط دیپ‌لینک و QR را دوباره نشان می‌دهد — کد تازه‌ای
+                نمی‌فرستد؛ ارسال مجدد دکمه‌ی خودش را دارد. */}
+            <AuthStepHeader
+              title={t.codeTitle}
+              description={t.codeDesc}
+              step={4}
+              total={TOTAL_STEPS}
+              onBack={() => goBack("telegram")}
+            />
 
             <CodeInput
               value={code}
@@ -423,8 +479,16 @@ export default function Register() {
         {/* ── گام ۵: رمز عبور ───────────────────────────────────────────── */}
         {step === "finish" && (
           <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void complete(); }}>
-            <h1 className="text-2xl font-bold tracking-tight">{t.finishTitle}</h1>
-            <p className="text-sm text-muted-foreground">{t.finishDesc}</p>
+            {/* عمداً بدون بازگشت: کد در این نقطه مصرف شده و `verifiedAt` روی
+                سرور ست شده. برگشتن به گام کد، صفحه‌ی ورود کدی را نشان می‌داد
+                که دیگر وجود ندارد. برای عوض کردن ایمیل، همین صفحه دکمه‌ی
+                ویرایش دارد. */}
+            <AuthStepHeader
+              title={t.finishTitle}
+              description={t.finishDesc}
+              step={5}
+              total={TOTAL_STEPS}
+            />
 
             <Card>
               <CardContent className="space-y-2 p-4 text-sm">

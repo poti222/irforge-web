@@ -164,6 +164,7 @@
     "email": "Электронная почта",
     "continue": "Продолжить",
     "back": "Назад",
+    "stepIndicator": "Шаг {n} из {total}",
     "telegramTitle": "Подключите Telegram",
     "telegramDesc": "Откройте нашего бота, поделитесь номером одним касанием — и мы пришлём код.",
     "openTelegram": "Открыть Telegram",

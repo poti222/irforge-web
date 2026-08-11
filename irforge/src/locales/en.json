@@ -164,6 +164,7 @@
     "email": "Email",
     "continue": "Continue",
     "back": "Back",
+    "stepIndicator": "Step {n} of {total}",
     "telegramTitle": "Connect Telegram",
     "telegramDesc": "Open our bot, share your number with one tap, and we'll send you a code.",
     "openTelegram": "Open Telegram",

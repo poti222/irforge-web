@@ -135,9 +135,63 @@ router.post("/auth/register/start", authRateLimit("register_start"), async (req,
     // شما را نام می‌برد. یکتایی در register/complete اعمال می‌شود، بعد از
     // اینکه کاربر کنترل یک حساب تلگرام و یک شماره را ثابت کرده است.
 
+    const now = new Date();
+
+    // بازگشت از گام تلگرام به گام هویت، دوباره همین اندپوینت را صدا می‌زند.
+    // اگر کلاینت `registrationId` زنده‌ای بفرستد که خودش دارد، **همان رکورد
+    // به‌روزرسانی می‌شود** و رکورد در انتظار تازه‌ای ساخته نمی‌شود؛ وگرنه هر
+    // رفت‌وبرگشت یک ردیف یتیم و یک توکن لینک تازه به جا می‌گذاشت.
+    //
+    // خودِ `registrationId` یک UUID غیرقابل‌حدس است و همان چیزی است که
+    // `/status` و `PATCH /:id` از قبل به‌عنوان سند مالکیت می‌پذیرند؛ اینجا هم
+    // همان قرارداد است، نه یک استثنای جدید.
+    const existing = await loadPending(req.body?.registrationId);
+    // فقط تا وقتی هنوز چیزی تأیید نشده. بعد از تأیید کد، شماره و تلگرام قطعی‌اند
+    // و هویت نباید از زیرشان عوض شود.
+    const reusable = existing && (existing.step === "identity" || existing.step === "telegram_pending");
+
+    if (reusable) {
+      await touch(existing.id, { firstName, lastName, email, locale });
+
+      // توکن لینک قبلی هنوز معتبر است؛ اگر منقضی شده یک تازه صادر می‌کنیم تا
+      // QR و دیپ‌لینک گام بعد مرده نباشند.
+      const [liveToken] = await db
+        .select()
+        .from(telegramLinkTokensTable)
+        .where(eq(telegramLinkTokensTable.pendingRegistrationId, existing.id))
+        .limit(1);
+
+      let token = liveToken?.token ?? null;
+      if (!token || liveToken.expiresAt.getTime() <= now.getTime()) {
+        if (liveToken) {
+          await db
+            .delete(telegramLinkTokensTable)
+            .where(eq(telegramLinkTokensTable.pendingRegistrationId, existing.id));
+        }
+        token = crypto.randomBytes(16).toString("hex");
+        await db.insert(telegramLinkTokensTable).values({
+          token,
+          userId: null,
+          purpose: "register",
+          pendingRegistrationId: existing.id,
+          expiresAt: new Date(now.getTime() + LINK_TOKEN_TTL_MS),
+        });
+      }
+
+      const link = deepLink(token);
+      if (!link) {
+        logger.error("TELEGRAM_BOT_USERNAME is not configured; registration deep link unavailable");
+        res.status(503).json({ error: "Registration is not configured on this server" });
+        return;
+      }
+
+      logger.info({ registrationId: existing.id }, "Registration identity updated");
+      res.status(200).json({ registrationId: existing.id, deepLink: link, step: existing.step });
+      return;
+    }
+
     const id = crypto.randomUUID();
     const token = crypto.randomBytes(16).toString("hex");
-    const now = new Date();
 
     await db.insert(pendingRegistrationsTable).values({
       id,

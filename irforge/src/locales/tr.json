@@ -164,6 +164,7 @@
     "email": "E-posta",
     "continue": "Devam",
     "back": "Geri",
+    "stepIndicator": "Adım {n} / {total}",
     "telegramTitle": "Telegram'ı bağlayın",
     "telegramDesc": "Botumuzu açın, tek dokunuşla numaranızı paylaşın, size kodu gönderelim.",
     "openTelegram": "Telegram'ı aç",

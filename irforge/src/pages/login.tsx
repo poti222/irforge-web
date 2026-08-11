@@ -2,22 +2,20 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch, getGetMeQueryKey } from "@workspace/api-client-react";
-import { Button } from "@/components/ui/button";
 import { GlowButton } from "@/components/ui/glow-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowLeft, ArrowRight, Phone, Mail, LifeBuoy } from "lucide-react";
+import { Loader2, Phone, Mail, LifeBuoy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/use-seo";
 import { useT } from "@/hooks/use-translation";
-import { useLanguage } from "@/hooks/use-language";
-import { isRtlLang } from "@/lib/i18n";
 import { BrandLogo } from "@/components/layout/brand-home";
 import { CodeInput } from "@/components/auth/CodeInput";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
+import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
 
 /**
  * ورود دومرحله‌ای: شماره + رمز → کد در تلگرام → نشست.
@@ -29,13 +27,14 @@ import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 
 type Step = "credentials" | "code" | "needs_telegram";
 
+/** شماره و رمز → کد تلگرام. */
+const TOTAL_STEPS = 2;
+
 export default function Login() {
   const t = useT("auth") as Record<string, string>;
-  const { lang } = useLanguage();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
-  const BackArrow = isRtlLang(lang) ? ArrowRight : ArrowLeft;
 
   useSEO({ title: t.signIn ?? "Sign in | IrForge", noindex: true });
 
@@ -125,6 +124,18 @@ export default function Login() {
     }
   }
 
+  /**
+   * بازگشت به گام اعتبارنامه. چالش جاری عمداً دور ریخته می‌شود: کدی که برای
+   * یک تلاش ورود صادر شده نباید بعد از تایپ دوباره‌ی شماره هنوز معتبر باشد.
+   */
+  function goBackToCredentials() {
+    setChallengeId(null);
+    setCode("");
+    setCodeInvalid(false);
+    setSecondsLeft(0);
+    setStep("credentials");
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md space-y-6">
@@ -137,7 +148,7 @@ export default function Login() {
             className="space-y-4"
             onSubmit={(e) => { e.preventDefault(); void submitCredentials(); }}
           >
-            <h1 className="text-2xl font-bold tracking-tight">{t.signInAccount}</h1>
+            <AuthStepHeader title={t.signInAccount} step={1} total={TOTAL_STEPS} />
 
             <div className="space-y-1.5">
               <Label htmlFor="login-phone">{t.loginPhone}</Label>
@@ -192,12 +203,14 @@ export default function Login() {
 
         {step === "code" && (
           <div className="space-y-5">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-bold tracking-tight">{t.loginCodeTitle}</h1>
-              <p className="text-sm text-muted-foreground">
-                {(t.loginCodeDesc ?? "").replace("{dest}", destination)}
-              </p>
-            </div>
+            {/* بازگشت، چالش جاری را رها می‌کند و به شماره/رمز برمی‌گردد. */}
+            <AuthStepHeader
+              title={t.loginCodeTitle}
+              description={(t.loginCodeDesc ?? "").replace("{dest}", destination)}
+              step={2}
+              total={TOTAL_STEPS}
+              onBack={goBackToCredentials}
+            />
 
             <CodeInput
               value={code}
@@ -224,21 +237,19 @@ export default function Login() {
               {busy && <Loader2 className="me-2 size-4 animate-spin" />}
               {t.loginVerify}
             </GlowButton>
-
-            <Button variant="ghost" className="w-full" onClick={() => setStep("credentials")}>
-              <BackArrow className="me-2 size-4" /> {t.back}
-            </Button>
           </div>
         )}
 
         {step === "needs_telegram" && (
           <div className="space-y-4">
-            <h1 className="text-2xl font-bold tracking-tight">{t.needsTelegram}</h1>
-            <p className="text-sm text-muted-foreground">{t.needsTelegramDesc}</p>
+            <AuthStepHeader
+              title={t.needsTelegram}
+              description={t.needsTelegramDesc}
+              step={2}
+              total={TOTAL_STEPS}
+              onBack={goBackToCredentials}
+            />
             <TelegramLinkPanel mode="register" deepLink={linkDeepLink} waiting />
-            <Button variant="ghost" className="w-full" onClick={() => setStep("credentials")}>
-              <BackArrow className="me-2 size-4" /> {t.back}
-            </Button>
 
             <Card>
               <CardContent className="flex items-start gap-3 p-4">

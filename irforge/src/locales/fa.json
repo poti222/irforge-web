@@ -164,6 +164,7 @@
     "email": "ایمیل",
     "continue": "ادامه",
     "back": "بازگشت",
+    "stepIndicator": "گام {n} از {total}",
     "telegramTitle": "اتصال تلگرام",
     "telegramDesc": "ربات ما را باز کنید، با یک لمس شماره‌تان را بفرستید تا کد برایتان ارسال شود.",
     "openTelegram": "باز کردن تلگرام",

@@ -164,6 +164,7 @@
     "email": "البريد الإلكتروني",
     "continue": "متابعة",
     "back": "رجوع",
+    "stepIndicator": "الخطوة {n} من {total}",
     "telegramTitle": "ربط تيليجرام",
     "telegramDesc": "افتح البوت، شارك رقمك بنقرة واحدة، وسنرسل لك الرمز.",
     "openTelegram": "افتح تيليجرام",
