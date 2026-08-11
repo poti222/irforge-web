@@ -393,29 +393,10 @@ CREATE INDEX IF NOT EXISTS site_updates_published_idx
   ON site_updates(published, published_at DESC);
 
 -- بدنه‌ی آپدیت: دنباله‌ی مرتب بلوک‌ها (متن/عکس) به‌جای body ثابت + عکس‌ها.
--- `body` و `site_update_images` عمداً حذف نمی‌شوند: یک نسخه نگه داشته
+-- ستون body و جدول site_update_images عمداً حذف نمی‌شوند: یک نسخه نگه داشته
 -- می‌شوند تا برگشت به عقب ممکن باشد. پاک‌سازی، مایگریشن بعدی.
+-- (توجه: این متن داخل یک template literal است — هیچ backtick اینجا ننویس.)
 ALTER TABLE site_updates ADD COLUMN IF NOT EXISTS blocks JSONB NOT NULL DEFAULT '[]'::jsonb;
-
--- backfill یک‌بار مصرف و idempotent: فقط ردیف‌هایی که هنوز تبدیل نشده‌اند.
--- body می‌شود یک بلوک متن، بعد هر عکس به‌ترتیب sort_order یک بلوک عکس —
--- دقیقاً همان چیدمانی که قبلاً رندر می‌شد، پس چیزی روی صفحه جابه‌جا نمی‌شود.
--- alt از عنوان آپدیت پر می‌شود: این ردیف‌ها هیچ‌وقت alt نداشتند و ساختن یک
--- توضیح برای عکسی که ندیده‌ایم بدتر از استفاده از عنوانِ درست است.
-UPDATE site_updates u
-   SET blocks = (
-     SELECT COALESCE(jsonb_agg(b ORDER BY ord), '[]'::jsonb)
-       FROM (
-         SELECT 0 AS ord,
-                jsonb_build_object('type','text','id',md5(u.id || ':body'),'content',u.body) AS b
-          WHERE COALESCE(btrim(u.body), '') <> ''
-         UNION ALL
-         SELECT i.sort_order + 1 AS ord,
-                jsonb_build_object('type','image','id',i.id,'url',i.data_url,'alt',u.title) AS b
-           FROM site_update_images i WHERE i.update_id = u.id
-       ) parts
-   )
- WHERE u.blocks = '[]'::jsonb;
 
 -- عکس‌ها جدا نگه داشته می‌شوند تا لیست آپدیت‌ها مجبور نباشد چند مگابایت
 -- base64 حمل کند؛ فقط endpoint جزئیات آن‌ها را می‌خواند.
@@ -436,6 +417,31 @@ CREATE TABLE IF NOT EXISTS user_update_views (
   seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (user_id, update_id)
 );
+
+-- ⚠️ ترتیب مهم است: این backfill از site_update_images می‌خواند، پس باید
+-- بعد از ساخته‌شدن آن جدول بیاید — نه کنار ALTER TABLE بالا. اگر بالاتر
+-- باشد، روی یک دیتابیس تازه با «relation site_update_images does not exist»
+-- می‌ترکد و کل بوت را می‌خواباند.
+-- backfill یک‌بار مصرف و idempotent: فقط ردیف‌هایی که هنوز تبدیل نشده‌اند.
+-- body می‌شود یک بلوک متن، بعد هر عکس به‌ترتیب sort_order یک بلوک عکس —
+-- دقیقاً همان چیدمانی که قبلاً رندر می‌شد، پس چیزی روی صفحه جابه‌جا نمی‌شود.
+-- alt از عنوان آپدیت پر می‌شود: این ردیف‌ها هیچ‌وقت alt نداشتند و ساختن یک
+-- توضیح برای عکسی که ندیده‌ایم بدتر از استفاده از عنوانِ درست است.
+UPDATE site_updates u
+   SET blocks = (
+     SELECT COALESCE(jsonb_agg(b ORDER BY ord), '[]'::jsonb)
+       FROM (
+         SELECT 0 AS ord,
+                jsonb_build_object('type','text','id',md5(u.id || ':body'),'content',u.body) AS b
+          WHERE COALESCE(btrim(u.body), '') <> ''
+         UNION ALL
+         SELECT i.sort_order + 1 AS ord,
+                jsonb_build_object('type','image','id',i.id,'url',i.data_url,'alt',u.title) AS b
+           FROM site_update_images i WHERE i.update_id = u.id
+       ) parts
+   )
+ WHERE u.blocks = '[]'::jsonb;
+
 
 -- اعلانِ آپدیت باید بتواند به رکورد آپدیت لینک بدهد؛ جدول اعلان‌ها تا حالا
 -- جایی برای ارجاع نداشت (ctaForType فقط از روی type لینک می‌ساخت).

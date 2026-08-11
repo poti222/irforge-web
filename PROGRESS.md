@@ -2233,3 +2233,46 @@ session — no Postgres or admin login is available here — so drag-reorder,
 autosave-restore and the publish flow are verified by construction and
 typecheck, not by clicking. Worth a manual pass in both `fa` and `en` before
 relying on it.
+
+## HOTFIX — the boot migration crashed the service  [DONE 2026-08-11]
+Files touched: `api-server/migrate.mjs`.
+
+The previous commit put the service into a restart loop. **Two** separate bugs
+in the same insertion, both mine, both avoidable:
+
+1. **`SyntaxError: Unexpected identifier 'body'`.** The `blocks` SQL was added
+   inside `const SQL = \`…\`` — a template literal — and my comment wrote the
+   column name as `` `body` `` in backticks. The first backtick closed the
+   string and Node refused to parse the file at all. Comment rewritten without
+   backticks, plus an inline warning at that spot so the next edit doesn't
+   repeat it.
+2. **`relation "site_update_images" does not exist`.** Even once it parsed, the
+   backfill sat directly under the `ALTER TABLE … ADD COLUMN blocks`, which is
+   ~25 lines *above* the `CREATE TABLE site_update_images`. On any database
+   where that table didn't exist yet the whole batch aborted and `migrate.mjs`
+   exited non-zero, so the container never started. The backfill now runs after
+   every table it reads is defined, with a comment saying why the order matters.
+
+**Root cause of the miss:** I verified the standalone
+`lib/db/migrations/0019_update_blocks.sql` against a real Postgres, and I checked
+that the route code typechecked and the frontend built — but I never once ran
+`api-server/migrate.mjs` itself, which is the file Railway actually executes.
+The drizzle migration file and the runtime script are two different pieces of
+SQL; testing one says nothing about the other, and the runtime script is the one
+that can take the site down. Testing the artefact that actually ships was the
+step that was missing.
+
+Verification this time is on the real script, not a proxy for it:
+- `node --check api-server/migrate.mjs` parses, and a scan confirms **zero**
+  backticks or `${}` anywhere inside the SQL template literal.
+- `node migrate.mjs` against a real Postgres (PGlite over the wire protocol) on
+  an **empty** database: `[migrate] Done.`, and a second run immediately after
+  is also clean — which matters because this runs on every restart.
+- `node migrate.mjs` against a database seeded with the **legacy pre-blocks
+  shape** (a published update with a body and two out-of-order images, plus a
+  user whose e-mail is `Ali@Gmail.com`): 7 assertions, all passing — the update
+  backfills to text+image+image ordered by `sort_order`, every image gets a
+  non-empty alt, the legacy `body` column survives for rollback, the e-mail is
+  normalised (`[migrate] normalised 1 e-mail address(es) to lowercase`), the
+  functional unique index is created, and a case-variant insert is then rejected
+  with `23505`. A second boot against that same database is a clean no-op.
