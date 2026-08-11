@@ -1,4 +1,5 @@
 import { logger } from "../lib/logger";
+import { normaliseEmail, emailEquals } from "../lib/email";
 import { Router } from "express";
 import { db, usersTable } from "@workspace/db";
 import { and, eq, ne } from "drizzle-orm";
@@ -22,7 +23,7 @@ router.patch("/users/profile", requireAuth, async (req: any, res) => {
     if (telegramUsername !== undefined) updateData.telegramUsername = telegramUsername;
     // Z8: email is editable, with format + uniqueness checks.
     if (email !== undefined) {
-      const normalized = String(email).trim().toLowerCase();
+      const normalized = normaliseEmail(email);
       if (!EMAIL_RE.test(normalized)) {
         res.status(400).json({ error: "Invalid email address" });
         return;
@@ -30,7 +31,7 @@ router.patch("/users/profile", requireAuth, async (req: any, res) => {
       const [clash] = await db
         .select({ id: usersTable.id })
         .from(usersTable)
-        .where(and(eq(usersTable.email, normalized), ne(usersTable.id, req.userId)))
+        .where(and(emailEquals(normalized), ne(usersTable.id, req.userId)))
         .limit(1);
       if (clash) {
         res.status(409).json({ error: "This email is already in use" });

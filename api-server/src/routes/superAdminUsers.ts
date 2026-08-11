@@ -34,6 +34,7 @@ import {
 } from "@workspace/db";
 import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { normaliseEmail, emailEquals } from "../lib/email";
 import { requireSuperAdmin } from "./auth";
 import { hashPassword } from "../lib/password";
 import { writeAudit } from "../lib/audit";
@@ -235,12 +236,12 @@ router.patch("/superadmin/users/:id", requireSuperAdmin, async (req: any, res) =
       changed.push("name");
     }
     if (typeof req.body?.email === "string" && req.body.email.trim() !== "") {
-      const email = req.body.email.trim().toLowerCase();
-      if (email !== user.email) {
+      const email = normaliseEmail(req.body.email);
+      if (email !== normaliseEmail(user.email)) {
         const [taken] = await db
           .select({ id: usersTable.id })
           .from(usersTable)
-          .where(eq(usersTable.email, email))
+          .where(emailEquals(email))
           .limit(1);
         if (taken) {
           res.status(409).json({ error: "That email belongs to another user" });

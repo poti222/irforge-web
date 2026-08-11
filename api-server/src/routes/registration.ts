@@ -31,6 +31,12 @@ import {
 } from "@workspace/db";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import {
+  normaliseEmail,
+  emailEquals,
+  isEmailUniqueViolation,
+  isPhoneUniqueViolation,
+} from "../lib/email";
 import { hashPassword } from "../lib/password";
 import { syncSessionUpsert, syncUserUpsert } from "../lib/sheetsSync";
 import { authRateLimit } from "../middleware/rateLimit";
@@ -114,6 +120,16 @@ async function touch(id: string, patch: Record<string, unknown> = {}) {
     .where(eq(pendingRegistrationsTable.id, id));
 }
 
+/**
+ * از داخل تراکنش پرتاب می‌شود تا تراکنش rollback شود و بیرون به ۴۰۹ ترجمه شود.
+ * برگرداندن یک مقدار از callback تراکنش، آن را commit می‌کرد.
+ */
+class TakenError extends Error {
+  constructor(public readonly field: "email" | "phone") {
+    super(`${field} is already registered`);
+  }
+}
+
 // ─── POST /api/auth/register/start ───────────────────────────────────────────
 // گام ۲: هویت. **بدون فیلد شماره** — شماره در گام ۳ از تلگرام می‌آید و
 // تأییدشده است. پرسیدنش اینجا فقط یک تناقض احتمالی بین چیزی که کاربر تایپ
@@ -124,7 +140,7 @@ router.post("/auth/register/start", authRateLimit("register_start"), async (req,
     const firstName = requireText(req.body?.firstName, "First name", NAME_MAX);
     const lastName = requireText(req.body?.lastName, "Last name", NAME_MAX);
     const emailRaw = requireText(req.body?.email, "Email", EMAIL_MAX);
-    const email = emailRaw.toLowerCase();
+    const email = normaliseEmail(emailRaw);
     if (!EMAIL_RE.test(email)) throw new ValidationError("Email is not valid");
 
     const locale = typeof req.body?.locale === "string" ? req.body.locale.slice(0, 8) : null;
@@ -379,7 +395,7 @@ router.patch("/auth/register/:id", async (req, res) => {
       return;
     }
     const emailRaw = requireText(req.body?.email, "Email", EMAIL_MAX);
-    const email = emailRaw.toLowerCase();
+    const email = normaliseEmail(emailRaw);
     if (!EMAIL_RE.test(email)) throw new ValidationError("Email is not valid");
 
     await touch(row.id, { email });
@@ -424,29 +440,7 @@ router.post("/auth/register/complete", async (req, res) => {
       return;
     }
 
-    const email = (row.email ?? "").toLowerCase();
-
-    // یکتایی ایمیل و شماره **اینجا** اعمال می‌شود. اگر یکی از آن‌ها در فاصله‌ی
-    // ثبت‌نام گرفته شده باشد، رکورد **زنده می‌ماند** تا کاربر ایمیلش را اصلاح
-    // کند و دوباره تلاش کند، نه اینکه از اول شروع کند.
-    const [emailTaken] = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(eq(usersTable.email, email))
-      .limit(1);
-    if (emailTaken) {
-      res.status(409).json({ error: "This email is already registered", code: "email_taken" });
-      return;
-    }
-    const [phoneTaken] = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(eq(usersTable.phone, row.phone))
-      .limit(1);
-    if (phoneTaken) {
-      res.status(409).json({ error: "This phone is already registered", code: "phone_taken" });
-      return;
-    }
+    const email = normaliseEmail(row.email);
 
     const userId = crypto.randomUUID();
     const passwordHash = await hashPassword(password);
@@ -456,7 +450,29 @@ router.post("/auth/register/complete", async (req, res) => {
 
     // یک تراکنش: کاربر ساخته می‌شود، رکورد در انتظار حذف می‌شود، نشست صادر
     // می‌شود. اگر هرکدام شکست بخورد هیچ‌کدام اعمال نمی‌شوند.
+    //
+    // یکتایی ایمیل و شماره **داخل** همین تراکنش بررسی می‌شود، نه قبلش. قبلاً
+    // `select` بیرون از تراکنش بود و بین آن و `insert` یک پنجره باز می‌ماند:
+    // دو ثبت‌نام هم‌زمان هر دو «گرفته نشده» می‌خواندند و هر دو جلو می‌رفتند.
+    //
+    // اما مرجع واقعی، این `select` نیست — ایندکس یکتای `users_email_lower_idx`
+    // است. این بررسی فقط برای پیام خطای درست است؛ تضمین از دیتابیس می‌آید و
+    // نقض قید در `catch` به همان ۴۰۹ ترجمه می‌شود.
     const user = await db.transaction(async (tx) => {
+      const [emailTaken] = await tx
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(emailEquals(email))
+        .limit(1);
+      if (emailTaken) throw new TakenError("email");
+
+      const [phoneTaken] = await tx
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.phone, row.phone))
+        .limit(1);
+      if (phoneTaken) throw new TakenError("phone");
+
       const [created] = await tx
         .insert(usersTable)
         .values({
@@ -519,6 +535,22 @@ router.post("/auth/register/complete", async (req, res) => {
       token,
     });
   } catch (err) {
+    // رکورد در انتظار عمداً زنده می‌ماند تا کاربر بتواند ایمیلش را اصلاح کند و
+    // دوباره تلاش کند، نه اینکه کل ثبت‌نام را از اول شروع کند.
+    if (err instanceof TakenError || isEmailUniqueViolation(err) || isPhoneUniqueViolation(err)) {
+      const field =
+        err instanceof TakenError
+          ? err.field
+          : isEmailUniqueViolation(err)
+            ? "email"
+            : "phone";
+      res.status(409).json(
+        field === "email"
+          ? { error: "This email is already registered", code: "email_taken" }
+          : { error: "This phone is already registered", code: "phone_taken" },
+      );
+      return;
+    }
     logger.error({ err }, "register/complete error");
     res.status(500).json({ error: "Internal server error" });
   }

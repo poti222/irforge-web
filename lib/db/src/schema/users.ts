@@ -9,7 +9,17 @@ import { z } from "zod";
 export const usersTable = pgTable("users", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  email: text("email").notNull().unique(),
+  /**
+   * ایمیل، همیشه با حروف کوچک ذخیره می‌شود (`normaliseEmail` در سرور).
+   *
+   * یکتایی‌اش با یک ایندکس یکتای **تابعی** روی `lower(email)` در مایگریشن
+   * ۰۰۱۸ اعمال می‌شود، نه با `.unique()` اینجا — دقیقاً به همان دلیلی که
+   * `phone` پایین‌تر ایندکسش را در مایگریشن دارد: قید ساده‌ی `UNIQUE` در
+   * Postgres بایت‌به‌بایت مقایسه می‌کند و `Ali@Gmail.com` را با
+   * `ali@gmail.com` دو چیز متفاوت می‌بیند، که همان باگی بود که این ستون را
+   * به اینجا رساند.
+   */
+  email: text("email").notNull(),
   passwordHash: text("password_hash").notNull(),
   avatar: text("avatar"),
   role: text("role").notNull().default("user"),

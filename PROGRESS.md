@@ -1925,3 +1925,77 @@ Follow-ups left open: the back-and-forth-five-times check in "Done when" is a
 DB-level assertion (no duplicate `pending_registrations` rows) that needs a live
 Postgres; the code path is written to reuse one row, but it has not been observed
 against a real database in this session.
+
+## Phase 2 — An already-registered email gets through  [DONE 2026-08-11]
+Files touched: `api-server/src/lib/email.ts` (new),
+`api-server/src/routes/registration.ts`, `api-server/src/routes/auth.ts`,
+`api-server/src/routes/users.ts`, `api-server/src/routes/superAdminUsers.ts`,
+`lib/db/src/schema/users.ts`, `lib/db/migrations/0018_email_case_insensitive.sql`
+(new), `migrate.mjs`.
+
+Both causes fixed, as required — either alone leaves the hole open.
+
+**Cause 1 — case mismatch.** `normaliseEmail()` and `emailEquals()` now live in
+one module and every read and write path goes through them. The prompt named
+four call sites; there were **six**. The two it didn't list are real holes:
+- `users.ts:33` — the "change my email" uniqueness check, byte-compared, so a
+  user could take an address that differed only in case from someone else's.
+- `superAdminUsers.ts:243` — the same check on the super-admin user editor.
+`bots.ts` and `wallet.ts` also mention `usersTable.email` but only ever *select*
+it for display, never compare — left alone.
+
+`emailEquals` is `lower(email) = $1`, deliberately not `ilike`: `ilike` treats
+its right-hand side as a pattern, so a `%` in user input would have turned an
+equality check into a wildcard scan. It also matches the functional index
+exactly, so the guarantee and the fast lookup path are the same object.
+
+**Data migration.** `0018_email_case_insensitive.sql` detects collisions first
+and `RAISE EXCEPTION`s naming the offending addresses, then lowercases, then
+drops the plain `UNIQUE` and creates `users_email_lower_idx` on `lower(email)`.
+No account is ever merged or deleted automatically. `.unique()` came off
+`users.email` in the Drizzle schema, following the precedent already set two
+fields down by `phone`, whose partial unique index also lives in a migration
+with a comment saying why.
+
+**⚠️ Operational consequence, flagged rather than routed around.** `migrate.mjs`
+is what actually runs at boot on Railway and it does not read
+`lib/db/migrations/` at all, so the same SQL had to be added there too. That
+means **if production holds two accounts differing only by case, the service
+will refuse to start** until a human resolves them. That is the intended
+failure mode — the alternative is a service that runs happily while two
+accounts share one mailbox — but it must be checked *before* deploying:
+```sql
+SELECT lower(email), count(*) FROM users GROUP BY 1 HAVING count(*) > 1;
+```
+No collisions could be reported here because this session has no access to the
+production database; the query above is the check, and it is in the migrate.mjs
+comment too.
+
+**Cause 2 — check outside the transaction.** Both the email and phone
+uniqueness checks moved inside `db.transaction`, and a `TakenError` is thrown
+from within it (returning a value would have committed). The pre-check is now
+only there for a good error message: the real authority is the unique index, and
+`23505` violations are caught and translated into the existing
+`409 email_taken` / `409 phone_taken`. The violation is attributed to the right
+field by inspecting the constraint name and detail, so a duplicate *phone* is
+never reported as a duplicate email.
+
+Per the prompt, the uniqueness check was **not** moved to `register/start` —
+that would make the signup form an account-enumeration oracle.
+
+Verification: exercised against a real Postgres (PGlite, run from an isolated
+scratch package so the repo's `package.json` and lockfile were never touched).
+11 assertions, all passing: collision aborts and names the address; **no data is
+mangled by the aborted run**; clean data normalises; the functional index is
+created and the plain constraint dropped; a case-variant insert is rejected with
+`23505`; the violation carries `users_email_lower_idx` and a detail mentioning
+`email` (which is what `isEmailUniqueViolation` keys off); `lower(email)` lookup
+finds a row typed in mixed case; and the migration is **idempotent on a second
+run** — necessary since `migrate.mjs` re-runs it at every boot.
+`pnpm --filter @workspace/api-server typecheck` diffed against the pre-change
+baseline: error sets identical, no new errors. `pnpm -r build` green.
+
+Follow-ups left open: the two-concurrent-completions race in "Done when" is
+argued from the index rather than observed — reproducing a true simultaneous
+commit needs two connections racing, which PGlite (single connection) can't
+stage. The index makes the outcome deterministic regardless of interleaving.

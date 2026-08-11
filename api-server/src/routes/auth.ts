@@ -3,6 +3,7 @@ import { db, usersTable, sessionsTable, botsTable, telegramLinkTokensTable, logi
 import { eq, and, gt, count } from "drizzle-orm";
 import crypto from "crypto";
 import { logger } from "../lib/logger";
+import { normaliseEmail, emailEquals, isEmailUniqueViolation } from "../lib/email";
 import { syncUserUpsert, syncSessionUpsert, syncSessionDelete } from "../lib/sheetsSync";
 import { verifyTelegramAuth, verifyTelegramInitData } from "../lib/telegramAuth";
 import { hashPassword, verifyPassword } from "../lib/password";
@@ -159,15 +160,19 @@ function sessionExpiresAt(): Date {
 // POST /api/auth/register
 router.post("/auth/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, password } = req.body;
+    const email = normaliseEmail(req.body?.email);
     if (!name || !email || !password) {
       res.status(400).json({ error: "Name, email and password are required" });
       return;
     }
+    // این مسیر قدیمی ایمیل را «همان‌طور که تایپ شده» ذخیره می‌کرد. حالا مثل
+    // مسیر جدید نرمال می‌شود، وگرنه یک حساب با `Ali@Gmail.com` برای هر
+    // جست‌وجوی دیگری نامرئی می‌ماند.
     const existing = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.email, email))
+      .where(emailEquals(email))
       .limit(1);
     if (existing.length > 0) {
       res.status(400).json({ error: "Email already registered" });
@@ -626,7 +631,7 @@ router.post("/auth/forgot-password", async (req, res) => {
     const genericMessage =
       "اگر این ایمیل ثبت شده باشد و حساب تلگرام متصل داشته باشد، کد بازیابی از طریق تلگرام ارسال می‌شود.";
 
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    const [user] = await db.select().from(usersTable).where(emailEquals(email)).limit(1);
     if (!user) {
       res.json({ message: genericMessage });
       return;
@@ -681,7 +686,7 @@ router.post("/auth/reset-password", async (req, res) => {
       res.status(400).json({ error: "Password must be at least 6 characters" });
       return;
     }
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    const [user] = await db.select().from(usersTable).where(emailEquals(email)).limit(1);
     if (
       !user ||
       !user.resetCodeHash ||
