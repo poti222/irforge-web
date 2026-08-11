@@ -392,6 +392,31 @@ CREATE TABLE IF NOT EXISTS site_updates (
 CREATE INDEX IF NOT EXISTS site_updates_published_idx
   ON site_updates(published, published_at DESC);
 
+-- بدنه‌ی آپدیت: دنباله‌ی مرتب بلوک‌ها (متن/عکس) به‌جای body ثابت + عکس‌ها.
+-- `body` و `site_update_images` عمداً حذف نمی‌شوند: یک نسخه نگه داشته
+-- می‌شوند تا برگشت به عقب ممکن باشد. پاک‌سازی، مایگریشن بعدی.
+ALTER TABLE site_updates ADD COLUMN IF NOT EXISTS blocks JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+-- backfill یک‌بار مصرف و idempotent: فقط ردیف‌هایی که هنوز تبدیل نشده‌اند.
+-- body می‌شود یک بلوک متن، بعد هر عکس به‌ترتیب sort_order یک بلوک عکس —
+-- دقیقاً همان چیدمانی که قبلاً رندر می‌شد، پس چیزی روی صفحه جابه‌جا نمی‌شود.
+-- alt از عنوان آپدیت پر می‌شود: این ردیف‌ها هیچ‌وقت alt نداشتند و ساختن یک
+-- توضیح برای عکسی که ندیده‌ایم بدتر از استفاده از عنوانِ درست است.
+UPDATE site_updates u
+   SET blocks = (
+     SELECT COALESCE(jsonb_agg(b ORDER BY ord), '[]'::jsonb)
+       FROM (
+         SELECT 0 AS ord,
+                jsonb_build_object('type','text','id',md5(u.id || ':body'),'content',u.body) AS b
+          WHERE COALESCE(btrim(u.body), '') <> ''
+         UNION ALL
+         SELECT i.sort_order + 1 AS ord,
+                jsonb_build_object('type','image','id',i.id,'url',i.data_url,'alt',u.title) AS b
+           FROM site_update_images i WHERE i.update_id = u.id
+       ) parts
+   )
+ WHERE u.blocks = '[]'::jsonb;
+
 -- عکس‌ها جدا نگه داشته می‌شوند تا لیست آپدیت‌ها مجبور نباشد چند مگابایت
 -- base64 حمل کند؛ فقط endpoint جزئیات آن‌ها را می‌خواند.
 CREATE TABLE IF NOT EXISTS site_update_images (
@@ -537,6 +562,44 @@ async function postSteps(client) {
     EXCEPTION WHEN duplicate_object THEN NULL;
     END $$;
   `);
+
+  /**
+   * ایمیل بی‌حساس به بزرگی و کوچکی حروف.
+   *
+   * دو مسیر نوشتن با هم اختلاف داشتند: مسیر ثبت‌نام جدید ایمیل را کوچک می‌کرد
+   * و `POST /auth/register` قدیمی دقیقاً همان‌طور که تایپ شده بود ذخیره
+   * می‌کرد. Postgres رشته را بایت‌به‌بایت مقایسه می‌کند، پس `Ali@Gmail.com` و
+   * `ali@gmail.com` هر دو از کنار قید UNIQUE رد می‌شدند و دو حساب روی یک
+   * صندوق پستی واقعی ساخته می‌شد.
+   *
+   * مثل شماره‌ی بالا: تصادم‌ها اول شمرده و **چاپ** می‌شوند و بعد با خروج
+   * غیرصفر متوقف می‌شویم. هیچ حسابی خودکار ادغام یا حذف نمی‌شود — اینکه کدام
+   * حساب بماند و ربات‌ها/کیف پول/تیکت‌هایش چه شوند یک تصمیم تجاری است.
+   */
+  const emailDupes = await client.query(`
+    SELECT lower(email) AS email, count(*)::int AS n
+    FROM users GROUP BY lower(email) HAVING count(*) > 1
+  `);
+  if (emailDupes.rows.length > 0) {
+    console.error(
+      "[migrate] Cannot normalise user e-mails: addresses held by more than one account,\n" +
+      "[migrate] differing only in letter case. No rows were changed. Resolve these first:\n" +
+      emailDupes.rows.map((r) => `  ${r.email} → ${r.n} users`).join("\n")
+    );
+    process.exit(1);
+  }
+  const lowered = await client.query("UPDATE users SET email = lower(email) WHERE email <> lower(email)");
+  if (lowered.rowCount > 0) {
+    console.log(`[migrate] normalised ${lowered.rowCount} e-mail address(es) to lowercase`);
+  }
+  // قید ساده‌ی UNIQUE بایت‌به‌بایت است و نمی‌تواند این را بیان کند؛ ایندکس
+  // یکتای تابعی می‌تواند، و همان ایندکسی است که جست‌وجوی
+  // `lower(email) = $1` هم از آن استفاده می‌کند.
+  await client.query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_unique");
+  await client.query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key");
+  await client.query(
+    "CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (lower(email))"
+  );
 }
 
 /**

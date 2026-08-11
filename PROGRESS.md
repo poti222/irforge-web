@@ -2142,3 +2142,94 @@ it is the same defect and worth a follow-up. Also unchanged: the single-process
 caveat in this module's header still holds; none of these locks survive a second
 replica, and `deleteDiscountCodes` would need a distributed lock if irforge-web
 is ever scaled out.
+
+## Phases 4-6 — Updates become a block editor  [DONE 2026-08-11]
+Files touched: `lib/db/src/schema/updates.ts`,
+`lib/db/migrations/0019_update_blocks.sql` (new), `api-server/migrate.mjs`,
+`api-server/src/routes/updates.ts`,
+`irforge/src/components/updates/UpdateBlocks.tsx` (new),
+`irforge/src/components/admin/UpdateBlockEditor.tsx` (new),
+`irforge/src/components/admin/UpdatesManager.tsx`,
+`irforge/src/components/updates/UpdateDialog.tsx`,
+`irforge/src/pages/update-detail.tsx`, `irforge/src/hooks/use-unseen-update.ts`,
+all five locales.
+
+**Phase 4 — data model.** `title` stays a column; the body/images pair is
+replaced by an ordered `blocks` JSONB column, array order being display order,
+each block carrying a stable uuid. `validateBlocks` enforces the shape server
+side: known types only, non-empty trimmed text capped at 8000, alt **required**
+on every image, caption optional, at most 50 blocks, and duplicate block ids
+rejected (a repeat would make the editor's reorder act on the wrong block).
+
+*Deviation on the `url` rule, deliberate.* The brief says restrict `url` to
+"your own upload origin". There is no upload origin in this project — images are
+base64 data URLs, the same pattern the wallet receipts use, not uploaded files
+with addresses. So the rule was translated to something stricter than an origin
+allowlist: `data:image/…;base64,` with the existing size cap, or a same-origin
+relative path. Everything else — `https:`, `//host`, `javascript:`, and
+non-image data URLs — is rejected. A data URL issues no network request at all,
+so the risk the brief names (every user's browser fetching an attacker-chosen
+endpoint) is closed rather than merely narrowed.
+
+`body` and `site_update_images` are **kept**, per the brief: the migration adds
+and backfills without dropping, so the previous release can still boot. New
+writes keep `body` populated with the concatenated text blocks so a rollback
+doesn't show empty updates. The delete route still clears the legacy image rows
+so nothing is orphaned. **Follow-up: a later migration should drop
+`site_updates.body` and the `site_update_images` table**, plus the now-unused
+`imageCounts`/`imagesFor`/`replaceImages` helpers that were removed from the
+route in this phase.
+
+**A real error in already-pushed work, found here and fixed.** There are two
+`migrate.mjs` files. `start.sh` runs `api-server/migrate.mjs`; the root one
+carries a first-line banner reading `DEAD CODE: … api-server/migrate.mjs`.
+Round 3 Phase 2 put the e-mail normalisation and the `users_email_lower_idx`
+functional index into the **root** file, so it would never have run — the fix
+was pushed but inert. It is now in `api-server/migrate.mjs`, rewritten to follow
+the `postSteps` pattern already established there for the unique phone index: a
+JS pre-check that prints each colliding address with its account count and exits
+non-zero, which is better than the SQL `RAISE` since the operator sees the
+actual list. Removed from the dead file so there is one copy.
+
+**Phase 5 — composer.** `UpdateBlockEditor`: block cards with a drag handle
+**and** up/down buttons (drag alone is unusable by keyboard and awkward on
+touch), delete with an 8-second inline undo rather than a dialog per paragraph,
+auto-growing textarea with a character counter, and for images a required alt
+field, optional caption, and a preview at the 16:10 box it actually renders in.
+Around it: live preview using the real renderer, `sessionStorage` draft autosave
+keyed by update id and restored on reload, and save-draft kept distinct from
+publish — publish stays in the list behind its existing confirm dialog naming
+the consequence, so fanning out a notification to every user can never be a side
+effect of saving. Duplicate is offered on every row, drafts and published alike,
+and regenerates block ids so two updates never share one.
+
+**Phase 6 — rendering.** One `UpdateBlocks` component used by the dashboard
+modal, the detail page and the composer preview. Text renders as
+`whitespace-pre-wrap` paragraphs — **not** HTML or Markdown, since this reaches
+every user's dashboard and an admin account is not a trusted rendering context;
+rich text needs a sanitiser and its own phase. Images carry a fixed 16:10
+aspect-ratio so the modal doesn't jump as they load, `loading="eager"` on the
+first and `lazy` after, the block's alt, and the caption as a `<figcaption>`.
+RTL uses logical properties (`text-start`). The modal already caps at
+`max-h-[85vh]` with internal scroll, so a ten-block update cannot push its close
+button off-screen. 17 new strings × 5 locales; the build's
+`TODO_TRANSLATE keys remaining: none` check passes.
+
+Verification: the 0019 backfill was run against a real Postgres (PGlite) — 11
+assertions, all passing: text block first then images ordered by `sort_order`
+(inserted deliberately out of order to prove it), newlines preserved, every
+image block given a non-empty alt, unique ids, an empty body producing no empty
+text block, the legacy `body` column and images table left untouched, the
+migration a no-op on a second run, and — importantly, since it runs at every
+boot — an already-edited row not clobbered by a later run. `validateBlocks` was
+extracted from the route and exercised with 23 assertions, all passing, covering
+every rejection above; the four url-injection cases (external https,
+protocol-relative, `javascript:`, non-image data URL) are all refused.
+`pnpm -r typecheck`: no new errors against the baseline. `pnpm -r build` green,
+65 prerendered pages.
+
+Follow-ups left open: the composer was not exercised against a running admin
+session — no Postgres or admin login is available here — so drag-reorder,
+autosave-restore and the publish flow are verified by construction and
+typecheck, not by clicking. Worth a manual pass in both `fa` and `en` before
+relying on it.

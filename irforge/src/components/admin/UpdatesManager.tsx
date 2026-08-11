@@ -1,6 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
+import { UpdateBlockEditor, MAX_BLOCKS, newImageBlock } from "@/components/admin/UpdateBlockEditor";
+import { UpdateBlocks, type UpdateBlock } from "@/components/updates/UpdateBlocks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,8 +15,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Sparkles, Trash2, Loader2, Plus, ImagePlus, X, ChevronLeft, ChevronRight,
-  AlertTriangle, RefreshCw, Send, Pencil,
+  Sparkles, Trash2, Loader2, Plus,
+  AlertTriangle, RefreshCw, Send, Pencil, Copy,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
@@ -34,14 +36,17 @@ type AdminUpdate = {
   id: string;
   version: string | null;
   title: string;
-  body: string;
   published: boolean;
   publishedAt: string | null;
   createdAt: string;
-  imageCount: number;
+  blockCount: number;
 };
 
-type UpdateDetail = AdminUpdate & { images: string[] };
+type UpdateDetail = AdminUpdate & { blocks: UpdateBlock[] };
+
+/** پیش‌نویسِ در حال نوشتن، کلیدشده با id آپدیت (یا "new"). */
+const DRAFT_PREFIX = "irforge_update_draft:";
+type Draft = { version: string; title: string; blocks: UpdateBlock[] };
 
 function serverMessage(err: any): string | undefined {
   const reason = err?.data?.error;
@@ -98,9 +103,41 @@ export function UpdatesManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [version, setVersion] = useState("");
   const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [images, setImages] = useState<string[]>([]);
+  const [blocks, setBlocks] = useState<UpdateBlock[]>([]);
   const [busyImages, setBusyImages] = useState(false);
+  /** تا وقتی پیش‌نویسِ ذخیره‌شده بازیابی نشده، روی آن نمی‌نویسیم. */
+  const restored = useRef(false);
+
+  const draftKey = DRAFT_PREFIX + (editingId ?? "new");
+
+  // ── بازیابی پیش‌نویس ──────────────────────────────────────────────────
+  // نوشتن یک آپدیت پنج‌بلوکی و از دست دادنش با یک رفرش اتفاقی، محتمل‌ترین
+  // راهی است که این قابلیت می‌تواند روز کسی را خراب کند.
+  useEffect(() => {
+    restored.current = false;
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (raw) {
+        const d = JSON.parse(raw) as Draft;
+        if (Array.isArray(d.blocks)) {
+          setVersion(d.version ?? "");
+          setTitle(d.title ?? "");
+          setBlocks(d.blocks);
+        }
+      }
+    } catch { /* پیش‌نویس خراب — نادیده */ }
+    restored.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  // ── ذخیره‌ی خودکار ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!restored.current) return;
+    try {
+      if (title.trim() === "" && blocks.length === 0) sessionStorage.removeItem(draftKey);
+      else sessionStorage.setItem(draftKey, JSON.stringify({ version, title, blocks }));
+    } catch { /* حافظه پر — بی‌خیال */ }
+  }, [draftKey, version, title, blocks]);
 
   const { data: items, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ADMIN_UPDATES_KEY,
@@ -114,8 +151,9 @@ export function UpdatesManager() {
   };
 
   function resetForm() {
+    try { sessionStorage.removeItem(draftKey); } catch { /* ignore */ }
     setEditingId(null);
-    setVersion(""); setTitle(""); setBody(""); setImages([]);
+    setVersion(""); setTitle(""); setBlocks([]);
   }
 
   const save = useMutation({
@@ -123,8 +161,7 @@ export function UpdatesManager() {
       const payload = {
         version: version.trim() || null,
         title: title.trim(),
-        body: body.trim(),
-        images,
+        blocks,
       };
       return editingId
         ? customFetch<AdminUpdate>(`/api/admin/updates/${editingId}`, {
@@ -169,7 +206,7 @@ export function UpdatesManager() {
     setBusyImages(true);
     const accepted: string[] = [];
     for (const file of Array.from(list)) {
-      if (images.length + accepted.length >= MAX_IMAGES) break;
+      if (blocks.length + accepted.length >= MAX_BLOCKS) break;
       try {
         accepted.push(await compressImage(file));
       } catch {
@@ -182,19 +219,10 @@ export function UpdatesManager() {
         });
       }
     }
-    setImages((prev) => [...prev, ...accepted].slice(0, MAX_IMAGES));
+    // هر عکس یک بلوک تازه در انتهای دنباله می‌شود؛ جابه‌جایی کار ادیتور است.
+    setBlocks((prev) => [...prev, ...accepted.map(newImageBlock)].slice(0, MAX_BLOCKS));
     setBusyImages(false);
     if (fileInput.current) fileInput.current.value = "";
-  }
-
-  function moveImage(index: number, delta: number) {
-    setImages((prev) => {
-      const next = [...prev];
-      const target = index + delta;
-      if (target < 0 || target >= next.length) return prev;
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
   }
 
   async function startEdit(u: AdminUpdate) {
@@ -205,22 +233,53 @@ export function UpdatesManager() {
       setEditingId(u.id);
       setVersion(detail.version ?? "");
       setTitle(detail.title);
-      setBody(detail.body);
-      setImages(detail.images ?? []);
+      setBlocks(detail.blocks ?? []);
     } catch (err: any) {
       toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: serverMessage(err) });
     }
   }
 
   function submit() {
-    if (!title.trim() || !body.trim()) {
+    if (!title.trim()) {
+      toast({ variant: "destructive", title: fa ? "عنوان الزامی است" : "A title is required" });
+      return;
+    }
+    if (blocks.length === 0) {
+      toast({ variant: "destructive", title: fa ? "حداقل یک بلوک لازم است" : "At least one block is required" });
+      return;
+    }
+    if (blocks.some((b) => b.type === "text" && b.content.trim() === "")) {
+      toast({ variant: "destructive", title: fa ? "یک بلوک متن خالی است" : "A text block is empty" });
+      return;
+    }
+    // alt اجباری است و سرور هم ردش می‌کند؛ اینجا جلویش گرفته می‌شود تا کاربر
+    // یک ۴۰۰ مبهم نگیرد.
+    if (blocks.some((b) => b.type === "image" && b.alt.trim() === "")) {
       toast({
         variant: "destructive",
-        title: fa ? "عنوان و متن الزامی است" : "Title and body are required",
+        title: fa ? "هر عکس به متن جایگزین نیاز دارد" : "Every image needs alt text",
+        description: fa
+          ? "بدون آن، کاربرِ screen reader از عکس چیزی نمی‌فهمد."
+          : "Without it, screen-reader users get nothing from the image.",
       });
       return;
     }
     save.mutate();
+  }
+
+  /** کپی‌کردن یک آپدیت به‌عنوان پیش‌نویس تازه — بیشتر آپدیت‌ها ساختار قبلی را دارند. */
+  async function duplicate(u: AdminUpdate) {
+    try {
+      const detail = await customFetch<UpdateDetail>(`/api/updates/${u.id}`);
+      setEditingId(null);
+      setVersion(detail.version ?? "");
+      setTitle((fa ? "رونوشت — " : "Copy — ") + detail.title);
+      // idهای تازه، وگرنه دو بلوک در دو آپدیت یک id می‌گرفتند.
+      setBlocks((detail.blocks ?? []).map((b) => ({ ...b, id: crypto.randomUUID() })));
+      toast({ title: fa ? "به‌عنوان پیش‌نویس تازه کپی شد" : "Copied as a new draft" });
+    } catch (err) {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: serverMessage(err) });
+    }
   }
 
   return (
@@ -246,66 +305,40 @@ export function UpdatesManager() {
             <Label htmlFor="upd-title">{fa ? "عنوان" : "Title"}</Label>
             <Input id="upd-title" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="upd-body">{fa ? "متن" : "Body"}</Label>
-            <Textarea id="upd-body" rows={8} value={body} onChange={(e) => setBody(e.target.value)} />
-          </div>
-
           <div className="space-y-2">
-            <Label>{fa ? `عکس‌ها (${images.length}/${MAX_IMAGES})` : `Images (${images.length}/${MAX_IMAGES})`}</Label>
+            <Label>{fa ? "بدنه" : "Body"}</Label>
+            <p className="text-xs text-muted-foreground">
+              {fa
+                ? "متن و عکس، با هر ترتیبی. برای جابه‌جایی بکشید یا از دکمه‌های بالا/پایین استفاده کنید."
+                : "Text and images, in any order. Drag to reorder, or use the up/down buttons."}
+            </p>
             <input
               ref={fileInput} type="file" accept="image/*" multiple className="hidden"
               onChange={(e) => onFiles(e.target.files)}
             />
-            <Button
-              type="button" variant="outline" size="sm"
-              disabled={busyImages || images.length >= MAX_IMAGES}
-              onClick={() => fileInput.current?.click()}
-            >
-              {busyImages
-                ? <Loader2 className="me-2 h-4 w-4 animate-spin" />
-                : <ImagePlus className="me-2 h-4 w-4" />}
-              {fa ? "افزودن عکس" : "Add images"}
-            </Button>
-
-            {images.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                {images.map((src, i) => (
-                  <div key={i} className="group relative overflow-hidden rounded-md border">
-                    <img
-                      src={src} alt={fa ? `پیش‌نمایش ${i + 1}` : `Preview ${i + 1}`}
-                      className="h-20 w-full object-cover"
-                    />
-                    <div className="absolute inset-x-0 bottom-0 flex justify-between bg-background/80 p-0.5">
-                      <button
-                        type="button" className="rounded p-0.5 hover:bg-muted"
-                        onClick={() => moveImage(i, -1)} disabled={i === 0}
-                        aria-label={fa ? "جابه‌جایی به قبل" : "Move earlier"}
-                      >
-                        <ChevronLeft className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button" className="rounded p-0.5 hover:bg-muted"
-                        onClick={() => setImages((p) => p.filter((_, j) => j !== i))}
-                        aria-label={fa ? "حذف عکس" : "Remove image"}
-                      >
-                        <X className="h-3.5 w-3.5 text-red-500" />
-                      </button>
-                      <button
-                        type="button" className="rounded p-0.5 hover:bg-muted"
-                        onClick={() => moveImage(i, 1)} disabled={i === images.length - 1}
-                        aria-label={fa ? "جابه‌جایی به بعد" : "Move later"}
-                      >
-                        <ChevronRight className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <UpdateBlockEditor
+              blocks={blocks}
+              onChange={setBlocks}
+              onPickImages={() => fileInput.current?.click()}
+              busyImages={busyImages}
+              disabled={save.isPending}
+            />
           </div>
 
-          <div className="flex gap-2">
+          {/* پیش‌نمایش زنده — تفاوت بین ادیتوری که کار می‌کند و ادیتوری که
+              اول منتشر می‌کنی و بعد می‌فهمی چه شکلی شده. روی موبایل زیر
+              ادیتور می‌آید، روی دسکتاپ کنارش (شبکه‌ی والد). */}
+          {blocks.length > 0 && (
+            <div className="space-y-2">
+              <Label>{fa ? "پیش‌نمایش" : "Preview"}</Label>
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <h4 className="mb-3 text-lg font-bold">{title || (fa ? "بدون عنوان" : "Untitled")}</h4>
+                <UpdateBlocks blocks={blocks} size="compact" />
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
             <Button onClick={submit} disabled={save.isPending}>
               {save.isPending
                 ? <Loader2 className="me-2 h-4 w-4 animate-spin" />
@@ -316,6 +349,13 @@ export function UpdatesManager() {
               <Button variant="ghost" onClick={resetForm}>{fa ? "انصراف" : "Cancel"}</Button>
             )}
           </div>
+          {/* انتشار عمداً اینجا نیست: از لیست انجام می‌شود، با تأیید. ذخیره
+              نباید عارضه‌ی جانبیِ فرستادن اعلان به همه‌ی کاربرها داشته باشد. */}
+          <p className="text-xs text-muted-foreground">
+            {fa
+              ? "ذخیره فقط پیش‌نویس می‌سازد. انتشار از فهرست کنار انجام می‌شود."
+              : "Saving only creates a draft. Publish from the list beside this form."}
+          </p>
         </CardContent>
       </Card>
 
@@ -363,7 +403,7 @@ export function UpdatesManager() {
                   <span className="min-w-0 truncate font-medium">{u.title}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {fa ? `${u.imageCount} عکس` : `${u.imageCount} image(s)`}
+                  {fa ? `${u.blockCount} بلوک` : `${u.blockCount} block(s)`}
                   {" · "}
                   {new Date(u.publishedAt ?? u.createdAt).toLocaleDateString(fa ? "fa-IR" : "en-US")}
                 </p>
@@ -402,6 +442,13 @@ export function UpdatesManager() {
                       </Button>
                     </>
                   )}
+
+                  {/* رونوشت برای منتشرشده‌ها هم هست: بیشتر آپدیت‌ها از نظر
+                      ساختار کپی آپدیت قبلی‌اند، و کپی‌کردن از نو ساختن بهتر است. */}
+                  <Button size="sm" variant="outline" onClick={() => duplicate(u)}>
+                    <Copy className="me-2 h-4 w-4" />
+                    {fa ? "رونوشت" : "Duplicate"}
+                  </Button>
 
                   <AlertDialog>
                     <AlertDialogTrigger asChild>

@@ -290,41 +290,6 @@ CREATE TABLE IF NOT EXISTS wallet_transactions (
 );
 CREATE INDEX IF NOT EXISTS wallet_transactions_user_id_idx ON wallet_transactions(user_id);
 
--- ─── Round 3 / Phase 2 — case-insensitive e-mail identity ──────────────────
--- Mirrors lib/db/migrations/0018_email_case_insensitive.sql. It has to live
--- here too: this file is what actually runs at boot on Railway, and it does not
--- read lib/db/migrations at all.
---
--- If two accounts differ only by letter case this RAISEs and the boot fails
--- loudly. That is deliberate — the alternative is a service that keeps running
--- while two accounts share one real mailbox — but it does mean a production
--- database with such a pair will not start until a human resolves it. Check
--- before deploying with:
---   SELECT lower(email), count(*) FROM users GROUP BY 1 HAVING count(*) > 1;
-DO $$
-DECLARE
-  collisions TEXT;
-BEGIN
-  SELECT string_agg(DISTINCT lower(email), ', ')
-    INTO collisions
-    FROM users
-   GROUP BY lower(email)
-  HAVING count(*) > 1;
-
-  IF collisions IS NOT NULL THEN
-    RAISE EXCEPTION
-      'Cannot normalise user e-mails: % address(es) are held by more than one account, differing only in letter case. Resolve them by hand before starting the service.',
-      collisions
-      USING ERRCODE = 'unique_violation';
-  END IF;
-END $$;
-
-UPDATE users SET email = lower(email) WHERE email <> lower(email);
-
-ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_unique;
-ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
-
-CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (lower(email));
 `;
 
 async function migrate() {

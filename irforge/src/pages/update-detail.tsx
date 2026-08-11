@@ -3,12 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ReceiptLightbox } from "@/components/ui/receipt-lightbox";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
 import { isRtlLang } from "@/lib/i18n";
 import type { SiteUpdateDetail } from "@/hooks/use-unseen-update";
+import { UpdateBlocks } from "@/components/updates/UpdateBlocks";
 
 export default function UpdateDetail() {
   const { id } = useParams<{ id: string }>();
@@ -56,27 +56,8 @@ export default function UpdateDetail() {
             )}
           </header>
 
-          {/* whitespace-pre-wrap: متن آپدیت خط جدید دارد و بدون این همه‌ی
-              بندها در یک پاراگراف به هم می‌چسبند. */}
-          <p className="whitespace-pre-wrap text-base leading-relaxed">{data.body}</p>
-
-          {data.images.length > 0 && (
-            <div className="space-y-3">
-              {data.images.map((src, i) => (
-                <ReceiptLightbox key={i} src={src} alt={`${t.imageAlt} ${i + 1}`}>
-                  <button type="button" className="block w-full">
-                    <img
-                      src={src}
-                      alt={`${t.imageAlt} ${i + 1}`}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full rounded-lg border"
-                    />
-                  </button>
-                </ReceiptLightbox>
-              ))}
-            </div>
-          )}
+          {/* همان رندری که مودال و پیش‌نمایشِ ادیتور استفاده می‌کنند. */}
+          <UpdateBlocks blocks={data.blocks ?? []} />
         </article>
       ) : null}
     </div>

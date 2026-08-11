@@ -2,13 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 
 /** جزئیات کامل یک آپدیت، همراه بدنه‌ی عکس‌ها (فقط endpointهای جزئیات). */
+import type { UpdateBlock } from "@/components/updates/UpdateBlocks";
+
 export type SiteUpdateDetail = {
   id: string;
   version: string | null;
   title: string;
-  body: string;
+  /** ترتیب آرایه = ترتیب نمایش. */
+  blocks: UpdateBlock[];
   publishedAt: string | null;
-  images: string[];
 };
 
 /**

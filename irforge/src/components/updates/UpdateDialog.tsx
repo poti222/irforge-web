@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { UpdateBlocks } from "@/components/updates/UpdateBlocks";
 import { customFetch } from "@workspace/api-client-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ReceiptLightbox } from "@/components/ui/receipt-lightbox";
 import { useT } from "@/hooks/use-translation";
 import { useUnseenUpdate } from "@/hooks/use-unseen-update";
 
@@ -65,25 +65,8 @@ export function UpdateDialog() {
           )}
         </DialogHeader>
 
-        <p className="whitespace-pre-wrap text-sm leading-7">{update.body}</p>
-
-        {update.images.length > 0 && (
-          <div className="space-y-2">
-            {update.images.map((src, i) => (
-              <ReceiptLightbox key={i} src={src} alt={`${t.imageAlt} ${i + 1}`}>
-                <button type="button" className="block w-full">
-                  <img
-                    src={src}
-                    alt={`${t.imageAlt} ${i + 1}`}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full rounded-lg border"
-                  />
-                </button>
-              </ReceiptLightbox>
-            ))}
-          </div>
-        )}
+        {/* یک رندرِ مشترک با صفحه‌ی جزئیات و پیش‌نمایشِ ادیتور. */}
+        <UpdateBlocks blocks={update.blocks ?? []} size="compact" />
 
         <DialogFooter>
           <Button onClick={() => void dismiss()}>{t.gotIt}</Button>

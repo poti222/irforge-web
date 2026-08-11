@@ -11,9 +11,12 @@
  *      را می‌بیند؛ با بستن مودال همه‌ی آپدیت‌های منتشرشده برایش seen می‌شوند.
  *   ۴. صفحه‌ی /updates تاریخچه‌ی دائمی را نگه می‌دارد.
  *
- * عکس‌ها به‌صورت data-URL بیس‌۶۴ در `site_update_images` ذخیره می‌شوند —
- * دقیقاً همان الگویی که رسید کیف پول استفاده می‌کند. لیست‌ها هیچ‌وقت بدنه‌ی
- * عکس‌ها را برنمی‌گردانند، فقط `imageCount`.
+ * بدنه‌ی هر آپدیت یک دنباله‌ی مرتب از بلوک‌هاست (`blocks`، ستون JSONB): متن و
+ * عکس، با هر ترتیب و هر تعداد. عکس‌ها data-URL بیس‌۶۴اند — همان الگوی رسید
+ * کیف پول. لیست‌ها هیچ‌وقت بدنه را حمل نمی‌کنند، فقط `blockCount`.
+ *
+ * ستون `body` و جدول `site_update_images` منسوخ‌اند و یک نسخه نگه داشته
+ * می‌شوند تا برگشت به عقب ممکن باشد (به PROGRESS.md نگاه کن).
  */
 import { Router } from "express";
 import crypto from "crypto";
@@ -21,10 +24,11 @@ import {
   db,
   siteUpdatesTable,
   siteUpdateImagesTable,
+  type UpdateBlock,
   userUpdateViewsTable,
   usersTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "./auth";
 import { logger } from "../lib/logger";
 import { createNotificationsBulk } from "../lib/notify";
@@ -36,40 +40,14 @@ type UpdateListItem = {
   id: string;
   version: string | null;
   title: string;
-  body: string;
   published: boolean;
   publishedAt: string | null;
   createdAt: string;
-  imageCount: number;
+  /** لیست‌ها بدنه‌ی بلوک‌ها را حمل نمی‌کنند — فقط تعدادشان. */
+  blockCount: number;
 };
 
-/**
- * شمارش عکس‌های چند آپدیت با یک کوئری گروهی — تا برای n آپدیت n کوئری نزنیم.
- */
-async function imageCounts(updateIds: string[]): Promise<Map<string, number>> {
-  const counts = new Map<string, number>();
-  if (updateIds.length === 0) return counts;
-  const rows = await db
-    .select({
-      updateId: siteUpdateImagesTable.updateId,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(siteUpdateImagesTable)
-    .where(inArray(siteUpdateImagesTable.updateId, updateIds))
-    .groupBy(siteUpdateImagesTable.updateId);
-  for (const r of rows) counts.set(r.updateId, Number(r.count));
-  return counts;
-}
 
-/** عکس‌های یک آپدیت، به‌ترتیب sort_order. */
-async function imagesFor(updateId: string): Promise<string[]> {
-  const rows = await db
-    .select({ dataUrl: siteUpdateImagesTable.dataUrl })
-    .from(siteUpdateImagesTable)
-    .where(eq(siteUpdateImagesTable.updateId, updateId))
-    .orderBy(asc(siteUpdateImagesTable.sortOrder));
-  return rows.map((r) => r.dataUrl);
-}
 
 // ─── GET /api/updates ────────────────────────────────────────────────────────
 // فقط منتشرشده‌ها، جدیدترین اول. `seen` از روی user_update_views می‌آید.
@@ -83,7 +61,6 @@ router.get("/updates", requireAuth, async (req: any, res) => {
       .limit(100);
 
     const ids = rows.map((r) => r.id);
-    const counts = await imageCounts(ids);
 
     const seenRows = ids.length
       ? await db
@@ -103,9 +80,8 @@ router.get("/updates", requireAuth, async (req: any, res) => {
         id: u.id,
         version: u.version,
         title: u.title,
-        body: u.body,
+        blockCount: (u.blocks ?? []).length,
         publishedAt: u.publishedAt ? u.publishedAt.toISOString() : null,
-        imageCount: counts.get(u.id) ?? 0,
         seen: seen.has(u.id),
       })),
     );
@@ -163,9 +139,8 @@ router.get("/updates/unseen", requireAuth, async (req: any, res) => {
         id: target.id,
         version: target.version,
         title: target.title,
-        body: target.body,
+        blocks: target.blocks ?? [],
         publishedAt: target.publishedAt ? target.publishedAt.toISOString() : null,
-        images: await imagesFor(target.id),
       },
     });
   } catch (err) {
@@ -237,11 +212,10 @@ router.get("/updates/:id", requireAuth, async (req: any, res) => {
       id: row.id,
       version: row.version,
       title: row.title,
-      body: row.body,
+      blocks: row.blocks ?? [],
       published: row.published,
       publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
-      images: await imagesFor(row.id),
     });
   } catch (err) {
     logger.error({ err }, "Get update error");
@@ -305,19 +279,120 @@ function validateImages(value: unknown): string[] | null {
   });
 }
 
-/** عکس‌های یک آپدیت را کامل جایگزین می‌کند (replace، نه merge). */
-async function replaceImages(updateId: string, images: string[]): Promise<void> {
-  await db.delete(siteUpdateImagesTable).where(eq(siteUpdateImagesTable.updateId, updateId));
-  if (images.length === 0) return;
-  await db.insert(siteUpdateImagesTable).values(
-    images.map((dataUrl, i) => ({
-      id: crypto.randomUUID(),
-      updateId,
-      dataUrl,
-      sortOrder: i,
-    })),
-  );
+const UPDATE_MAX_BLOCKS = 50;
+const BLOCK_TEXT_MAX = 8000;
+const BLOCK_ALT_MAX = 300;
+const BLOCK_CAPTION_MAX = 300;
+
+/**
+ * اعتبارسنجی آرایه‌ی بلوک‌ها — **سمت سرور**، نه فقط در ادیتور.
+ *
+ * یک ستون JSONB که کلاینت هرچه بخواهد در آن می‌ریزد یک سطح حمله است، و این
+ * محتوا داخل مودالِ داشبورد **همه‌ی** کاربرها رندر می‌شود. یک ادمین هم
+ * زمینه‌ی رندر مورد اعتماد نیست: حسابش می‌تواند دزدیده شود.
+ *
+ * ── انحراف از بریف، عمدی ──
+ * بریف گفته `url` به «مبدأ آپلود خودتان» محدود شود. چنین مبدأیی وجود ندارد:
+ * عکس‌ها در این پروژه data-URL بیس‌۶۴ هستند (همان الگوی رسید کیف پول)، نه
+ * فایل آپلودشده با آدرس. پس قاعده به چیزی سخت‌گیرانه‌تر ترجمه شد: فقط
+ * `data:image/<type>;base64,` با سقف حجم، یا یک مسیر نسبی هم‌مبدأ (`/...`).
+ * هر چیز دیگری — `http(s):`، `javascript:`، `//host` — رد می‌شود. data-URL
+ * اصلاً درخواست شبکه‌ای تولید نمی‌کند، پس دقیقاً همان خطری که بریف نگرانش
+ * بود (مرورگر هر کاربر یک endpoint انتخابیِ مهاجم را fetch کند) بسته است.
+ */
+function validateBlocks(value: unknown): UpdateBlock[] | null {
+  if (value == null) return null;
+  if (!Array.isArray(value)) throw new ValidationError("blocks must be an array");
+  if (value.length > UPDATE_MAX_BLOCKS) {
+    throw new ValidationError(`At most ${UPDATE_MAX_BLOCKS} blocks are allowed`);
+  }
+
+  const seenIds = new Set<string>();
+  return value.map((raw, i) => {
+    const n = i + 1;
+    if (!raw || typeof raw !== "object") throw new ValidationError(`Block ${n} is malformed`);
+    const b = raw as Record<string, unknown>;
+
+    const id = typeof b.id === "string" && b.id.trim() !== "" ? b.id.trim().slice(0, 64) : crypto.randomUUID();
+    // Duplicate ids would make the editor's reorder/delete act on the wrong
+    // block, so they are rejected rather than quietly de-duplicated.
+    if (seenIds.has(id)) throw new ValidationError(`Block ${n} repeats an id`);
+    seenIds.add(id);
+
+    if (b.type === "text") {
+      if (typeof b.content !== "string") throw new ValidationError(`Block ${n}: content must be a string`);
+      const content = b.content.trim();
+      if (content === "") throw new ValidationError(`Block ${n} is an empty text block`);
+      if (content.length > BLOCK_TEXT_MAX) {
+        throw new ValidationError(`Block ${n} is too long (max ${BLOCK_TEXT_MAX} characters)`);
+      }
+      return { type: "text", id, content };
+    }
+
+    if (b.type === "image") {
+      if (typeof b.url !== "string" || b.url === "") {
+        throw new ValidationError(`Block ${n}: an image is required`);
+      }
+      const url = validateImageUrl(b.url, n);
+      // alt اجباری است، نه «اختیاری با مقدار پیش‌فرض». کاربرِ screen reader از
+      // عکس بی‌برچسب هیچ چیزی نمی‌گیرد، و این آپدیت‌ها تنها کانالی هستند که به
+      // همه‌ی کاربرها می‌رسند.
+      if (typeof b.alt !== "string" || b.alt.trim() === "") {
+        throw new ValidationError(`Block ${n}: alt text is required for images`);
+      }
+      const alt = b.alt.trim().slice(0, BLOCK_ALT_MAX);
+      const captionRaw = typeof b.caption === "string" ? b.caption.trim() : "";
+      const caption = captionRaw === "" ? undefined : captionRaw.slice(0, BLOCK_CAPTION_MAX);
+      return caption ? { type: "image", id, url, alt, caption } : { type: "image", id, url, alt };
+    }
+
+    throw new ValidationError(`Block ${n} has an unknown type`);
+  });
 }
+
+/** data:image/... با سقف حجم، یا یک مسیر نسبی هم‌مبدأ. هیچ چیز دیگر. */
+function validateImageUrl(raw: string, n: number): string {
+  if (raw.startsWith("data:image/")) {
+    if (!raw.includes(";base64,")) {
+      throw new ValidationError(`Block ${n}: image must be a base64 data URL`);
+    }
+    const b64 = raw.slice(raw.indexOf(";base64,") + 8);
+    const bytes = Math.floor((b64.length * 3) / 4);
+    if (bytes > UPDATE_MAX_IMAGE_BYTES) {
+      throw new ValidationError(
+        `Block ${n}: image is too large (${Math.round(bytes / 1024)}KB, max ${UPDATE_MAX_IMAGE_BYTES / 1024}KB)`,
+      );
+    }
+    return raw;
+  }
+  // `//evil.example` is protocol-relative and would leave the origin, so a
+  // single leading slash is required and a second one rejected.
+  if (raw.startsWith("/") && !raw.startsWith("//")) return raw.slice(0, 2048);
+  throw new ValidationError(`Block ${n}: image must be an uploaded image, not an external link`);
+}
+
+/**
+ * متن بلوک‌ها به‌هم‌چسبیده، برای ستون منسوخ `body`.
+ *
+ * `body` هنوز NOT NULL است و یک نسخه نگه داشته می‌شود تا برگشت به عقب ممکن
+ * باشد؛ پرکردنش با متن واقعی یعنی اگر کدی به نسخه‌ی قبل برگردد، آپدیت را
+ * خالی نمی‌بیند.
+ */
+function blocksToBody(blocks: UpdateBlock[]): string {
+  return blocks
+    .filter((b): b is Extract<UpdateBlock, { type: "text" }> => b.type === "text")
+    .map((b) => b.content)
+    .join("\n\n");
+}
+
+/** شکل قدیمی (body + images) → بلوک‌ها، با همان ترتیبی که قبلاً رندر می‌شد. */
+function legacyToBlocks(body: string | null, images: string[], title: string): UpdateBlock[] {
+  const out: UpdateBlock[] = [];
+  if (body && body.trim() !== "") out.push({ type: "text", id: crypto.randomUUID(), content: body.trim() });
+  for (const url of images) out.push({ type: "image", id: crypto.randomUUID(), url, alt: title });
+  return out;
+}
+
 
 // GET /api/admin/updates — پیش‌نویس‌ها و منتشرشده‌ها با هم.
 router.get("/admin/updates", requireAdmin, async (_req: any, res) => {
@@ -326,17 +401,15 @@ router.get("/admin/updates", requireAdmin, async (_req: any, res) => {
       .select()
       .from(siteUpdatesTable)
       .orderBy(desc(siteUpdatesTable.createdAt));
-    const counts = await imageCounts(rows.map((r) => r.id));
     res.json(
       rows.map((u) => ({
         id: u.id,
         version: u.version,
         title: u.title,
-        body: u.body,
+        blockCount: (u.blocks ?? []).length,
         published: u.published,
         publishedAt: u.publishedAt ? u.publishedAt.toISOString() : null,
         createdAt: u.createdAt.toISOString(),
-        imageCount: counts.get(u.id) ?? 0,
       })),
     );
   } catch (err) {
@@ -349,9 +422,17 @@ router.get("/admin/updates", requireAdmin, async (_req: any, res) => {
 router.post("/admin/updates", requireAdmin, async (req: any, res) => {
   try {
     const title = validateText(req.body?.title, "Title", UPDATE_TITLE_MAX, true)!;
-    const body = validateText(req.body?.body, "Body", UPDATE_BODY_MAX, true)!;
     const version = validateText(req.body?.version, "Version", UPDATE_VERSION_MAX, false);
-    const images = validateImages(req.body?.images) ?? [];
+    // `blocks` is the body now. `body`/`images` are still accepted so an older
+    // client mid-deploy doesn't 400, and are converted to blocks.
+    const blocks =
+      validateBlocks(req.body?.blocks) ??
+      legacyToBlocks(
+        validateText(req.body?.body, "Body", UPDATE_BODY_MAX, false),
+        validateImages(req.body?.images) ?? [],
+        title,
+      );
+    if (blocks.length === 0) throw new ValidationError("An update needs at least one block");
 
     const [row] = await db
       .insert(siteUpdatesTable)
@@ -359,23 +440,22 @@ router.post("/admin/updates", requireAdmin, async (req: any, res) => {
         id: crypto.randomUUID(),
         version,
         title,
-        body,
+        body: blocksToBody(blocks),
+        blocks,
         published: false,
         createdBy: req.userId,
       })
       .returning();
 
-    await replaceImages(row.id, images);
-
     res.status(201).json({
       id: row.id,
       version: row.version,
       title: row.title,
-      body: row.body,
+      blocks: row.blocks,
       published: row.published,
       publishedAt: null,
       createdAt: row.createdAt.toISOString(),
-      imageCount: images.length,
+      blockCount: blocks.length,
     });
   } catch (err) {
     if (err instanceof ValidationError) {
@@ -404,13 +484,15 @@ router.patch("/admin/updates/:id", requireAdmin, async (req: any, res) => {
     if (req.body?.title !== undefined) {
       patch.title = validateText(req.body.title, "Title", UPDATE_TITLE_MAX, true);
     }
-    if (req.body?.body !== undefined) {
-      patch.body = validateText(req.body.body, "Body", UPDATE_BODY_MAX, true);
-    }
     if (req.body?.version !== undefined) {
       patch.version = validateText(req.body.version, "Version", UPDATE_VERSION_MAX, false);
     }
-    const images = validateImages(req.body?.images);
+    const blocks = validateBlocks(req.body?.blocks);
+    if (blocks) {
+      if (blocks.length === 0) throw new ValidationError("An update needs at least one block");
+      patch.blocks = blocks;
+      patch.body = blocksToBody(blocks);
+    }
 
     const [row] = await db
       .update(siteUpdatesTable)
@@ -418,18 +500,15 @@ router.patch("/admin/updates/:id", requireAdmin, async (req: any, res) => {
       .where(eq(siteUpdatesTable.id, req.params.id))
       .returning();
 
-    if (images) await replaceImages(row.id, images);
-    const counts = await imageCounts([row.id]);
-
     res.json({
       id: row.id,
       version: row.version,
       title: row.title,
-      body: row.body,
+      blocks: row.blocks,
       published: row.published,
       publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
-      imageCount: counts.get(row.id) ?? 0,
+      blockCount: (row.blocks ?? []).length,
     });
   } catch (err) {
     if (err instanceof ValidationError) {
@@ -503,6 +582,8 @@ router.post("/admin/updates/:id/publish", requireAdmin, async (req: any, res) =>
 // DELETE /api/admin/updates/:id — آپدیت + عکس‌ها + ردیف‌های seen.
 router.delete("/admin/updates/:id", requireAdmin, async (req: any, res) => {
   try {
+    // جدول عکس‌ها منسوخ است ولی هنوز وجود دارد (برای برگشت‌پذیری مایگریشن)،
+    // پس ردیف‌های قدیمی همچنان اینجا پاک می‌شوند تا یتیم نمانند.
     await db.delete(siteUpdateImagesTable).where(eq(siteUpdateImagesTable.updateId, req.params.id));
     await db.delete(userUpdateViewsTable).where(eq(userUpdateViewsTable.updateId, req.params.id));
     const deleted = await db
@@ -520,6 +601,5 @@ router.delete("/admin/updates/:id", requireAdmin, async (req: any, res) => {
   }
 });
 
-export { imageCounts, imagesFor };
 export type { UpdateListItem };
 export default router;
