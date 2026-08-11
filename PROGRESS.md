@@ -2043,3 +2043,102 @@ pre-existing `AllBotsTable.tsx:70` baseline error. `pnpm -r build` green.
 Follow-ups left open: a confirming scan with a physical phone camera in both
 themes is still worth doing before release; the decode above establishes the
 symbol is valid and high-contrast, which is what the camera would be testing.
+
+---
+
+# DISCOUNT DELETION + UPDATES BLOCK EDITOR — `IrForge_Discounts_Updates_Fixes.md`
+
+## Phase 1 — Make whole-tab rewrites mutually exclusive  [DONE 2026-08-11]
+Files touched: `api-server/src/lib/discountStore.ts`.
+
+Added a `tab:discounts` lock taken by every operation that rewrites the whole
+tab, plus a 10s timeout on `acquireLock` that throws (`LockTimeoutError`)
+instead of waiting forever — a deadlock or a leaked release previously hung the
+request with no error anywhere, indistinguishable from a slow Sheets API.
+`acquireLock` also became idempotent on release; a double release used to free
+whatever lock the next caller had just taken.
+
+**Deviation — lock ordering is inverted from the brief, deliberately.** The
+brief said "always tab lock before code lock". Taken literally that swaps a
+data-loss bug for a deadlock: `reserveDiscount` holds a `code:` lock across the
+caller's whole payment transaction and then writes on commit. If that write had
+to take the tab lock while holding the code lock, a concurrent delete holding
+the tab lock and waiting on the same code lock would deadlock — each waiting on
+what the other holds. The 10s timeout would turn that into a 500 rather than a
+hang, but it would still be a bug we designed in.
+
+So the order is **code first, tab innermost**, applied consistently: a code lock
+is only ever taken while holding nothing, and the tab lock is only ever a leaf
+held for the duration of one rewrite. That keeps the actual requirement — every
+whole-tab rewrite is mutually exclusive — without serialising payments behind a
+global lock, which tab-outermost would have done. Enforced structurally rather
+than by convention: `writeRow`/`deleteRowByCode` take the tab lock themselves,
+with `*Unlocked` variants for callers that already hold it, so a new call site
+cannot forget. A rename (delete old row + write new row) now happens under one
+tab lock instead of two, closing a window where another rewrite could interleave
+and drop one of the two writes.
+
+## Phase 2 — Delete without a destructive window  [DONE 2026-08-11]
+Files touched: `api-server/src/lib/sheetsSync.ts`, `api-server/src/lib/tenantSheets.ts`.
+
+`deleteKVByKey` is now write-then-trim: write the filtered rows from `A1`, then
+clear only `A${filtered.length + 1}:B`. The tab holds either the old data or the
+new data at every instant, never nothing. It reads `${tab}!A:B` explicitly,
+matching `readKV`/`readAllKV` — the bare-tab read let Sheets decide the extent
+of the data, so the shape read back was not guaranteed to match the two-column
+shape the writers produce. It returns whether anything was removed, so the route
+can 404 rather than report a successful delete of something that never existed.
+Added `deleteKVByKeys` for the bulk path: N deletions, one rewrite.
+
+**Other `clearSheet` callers, as the brief asked:**
+- `lib/tenantSheets.ts:deleteRow` — **the identical bug**, clear-then-write on a
+  tenant's data tab. Fixed the same way.
+- `routes/sheets.ts` `DELETE /api/sheets/:name` — left as is. Clearing a
+  caller-supplied range *is* the operation there, not an implementation detail
+  of a row delete, so there is nothing to make non-destructive.
+- `lib/sheets.ts:clearSheet` — the primitive itself; unchanged.
+
+`bg()` was widened from `Promise<void>` to `Promise<unknown>` since
+`deleteKVByKey` now returns a boolean the five fire-and-forget mirror callers
+have no use for.
+
+## Phase 3 — Make the UI honest about what happened  [DONE 2026-08-11]
+Files touched: `api-server/src/routes/discounts.ts`,
+`irforge/src/components/admin/DiscountsManager.tsx`.
+
+`DELETE /admin/discounts/:id` returns the new full list instead of `204`, and
+the client writes it straight into the query cache. Sheets is not
+read-your-writes consistent, so the old invalidate-and-refetch frequently
+returned the pre-delete snapshot and the row reappeared — which reads as "delete
+didn't work" even when it worked. New `POST /admin/discounts/bulk-delete` takes
+an id array (capped at 200), takes the tab lock once, performs one rewrite, and
+returns `{ requested, deleted, deletedIds, codes }` so the UI can say honestly
+when some ids were already gone rather than claiming it removed all of them.
+Multi-select with per-row checkboxes and a select-all; every mutating control —
+including the active toggle and the per-row delete — is now gated on `deleting`.
+
+Verification (all of Item 1): a standalone harness models the Sheets tab with
+realistic async delays and runs both the old and new implementations through the
+exact race, 12 assertions, all passing:
+- **the bug is reproduced against the old code** — two concurrent deletes of
+  *different* keys leave `SPRING,SUMMER` when only `SPRING` should remain, i.e.
+  `SUMMER` is resurrected — and the old path is observed with an **empty tab**
+  twice mid-delete, which is the data-loss window;
+- the new path under the tab lock leaves exactly `SPRING`, and the tab is
+  **never** observed empty;
+- deleting all codes one after another leaves zero, header intact;
+- bulk delete of three codes is a **single** read/rewrite;
+- an unknown key removes nothing and leaves the data intact (the 404 path);
+- the lock timeout throws near its deadline instead of hanging.
+`pnpm --filter @workspace/api-server typecheck` diffed against the pre-change
+baseline: identical, no new errors. `pnpm -r build` green.
+
+Follow-ups left open: the five fire-and-forget mirror tabs (`users`, `bots`,
+`sessions`, `tenants`, `sheet_pool`) now get the non-destructive write-then-trim,
+but they take **no** tab lock, so the resurrection race still exists there. The
+stakes are much lower — those tabs mirror Postgres, which is the source of
+truth, so a lost row is recoverable by resync rather than being data loss — but
+it is the same defect and worth a follow-up. Also unchanged: the single-process
+caveat in this module's header still holds; none of these locks survive a second
+replica, and `deleteDiscountCodes` would need a distributed lock if irforge-web
+is ever scaled out.

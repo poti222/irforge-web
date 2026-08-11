@@ -120,15 +120,63 @@ export async function upsertKV(spreadsheetId: string, tab: string, key: string, 
   }
 }
 
-/** Delete a row by key (read-filter-rewrite). Exported for discountStore.ts. */
-export async function deleteKVByKey(spreadsheetId: string, tab: string, key: string) {
-  const rows = await readSheet(spreadsheetId, tab);
-  if (!rows || rows.length <= 1) return;
-  const filtered = rows.filter((r, i) => i === 0 || r[0] !== key);
-  await clearSheet(spreadsheetId, tab);
-  if (filtered.length > 0) {
-    await writeSheet(spreadsheetId, `${tab}!A1`, filtered);
-  }
+/**
+ * Delete one or more rows by key.
+ *
+ * ── Why this is write-then-trim and not clear-then-write ────────────────────
+ * The previous implementation was:
+ *
+ *     const rows = await readSheet(spreadsheetId, tab);
+ *     const filtered = rows.filter(...);
+ *     await clearSheet(spreadsheetId, tab);      // ← tab is now EMPTY
+ *     if (filtered.length) await writeSheet(...); // ← and only now refilled
+ *
+ * Between those last two calls the tab holds nothing. A crash, a dropped
+ * connection or a Sheets rate-limit in that window left every discount code
+ * permanently gone, with no transaction to roll back and no backup. A single
+ * delete could destroy the whole dataset.
+ *
+ * Writing the filtered rows first and only then clearing the surplus tail
+ * means the tab always holds either the old data or the new data. The worst
+ * case if it dies midway is a few stale trailing rows — recoverable, and
+ * nothing like an empty tab.
+ *
+ * Callers must hold the tab-level lock (see discountStore.ts): this rewrites
+ * every row, so two concurrent calls with different keys would otherwise each
+ * write back their own pre-delete snapshot and resurrect each other's rows.
+ *
+ * @returns true if anything was actually removed, so the route can 404 instead
+ *          of reporting a successful delete of something that never existed.
+ */
+export async function deleteKVByKey(spreadsheetId: string, tab: string, key: string): Promise<boolean> {
+  return (await deleteKVByKeys(spreadsheetId, tab, [key])) > 0;
+}
+
+/** @returns how many rows were removed. */
+export async function deleteKVByKeys(
+  spreadsheetId: string,
+  tab: string,
+  keys: string[],
+): Promise<number> {
+  if (keys.length === 0) return 0;
+  const doomed = new Set(keys);
+
+  // Explicit `A:B`, matching readKV/readAllKV. Calling readSheet with a bare
+  // tab name let Sheets decide the extent of the data, so the shape read here
+  // did not necessarily match the two-column shape the writers produce.
+  const rows = await readSheet(spreadsheetId, `${tab}!A:B`);
+  if (!rows || rows.length <= 1) return 0;
+
+  const filtered = rows.filter((r, i) => i === 0 || !doomed.has(r[0]));
+  const removed = rows.length - filtered.length;
+  if (removed === 0) return 0;
+
+  // 1. Overwrite in place, from the top.
+  await writeSheet(spreadsheetId, `${tab}!A1`, filtered);
+  // 2. Only now clear what is left over below the new last row.
+  await clearSheet(spreadsheetId, `${tab}!A${filtered.length + 1}:B`);
+
+  return removed;
 }
 
 /** Read a single value by key from a tab. Returns parsed object or null. */
@@ -165,8 +213,10 @@ export async function readAllKV<T = Record<string, unknown>>(
   } catch { return []; }
 }
 
-/** Fire-and-forget wrapper — never throws. */
-function bg(fn: () => Promise<void>, label: string) {
+/** Fire-and-forget wrapper — never throws. The result is discarded, hence
+ *  `unknown` rather than `void`: `deleteKVByKey` reports whether it removed
+ *  anything, which these mirror calls have no use for. */
+function bg(fn: () => Promise<unknown>, label: string) {
   fn().catch((err) => logger.warn({ err }, `sheetsSync [${label}] failed (non-fatal)`));
 }
 

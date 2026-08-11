@@ -106,13 +106,22 @@ export async function upsertRow(
   return { created: true };
 }
 
-/** Delete one row by key (read → filter → rewrite, preserving header). */
+/**
+ * Delete one row by key (read → filter → write-then-trim, preserving header).
+ *
+ * Write first, clear the surplus tail second — never the reverse. Clearing the
+ * whole range before rewriting it leaves the tenant's tab empty for the
+ * duration of a network round trip, and anything that goes wrong in that
+ * window (crash, dropped connection, Sheets rate-limit) destroys the tab with
+ * nothing to roll back to. Same fix as `deleteKVByKey` in sheetsSync.ts, which
+ * had the identical bug.
+ */
 export async function deleteRow(spreadsheetId: string, tab: string, key: string): Promise<boolean> {
   const rows = await readSheet(spreadsheetId, `${quoteTab(tab)}!A:B`);
   if (rows.length <= 1) return false;
   const kept = rows.filter((r, i) => i === 0 || r[0] !== key);
   if (kept.length === rows.length) return false; // key not found
-  await clearSheet(spreadsheetId, `${quoteTab(tab)}!A:B`);
   await writeSheet(spreadsheetId, `${quoteTab(tab)}!A1`, kept);
+  await clearSheet(spreadsheetId, `${quoteTab(tab)}!A${kept.length + 1}:B`);
   return true;
 }

@@ -24,11 +24,15 @@ import {
   createDiscountCode,
   updateDiscountCode,
   deleteDiscountCode,
+  deleteDiscountCodes,
   DuplicateDiscountCodeError,
   type DiscountCode,
 } from "../lib/discountStore";
 
 const router = Router();
+
+/** Cap on one bulk delete — a whole-tab rewrite, so keep the payload sane. */
+const BULK_DELETE_MAX = 200;
 
 function requireSuperAdmin(req: any, res: any, next: any) {
   requireAuth(req, res, async () => {
@@ -279,6 +283,13 @@ router.patch("/admin/discounts/:id", requireSuperAdmin, async (req: any, res) =>
 });
 
 // DELETE /api/admin/discounts/:id
+//
+// Returns the new full list rather than 204. The store is Google Sheets, whose
+// writes are not read-your-writes consistent, so a client that deleted and then
+// refetched could easily be served the pre-delete snapshot and show the row it
+// just removed — which reads to the operator as "delete didn't work" even
+// though it did. Handing back the post-delete list the server already holds
+// removes the second round trip and with it the stale window.
 router.delete("/admin/discounts/:id", requireSuperAdmin, async (req: any, res) => {
   try {
     const deleted = await deleteDiscountCode(req.params.id);
@@ -286,9 +297,48 @@ router.delete("/admin/discounts/:id", requireSuperAdmin, async (req: any, res) =
       res.status(404).json({ error: "Discount code not found" });
       return;
     }
-    res.status(204).end();
+    const rows = await listDiscountCodes();
+    res.json(rows.map(formatCode));
   } catch (err) {
     logger.error({ err }, "Delete discount code error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/admin/discounts/bulk-delete   body: { ids: string[] }
+//
+// One endpoint, one tab lock, one rewrite. The admin UI must not loop the
+// single-delete route: that is N whole-tab rewrites racing each other, which is
+// the exact bug this round of work exists to fix.
+router.post("/admin/discounts/bulk-delete", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const raw = req.body?.ids;
+    if (!Array.isArray(raw) || raw.length === 0) {
+      res.status(400).json({ error: "ids must be a non-empty array" });
+      return;
+    }
+    const ids = Array.from(new Set(raw.filter((v: unknown): v is string => typeof v === "string" && v !== "")));
+    if (ids.length === 0) {
+      res.status(400).json({ error: "ids must contain at least one id" });
+      return;
+    }
+    if (ids.length > BULK_DELETE_MAX) {
+      res.status(400).json({ error: `At most ${BULK_DELETE_MAX} codes can be deleted at once` });
+      return;
+    }
+
+    const deletedIds = await deleteDiscountCodes(ids);
+    const rows = await listDiscountCodes();
+    // `requested` vs `deleted` so the UI can be honest when some ids were
+    // already gone, instead of silently claiming it removed all of them.
+    res.json({
+      requested: ids.length,
+      deleted: deletedIds.length,
+      deletedIds,
+      codes: rows.map(formatCode),
+    });
+  } catch (err) {
+    logger.error({ err }, "Bulk delete discount codes error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

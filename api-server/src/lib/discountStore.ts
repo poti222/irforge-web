@@ -26,7 +26,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { readKV, readAllKV, upsertKV, deleteKVByKey, dataSheetId } from "./sheetsSync.js";
+import { readKV, readAllKV, upsertKV, deleteKVByKey, deleteKVByKeys, dataSheetId } from "./sheetsSync.js";
 import { writeSheet, appendSheet, addTab, listTabs } from "./sheets.js";
 import { computeDiscount, type DiscountKind } from "./discounts.js";
 import { logger } from "./logger.js";
@@ -85,20 +85,91 @@ const DISCOUNT_ERROR_MESSAGES_FA: Record<DiscountReason, string> = {
 };
 
 // ─── In-process mutex (see caveat above) ────────────────────────────────────
+//
+// Two kinds of lock:
+//
+//   `code:<CODE>`  — one row's value. Held across a whole reservation, i.e.
+//                    for as long as a payment takes.
+//   `tab:discounts`— the WHOLE tab. Any operation that rewrites every row
+//                    takes this. That is what was missing: `deleteKVByKey`
+//                    reads, rewrites and trims the entire tab, but deletion
+//                    only took a per-code lock, so deleting two *different*
+//                    codes took two different locks and did not exclude each
+//                    other. Both read the full sheet and both wrote back their
+//                    own filtered copy, and the second write — built from a
+//                    snapshot taken before the first delete — put the first
+//                    deleted code back. Hence "codes come back".
+//
+// ── Lock ordering: code first, tab last. The tab lock is always innermost. ──
+//
+// The brief for this work said to take the tab lock *before* the code lock.
+// That ordering cannot work here, and taking it literally would have replaced
+// a data-loss bug with a deadlock: `reserveDiscount` acquires a code lock and
+// holds it across the caller's payment transaction, then writes on commit. If
+// the write had to take the tab lock while that code lock was held, then a
+// concurrent delete holding the tab lock and waiting for the same code lock
+// would deadlock — each waiting on what the other holds.
+//
+// So the order is inverted and, more importantly, made consistent: a code lock
+// may be taken while holding nothing, and the tab lock is only ever taken as a
+// leaf, for the duration of one rewrite. Nothing acquires a code lock while
+// holding the tab lock. That preserves the actual requirement — every
+// whole-tab rewrite is mutually exclusive — without serialising payments
+// behind a global lock, which is what tab-outermost would have done.
 
 const locks = new Map<string, Promise<void>>();
 
-async function acquireLock(key: string): Promise<() => void> {
+/** How long to wait for a lock before giving up. */
+const LOCK_TIMEOUT_MS = 10_000;
+
+export class LockTimeoutError extends Error {
+  constructor(key: string) {
+    super(`Timed out after ${LOCK_TIMEOUT_MS}ms waiting for lock "${key}"`);
+  }
+}
+
+/**
+ * `acquireLock` used to wait forever. A deadlock or a leaked release therefore
+ * hung the request until the client gave up, consuming a handler slot with no
+ * error anywhere — invisible in logs and indistinguishable from a slow Sheets
+ * API. Now it throws, so the same bug shows up as a 500 with a stack.
+ */
+async function acquireLock(key: string, timeoutMs = LOCK_TIMEOUT_MS): Promise<() => void> {
+  const deadline = Date.now() + timeoutMs;
   while (locks.has(key)) {
-    await locks.get(key)!.catch(() => {});
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new LockTimeoutError(key);
+    const held = locks.get(key)!;
+    // Race the holder against the deadline so a stuck holder can't pin us here.
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([
+      held.catch(() => {}),
+      new Promise<void>((resolve) => { timer = setTimeout(resolve, remaining); }),
+    ]);
+    if (timer) clearTimeout(timer);
   }
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   locks.set(key, gate);
+  let released = false;
   return () => {
+    if (released) return; // double release would free someone else's lock
+    released = true;
     locks.delete(key);
     release();
   };
+}
+
+/** The tab-wide lock. Always the innermost lock — see the ordering note above. */
+const TAB_LOCK = `tab:${TAB}`;
+
+async function withTabLock<T>(fn: () => Promise<T>): Promise<T> {
+  const release = await acquireLock(TAB_LOCK);
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
 }
 
 // ─── Dev fallback (no SHEETS_DATA_ID configured) ────────────────────────────
@@ -159,7 +230,12 @@ async function listAll(): Promise<DiscountCode[]> {
   return Object.values(readDevFile().codes);
 }
 
-async function writeRow(row: DiscountCode): Promise<void> {
+// The `*Unlocked` variants assume the caller already holds the tab lock. They
+// exist so a rename — delete the old row, write the new one — happens inside a
+// single critical section instead of two, which would let another rewrite
+// interleave between them and lose one of the two writes.
+
+async function writeRowUnlocked(row: DiscountCode): Promise<void> {
   const spreadsheetId = dataSheetId();
   if (spreadsheetId) {
     await upsertKV(spreadsheetId, TAB, row.code, row);
@@ -170,16 +246,36 @@ async function writeRow(row: DiscountCode): Promise<void> {
   writeDevFile();
 }
 
-async function deleteRowByCode(code: string): Promise<void> {
+/** @returns false when the key wasn't there — the caller can answer 404. */
+async function deleteRowByCodeUnlocked(code: string): Promise<boolean> {
   const spreadsheetId = dataSheetId();
   if (spreadsheetId) {
-    await deleteKVByKey(spreadsheetId, TAB, code);
-    return;
+    return await deleteKVByKey(spreadsheetId, TAB, code);
   }
   const file = readDevFile();
+  if (!(code in file.codes)) return false;
   delete file.codes[code];
   writeDevFile();
+  return true;
 }
+
+/** Delete several codes in ONE rewrite — see deleteDiscountCodes(). */
+async function deleteRowsByCodeUnlocked(codes: string[]): Promise<number> {
+  const spreadsheetId = dataSheetId();
+  if (spreadsheetId) {
+    return await deleteKVByKeys(spreadsheetId, TAB, codes);
+  }
+  const file = readDevFile();
+  let removed = 0;
+  for (const code of codes) {
+    if (code in file.codes) { delete file.codes[code]; removed++; }
+  }
+  if (removed > 0) writeDevFile();
+  return removed;
+}
+
+const writeRow = (row: DiscountCode) => withTabLock(() => writeRowUnlocked(row));
+const deleteRowByCode = (code: string) => withTabLock(() => deleteRowByCodeUnlocked(code));
 
 /** Create the append-only `discount_redemptions` tab with its real 7-column
  *  header if it doesn't exist yet (mirrors sheetsSync's deletion_queue setup:
@@ -291,8 +387,12 @@ export async function updateDiscountCode(
       updatedAt: new Date().toISOString(),
     };
 
-    if (codeChanged) await deleteRowByCode(oldCode);
-    await writeRow(updated);
+    // One tab lock around both halves of a rename, so no other rewrite can
+    // land between the delete and the write and drop one of them.
+    await withTabLock(async () => {
+      if (codeChanged) await deleteRowByCodeUnlocked(oldCode);
+      await writeRowUnlocked(updated);
+    });
     return updated;
   } finally {
     releases.forEach((r) => r());
@@ -304,10 +404,38 @@ export async function deleteDiscountCode(id: string): Promise<boolean> {
   if (!existing) return false;
   const release = await acquireLock(`code:${existing.code}`);
   try {
-    await deleteRowByCode(existing.code);
-    return true;
+    return await deleteRowByCode(existing.code);
   } finally {
     release();
+  }
+}
+
+/**
+ * Delete many codes in a SINGLE whole-tab rewrite.
+ *
+ * The admin UI's bulk action routes here rather than calling the single-delete
+ * endpoint in a loop. A loop would be N sequential rewrites of the whole tab —
+ * N times the chance of dying halfway, and on Sheets' rate limits the tail of
+ * that loop is where the failures land.
+ *
+ * @returns the ids that were actually removed; ids not found are simply absent,
+ *          so the caller can report a partial result honestly.
+ */
+export async function deleteDiscountCodes(ids: string[]): Promise<string[]> {
+  const all = await listAll();
+  const targets = all.filter((c) => ids.includes(c.id));
+  if (targets.length === 0) return [];
+
+  // Code locks first (sorted, so two overlapping bulk deletes can't deadlock
+  // by grabbing the same pair in opposite orders), tab lock innermost.
+  const codeKeys = Array.from(new Set(targets.map((t) => `code:${t.code}`))).sort();
+  const releases: Array<() => void> = [];
+  try {
+    for (const key of codeKeys) releases.push(await acquireLock(key));
+    await withTabLock(() => deleteRowsByCodeUnlocked(targets.map((t) => t.code)));
+    return targets.map((t) => t.id);
+  } finally {
+    releases.forEach((r) => r());
   }
 }
 
