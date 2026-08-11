@@ -3,6 +3,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { QRCodeCanvas } from "qrcode.react";
 import { Send, Loader2, CheckCircle2 } from "lucide-react";
 import { useT } from "@/hooks/use-translation";
 
@@ -22,7 +23,6 @@ import { useT } from "@/hooks/use-translation";
  * لینک عمیق (که یک توکن یک‌بارمصرف دارد) نباید به شخص ثالث برود. به‌جایش
  * از یک ماتریس محلی استفاده می‌شود.
  */
-import { QrCanvas } from "./QrCanvas";
 
 export type LinkMode = "register" | "profile";
 
@@ -103,7 +103,22 @@ export function TelegramLinkPanel({
       {link && (
         <div className="flex flex-col items-center gap-2">
           <p className="text-xs text-muted-foreground">{t.scanQr}</p>
-          <QrCanvas value={link} size={168} />
+          {/*
+            رنگ‌ها صریحاً سفید/سیاه‌اند و از تم ارث نمی‌برند: روی تم تیره،
+            یک QR با رنگ‌های تم اسکن نمی‌شود. `includeMargin` همان حاشیه‌ی
+            آرام (quiet zone) است که خواننده برای پیدا کردن نماد لازم دارد.
+          */}
+          <QRCodeCanvas
+            value={link}
+            size={168}
+            level="M"
+            includeMargin
+            bgColor="#ffffff"
+            fgColor="#000000"
+            className="rounded-lg border bg-white"
+            role="img"
+            aria-label={link}
+          />
         </div>
       )}
 

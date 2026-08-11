@@ -1999,3 +1999,47 @@ Follow-ups left open: the two-concurrent-completions race in "Done when" is
 argued from the index rather than observed — reproducing a true simultaneous
 commit needs two connections racing, which PGlite (single connection) can't
 stage. The index makes the outcome deterministic regardless of interleaving.
+
+## Phase 3 — The QR code doesn't scan  [DONE 2026-08-11]
+Files touched: `irforge/src/components/auth/QrCanvas.tsx` (deleted, 235 lines),
+`irforge/src/components/auth/TelegramLinkPanel.tsx`.
+
+Decisions / deviations: none — the diagnosis was correct and is now proven, not
+assumed. `QrCanvas` was the panel's only importer (grepped before deleting, per
+item 5). `BotIdentityCard.tsx` — the Phase 8 bot-overview QR from the earlier
+prompt — never shared it; it already used `qrcode.react`'s `QRCodeSVG`. So the
+hand-rolled encoder had exactly one caller and nothing else depended on it.
+
+`QRCodeCanvas` at `size={168}`, `level="M"`, `includeMargin`, with `bgColor` and
+`fgColor` pinned to `#ffffff`/`#000000` rather than inherited from the theme,
+keeping the `rounded-lg border bg-white` plate the old component had. The
+reasoning in the deleted file's header — that a one-shot account-linking token
+must not be handed to a third-party QR *service* — is sound and still holds;
+`qrcode.react` renders in the browser and nothing leaves the page.
+
+**Verified by decoding, not by eyeballing.** A phone camera isn't available to
+this session, so instead of claiming a visual check, both implementations were
+rendered with their real props onto a `#0b0b0c` (dark-theme) background in a
+headless browser and their canvas pixels fed to `jsQR` — the same job a camera
+does, minus the optics:
+
+| implementation | decoded |
+|---|---|
+| `QRCodeCanvas` (new) | `https://t.me/irforge_bot?start=9f2c1ab7d4e05386bc7a1f2e3d4c5b6a` — exact match, 168×168 |
+| `QrCanvas` (old, hand-rolled) | **`null`** — jsQR could not decode it at all, 147×147 |
+
+That is a direct confirmation of the prompt's claim: the old symbol was not a
+valid QR code, not merely an ugly one. The screenshot also shows the old one
+missing the version-6 alignment pattern entirely.
+
+Note on `includeMargin`: it is deprecated in `qrcode.react` 4.x in favour of
+`marginSize`, but it is still in the type definitions and still produces the
+quiet zone — the decode above passes with it. Kept as the prompt specifies;
+worth switching to `marginSize={4}` whenever the dependency is next bumped.
+
+Verification: `pnpm --filter @workspace/irforge typecheck` — only the
+pre-existing `AllBotsTable.tsx:70` baseline error. `pnpm -r build` green.
+
+Follow-ups left open: a confirming scan with a physical phone camera in both
+themes is still worth doing before release; the decode above establishes the
+symbol is valid and high-contrast, which is what the camera would be testing.
