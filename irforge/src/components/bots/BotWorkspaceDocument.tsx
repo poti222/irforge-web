@@ -39,6 +39,7 @@ import { FormsSection } from "@/components/bots/forms/FormsSection";
 import { AdminsSection } from "@/components/bots/admins/AdminsSection";
 import { UsersSection } from "@/components/bots/users/UsersSection";
 import { BroadcastSection } from "@/components/bots/broadcast/BroadcastSection";
+import { OrdersSection } from "@/components/bots/orders/OrdersSection";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
 import type { LocaleShape } from "@/hooks/use-translation";
@@ -114,7 +115,7 @@ const SECTION_GROUPS: SectionGroup[] = [
     key: "sales",
     labelKey: "groupSales",
     items: [
-      { key: "orders", icon: ShoppingCart, labelKey: "sectionOrders", locked: true },
+      { key: "orders", icon: ShoppingCart, labelKey: "sectionOrders" },
       { key: "discounts", icon: Ticket, labelKey: "sectionDiscounts", locked: true },
     ],
   },
@@ -305,6 +306,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "admins" && <AdminsSection bot={bot} />}
             {section === "users" && <UsersSection bot={bot} />}
             {section === "broadcast" && <BroadcastSection bot={bot} />}
+            {section === "orders" && <OrdersSection bot={bot} />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}

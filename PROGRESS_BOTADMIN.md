@@ -44,7 +44,7 @@ pnpm --filter @workspace/irforge run typecheck
 | ۱۳ — ادمین‌ها و نقش‌ها | ✅ | **جدید:** `api-server/src/routes/botAdmins.ts`، `admins/AdminsSection.tsx`. **تغییر:** `routes/index.ts`، `BotWorkspaceDocument.tsx` (unlock)، ۵ locale (`botAdmins`). | هر سه گیت سبز. | **کشف مهم:** نقش‌ها در تب `roles` نیستند؛ در کلید `__roles__` داخل `bot_settings` هستند. متن پرامپت اینجا با کد فرق داشت. |
 | ۱۴ — کاربران بات | ✅ | **جدید:** `api-server/src/routes/botUsers.ts`، `users/UsersSection.tsx`. **تغییر:** `routes/index.ts`، `BotWorkspaceDocument.tsx` (unlock)، ۵ locale (`botUsers`). | هر سه گیت سبز. | خواندن از شیت ناگزیر کل تب را می‌آورد، ولی برش و جستجو **در سرور** انجام می‌شود و فقط یک صفحه به کلاینت می‌رود؛ روی آن یک کش ۶۰ ثانیه‌ای هست. |
 | ۱۵ — پیام همگانی | ✅ | **جدید:** `api-server/src/lib/botQueue.ts`، `routes/botBroadcast.ts`، `broadcast/BroadcastSection.tsx`. **تغییر:** `routes/index.ts`، `BotWorkspaceDocument.tsx` (unlock)، ۵ locale (`botBroadcast`). | هر سه گیت سبز. بدون Postgres بات، UI خطای شفاف می‌دهد. | **قرارداد job با متن پرامپت فرق دارد:** بات با `copy_message` کار می‌کند نه با متن خام، پس نه دکمه‌ی شیشه‌ای ممکن است و نه فیلتر مخاطب. هر دو در UI صریح گفته می‌شوند. |
-| ۱۶ — سفارش‌ها و پرداخت | ⬜ | — | — | — |
+| ۱۶ — سفارش‌ها و پرداخت | ✅ | **جدید:** `api-server/src/routes/botOrders.ts`، `orders/OrdersSection.tsx`. **تغییر:** `routes/index.ts`، `BotWorkspaceDocument.tsx` (unlock)، ۵ locale (`botOrders`). | هر سه گیت سبز. | چهار وضعیتِ بات عیناً استفاده شد (`pending/verified/rejected/postponed`)؛ سایت وضعیت جدیدی اختراع نکرد. |
 | ۱۷ — پلاگین‌ها (B14) | ⬜ | — | — | منبع حقیقت `__plugin_states__` داخل تب `bot_settings` است (تأییدشده). |
 | ۱۸ — آبجکت‌های دینامیک | ⬜ | — | — | — |
 | ۱۹ — روابط | ⬜ | — | — | — |
@@ -1026,5 +1026,36 @@ payload["report_chat_id"], payload["from_chat_id"], payload["message_id"]
 
 تاریخچه با فیلتر `payload->>'spreadsheet_id'` خوانده می‌شود — تنها چیزی در
 payload که یک تننت را از دیگری جدا می‌کند و توکن نیست.
+
+**گیت بیلد:** هر سه سبز.
+
+---
+
+## گزارش فاز ۱۶ — سفارش‌ها و پرداخت
+
+**وضعیت‌ها عیناً از بات:** `handlers/payment.py:672` چهار وضعیت دارد —
+`pending` / `verified` / `rejected` / `postponed` — و همان‌ها هستند که سه پیام
+`order_confirm_msg` / `order_reject_msg` / `order_track_msg` را مصرف می‌کنند.
+سایت هیچ وضعیت جدیدی اختراع نکرد (وگرنه بات آن را نمی‌شناخت).
+
+**ترتیب عملیات — تعمدی:** اول وضعیت روی شیت نوشته می‌شود، بعد پیام به کاربر
+می‌رود، و **شکست ارسال، وضعیت را برنمی‌گرداند**. یک سفارشِ تأییدشده که پیامش
+نرسیده، بهتر از سفارشی است که ادمین فکر می‌کند تأیید نشده ولی پیامش رفته.
+نتیجه‌ی ارسال (`sent` / `failed` / `skipped`) صریح در پاسخ برمی‌گردد و UI سه
+پیام متفاوت نشان می‌دهد — از جمله «وضعیت به‌روز شد، ولی پیام به مشتری نرسید».
+
+**placeholderها** همان‌هایی‌اند که بات جایگزین می‌کند: `{order_id}`, `{amount}`
+(با واحد پول از تنظیمات)، `{reason}`. رد کردن بدون دلیل ممکن نیست — هم UI دکمه
+را غیرفعال می‌کند و هم سرور با کد `reason_required` ردش می‌کند، چون
+`order_reject_msg` یک `{reason}` دارد که وگرنه خالی می‌ماند.
+
+**رسید** از پروکسی `GET /api/bots/:botId/media/:fileId` (فاز ۱۰) نمایش داده
+می‌شود؛ URL خام تلگرام توکن بات را داخل خودش دارد و هرگز به مرورگر نمی‌رسد.
+پرچم `duplicate_of` بات (PHASE 18.15) هم در لیست و هم در جزئیات هشدار می‌دهد،
+تا یک رسید تکراری دوبار تأیید نشود.
+
+**دکمه‌های سفارش** (معادل `pay:btns_menu`): سه مجموعه‌ی `receipt_buttons`,
+`approved_buttons`, `rejected_buttons` از تب تنظیمات خوانده/نوشته می‌شوند —
+کلیدبه‌کلید با `putEntity`، نه بازنویسی تب (باگ B11).
 
 **گیت بیلد:** هر سه سبز.
