@@ -1870,3 +1870,46 @@ Automated assertions requested by the brief:
 - Before the phone unique index can be created, the migration will **stop the
   boot** if duplicate phone numbers exist, listing them. Deduplicate manually —
   nothing is deleted automatically.
+
+## Auth bugfix drop (uploaded zip)  [APPLIED 2026-08-12]
+
+Files replaced from `irforgeauthbugfix.zip`: `irforge/src/pages/register.tsx`,
+`irforge/src/pages/login.tsx`,
+`irforge/src/components/auth/TelegramLinkPanel.tsx`, all five locale files.
+Added: `irforge/src/components/auth/AuthStepHeader.tsx`.
+Removed: `irforge/src/components/auth/QrCanvas.tsx`.
+
+What the drop fixes:
+
+- **Mobile round-trip through the Telegram app lost the registration.**
+  `sessionStorage` now holds `{ id, deepLink, step }` rather than just the id,
+  and the page restores step and deep link **before** going to the network — so
+  a killed tab returning from Telegram no longer lands the user back on step 1.
+- **Any status-poll failure used to wipe the registration.** Now only an
+  explicit `404`/`410` clears it; a transient failure (very common at the moment
+  connectivity returns) is ignored.
+- **Going back from the code step immediately bounced forward again**, because
+  the first poll saw `code_sent`. Auto-advance now requires the server step to
+  *change*, tracked in `lastServerStepRef`; explicit user actions pass `force`.
+- **`target="_blank"` broke `sessionStorage` inheritance** on mobile (Chrome 88+
+  applies implicit `noopener` to `_blank`), so the new tab believed no
+  registration was in progress. `TelegramLinkPanel` gained `sameTab`.
+- Back navigation on login now **discards the current challenge** — a code
+  issued for one attempt must not stay valid after the phone is retyped.
+- New `AuthStepHeader`: step indicator ("Step n of N", `aria-live`), progress
+  bar and an RTL-aware back button, shared by both pages.
+
+⚠️ **The zip referenced `@/components/auth/AuthStepHeader` but did not contain
+it** — the build failed on the missing module. I wrote it to match every call
+site (`title`, `description`, `step`, `total`, `onBack`) and the
+`auth.stepIndicator` string the zip's locales already carried.
+
+`QrCanvas.tsx` was deleted: the new panel renders its QR with `qrcode.react`
+(already a dependency), leaving my hand-rolled implementation orphaned. The
+security reasoning is unchanged — the QR is still rendered locally, never
+through a third-party image service.
+
+Gates after applying: `node --check` on the migration, both builds, 4/4 guard
+tests, 65 pages / 65 sitemap URLs / 0 duplicate titles, and all five locales
+key-identical at **629 keys** (the drop also added the `updates.*` block-editor
+keys, present in all five).

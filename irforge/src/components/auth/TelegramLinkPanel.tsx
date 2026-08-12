@@ -3,6 +3,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { QRCodeCanvas } from "qrcode.react";
 import { Send, Loader2, CheckCircle2 } from "lucide-react";
 import { useT } from "@/hooks/use-translation";
 
@@ -22,7 +23,6 @@ import { useT } from "@/hooks/use-translation";
  * لینک عمیق (که یک توکن یک‌بارمصرف دارد) نباید به شخص ثالث برود. به‌جایش
  * از یک ماتریس محلی استفاده می‌شود.
  */
-import { QrCanvas } from "./QrCanvas";
 
 export type LinkMode = "register" | "profile";
 
@@ -33,6 +33,7 @@ export function TelegramLinkPanel({
   connectedUsername,
   connectedName,
   waiting,
+  sameTab,
   onRefresh,
 }: {
   mode: LinkMode;
@@ -43,6 +44,16 @@ export function TelegramLinkPanel({
   connectedName?: string | null;
   /** آیا در حال انتظار برای تکمیل در تلگرام هستیم */
   waiting?: boolean;
+  /**
+   * لینک را در همین تب باز کن، نه تب جدید.
+   *
+   * روی موبایل `target="_blank"` یک تب تازه می‌سازد و مرورگرهای امروزی
+   * (Chrome 88 به بعد) برای تب‌های `_blank` به‌صورت ضمنی `noopener` می‌گذارند،
+   * یعنی آن تب `sessionStorage` والد را **به ارث نمی‌برد**. اگر کاربر بعد از
+   * تلگرام سر از آن تب دربیاورد، سایت فکر می‌کند هیچ ثبت‌نامی در جریان نیست.
+   * در همین تب، صفحه به bfcache می‌رود و دست‌نخورده برمی‌گردد.
+   */
+  sameTab?: boolean;
   onRefresh?: () => void;
 }) {
   const t = useT("auth") as Record<string, string>;
@@ -94,7 +105,11 @@ export function TelegramLinkPanel({
   return (
     <div className="space-y-4">
       <Button asChild disabled={!link} className="w-full gap-2">
-        <a href={link ?? "#"} target="_blank" rel="noopener noreferrer">
+        <a
+          href={link ?? "#"}
+          target={sameTab ? undefined : "_blank"}
+          rel={sameTab ? undefined : "noopener noreferrer"}
+        >
           <Send className="size-4" aria-hidden="true" />
           {t.openTelegram}
         </a>
@@ -103,7 +118,22 @@ export function TelegramLinkPanel({
       {link && (
         <div className="flex flex-col items-center gap-2">
           <p className="text-xs text-muted-foreground">{t.scanQr}</p>
-          <QrCanvas value={link} size={168} />
+          {/*
+            رنگ‌ها صریحاً سفید/سیاه‌اند و از تم ارث نمی‌برند: روی تم تیره،
+            یک QR با رنگ‌های تم اسکن نمی‌شود. `includeMargin` همان حاشیه‌ی
+            آرام (quiet zone) است که خواننده برای پیدا کردن نماد لازم دارد.
+          */}
+          <QRCodeCanvas
+            value={link}
+            size={168}
+            level="M"
+            includeMargin
+            bgColor="#ffffff"
+            fgColor="#000000"
+            className="rounded-lg border bg-white"
+            role="img"
+            aria-label={link}
+          />
         </div>
       )}
 
