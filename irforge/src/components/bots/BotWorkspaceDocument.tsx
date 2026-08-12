@@ -43,6 +43,7 @@ import { OrdersSection } from "@/components/bots/orders/OrdersSection";
 import { ObjectsSection } from "@/components/bots/advanced/ObjectsSection";
 import { RelationsSection } from "@/components/bots/advanced/RelationsSection";
 import { WorkflowsSection } from "@/components/bots/advanced/WorkflowsSection";
+import { LanguageSection } from "@/components/bots/language/LanguageSection";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
 import type { LocaleShape } from "@/hooks/use-translation";
@@ -145,8 +146,9 @@ const SECTION_GROUPS: SectionGroup[] = [
     labelKey: "groupSettings",
     items: [
       // The standalone /language page is gone; bot language belongs to the bot,
-      // not to the account. Shown locked until the per-bot implementation lands.
-      { key: "language", icon: Globe, labelKey: "sectionLanguage", locked: true },
+      // not to the account — this section edits bot_settings.language and the
+      // bot's own translatable strings on its tenant sheet.
+      { key: "language", icon: Globe, labelKey: "sectionLanguage" },
       // The gear, always last in the list.
       { key: "settings", icon: Settings, labelKey: "sectionSettings" },
     ],
@@ -313,6 +315,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "objects" && <ObjectsSection bot={bot} />}
             {section === "relations" && <RelationsSection bot={bot} />}
             {section === "workflows" && <WorkflowsSection bot={bot} />}
+            {section === "language" && <LanguageSection bot={bot} />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}

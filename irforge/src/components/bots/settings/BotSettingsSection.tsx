@@ -15,7 +15,7 @@
 import { useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import type { Bot } from "@workspace/api-client-react";
-import { Loader2, SlidersHorizontal, MessageSquare, CreditCard, ShieldAlert, Users2, Clock, Gauge } from "lucide-react";
+import { Loader2, SlidersHorizontal, MessageSquare, CreditCard, ShieldAlert, Users2, Clock, Gauge, Archive } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -31,6 +31,7 @@ import { TabDanger } from "./TabDanger";
 import { TabForceJoin } from "./TabForceJoin";
 import { TabWorkingHours } from "./TabWorkingHours";
 import { TabAntiFlood } from "./TabAntiFlood";
+import { TabBackup } from "./TabBackup";
 import type { LocaleShape } from "@/hooks/use-translation";
 
 type TabKey =
@@ -40,6 +41,7 @@ type TabKey =
   | "workingHours"
   | "antiFlood"
   | "payment"
+  | "backup"
   | "danger";
 
 const TABS: { key: TabKey; labelKey: keyof LocaleShape["botSettings"]; icon: typeof SlidersHorizontal }[] = [
@@ -49,6 +51,7 @@ const TABS: { key: TabKey; labelKey: keyof LocaleShape["botSettings"]; icon: typ
   { key: "workingHours", labelKey: "tabWorkingHours", icon: Clock },
   { key: "antiFlood", labelKey: "tabAntiFlood", icon: Gauge },
   { key: "payment", labelKey: "tabPayment", icon: CreditCard },
+  { key: "backup", labelKey: "tabBackup", icon: Archive },
   { key: "danger", labelKey: "tabDanger", icon: ShieldAlert },
 ];
 
@@ -126,6 +129,7 @@ export function BotSettingsSection({ bot }: { bot: Bot }) {
       {tab === "workingHours" && <TabWorkingHours botId={bot.id} data={data} />}
       {tab === "antiFlood" && <TabAntiFlood botId={bot.id} data={data} />}
       {tab === "payment" && <TabPayment botId={bot.id} data={data} />}
+      {tab === "backup" && <TabBackup bot={bot} />}
       {tab === "danger" && <TabDanger bot={bot} />}
 
       <AlertDialog open={pendingTab !== null} onOpenChange={(open) => !open && setPendingTab(null)}>

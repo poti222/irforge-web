@@ -51,7 +51,6 @@ import {
   readKV,
   registrySheetId,
 } from "../lib/sheetsSync";
-import { getBotLanguage, setBotLanguage, parseBotLanguageConfig } from "../lib/botLanguageStore";
 import { renameSpreadsheet, sheetIsAccessible } from "../lib/sheets";
 import { readTabRows } from "../lib/tenantSheets.js";
 import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
@@ -1917,51 +1916,12 @@ router.get("/bots/:botId", requireAuth, async (req: any, res) => {
 
 // ─── GET /api/bots/:botId/language ───────────────────────────────────────────
 // Per-bot language config, read from the bot's sheet (dev fallback otherwise).
-router.get("/bots/:botId/language", requireAuth, async (req: any, res) => {
-  try {
-    const [bot] = await db
-      .select({ id: botsTable.id })
-      .from(botsTable)
-      .where(and(eq(botsTable.id, req.params.botId), eq(botsTable.userId, req.userId)))
-      .limit(1);
-    if (!bot) {
-      res.status(404).json({ error: "Bot not found" });
-      return;
-    }
-    res.json(await getBotLanguage(bot.id));
-  } catch (err) {
-    logger.error({ err }, "Get bot language error");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// ─── PUT /api/bots/:botId/language ───────────────────────────────────────────
-// Save the bot's language config → sheet (for the runtime) + local fallback.
-router.put("/bots/:botId/language", requireAuth, async (req: any, res) => {
-  try {
-    const [bot] = await db
-      .select({ id: botsTable.id })
-      .from(botsTable)
-      .where(and(eq(botsTable.id, req.params.botId), eq(botsTable.userId, req.userId)))
-      .limit(1);
-    if (!bot) {
-      res.status(404).json({ error: "Bot not found" });
-      return;
-    }
-    const config = parseBotLanguageConfig(req.body);
-    if (!config) {
-      res.status(400).json({ error: "Invalid language configuration" });
-      return;
-    }
-    await setBotLanguage(bot.id, config);
-    res.json(config);
-  } catch (err) {
-    logger.error({ err }, "Set bot language error");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// ─── PATCH /api/bots/:botId ──────────────────────────────────────────────────
+// ─── زبان بات ───────────────────────────────────────────────────────────────
+// `GET/PUT /bots/:botId/language` که اینجا بودند روی `lib/botLanguageStore.ts`
+// کار می‌کردند و در شیت DATA **سایت** می‌نوشتند (`SHEETS_DATA_ID`، کلید=botId)
+// — یک منبع سومِ موازی که بات هرگز نمی‌خواندش (ممیزی فاز ۰، بخش ب، مورد ۳).
+// نسخه‌ی جدید در `routes/botLanguage.ts` روی `bot_settings.language` شیت تننت
+// و تب‌های `text_keys`/`text_values` کار می‌کند.
 
 router.patch("/bots/:botId", requireAuth, async (req: any, res) => {
   try {
