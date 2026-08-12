@@ -29,10 +29,11 @@ import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
 import { useMotionDirection } from "@/hooks/use-motion-direction";
 import { SidebarBrandHeader } from "@/components/layout/brand-home";
+import { confirmDiscardUnsaved, setDiscardMessage } from "@/lib/unsaved-changes";
 import { CommandsEditor } from "@/components/bots/CommandsEditor";
 import { PluginsManager } from "@/components/bots/PluginsManager";
 import { BotStatsPanel } from "@/components/bots/BotStatsPanel";
-import { BotSettingsForm } from "@/components/bots/BotSettingsForm";
+import { BotSettingsSection } from "@/components/bots/settings/BotSettingsSection";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
 import type { LocaleShape } from "@/hooks/use-translation";
@@ -164,10 +165,15 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const t = useT("botWorkspace");
+  const ts = useT("botSettings");
   const reduce = useReducedMotion();
   const dir = useMotionDirection();
   const [, navigate] = useLocation();
   const search = useSearch();
+
+  // The registry lives outside React, so its message has to be pushed in from
+  // somewhere that has the locale.
+  setDiscardMessage(ts.unsavedLeaveWarning);
 
   const requested = new URLSearchParams(search).get("section");
   const match = findSection(requested);
@@ -176,8 +182,13 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
   const section: SectionKey = match && !match.locked ? match.key : "overview";
 
   function goTo(next: SectionKey) {
+    // Leaving a section with an unsaved form throws the user's work away
+    // silently — that's bug B1 on the bot side, and it must not repeat here.
+    if (!confirmDiscardUnsaved()) return;
     const params = new URLSearchParams(search);
     params.set("section", next);
+    // Tab state belongs to the section being left, not the one being entered.
+    params.delete("tab");
     navigate(`/bots/${bot.id}?${params.toString()}`);
   }
 
@@ -286,7 +297,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}
             {section === "stats" && <BotStatsPanel botId={bot.id} status={bot.status} />}
-            {section === "settings" && <BotSettingsForm bot={bot} />}
+            {section === "settings" && <BotSettingsSection bot={bot} />}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -297,6 +308,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
 /** Placeholder for a section whose phase hasn't landed yet. */
 export function LockedSectionNotice({ label }: { label: string }) {
   const t = useT("botWorkspace");
+  const ts = useT("botSettings");
   return (
     <div className="rounded-md border border-dashed p-10 text-center">
       <Lock className="mx-auto mb-3 size-8 text-muted-foreground" />

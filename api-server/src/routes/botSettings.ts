@@ -13,7 +13,11 @@
  * فارسیِ مشخص برمی‌گرداند نه «Internal server error».
  */
 import { Router } from "express";
+import { db, botsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { requireAuth } from "./auth.js";
+import { decryptToken } from "../lib/tokenCrypto.js";
+import { tgApi } from "../lib/telegram.js";
 import {
   resolveBotSheet,
   readSettings,
@@ -299,6 +303,68 @@ router.delete("/bots/:botId/settings/channels/:idx", requireAuth, async (req: an
     res.json({ channels: updated.force_join_channels });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to remove force-join channel");
+  }
+});
+
+/**
+ * POST /api/bots/:botId/settings/channels/check
+ * بررسی می‌کند بات واقعاً در کانال ادمین هست یا نه. اگر نباشد، عضویت اجباری
+ * در عمل کار نمی‌کند و کاربر هیچ‌وقت نمی‌فهمد چرا.
+ *
+ * هیچ‌وقت crash نمی‌کند: نبودن توکن یا خطای شبکه یک نتیجه‌ی «نامعلوم» با پیام
+ * روشن است، نه ۵۰۰. توکن هم هرگز به کلاینت نمی‌رود.
+ */
+router.post("/bots/:botId/settings/channels/check", requireAuth, async (req: any, res) => {
+  try {
+    await resolveBotSheet(req.userId, req.params.botId);
+
+    const [bot] = await db
+      .select({ token: botsTable.token })
+      .from(botsTable)
+      .where(eq(botsTable.id, req.params.botId))
+      .limit(1);
+
+    const channel = normalizeChannel(req.body?.channel);
+
+    let token: string;
+    try {
+      token = decryptToken(bot?.token ?? "");
+    } catch {
+      token = "";
+    }
+    if (!token) {
+      res.json({ status: "unknown", message: "توکن این بات روی سرور در دسترس نیست، پس نمی‌توان دسترسی را بررسی کرد." });
+      return;
+    }
+
+    const me = await tgApi<{ id: number }>(token, "getMe");
+    if (!me.ok || !me.result) {
+      res.json({ status: "unknown", message: `تلگرام به getMe جواب نداد: ${me.description ?? "خطای نامشخص"}` });
+      return;
+    }
+
+    const member = await tgApi<{ status: string }>(token, "getChatMember", {
+      chat_id: channel,
+      user_id: me.result.id,
+    });
+    if (!member.ok) {
+      res.json({
+        status: "error",
+        message: `بات به این کانال دسترسی ندارد یا کانال پیدا نشد: ${member.description ?? "خطای نامشخص"}`,
+      });
+      return;
+    }
+
+    const memberStatus = member.result?.status ?? "";
+    const isAdmin = memberStatus === "administrator" || memberStatus === "creator";
+    res.json({
+      status: isAdmin ? "ok" : "error",
+      message: isAdmin
+        ? "بات در این کانال ادمین است و عضویت اجباری کار می‌کند."
+        : "بات عضو هست ولی ادمین نیست؛ برای بررسی عضویت کاربران باید ادمین باشد.",
+    });
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to check channel access");
   }
 });
 
