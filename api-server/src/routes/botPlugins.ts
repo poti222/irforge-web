@@ -36,8 +36,8 @@ const SETTINGS_TAB = "bot_settings";
 const PLUGIN_STATES_KEY = "__plugin_states__";
 
 /**
- * کاتالوگ پلاگین‌های هسته — آینه‌ی `PLUGIN_MANIFEST` هر پوشه در
- * `mainbot/plugins/*/plugin.py`. سایت نمی‌تواند پایتون را import کند، پس این
+ * کاتالوگ پلاگین‌های هسته — آینه‌ی `PLUGIN_MANIFEST` داخل فایل `plugin.py` هر
+ * پوشه‌ی `mainbot/plugins/…`. سایت نمی‌تواند پایتون را import کند، پس این
  * لیست دستی نگه داشته می‌شود؛ هر پلاگین جدید در بات باید اینجا هم اضافه شود.
  * `default_enabled` مو‌به‌مو از همان مانیفست‌ها آمده.
  */
