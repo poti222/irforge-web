@@ -27,7 +27,7 @@ import {
   telegramLinkTokensTable,
   pendingRegistrationsTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ne, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import {
   sendTelegramMessage,
@@ -240,6 +240,21 @@ async function handleRegisterStart(
 
   const photoFileId = await getTelegramUserPhotoFileId(botToken, from.id);
 
+  // ثبت‌نام‌های قدیمی‌تر همین چت را از آن جدا کن.
+  //
+  // بدون این، یک کاربر که دوبار ثبت‌نام را شروع کرده باشد چند ردیف با یک
+  // `telegram_chat_id` می‌ساخت و `handleContact` نمی‌دانست کدام‌یک زنده است.
+  // یک چت در هر لحظه فقط یک ثبت‌نام در جریان دارد.
+  await db
+    .update(pendingRegistrationsTable)
+    .set({ telegramChatId: null })
+    .where(
+      and(
+        eq(pendingRegistrationsTable.telegramChatId, chatId),
+        ne(pendingRegistrationsTable.id, pendingId),
+      ),
+    );
+
   await db
     .update(pendingRegistrationsTable)
     .set({
@@ -266,16 +281,44 @@ async function handleRegisterStart(
  * می‌شد با شماره‌ای که مالکش نیستی ثبت‌نام کرد.
  */
 async function handleContact(botToken: string, chatId: string, from: any, contact: any) {
-  const [pending] = await db
+  // **جدیدترین** ردیف را بردار، نه هر ردیفی که دیتابیس اول برگرداند.
+  //
+  // این همان باگی بود که بات را لال می‌کرد: اگر کاربر قبلاً یک‌بار ثبت‌نام را
+  // شروع کرده بود، چند ردیف با همین `chatId` وجود داشت و این کوئری — بدون
+  // ORDER BY — معمولاً قدیمی‌ترین را برمی‌داشت. آن ردیف یا منقضی بود یا از
+  // قبل روی `code_sent`، پس هر دو شرط پایین `return` می‌کردند و کاربر هیچ
+  // پاسخی نمی‌گرفت، در حالی که ثبت‌نام تازه‌اش تا ابد روی `telegram_pending`
+  // منتظر می‌ماند.
+  const candidates = await db
     .select()
     .from(pendingRegistrationsTable)
     .where(eq(pendingRegistrationsTable.telegramChatId, chatId))
-    .limit(1);
+    .orderBy(desc(pendingRegistrationsTable.lastActivityAt))
+    .limit(5);
 
-  if (!pending || pending.expiresAt < new Date()) return;
+  const now = new Date();
+  const pending = candidates.find(
+    (row) => row.step === "telegram_pending" && row.expiresAt >= now,
+  );
 
-  // یک ثبت‌نام که قبلاً کد گرفته نباید با ارسال دوباره‌ی مخاطب، کد دوم بگیرد.
-  if (pending.step !== "telegram_pending") return;
+  if (!pending) {
+    // چیزی برای پیش بردن نیست — ولی سکوت بدترین جواب است. کاربر همین الان
+    // شماره‌اش را فرستاده و منتظر است.
+    if (candidates.length === 0) return;
+    const stale = candidates[0];
+    await sendPlain(
+      chatId,
+      {
+        fa: "این ثبت‌نام دیگر فعال نیست. لطفاً از سایت دوباره شروع کنید و روی «باز کردن تلگرام» بزنید.",
+        en: "That registration is no longer active. Please start again on the site and tap “Open Telegram”.",
+        ar: "هذا التسجيل لم يعد نشطًا. ابدأ من جديد على الموقع واضغط «فتح تيليجرام».",
+        tr: "Bu kayıt artık aktif değil. Siteden yeniden başlayıp “Telegram'ı aç” düğmesine dokunun.",
+        ru: "Эта регистрация больше не активна. Начните заново на сайте и нажмите «Открыть Telegram».",
+      },
+      stale.locale,
+    );
+    return;
+  }
 
   if (String(contact.user_id ?? "") !== String(from.id)) {
     logger.warn({ registrationId: pending.id }, "Registration: forwarded contact rejected");
