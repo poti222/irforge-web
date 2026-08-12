@@ -43,7 +43,7 @@ pnpm --filter @workspace/irforge run typecheck
 | ۱۲ — یکی‌سازی کامندهای سفارشی (B13) | ✅ | **جدید:** `api-server/src/routes/botCommands.ts`. **بازنویسی:** `CommandsEditor.tsx`. **حذف:** چهار روت کامند از `routes/bots.ts`. **تغییر:** `routes/index.ts`، ۵ locale (namespace `botCommands`). | هر سه گیت سبز. | مهاجرت `target="admin"` و `admin_only=true` می‌گذارد چون جدول سایت هیچ معادلی برای مقصد نداشت — امن‌ترین پیش‌فرض تا کاربر مقصد واقعی را انتخاب کند. |
 | ۱۳ — ادمین‌ها و نقش‌ها | ✅ | **جدید:** `api-server/src/routes/botAdmins.ts`، `admins/AdminsSection.tsx`. **تغییر:** `routes/index.ts`، `BotWorkspaceDocument.tsx` (unlock)، ۵ locale (`botAdmins`). | هر سه گیت سبز. | **کشف مهم:** نقش‌ها در تب `roles` نیستند؛ در کلید `__roles__` داخل `bot_settings` هستند. متن پرامپت اینجا با کد فرق داشت. |
 | ۱۴ — کاربران بات | ✅ | **جدید:** `api-server/src/routes/botUsers.ts`، `users/UsersSection.tsx`. **تغییر:** `routes/index.ts`، `BotWorkspaceDocument.tsx` (unlock)، ۵ locale (`botUsers`). | هر سه گیت سبز. | خواندن از شیت ناگزیر کل تب را می‌آورد، ولی برش و جستجو **در سرور** انجام می‌شود و فقط یک صفحه به کلاینت می‌رود؛ روی آن یک کش ۶۰ ثانیه‌ای هست. |
-| ۱۵ — پیام همگانی | ⬜ | — | — | نیازمند Postgres بات (`irforge_queue`)؛ روی محیط توسعه در دسترس نیست. |
+| ۱۵ — پیام همگانی | ✅ | **جدید:** `api-server/src/lib/botQueue.ts`، `routes/botBroadcast.ts`، `broadcast/BroadcastSection.tsx`. **تغییر:** `routes/index.ts`، `BotWorkspaceDocument.tsx` (unlock)، ۵ locale (`botBroadcast`). | هر سه گیت سبز. بدون Postgres بات، UI خطای شفاف می‌دهد. | **قرارداد job با متن پرامپت فرق دارد:** بات با `copy_message` کار می‌کند نه با متن خام، پس نه دکمه‌ی شیشه‌ای ممکن است و نه فیلتر مخاطب. هر دو در UI صریح گفته می‌شوند. |
 | ۱۶ — سفارش‌ها و پرداخت | ⬜ | — | — | — |
 | ۱۷ — پلاگین‌ها (B14) | ⬜ | — | — | منبع حقیقت `__plugin_states__` داخل تب `bot_settings` است (تأییدشده). |
 | ۱۸ — آبجکت‌های دینامیک | ⬜ | — | — | — |
@@ -969,5 +969,62 @@ PATCH /api/bots/:botId/bot-users/:userId
 باز می‌کند با بن/آنبن + دلیل + یادداشت ادمین، و `profile_data` به‌صورت
 فقط‌خواندنی. `placeholderData: keepPreviousData` گذاشته شده تا هر حرفی که در
 جستجو تایپ می‌شود کل جدول را به اسکلت لودینگ تبدیل نکند.
+
+**گیت بیلد:** هر سه سبز.
+
+---
+
+## گزارش فاز ۱۵ — پیام همگانی
+
+### قرارداد واقعی job (از روی کد بات، نه از روی حدس)
+
+`handlers/broadcast.py:237` این را مصرف می‌کند:
+
+```python
+payload["bot_token"], payload["spreadsheet_id"],
+payload["report_chat_id"], payload["from_chat_id"], payload["message_id"]
+```
+
+و بدنه‌ی کار `_run_broadcast` است که با **`copy_message`** پیامِ
+`(from_chat_id, message_id)` را برای هر کاربر کپی می‌کند. یعنی job **متن
+نمی‌گیرد؛ یک پیامِ موجود را کپی می‌کند.**
+
+سه نتیجه‌ی مستقیم که با متن پرامپت (`{ text, mediaFileId, buttons, targetFilter }`)
+فرق دارند و اینجا صادقانه رعایت شده‌اند:
+
+| پرامپت می‌گفت | واقعیت کد | کاری که شد |
+|---|---|---|
+| `text` مستقیم در payload | job فقط `message_id` می‌گیرد | سایت اول پیام را با توکن بات در چت گزارش می‌فرستد، `message_id` را می‌گیرد، بعد enqueue می‌کند |
+| `buttons?` | `copy_message` بدون `reply_markup` صدا زده می‌شود | فیلد دکمه **اصلاً داده نمی‌شود** و دلیلش در UI نوشته شده — به‌جای اینکه بگیریم و بی‌صدا دور بریزیم |
+| `targetFilter?` | `_recipient_ids()` = همه‌ی غیر‌بن‌شده‌ها، داخل خود job | فیلتر داده نمی‌شود؛ فقط یک **تخمین** تعداد با توضیح صریح که مبنا چیست |
+
+عارضه‌ی جانبی مفید: چون پیام مبدأ واقعاً در چت ادمین ساخته می‌شود، آنچه ادمین
+آنجا می‌بیند **دقیقاً** همان چیزی است که کاربران می‌گیرند — یک پیش‌نمایش واقعی.
+
+### enqueue
+
+`lib/botQueue.ts` روی همان `BOT_CACHE_DATABASE_URL` (Postgres بات) می‌نویسد.
+`created_at`/`updated_at` عمداً ثانیه‌ی اعشاری‌اند (`Date.now()/1000`) چون ستون
+`DOUBLE PRECISION` است و بات `time.time()` می‌نویسد — نه timestamp.
+
+بدون `BOT_CACHE_DATABASE_URL` → **۵۰۳ با پیام روشن** و UI دکمه‌ی ارسال را
+غیرفعال می‌کند. ارسال مستقیم از سایت عمداً انجام نمی‌شود: نرخ ارسال
+(`BROADCAST_DELAY_SECONDS`) و گزارش پایانی کار خود بات است.
+
+### تأیید دو مرحله‌ای
+
+کاربر باید تعداد گیرندگان را **تایپ** کند، و سرور همان عدد را دوباره چک می‌کند:
+اگر بین باز کردن صفحه و زدن دکمه تعداد عوض شده باشد، درخواست با کد
+`recipient_count_changed` رد می‌شود. تأیید روی یک عدد کهنه، تأیید نیست.
+
+### توکن
+
+`bot_token` جزو قرارداد payload است (`bot_provider(payload["bot_token"])`)، پس
+ناچار در ردیف صف نوشته می‌شود — روی Postgres خود بات، سمت سرور. **هرگز به
+کلاینت نمی‌رود**: پاسخ `GET /broadcast` فقط `id`, `status`, `attempts`,
+`last_error` و زمان‌ها را برمی‌گرداند و `payload` را کامل حذف می‌کند.
+
+تاریخچه با فیلتر `payload->>'spreadsheet_id'` خوانده می‌شود — تنها چیزی در
+payload که یک تننت را از دیگری جدا می‌کند و توکن نیست.
 
 **گیت بیلد:** هر سه سبز.
