@@ -409,7 +409,10 @@ export default function Register() {
           body: JSON.stringify({ registrationId, password, passwordConfirm }),
         },
       );
-      localStorage.setItem("token", res.token);
+      // Same key `customFetch`'s auth-token getter reads ("irforge_token") —
+      // see the note in login.tsx's verify(). Mismatched keys here silently
+      // break every authenticated request after registration.
+      localStorage.setItem("irforge_token", res.token);
       queryClient.setQueryData(getGetMeQueryKey(), res.user);
       sessionStorage.removeItem(STORAGE_KEY);
       navigate("/dashboard");
