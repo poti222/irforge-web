@@ -72,7 +72,20 @@ export type PanelButton = {
   /** آیا این دکمه سر یک ردیف جدید است — منبع حقیقتِ چیدمان. */
   row_start: boolean;
   style: ButtonStyle | string;
+  /** آیکون custom-emoji اختیاری قبل از label (PHASE 28.2 بات، `handlers/user.py`).
+   *  مثل `row_start`/`style` در دیتاکلاس نیست ولی روی دیسک هست — دور نریزش. */
+  icon_custom_emoji_id?: string;
 };
+
+/**
+ * «غیرفعال‌کردن» یک دکمه بدون حذفش. بات هر action ناشناخته را به
+ * `callback_data = value or "noop"` تبدیل می‌کند (`handlers/user.py:853`) و
+ * هیچ هندلری روی `noop` نیست، پس دکمه می‌ماند و کاری نمی‌کند — به‌جای اینکه به
+ * یک پنل حذف‌شده لینک بدهد و پیام «پیدا نشد» بدهد.
+ */
+export function disabledButton(button: PanelButton): PanelButton {
+  return { ...button, action: "callback", value: "noop" };
+}
 
 /** کلیدهای شناخته‌شده‌ی `Panel.settings` (همه اختیاری، همه از panel_builder.py). */
 export type PanelSettings = {

@@ -34,7 +34,7 @@ pnpm --filter @workspace/irforge run typecheck
 | ۳ — API تنظیمات ربات | ✅ | **جدید:** `api-server/src/routes/botSettings.ts`. **تغییر:** `api-server/src/routes/index.ts` (ثبت روتر). | build سرور سبز. ولیدیشن‌ها در گزارش فاز فهرست شده‌اند. | whitelist صریح است: هر کلید ناشناخته در body بی‌سروصدا دور ریخته می‌شود، نه ذخیره. |
 | ۴ — UI تنظیمات ربات (چرخ‌دنده) | ✅ | **جدید:** `settings/{BotSettingsSection,TabGeneral,TabMessages,TabPayment,TabDanger,SettingsSaveBar,useDraft,api}.tsx/ts`, `irforge/src/lib/unsaved-changes.ts`. **حذف:** `BotSettingsForm.tsx`. **تغییر:** `BotWorkspaceDocument.tsx`، ۵ locale (namespace جدید `botSettings`، ۱۳۷ کلید). | هر سه گیت سبز + ۱۲ تست سرور. | تب فعال هم در URL است (`?tab=`). هشدار unsaved با AlertDialog برای سوییچ تب و با `beforeunload`/`confirm` برای ترک صفحه. |
 | ۵ — عضویت اجباری / ساعت کاری / آنتی‌فلاد | ✅ | **جدید:** `settings/{TabForceJoin,TabWorkingHours,TabAntiFlood}.tsx`. **تغییر:** `routes/botSettings.ts` (اندپوینت بررسی دسترسی کانال)، `BotSettingsSection.tsx`، ۵ locale. | هر سه گیت سبز. | نگاشت روزها **تأیید شد**: `0=دوشنبه … 6=یکشنبه`، و تبدیل از `Date.getDay()` در `jsDayToBotDay` جدا شده. |
-| ۶ — API پنل‌ها (CRUD پایه) | ⬜ | — | — | شکل واقعی مدیای پنل با متن پرامپت فرق دارد — بخش «ه»، موارد ۱ و ۲. |
+| ۶ — API پنل‌ها (CRUD پایه) | ✅ | **جدید:** `api-server/src/lib/panelOps.ts`, `routes/botPanels.ts`, `test/botPanels.test.mjs`. **تغییر:** `routes/index.ts`, `lib/botTypes.ts` (`disabledButton`, `icon_custom_emoji_id`). | **۲۰ تست سبز** (۹ تای جدید: هر سه استراتژی حذف، buttonStrategy، خانه، health/repair، درخت، زیردرخت). | تست یک باگ واقعی در `buildTree` پیدا کرد: خروجی روی حلقه‌ی والد، گراف حلقه‌ای بود و `JSON.stringify` پاسخ را می‌ترکاند — قبل از commit درست شد. |
 | ۷ — UI پنل‌ها: لیست، درخت، ساخت | ⬜ | — | — | — |
 | ۸ — UI ویرایش پنل (B1–B5) | ⬜ | — | — | — |
 | ۹ — سازنده‌ی دکمه‌های پنل (B9) | ⬜ | — | — | `row_start` و `style` در `models.Button` **نیستند** ولی در دیتای واقعی هستند — بخش «ه»، مورد ۳. |
@@ -576,3 +576,97 @@ namespace جدید `botSettings` با **۱۳۷ کلید در هر ۵ زبان** 
 درست خوانده شوند.
 
 **گیت بیلد:** هر سه سبز + ۱۲ تست سرور.
+
+---
+
+## گزارش فاز ۶ — API پنل‌ها
+
+**تفکیک:** منطق دامنه در `api-server/src/lib/panelOps.ts` (بدون HTTP، بدون
+Google → قابل تست)، و `routes/botPanels.ts` فقط ولیدیشن ورودی و HTTP.
+
+| متد | مسیر | کار |
+|---|---|---|
+| GET | `/panels` | لیست + درخت محاسبه‌شده |
+| GET | `/panels/health` | گزارش ناهماهنگی‌ها |
+| POST | `/panels/repair` | رفع خودکار موارد قابل‌رفع |
+| GET | `/panels/:panelId` | یک پنل |
+| GET | `/panels/:panelId/references` | چه کسی به این پنل لینک داده |
+| POST | `/panels` | ساخت (id سمت سرور با `crypto.randomUUID`) |
+| PATCH | `/panels/:panelId` | ویرایش partial |
+| DELETE | `/panels/:panelId?strategy=…&buttonStrategy=…` | حذف امن |
+| POST | `/panels/:panelId/home` | ست‌کردن خانه |
+| POST | `/panels/:panelId/toggle` | فعال/غیرفعال |
+| POST | `/panels/:panelId/link` | تغییر والد |
+| GET | `/panel-catalog` | انواع پنل/اکشن/استایل برای UI |
+
+`/panels/health` و `/panels/repair` عمداً **قبل از** `/panels/:panelId` ثبت
+شده‌اند، وگرنه اکسپرس «health» را یک `panelId` می‌خواند.
+
+### حذف — باگ‌های B6 و B7
+
+`strategy` **اجباری** است (بدون آن ۴۰۰ با کد `strategy_required`)، چون هر سه
+انتخاب معنای متفاوتی دارند و پیش‌فرضِ ضمنی همان کاری است که بات می‌کند:
+یتیم‌کردن بی‌خبر.
+
+| strategy | رفتار |
+|---|---|
+| `cascade` | کل زیردرخت حذف می‌شود |
+| `reparent` | بچه‌ها به `parent_id` پنل حذف‌شده وصل می‌شوند |
+| `orphan` | بچه‌ها `parent_id = null` می‌گیرند |
+
+در **هر سه** حالت: `children` همه‌ی والدها از روی `parent_id`ها بازسازی می‌شود،
+دکمه‌های `action="panel"` که به پنل حذف‌شده اشاره دارند طبق `buttonStrategy`
+(`disable` پیش‌فرض یا `remove`) اصلاح می‌شوند، و اگر پنلِ حذف‌شده خانه بود
+`bot_settings.home_panel_id` هم پاک می‌شود.
+
+**«غیرفعال‌کردن» دکمه دقیقاً یعنی چه:** بات هر action ناشناخته را به
+`callback_data = value or "noop"` تبدیل می‌کند (`handlers/user.py:853`) و هیچ
+هندلری روی `noop` نیست. پس دکمه‌ی غیرفعال‌شده `{action:"callback", value:"noop"}`
+می‌شود: دکمه سر جایش می‌ماند ولی کاری نمی‌کند — به‌جای اینکه به پنل ناموجود لینک
+بدهد. این از روی رفتار واقعی بات انتخاب شد، نه حدس.
+
+**کامندهای معلق فقط گزارش می‌شوند، اصلاح نمی‌شوند:** یک کامند با
+`target="panel:<id>"` بعد از حذف پنل معلق می‌ماند، ولی تصمیمش با کاربر است
+(فاز ۱۲ ویرایشگرش را می‌سازد) — حذفِ یک پنل نباید بی‌خبر کامند کاربر را دستکاری کند.
+
+### خانه — باگ B8
+
+`setHomePanel` هر سه کار را با هم می‌کند: `is_home=false` روی بقیه،
+`is_home=true` روی این، و `home_panel_id` در تنظیمات. اگر وسط کار شکست بخورد،
+best-effort پرچم‌ها را برمی‌گرداند و لاگ می‌کند.
+
+### `/health` و `/repair`
+
+هفت کد ناهماهنگی: `home_mismatch`, `multiple_home`, `no_home`,
+`dangling_parent`, `stale_children`, `button_to_missing_panel`,
+`command_to_missing_panel`. هرکدام پرچم `repairable` دارند و `/repair` فقط
+همان‌ها را درست می‌کند (کامند معلق عمداً `repairable: false` است).
+
+### تغییر نوع پنل — باگ B5
+
+در بات **اصلاً ممکن نیست** (منوی `pb:edit:` فقط عنوان/محتوا/مدیا/دکمه دارد).
+اینجا `PATCH` نوع را می‌پذیرد و در پاسخ فیلد `dropped` برمی‌گرداند تا UI بتواند
+دقیقاً بگوید چه چیزی از دست رفت: نوع متنی‌شده → کل مدیا، نوع تک‌مدیایی‌شده →
+فقط اولین مدیای کاروسل می‌ماند.
+
+### باگی که تست پیدا کرد
+
+`buildTree` برای زنجیره‌ی حلقه‌ای والد (A→B→A) یک **گراف حلقه‌ای** برمی‌گرداند.
+پیمایش ساده‌ی خروجی — از جمله `JSON.stringify` در پاسخ HTTP — روی آن می‌ایستد.
+حالا حلقه‌ها قبل از ساخت گراف شناسایی و بریده می‌شوند (هر گره روی حلقه ریشه
+می‌شود). این باگ فقط به این دلیل پیدا شد که تست خروجی را واقعاً پیمایش می‌کرد.
+
+### ولیدیشن
+
+عنوان (خالی نباشد، ≤۲۰۰)، محتوا (≤۴۰۰۰)، شکل نوع و اکشن، `https://` اجباری برای
+`url`/`mini_app`، استایل از لیست مجاز، حداکثر ۸ دکمه در ردیف، حداکثر ۱۰۰ دکمه،
+`timer_seconds` بین ۰ تا ۸۶۴۰۰، `capacity ≥ 0`، و **والد**: باید موجود باشد،
+خودش نباشد، و از نوادگان خودش نباشد (جلوگیری از حلقه، کد `cycle`).
+
+نوع پنلِ ناشناخته **رد نمی‌شود** بلکه فقط شکلش چک می‌شود: پلاگین‌های فعال انواع
+جدید ثبت می‌کنند و سایت لیستشان را قطعی نمی‌داند؛ رد کردن یعنی سایت جلوی یک نوع
+کاملاً معتبر را بگیرد.
+
+**PATCH هرگز فیلد غایب را پاک نمی‌کند** — merge روی whitelist است.
+
+**گیت بیلد:** build سرور سبز، **۲۰ تست سبز**.

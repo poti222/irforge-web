@@ -31,6 +31,7 @@ import superAdminUsersRouter from "./superAdminUsers.js";
 import guestRouter from "./guest.js";
 // مهاجرت پنل ادمین بات به سایت — تنظیمات بات روی تب `bot_settings` شیت تننت
 import botSettingsRouter from "./botSettings.js";
+import botPanelsRouter from "./botPanels.js";
 
 const router: IRouter = Router();
 
@@ -61,5 +62,6 @@ router.use(guestRouter);
 // باید بعد از botsRouter بیاید: مسیرهای اینجا زیرمسیرهای /bots/:botId هستند و
 // نباید یک روت عمومی‌تر در bots.ts زودتر آن‌ها را ببلعد.
 router.use(botSettingsRouter);
+router.use(botPanelsRouter);
 
 export default router;
