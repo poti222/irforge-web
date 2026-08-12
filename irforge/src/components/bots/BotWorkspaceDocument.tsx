@@ -44,6 +44,8 @@ import { ObjectsSection } from "@/components/bots/advanced/ObjectsSection";
 import { RelationsSection } from "@/components/bots/advanced/RelationsSection";
 import { WorkflowsSection } from "@/components/bots/advanced/WorkflowsSection";
 import { LanguageSection } from "@/components/bots/language/LanguageSection";
+import { TicketsSection } from "@/components/bots/tickets/TicketsSection";
+import { BotHealthCard } from "@/components/bots/BotHealthCard";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
 import type { LocaleShape } from "@/hooks/use-translation";
@@ -120,6 +122,12 @@ const SECTION_GROUPS: SectionGroup[] = [
     labelKey: "groupSales",
     items: [
       { key: "orders", icon: ShoppingCart, labelKey: "sectionOrders" },
+      // Deliberately still locked, and the only one left. "Discounts" means two
+      // different things here: the platform's own discount codes (routes/
+      // discounts.ts, site Postgres) and the bot's `discount` plugin with its
+      // own `discounts` tab. Wiring this section to either without deciding
+      // which one it represents would repeat exactly the B13/B14 mistake, and
+      // no migration phase covers it — see docs/BOT_ADMIN_ON_WEB.md.
       { key: "discounts", icon: Ticket, labelKey: "sectionDiscounts", locked: true },
     ],
   },
@@ -128,7 +136,7 @@ const SECTION_GROUPS: SectionGroup[] = [
     labelKey: "groupComms",
     items: [
       { key: "broadcast", icon: Megaphone, labelKey: "sectionBroadcast" },
-      { key: "tickets", icon: LifeBuoy, labelKey: "sectionTickets", locked: true },
+      { key: "tickets", icon: LifeBuoy, labelKey: "sectionTickets" },
     ],
   },
   {
@@ -278,6 +286,10 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
               <div className="space-y-4">
                 <BotIdentityCard bot={bot} />
 
+                {/* فاز ۲۴ — سلامت بات: شکست‌های بی‌صدا را قبل از اینکه کاربرِ
+                    بات به آن‌ها بخورد نشان می‌دهد. */}
+                <BotHealthCard bot={bot} />
+
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewTotalUsers}</CardTitle></CardHeader>
@@ -316,6 +328,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "relations" && <RelationsSection bot={bot} />}
             {section === "workflows" && <WorkflowsSection bot={bot} />}
             {section === "language" && <LanguageSection bot={bot} />}
+            {section === "tickets" && <TicketsSection bot={bot} />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}

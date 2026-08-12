@@ -45,6 +45,8 @@ import botRelationsRouter from "./botRelations.js";
 import botWorkflowsRouter from "./botWorkflows.js";
 import botLanguageRouter from "./botLanguage.js";
 import botBackupRouter from "./botBackup.js";
+import botSupportTicketsRouter from "./botSupportTickets.js";
+import botHealthRouter from "./botHealth.js";
 
 const router: IRouter = Router();
 
@@ -89,5 +91,7 @@ router.use(botRelationsRouter);
 router.use(botWorkflowsRouter);
 router.use(botLanguageRouter);
 router.use(botBackupRouter);
+router.use(botSupportTicketsRouter);
+router.use(botHealthRouter);
 
 export default router;
