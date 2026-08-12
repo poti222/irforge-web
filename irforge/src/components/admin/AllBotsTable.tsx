@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { customFetch, useAdminListUsers } from "@workspace/api-client-react";
+import { customFetch, useAdminListUsers, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -67,7 +67,12 @@ export function AllBotsTable() {
   const [ownerPickerOpen, setOwnerPickerOpen] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  const { data: users } = useAdminListUsers({ query: { enabled: open } });
+  // `queryKey` صریح داده می‌شود چون تایپ تولیدشده‌ی orval آن را اجباری کرده
+  // (`UseQueryOptions` کامل، نه `Omit<..., "queryKey">`). همان کلید پیش‌فرضِ
+  // خودِ هوک است، پس رفتار عوض نمی‌شود — فقط typecheck سبز می‌شود.
+  const { data: users } = useAdminListUsers({
+    query: { enabled: open, queryKey: getAdminListUsersQueryKey() },
+  });
   const selectedOwner = users?.find((u) => u.id === ownerId) ?? null;
 
   function resetForm() {

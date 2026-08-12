@@ -29,8 +29,8 @@ pnpm --filter @workspace/irforge run typecheck
 | فاز | وضعیت | فایل‌های تغییریافته | تست‌ها | فرض‌ها/ریسک‌ها |
 |---|---|---|---|---|
 | ۰ — ممیزی و راه‌اندازی ردیاب | ✅ | فقط `PROGRESS_BOTADMIN.md` (این فایل). هیچ فایل کدی لمس نشد. | گیت بیلد سه‌گانه روی HEAD (`21f2b3f`) اجرا شد: build سرور ✅، build فرانت ✅، **typecheck ❌ (۲ خطای از قبل موجود)** — بخش «د» ممیزی. | `BUSINESS_DATABASE_URL` روی این محیط ست نیست و هیچ Postgres در دسترس نیست، پس وضعیت واقعی `entity_cutover_flags` روی production **تأیید نشده** — فقط از روی seed migration استنتاج شده (همه `false`). |
-| ۱ — لایه‌ی سرویس `botConfig` + حل کش | ⬜ | — | — | باید قبل از شروع، تصمیم بگیری خطای typecheck از قبل موجود (بخش د) چطور صفر می‌شود، وگرنه معیار پایان این فاز هرگز سبز نمی‌شود. |
-| ۲ — پوسته‌ی workspace و ناوبری بات‌ها | ⬜ | — | — | این فاز به‌طور طبیعی خطای `sectionManagement` را رفع می‌کند (بخش د). |
+| ۱ — لایه‌ی سرویس `botConfig` + حل کش | ✅ | **جدید:** `api-server/src/lib/botTypes.ts`, `botConfig.ts`, `botCacheBust.ts`, `test/botConfig.test.mjs`. **تغییر:** `api-server/.env.example` (دو متغیر جدید)، `api-server/package.json` (اسکریپت test با tsx)، و رفع دو خطای typecheck از قبل موجود: `irforge/src/components/admin/AllBotsTable.tsx` + کلید `sectionManagement` در ۵ locale. | `pnpm --filter @workspace/api-server run test` → **۱۲ تست سبز**. هر سه گیت بیلد سبز. | cache-bust فقط L2 را پاک می‌کند؛ L1 درون‌پروسسی بات از بیرون قابل دسترسی نیست، پس تأخیر تا ۶۰ ثانیه کاملاً صفر نمی‌شود. `assertSheetsAuthoritative` عمداً fail-open است. |
+| ۲ — پوسته‌ی workspace و ناوبری بات‌ها | ⬜ | — | — | کلید `sectionManagement` در فاز ۱ به هر ۵ locale اضافه شد تا گیت سبز شود؛ این فاز ساختار سکشن‌ها را بازمی‌نویسد. |
 | ۳ — API تنظیمات ربات | ⬜ | — | — | — |
 | ۴ — UI تنظیمات ربات (چرخ‌دنده) | ⬜ | — | — | — |
 | ۵ — عضویت اجباری / ساعت کاری / آنتی‌فلاد | ⬜ | — | — | نگاشت روزهای هفته `0=دوشنبه … 6=یکشنبه` (تأییدشده در بخش «ه»، مورد ۱۱). |
@@ -258,3 +258,95 @@ src/components/bots/BotWorkspaceDocument.tsx(48,38): error TS2322:
 - **چه فرضی گذاشته شد:** چون این محیط هیچ Postgres/کردنشیال گوگلی ندارد، وضعیت
   `entity_cutover_flags` و محتوای شیت‌های واقعی فقط از روی کد و migration استنتاج شده،
   نه از روی داده‌ی زنده.
+
+---
+
+## گزارش فاز ۱ — لایه‌ی سرویس `botConfig` + حل مسئله‌ی کش
+
+**چه کاری شد**
+
+سه ماژول زیرساختی جدید ساخته شد. **هیچ روتی هنوز از این‌ها استفاده نمی‌کند** (معیار
+پایان فاز صریحاً همین را می‌خواست) — فقط زیرساخت است.
+
+1. **`api-server/src/lib/botTypes.ts`** — ترجمه‌ی کامل `mainbot/models.py` به
+   TypeScript: `Panel`, `PanelButton`, `PanelSettings`, `Form`, `FormField`,
+   `BotUser`, `BotAdmin`, `BotRole`, `CustomCommand`, `WorkingHours`, `AntiFlood`,
+   `BotSettings` + سازنده‌های پیش‌فرض (`defaultBotSettings`, `newPanel`, `newForm`,
+   `newButton`) که مو‌به‌مو همان مقادیر `models.py` را می‌دهند. کامنت بالای فایل
+   صریحاً می‌گوید آینه‌ی `models.py` است.
+
+   **سه انحراف عمدی از `models.py` که در ممیزی فاز ۰ کشف شدند و اینجا اعمال شده‌اند:**
+   `row_start`/`style` روی دکمه‌ها (در دیتاکلاس نیستند ولی روی دیسک هستند)،
+   مدیای پنل در `media_file_id` + `settings.carousel_ids` (نه `media_ids`)، و
+   هشت نوع پنل به‌جای شش‌تا. هر سه با ارجاع به خط دقیق کد بات کامنت شده‌اند.
+
+   همچنین `normalizeButtonLayout` / `buttonsToRows` / `rowsToButtons` — معادل
+   دقیق `_migrate_row_starts` + `_apply_row_starts` بات — که فاز ۹ روی آن‌ها
+   ساخته می‌شود.
+
+2. **`api-server/src/lib/botCacheBust.ts`** — بعد از هر نوشتن موفق،
+   `DELETE FROM irforge_cache WHERE cache_key = '<spreadsheetId>:<tab>'` روی
+   `BOT_CACHE_DATABASE_URL`. عمداً به `DATABASE_URL` سایت fallback **نمی‌کند**.
+   همه‌ی خطاها بلعیده و فقط لاگ می‌شوند؛ Pool یک listener روی `error` دارد وگرنه
+   قطع‌شدن یک اتصال بی‌کار کل پروسس را می‌کشد.
+
+3. **`api-server/src/lib/botConfig.ts`** — `resolveBotSheet` (۴۰۴/۴۰۹ دقیقاً مثل
+   `resolveTarget` در `database.ts`، با عبور سوپرادمین)، `listEntity`, `getEntity`,
+   `putEntity`, `putEntities`, `removeEntity`, `readSettings`, `patchSettings`,
+   `assertSheetsAuthoritative`, `isEntityOnPostgres`, `allCutoverFlags`، و
+   `BotConfigError` + `sendBotConfigError` به‌عنوان قرارداد خطای مشترک همه‌ی
+   روت‌های بعدی.
+
+**چطور باگ‌های بات اینجا حل شدند**
+
+- **B11 (بازنویسی کل تب):** `patchSettings` حلقه می‌زند و برای هر کلید یک
+  `upsertRow` تک‌کلیدی می‌زند. هیچ مسیری در این لایه وجود ندارد که کل تب را
+  clear کند. تست صریح دارد که `__plugin_states__` و `payment_cfg` بعد از یک
+  patch دست‌نخورده می‌مانند.
+- **کش ۶۰ ثانیه‌ای:** `putEntity`/`putEntities`/`removeEntity`/`patchSettings`
+  خودشان cache-bust می‌زنند، پس روت‌های فازهای بعد نمی‌توانند فراموشش کنند.
+- **cutover:** `assertSheetsAuthoritative(entity)` با کش ۶۰ ثانیه‌ای و رفتار
+  fail-open (هر خطا → اجازه، مثل `cutover_flags.py:61-66`).
+
+**چه چیزی تست شد** — `api-server/test/botConfig.test.mjs`، با یک شیت جعلی در حافظه
+(هیچ فراخوانی واقعی به Google، طبق قانون ۶):
+
+| تست | چه چیزی را تضمین می‌کند |
+|---|---|
+| `patchSettings` کلیدهای لمس‌نشده را حفظ می‌کند | باگ B11 — `__plugin_states__` سالم می‌ماند، فقط ۳ کلید upsert می‌شود، هیچ delete‌ای نمی‌خورد |
+| `readSettings` پیش‌فرض‌ها را پر می‌کند | شکل کامل `BotSettings` حتی روی شیت خالی؛ `days: [0,1,2,3,4]` |
+| merge ناقصِ `working_hours` | کلید غایب از پیش‌فرض می‌آید، کلید موجود بازنویسی نمی‌شود |
+| `putEntity`/`getEntity`/`removeEntity` | مقدار JSON-serializable و بدون تغییر؛ `created` درست؛ حذف دوباره `false` |
+| شکست cache-bust | `patchSettings` با یک Postgres غیرقابل‌اتصال باز هم موفق می‌شود؛ `bustTabCache` مقدار `false` می‌دهد نه throw؛ کلید کش `SHEET1:bot_settings` |
+| `assertSheetsAuthoritative` بدون env | fail-open، throw نمی‌کند |
+| round-trip چیدمان دکمه‌ها | `rows → buttons → rows` بدون تغییر؛ migration دکمه‌های قدیمیِ بدون `row_start`؛ `style` دور ریخته نمی‌شود |
+
+اسکریپت `test` در `api-server/package.json` به `node --import tsx/esm --test` تغییر
+کرد تا تست‌ها مستقیم روی سورس TypeScript اجرا شوند نه روی باندل (تست قبلیِ
+`auth-guards.test.mjs` به همین دلیل عملاً فقط قرارداد را در JS بازنویسی می‌کرد).
+
+**رفع دو خطای typecheck از قبل موجود (بخش «د» ممیزی)**
+
+بدون این، معیار پایان هیچ فازی سبز نمی‌شد:
+
+- `irforge/src/components/admin/AllBotsTable.tsx` — تایپ تولیدشده‌ی orval برای
+  `useAdminListUsers` فیلد `queryKey` را اجباری کرده. همان کلید پیش‌فرض
+  (`getAdminListUsersQueryKey()`) صریح پاس داده شد؛ رفتار صفر تغییر.
+- کلید `sectionManagement` به هر ۵ فایل locale اضافه شد (`مدیریت` / `Management` /
+  `Yönetim` / `الإدارة` / `Управление`) — commit قبلی سکشن را اضافه کرده بود ولی
+  کلیدش را نه، و `LocaleShape` می‌شکست.
+
+**گیت بیلد** — هر سه سبز:
+`api-server build` ✅ (فقط وارنینگ از قبل موجودِ `import.meta`) ·
+`irforge build` ✅ (۶۵ صفحه) · `irforge typecheck` ✅ (**صفر خطا**، از ۲ خطا) ·
+`api-server test` ✅ ۱۲ تست.
+
+**فرض‌ها/ریسک‌ها**
+
+- cache-bust فقط L2 (Postgres مشترک) را پاک می‌کند. L1 درون‌پروسسی هر replica از
+  بیرون قابل دسترسی نیست، پس در بدترین حالت هنوز تا ۶۰ ثانیه تأخیر ممکن است —
+  متن بنر UI در فاز ۴ باید همین را بگوید، نه «فوری».
+- `nowIso()` عمداً `Z` را حذف می‌کند تا با `datetime.utcnow().isoformat()` بات
+  یکسان باشد (بات هم timezone-naive می‌نویسد).
+- تست‌ها یک `DATABASE_URL` ساختگی ست می‌کنند چون `@workspace/db` موقع import
+  بدون آن throw می‌کند؛ `pg.Pool` تنبل است و هیچ اتصالی برقرار نمی‌شود.

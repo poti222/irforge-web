@@ -251,6 +251,7 @@
     "sectionCommands": "Commands",
     "sectionPlugins": "Plugins",
     "sectionStats": "Stats",
+    "sectionManagement": "Management",
     "sectionSettings": "Settings",
     "overviewTotalUsers": "Total Users",
     "overviewMessages": "Messages",
