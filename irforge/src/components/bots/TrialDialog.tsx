@@ -65,6 +65,22 @@ export function TrialDialog({ open, onOpenChange }: TrialDialogProps) {
       queryClient.invalidateQueries({ queryKey: getListBotsQueryKey() });
       setStep("success");
     } catch (err: any) {
+      // A 401 here always means "not actually signed in" (missing/expired
+      // session token, or a guest token) — the raw "Unauthorized" from the
+      // API is true but unhelpful, so surface what the user should actually
+      // do about it and send them to log in instead.
+      if (err?.status === 401) {
+        toast({
+          variant: "destructive",
+          title: fa ? "برای ساخت بات باید وارد حساب شوی" : "You have to log in to create a bot",
+          description: fa
+            ? "به نظر می‌رسد نشست شما منقضی شده یا وارد حساب نیستید. لطفاً دوباره وارد شو."
+            : "It looks like you're not signed in (or your session expired). Please log in and try again.",
+        });
+        onOpenChange(false);
+        setLocation("/login");
+        return;
+      }
       toast({
         variant: "destructive",
         title: fa ? "خطا در فعال‌سازی تریال" : "Could not start trial",
