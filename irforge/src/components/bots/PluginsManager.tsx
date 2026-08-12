@@ -1,161 +1,190 @@
+/**
+ * PluginsManager.tsx — پلاگین‌ها (بازنویسی‌شده، فاز ۱۷).
+ *
+ * باگ B14: قبلاً این صفحه فقط جدول `installed_plugins` سایت را نشان می‌داد،
+ * یعنی «خریداری‌شده». اما چیزی که بات واقعاً می‌خواند کلید `__plugin_states__`
+ * در تب `bot_settings` است. دو مفهوم کاملاً جدا با یک برچسب «فعال».
+ *
+ * حالا هر کارت **هر دو** را نشان می‌دهد: سوییچ فعال/غیرفعال که روی خود بات اثر
+ * می‌گذارد، و بجِ جدای وضعیت خرید.
+ */
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  useListBotPlugins,
+  customFetch,
   useInstallPlugin,
-  useUninstallPlugin,
   useListMarketplaceItems,
-  getListBotPluginsQueryKey,
 } from "@workspace/api-client-react";
-import type { InstalledPlugin, MarketplaceItem } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import type { MarketplaceItem } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Blocks, Loader2, Trash2, PlusCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Blocks, Loader2, PlusCircle, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useLanguage } from "@/hooks/use-language";
+import { useT } from "@/hooks/use-translation";
 import { formatToman } from "@/lib/format";
 
+type BotPlugin = {
+  id: string;
+  name: string;
+  name_fa: string;
+  description: string;
+  version: string;
+  default_enabled: boolean;
+  required_sheets: string[];
+  enabled: boolean;
+  explicit: boolean;
+  purchased: boolean;
+  purchasedAt: string | null;
+  marketplaceItemId: string | null;
+};
+
+function errMessage(err: any, fallback: string): string {
+  return err?.data?.error ?? err?.message ?? fallback;
+}
+function errCode(err: any): string | null {
+  return err?.data?.code ?? null;
+}
+
 export function PluginsManager({ botId }: { botId: string }) {
-  const { lang } = useLanguage();
-  const fa = lang === "fa";
+  const t = useT("botPlugins");
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
 
-  const { data: installed, isLoading: installedLoading } = useListBotPlugins(botId);
-  const { data: marketplaceItems, isLoading: marketplaceLoading } = useListMarketplaceItems({ category: "plugin" });
+  const pluginsKey = ["bot-plugins", botId] as const;
+  const { data, isLoading, error } = useQuery({
+    queryKey: pluginsKey,
+    queryFn: () =>
+      customFetch<{ plugins: BotPlugin[]; unknown: string[] }>(`/api/bots/${botId}/plugins`),
+  });
+
+  const { data: marketplaceItems, isLoading: marketplaceLoading } = useListMarketplaceItems({
+    category: "plugin",
+  });
   const install = useInstallPlugin();
-  const uninstall = useUninstallPlugin();
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: getListBotPluginsQueryKey(botId) });
-  };
+  const toggle = useMutation({
+    mutationFn: ({ pluginId, enabled }: { pluginId: string; enabled: boolean }) =>
+      customFetch(`/api/bots/${botId}/plugins/${pluginId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ enabled }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: pluginsKey }),
+    onError: (err: any) =>
+      toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
+  });
 
-  function onError(err: any, fallback: string) {
-    toast({ variant: "destructive", title: fallback, description: err?.message });
-  }
-
-  function onInstall(item: MarketplaceItem) {
-    install.mutate(
-      { botId, data: { marketplaceItemId: item.id } },
-      {
-        onSuccess: () => {
-          invalidate();
-          toast({ title: fa ? `«${item.name}» نصب شد` : `“${item.name}” installed` });
-        },
-        onError: (err: any) => onError(err, fa ? "خطا در نصب" : "Install failed"),
-      }
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 p-8 text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" /> {t.loading}
+      </div>
     );
   }
-
-  function onUninstall(p: InstalledPlugin) {
-    uninstall.mutate(
-      { botId, pluginId: p.id },
-      {
-        onSuccess: () => {
-          invalidate();
-          toast({ title: fa ? `«${p.name}» حذف شد` : `“${p.name}” removed` });
-        },
-        onError: (err: any) => onError(err, fa ? "خطا در حذف" : "Uninstall failed"),
-      }
+  if (error || !data) {
+    return (
+      <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+        {errCode(error) === "no_sheet" ? t.noSheetYet : errMessage(error, t.errorGeneric)}
+      </div>
     );
   }
-
-  const installedIds = new Set((installed ?? []).map((p) => p.marketplaceItemId));
-  const availableItems = (marketplaceItems ?? []).filter((item) => !installedIds.has(item.id));
 
   return (
     <div className="space-y-6">
-      {/* Installed plugins */}
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold">{fa ? "پلاگین‌های نصب‌شده" : "Installed Plugins"}</h3>
-          <p className="text-sm text-muted-foreground">
-            {fa
-              ? "این پلاگین‌ها روی این بات نصب هستن."
-              : "These plugins are installed on this bot."}
-          </p>
+      <div>
+        <h3 className="mb-1 text-base font-semibold">{t.installedTitle}</h3>
+        <p className="mb-3 text-sm text-muted-foreground">{t.installedDesc}</p>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {data.plugins.map((plugin) => (
+            <Card key={plugin.id}>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-start gap-2 text-base">
+                  <Blocks className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1">{plugin.name_fa || plugin.name}</span>
+                  <Switch
+                    checked={plugin.enabled}
+                    disabled={toggle.isPending}
+                    aria-label={plugin.enabled ? t.disable : t.enable}
+                    onCheckedChange={(v) => toggle.mutate({ pluginId: plugin.id, enabled: v })}
+                  />
+                </CardTitle>
+                <CardDescription>{plugin.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-center gap-2 text-xs">
+                <Badge variant="outline" dir="ltr">v{plugin.version}</Badge>
+                {plugin.purchased ? (
+                  <Badge variant="secondary">{t.purchased}</Badge>
+                ) : (
+                  <Badge variant="outline">{t.notPurchased}</Badge>
+                )}
+                {/* «تعیین‌نشده» با «غیرفعال» یکی نیست: بات در این حالت از
+                    default_enabled مانیفست استفاده می‌کند. */}
+                {!plugin.explicit && (
+                  <span className="text-muted-foreground">
+                    {t.usingDefault.replace("{state}", plugin.default_enabled ? t.enabled : t.disabled)}
+                  </span>
+                )}
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        {installedLoading ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[1, 2].map((i) => <div key={i} className="h-24 animate-pulse rounded-md bg-muted" />)}
-          </div>
-        ) : (installed ?? []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {fa ? "هنوز هیچ پلاگینی نصب نشده." : "No plugins installed yet."}
+        {data.unknown.length > 0 && (
+          <p className="mt-3 flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+            <Info className="mt-0.5 size-3.5 shrink-0" />
+            <span dir="ltr">{t.unknownPlugins.replace("{ids}", data.unknown.join(", "))}</span>
           </p>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {(installed ?? []).map((p) => {
-              const busy = uninstall.isPending && uninstall.variables?.pluginId === p.id;
-              return (
-                <Card key={p.id}>
-                  <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Blocks className="h-4 w-4 text-primary" /> {p.name}
-                    </CardTitle>
-                    <Badge variant={p.enabled ? "secondary" : "outline"}>
-                      {p.enabled ? (fa ? "فعال" : "enabled") : (fa ? "غیرفعال" : "disabled")}
-                    </Badge>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <Badge variant="outline" dir="ltr">v{p.version}</Badge>
-                    </div>
-                    <Button size="sm" variant="outline" onClick={() => onUninstall(p)} disabled={busy}>
-                      {busy ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Trash2 className="me-2 h-4 w-4" />}
-                      {fa ? "حذف" : "Remove"}
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
         )}
+
+        <p className="mt-3 flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+          <Info className="mt-0.5 size-3.5 shrink-0" />
+          <span>{t.sourceOfTruthNotice}</span>
+        </p>
       </div>
 
-      {/* Available to install */}
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold">{fa ? "پلاگین‌های موجود" : "Available Plugins"}</h3>
-          <p className="text-sm text-muted-foreground">
-            {fa ? "از مارکت‌پلیس روی این بات نصب کنید." : "Install from the marketplace onto this bot."}
-          </p>
-        </div>
+      <div>
+        <h3 className="mb-1 text-base font-semibold">{t.marketplaceTitle}</h3>
+        <p className="mb-3 text-sm text-muted-foreground">{t.marketplaceDesc}</p>
 
         {marketplaceLoading ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[1, 2].map((i) => <div key={i} className="h-28 animate-pulse rounded-md bg-muted" />)}
-          </div>
-        ) : availableItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {fa ? "همه‌ی پلاگین‌های موجود نصب شدن." : "All available plugins are installed."}
-          </p>
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            {availableItems.map((item) => {
-              const busy = install.isPending && install.variables?.data.marketplaceItemId === item.id;
-              return (
-                <Card key={item.id}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Blocks className="h-4 w-4 text-primary" /> {item.name}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p className="text-sm text-muted-foreground">{item.description}</p>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <Badge variant="outline" dir="ltr">v{item.version}</Badge>
-                      <Badge variant="outline">{item.isFree || item.price === 0 ? (fa ? "رایگان" : "Free") : formatToman(item.price, lang)}</Badge>
-                    </div>
-                    <Button size="sm" onClick={() => onInstall(item)} disabled={busy}>
-                      {busy ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <PlusCircle className="me-2 h-4 w-4" />}
-                      {fa ? "نصب" : "Install"}
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {(marketplaceItems ?? []).map((item: MarketplaceItem) => (
+              <Card key={item.id}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">{item.name}</CardTitle>
+                  <CardDescription>{item.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium">
+                    {item.isFree || item.price <= 0 ? t.free : formatToman(item.price)}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ms-auto"
+                    disabled={install.isPending}
+                    onClick={() =>
+                      install.mutate(
+                        { botId, data: { marketplaceItemId: item.id } },
+                        {
+                          onSuccess: () => {
+                            qc.invalidateQueries({ queryKey: pluginsKey });
+                            toast({ title: t.installed });
+                          },
+                          onError: (err: any) =>
+                            toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
+                        }
+                      )
+                    }
+                  >
+                    <PlusCircle className="me-1.5 size-4" /> {t.install}
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
       </div>

@@ -1679,5 +1679,26 @@
     "prevPage": "Önceki sayfa",
     "nextPage": "Sonraki sayfa",
     "pageOf": "Sayfa {page}/{total}"
+  },
+  "botPlugins": {
+    "loading": "Eklentiler yükleniyor…",
+    "errorGeneric": "Bir hata oluştu. Lütfen tekrar deneyin.",
+    "noSheetYet": "Bu botun henüz kendi e-tablosu yok; tablo atandığında eklentiler açılır.",
+    "installedTitle": "Bu bottaki eklentiler",
+    "installedDesc": "Anahtar, botun gerçekten okuduğu şeydir — açıp kapatmak doğrudan bota etki eder.",
+    "enable": "Etkinleştir",
+    "disable": "Devre dışı bırak",
+    "enabled": "açık",
+    "disabled": "kapalı",
+    "purchased": "Satın alındı",
+    "notPurchased": "Satın alınmadı",
+    "usingDefault": "Açık bir ayar yok — bot kendi varsayılanını kullanıyor ({state}).",
+    "unknownPlugins": "Botta, bu sitenin tanımadığı eklentiler için de ayar var: {ids}",
+    "sourceOfTruthNotice": "Satın alma ve etkinleştirme iki ayrı şeydir: pazardan eklenti almak hesabınıza kaydedilir, yukarıdaki anahtar ise botun kendi açık/kapalı durumudur.",
+    "marketplaceTitle": "Pazar",
+    "marketplaceDesc": "Hesabınıza eklenti satın alın veya ekleyin.",
+    "free": "Ücretsiz",
+    "install": "Ekle",
+    "installed": "Eklenti eklendi"
   }
 }

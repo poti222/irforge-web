@@ -2364,12 +2364,13 @@ router.delete("/bots/:botId/telegram-profile/photo", requireBotOwnership, async 
 // همان تب شیت است. جدول `commands` حذف نشده؛ فقط دیگر خوانده/نوشته نمی‌شود و
 // `POST /commands/migrate` محتوایش را یک‌بار به شیت می‌برد.
 
-router.get("/bots/:botId/plugins", requireBotOwnership, async (req: any, res) => {
-  try {
-    const plugins = await db.select().from(installedPluginsTable).where(eq(installedPluginsTable.botId, req.params.botId));
-    res.json(plugins.map(p => ({ id: p.id, botId: p.botId, marketplaceItemId: p.marketplaceItemId, name: p.name, version: p.version, enabled: p.enabled, installedAt: p.installedAt.toISOString() })));
-  } catch (err) { logger.error({ err }, "List plugins error"); res.status(500).json({ error: "Internal server error" }); }
-});
+// ─── پلاگین‌ها ──────────────────────────────────────────────────────────────
+// `GET /bots/:botId/plugins` که اینجا بود فقط جدول `installed_plugins` (خریدِ
+// سایت) را برمی‌گرداند و هیچ ربطی به فعال/غیرفعال بودن پلاگین در خود بات
+// نداشت — آن در کلید `__plugin_states__` تب `bot_settings` است (باگ B14).
+// نسخه‌ی جدید در `routes/botPlugins.ts` هر دو را کنار هم می‌دهد.
+// خرید (POST) و حذفِ رکورد خرید (DELETE) همچنان اینجا می‌مانند، چون واقعاً
+// مال سایت‌اند.
 
 router.post("/bots/:botId/plugins", requireBotOwnership, async (req: any, res) => {
   try {

@@ -1679,5 +1679,26 @@
     "prevPage": "Previous page",
     "nextPage": "Next page",
     "pageOf": "Page {page} of {total}"
+  },
+  "botPlugins": {
+    "loading": "Loading plugins…",
+    "errorGeneric": "Something went wrong. Please try again.",
+    "noSheetYet": "This bot doesn't have its own spreadsheet yet; plugins unlock once one is assigned.",
+    "installedTitle": "Plugins on this bot",
+    "installedDesc": "The switch is what the bot actually reads — turning it on or off takes effect on the bot itself.",
+    "enable": "Enable",
+    "disable": "Disable",
+    "enabled": "on",
+    "disabled": "off",
+    "purchased": "Purchased",
+    "notPurchased": "Not purchased",
+    "usingDefault": "No explicit setting — the bot falls back to its default ({state}).",
+    "unknownPlugins": "The bot also has settings for plugins this site doesn't know about: {ids}",
+    "sourceOfTruthNotice": "Purchase and activation are two different things: buying a plugin from the marketplace records it on your account, while the switch above is the bot's own on/off state.",
+    "marketplaceTitle": "Marketplace",
+    "marketplaceDesc": "Buy or add plugins to your account.",
+    "free": "Free",
+    "install": "Add",
+    "installed": "Plugin added"
   }
 }
