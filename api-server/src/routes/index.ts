@@ -40,6 +40,9 @@ import botUsersRouter from "./botUsers.js";
 import botBroadcastRouter from "./botBroadcast.js";
 import botOrdersRouter from "./botOrders.js";
 import botPluginsRouter from "./botPlugins.js";
+import botObjectsRouter from "./botObjects.js";
+import botRelationsRouter from "./botRelations.js";
+import botWorkflowsRouter from "./botWorkflows.js";
 
 const router: IRouter = Router();
 
@@ -79,5 +82,8 @@ router.use(botUsersRouter);
 router.use(botBroadcastRouter);
 router.use(botOrdersRouter);
 router.use(botPluginsRouter);
+router.use(botObjectsRouter);
+router.use(botRelationsRouter);
+router.use(botWorkflowsRouter);
 
 export default router;

@@ -46,9 +46,9 @@ pnpm --filter @workspace/irforge run typecheck
 | ۱۵ — پیام همگانی | ✅ | **جدید:** `api-server/src/lib/botQueue.ts`، `routes/botBroadcast.ts`، `broadcast/BroadcastSection.tsx`. **تغییر:** `routes/index.ts`، `BotWorkspaceDocument.tsx` (unlock)، ۵ locale (`botBroadcast`). | هر سه گیت سبز. بدون Postgres بات، UI خطای شفاف می‌دهد. | **قرارداد job با متن پرامپت فرق دارد:** بات با `copy_message` کار می‌کند نه با متن خام، پس نه دکمه‌ی شیشه‌ای ممکن است و نه فیلتر مخاطب. هر دو در UI صریح گفته می‌شوند. |
 | ۱۶ — سفارش‌ها و پرداخت | ✅ | **جدید:** `api-server/src/routes/botOrders.ts`، `orders/OrdersSection.tsx`. **تغییر:** `routes/index.ts`، `BotWorkspaceDocument.tsx` (unlock)، ۵ locale (`botOrders`). | هر سه گیت سبز. | چهار وضعیتِ بات عیناً استفاده شد (`pending/verified/rejected/postponed`)؛ سایت وضعیت جدیدی اختراع نکرد. |
 | ۱۷ — پلاگین‌ها (B14) | ✅ | **جدید:** `api-server/src/routes/botPlugins.ts`. **بازنویسی:** `PluginsManager.tsx`. **حذف:** `GET /bots/:botId/plugins` از `bots.ts`. **تغییر:** `routes/index.ts`، ۵ locale (`botPlugins`). | هر سه گیت سبز. | کاتالوگ چهار پلاگین دستی نگه داشته می‌شود (سایت نمی‌تواند پایتون import کند)؛ هر پلاگین جدید در بات باید آنجا هم اضافه شود. |
-| ۱۸ — آبجکت‌های دینامیک | ⬜ | — | — | — |
-| ۱۹ — روابط | ⬜ | — | — | — |
-| ۲۰ — ورک‌فلوها | ⬜ | — | — | — |
+| ۱۸ — آبجکت‌های دینامیک | ✅ | **جدید:** `routes/botObjects.ts`، `advanced/ObjectsSection.tsx`. | هر سه گیت سبز. | `slug` بعد از ساخت **قابل تغییر نیست** چون نام تب رکوردها (`obj_<slug>`) از آن ساخته می‌شود. |
+| ۱۹ — روابط | ✅ | **جدید:** `routes/botRelations.ts`، `advanced/RelationsSection.tsx`. | هر سه گیت سبز. | **کشف:** نام فیلدها `source_object_id`/`target_object_id` است نه `from_object`/`to_object`، و انواع پنج‌تا هستند نه سه‌تا. |
+| ۲۰ — ورک‌فلوها | ✅ | **جدید:** `routes/botWorkflows.ts`، `advanced/WorkflowsSection.tsx`. **تغییر:** ۵ locale (`botAdvanced`، ۱۰۷ کلید)، `routes/index.ts`، `BotWorkspaceDocument.tsx` (unlock هر سه). | هر سه گیت سبز. | کاتالوگ actionها با grep روی `register_action_handler` استخراج شد، نه حدس؛ actionهای کیف پول به پلاگین وابسته‌اند و کاتالوگ همین را علامت می‌زند. |
 | ۲۱ — زبان بات | ⬜ | — | — | امروز یک **منبع سومِ موازی** برای زبان وجود دارد که بات اصلاً نمی‌خواندش — بخش «ب»، مورد ۳. |
 | ۲۲ — بک‌آپ و بازیابی | ⬜ | — | — | — |
 | ۲۳ — تیکت‌های بات | ⬜ | — | — | `routes/botTickets.ts` فعلی **ربطی به تب‌های تننت ندارد** — بخش «ب»، مورد ۵. |
@@ -1094,5 +1094,81 @@ payload که یک تننت را از دیگری جدا می‌کند و توکن
 (`catalog`, `discount`, `referral`, `wallet`) با همان `default_enabled` و
 `required_sheets`. سایت نمی‌تواند پایتون را import کند، پس این لیست دستی است و
 در کامنت فایل نوشته شده که هر پلاگین جدید در بات باید اینجا هم اضافه شود.
+
+**گیت بیلد:** هر سه سبز.
+
+---
+
+## گزارش فازهای ۱۸ تا ۲۰ — آبجکت‌ها، روابط، ورک‌فلوها
+
+هر سه در یک commit، چون یک namespace locale مشترک (`botAdvanced`) دارند و
+گروه «پیشرفته»ی سایدبار را با هم پر می‌کنند.
+
+### فاز ۱۸ — آبجکت‌های دینامیک
+
+شکل از `utils/object_engine.py` استخراج شد:
+`{ id, name, slug, icon, color, fields[], permissions{}, is_active, created_at, updated_at }`
+و رکورد: `{ _id, _created_at, _updated_at, _created_by, _metadata, ...مقادیر فیلدها }`.
+
+سه چیز که از کد آمد و حدس‌زدنشان غلط می‌شد:
+
+1. **نام تب رکوردها `obj_<slug>` است** (خط ۱۰۶)، نه خود `slug`.
+2. **رکورد فقط فیلدهای تعریف‌شده را نگه می‌دارد** (خط ۶۱۰). `projectRecord`
+   همین کار را می‌کند، پس یک کلید اضافه‌ی کلاینت هرگز روی شیت نمی‌نشیند.
+3. پیش‌فرض `permissions` عیناً همان `default_perms` موتور است.
+
+**`slug` بعد از ساخت قابل تغییر نیست** و `PATCH` تلاش برای تغییرش را با پیام
+روشن رد می‌کند: نام تب رکوردها از آن ساخته شده و تغییرش یعنی همه‌ی رکوردهای
+موجود ناپدید شوند. نام فیلد هم نمی‌تواند با `_` شروع شود، چون با فیلدهای
+سیستمی رکورد برخورد می‌کند.
+
+**حذف آبجکت، تب رکوردهایش را پاک نمی‌کند.** پاک‌کردن یک worksheet کامل به‌عنوان
+عارضه‌ی جانبیِ حذف یک schema، برگشت‌ناپذیرتر از چیزی است که کاربر انتظار دارد؛
+تعریف می‌رود، داده‌ی خام می‌ماند و از منوی دیتابیس قابل بازیابی است. UI هم قبل
+از حذف تعداد رکوردها را صریح می‌گوید. اگر آبجکت در رابطه‌ای استفاده شده باشد،
+بدون `force=true` حذف نمی‌شود.
+
+### فاز ۱۹ — روابط
+
+**دو اختلاف با متن پرامپت که از کد کشف شد:**
+
+| پرامپت | واقعیت `utils/relation_engine.py` |
+|---|---|
+| `from_object` / `to_object` | `source_object_id` / `target_object_id` |
+| سه نوع (`one-to-one`, `one-to-many`, `many-to-many`) | `STORED_TYPES` پنج‌تاست: `one_to_one`, `one_to_many`, `many_to_many`, `parent_child`, `recursive` — به‌علاوه انواع محاسبه‌شده‌ای که اصلاً لینک ذخیره نمی‌کنند |
+
+سایت فقط انواع **ذخیره‌شونده** را می‌سازد؛ ساختن یک نوع محاسبه‌شده از اینجا یعنی
+رابطه‌ای که هیچ‌وقت لینکی نخواهد داشت.
+
+`PATCH` دقیقاً همان whitelist‌ای را دارد که `update_relation` بات (خط ۱۹۵):
+`name`, `source_label`, `target_label`, `cascade_delete`, `required`, `config`,
+`is_active`. تغییر نوع یا آبجکت‌های دو سر ممکن نیست، چون لینک‌های موجود را
+بی‌معنا می‌کند. محدودیت‌های cardinality (یک‌به‌یک، یک‌به‌چند) و حلقه‌ی
+`parent_child` سمت سرور enforce می‌شوند. حذف رابطه، لینک‌هایش را هم می‌برد —
+لینک بدون تعریف، زباله‌ی معلق است. رابطه‌ای که آبجکت دو سرش وجود ندارد در لیست
+صریح **«خراب»** علامت می‌خورد.
+
+### فاز ۲۰ — ورک‌فلوها
+
+کاتالوگ **از کد بیرون کشیده شد، نه حدس زده**:
+
+- actionها با grep روی `register_action_handler("…")` در کل سورس بات:
+  `send_message`, `emit_event`, `wallet_credit`, `wallet_debit`,
+  `wallet_freeze`, `wallet_unfreeze`.
+- رویدادها با grep روی `event_engine.emit("event.…")`:
+  `object.created/updated/deleted`, `payment.approved/rejected`,
+  `wallet.transaction/frozen/unfrozen`.
+
+**چهار action کیف پول را پلاگین `wallet` ثبت می‌کند**، پس اگر آن پلاگین خاموش
+باشد در runtime وجود ندارند. `GET /workflow-catalog` وضعیت واقعی پلاگین‌ها را
+از `__plugin_states__` می‌خواند و هر action را با `available` علامت می‌زند؛ UI
+هم زیر آن action هشدار می‌دهد. بدون این، کاربر ورک‌فلویی می‌ساخت که در سکوت
+هیچ‌وقت اجرا نمی‌شد.
+
+شکل ذخیره عیناً `WorkflowDefinition.to_dict` است (خط ۱۵۰):
+`{ id, name, trigger: {type, config}, conditions[], actions[], is_active }`.
+ویرایشگر **گام‌به‌گام** است (اطلاعات پایه → تریگر → شرط‌ها → اقدام‌ها)، نه بوم
+گرافیکی — همان چیزی که فاز خواست. حذف ورک‌فلو، تاریخچه‌ی اجراهایش را پاک
+نمی‌کند: گزارشِ کاری که واقعاً انجام شده با حذف تعریفش دروغ نمی‌شود.
 
 **گیت بیلد:** هر سه سبز.

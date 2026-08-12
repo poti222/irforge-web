@@ -40,6 +40,9 @@ import { AdminsSection } from "@/components/bots/admins/AdminsSection";
 import { UsersSection } from "@/components/bots/users/UsersSection";
 import { BroadcastSection } from "@/components/bots/broadcast/BroadcastSection";
 import { OrdersSection } from "@/components/bots/orders/OrdersSection";
+import { ObjectsSection } from "@/components/bots/advanced/ObjectsSection";
+import { RelationsSection } from "@/components/bots/advanced/RelationsSection";
+import { WorkflowsSection } from "@/components/bots/advanced/WorkflowsSection";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
 import type { LocaleShape } from "@/hooks/use-translation";
@@ -131,9 +134,9 @@ const SECTION_GROUPS: SectionGroup[] = [
     key: "advanced",
     labelKey: "groupAdvanced",
     items: [
-      { key: "objects", icon: Boxes, labelKey: "sectionObjects", locked: true },
-      { key: "relations", icon: Share2, labelKey: "sectionRelations", locked: true },
-      { key: "workflows", icon: Workflow, labelKey: "sectionWorkflows", locked: true },
+      { key: "objects", icon: Boxes, labelKey: "sectionObjects" },
+      { key: "relations", icon: Share2, labelKey: "sectionRelations" },
+      { key: "workflows", icon: Workflow, labelKey: "sectionWorkflows" },
       { key: "plugins", icon: Blocks, labelKey: "sectionPlugins" },
     ],
   },
@@ -307,6 +310,9 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "users" && <UsersSection bot={bot} />}
             {section === "broadcast" && <BroadcastSection bot={bot} />}
             {section === "orders" && <OrdersSection bot={bot} />}
+            {section === "objects" && <ObjectsSection bot={bot} />}
+            {section === "relations" && <RelationsSection bot={bot} />}
+            {section === "workflows" && <WorkflowsSection bot={bot} />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}
