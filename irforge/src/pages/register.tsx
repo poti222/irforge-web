@@ -36,6 +36,38 @@ type Step = "method" | "identity" | "telegram" | "code" | "finish";
 
 const STORAGE_KEY = "irforge_registration_id";
 
+/**
+ * چیزی که در `sessionStorage` می‌ماند. تا پیش از این فقط `id` ذخیره می‌شد؛
+ * روی موبایل کافی نبود: وقتی کاربر برای باز کردن تلگرام از صفحه بیرون می‌رود،
+ * مرورگر معمولاً تب را از حافظه پاک می‌کند و برگشتن یعنی یک بارگذاری کامل.
+ * آن بارگذاری `deepLink` و گام جاری را — که فقط در state بودند — از دست می‌داد
+ * و کاربر روی گام یک ظاهر می‌شد.
+ */
+interface SavedRegistration {
+  id: string;
+  deepLink: string | null;
+  step: Step;
+}
+
+function loadSaved(): SavedRegistration | null {
+  const raw = sessionStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.id === "string") {
+      return { id: parsed.id, deepLink: parsed.deepLink ?? null, step: parsed.step ?? "telegram" };
+    }
+  } catch {
+    // نسخه‌ی قدیمی فقط رشته‌ی id را ذخیره می‌کرد.
+    return { id: raw, deepLink: null, step: "telegram" };
+  }
+  return null;
+}
+
+function saveRegistration(data: SavedRegistration) {
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
 /** روش → هویت → تلگرام → کد → رمز عبور. */
 const TOTAL_STEPS = 5;
 
@@ -70,6 +102,9 @@ export default function Register() {
   const [deepLink, setDeepLink] = useState<string | null>(null);
   const [status, setStatus] = useState<RegStatus | null>(null);
   const [busy, setBusy] = useState(false);
+  // جدا از `busy` نگه داشته می‌شود: این فقط دکمه‌ی «ادامه»ی گام تلگرام را
+  // مشغول نشان می‌دهد و نباید بقیه‌ی فرم‌ها را قفل کند.
+  const [checking, setChecking] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -92,16 +127,28 @@ export default function Register() {
   // پرت می‌کرد.
   const lastServerStepRef = useRef<string | null>(null);
 
-  // بازیابی بعد از رفرش.
+  // بازیابی بعد از رفرش (یا بعد از برگشتن از اپ تلگرام روی موبایل).
+  //
+  // گام و لینک عمیق **قبل از** رفتن به شبکه از حافظه برمی‌گردند؛ اگر منتظر
+  // پاسخ سرور می‌ماندیم، کاربر یک لحظه گام یک را می‌دید و اگر آن درخواست
+  // شکست می‌خورد (که موقع برگشتن به اینترنت خیلی هم عادی است) همان‌جا گیر
+  // می‌کرد.
   useEffect(() => {
-    const saved = sessionStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      setRegistrationId(saved);
-      void refreshStatus(saved, { force: true });
-    }
+    const saved = loadSaved();
+    if (!saved) return;
+    setRegistrationId(saved.id);
+    setDeepLink(saved.deepLink);
+    setStep(saved.step);
+    void refreshStatus(saved.id, { force: true });
     // فقط یک‌بار در mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // هر بار که گام یا لینک عوض شد، عکس تازه‌ای برای بازیابی بعدی ذخیره کن.
+  useEffect(() => {
+    if (!registrationId) return;
+    saveRegistration({ id: registrationId, deepLink, step });
+  }, [registrationId, deepLink, step]);
 
   function stepForServer(serverStep: string): Step | null {
     if (serverStep === "identity" || serverStep === "telegram_pending") return "telegram";
@@ -129,8 +176,14 @@ export default function Register() {
         if (target) setStep(target);
       }
       return s;
-    } catch {
-      // رکورد منقضی یا حذف شده — از اول.
+    } catch (err: any) {
+      // فقط وقتی از اول شروع می‌کنیم که سرور **صریحاً** بگوید رکورد دیگر
+      // نیست. قبلاً هر خطایی همین کار را می‌کرد، و روی موبایل همین باعث
+      // باگ می‌شد: کاربر از تلگرام برمی‌گشت، اولین poll در لحظه‌ی وصل شدن
+      // دوباره‌ی شبکه شکست می‌خورد، و کل ثبت‌نام پاک و به گام یک برمی‌گشت.
+      const gone = err?.status === 404 || err?.status === 410;
+      if (!gone) return null;
+
       sessionStorage.removeItem(STORAGE_KEY);
       setRegistrationId(null);
       lastServerStepRef.current = null;
@@ -150,6 +203,30 @@ export default function Register() {
         window.clearInterval(pollRef.current);
         pollRef.current = null;
       }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, registrationId]);
+
+  // برگشتن از اپ تلگرام = تب دوباره visible می‌شود. همان‌جا وضعیت را می‌پرسیم
+  // به‌جای اینکه تا poll بعدی صبر کنیم؛ مرورگرهای موبایل تایمرهای تب پس‌زمینه
+  // را کند یا کلاً متوقف می‌کنند، پس نمی‌شود روی interval حساب کرد.
+  // `pageshow` هم لازم است: وقتی صفحه از bfcache برمی‌گردد، اصلاً mount دوباره
+  // اتفاق نمی‌افتد.
+  useEffect(() => {
+    if (step !== "telegram" || !registrationId) return;
+
+    const resume = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshStatus(registrationId);
+    };
+
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("pageshow", resume);
+    window.addEventListener("focus", resume);
+    return () => {
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("pageshow", resume);
+      window.removeEventListener("focus", resume);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, registrationId]);
@@ -189,6 +266,40 @@ export default function Register() {
     toast({ variant: "destructive", title: t.genericAuthError, description });
   }
 
+  /**
+   * دکمه‌ی «ادامه»ی گام تلگرام.
+   *
+   * قبلاً مستقیم `refreshStatus` را صدا می‌زد و اگر سرور هنوز روی
+   * `identity`/`telegram_pending` بود، گام مقصد همین گام فعلی درمی‌آمد —
+   * یعنی `setStep` هیچ چیزی را عوض نمی‌کرد و دکمه از دید کاربر کاملاً مرده
+   * بود: نه اسپینر، نه پیام، نه خطا. حالا همیشه یک جواب می‌گیرد.
+   */
+  async function checkTelegramProgress() {
+    const id = registrationId ?? loadSaved()?.id ?? null;
+    if (!id) {
+      // رکورد گم شده — به‌جای دکمه‌ی بی‌اثر، صریح از اول شروع کن.
+      setStep("identity");
+      toast({ variant: "destructive", title: t.genericAuthError });
+      return;
+    }
+    if (checking) return;
+
+    setChecking(true);
+    try {
+      const s = await refreshStatus(id, { force: true });
+      if (!s) {
+        toast({ variant: "destructive", title: t.genericAuthError });
+        return;
+      }
+      // سرور هنوز جلو نرفته: کاربر داخل بات شماره‌اش را نفرستاده.
+      if (stepForServer(s.step) === "telegram") {
+        toast({ title: t.telegramNotDoneTitle, description: t.telegramNotDoneDesc });
+      }
+    } finally {
+      setChecking(false);
+    }
+  }
+
   async function startRegistration() {
     if (!firstName.trim() || !lastName.trim() || !email.trim()) return;
     setBusy(true);
@@ -210,7 +321,7 @@ export default function Register() {
       );
       setRegistrationId(res.registrationId);
       setDeepLink(res.deepLink);
-      sessionStorage.setItem(STORAGE_KEY, res.registrationId);
+      saveRegistration({ id: res.registrationId, deepLink: res.deepLink, step: "telegram" });
       lastServerStepRef.current = res.step ?? null;
       setStep("telegram");
     } catch (err) {
@@ -415,12 +526,16 @@ export default function Register() {
               // `registrationId` را دوباره می‌فرستد و ردیف تازه‌ای نمی‌سازد.
               onBack={() => goBack("identity")}
             />
-            <TelegramLinkPanel mode="register" deepLink={deepLink} waiting />
+            {/* `sameTab`: باز کردن لینک در تب جدید روی موبایل یعنی تب تازه‌ای
+                با sessionStorage خالی — و همان بود که ثبت‌نام را می‌پراند. */}
+            <TelegramLinkPanel mode="register" deepLink={deepLink} waiting sameTab />
             <Button
               variant="ghost"
               className="w-full"
-              onClick={() => registrationId && void refreshStatus(registrationId, { force: true })}
+              disabled={checking}
+              onClick={() => void checkTelegramProgress()}
             >
+              {checking && <Loader2 className="me-2 size-4 animate-spin" />}
               {t.continue}
             </Button>
           </div>

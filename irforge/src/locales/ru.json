@@ -170,6 +170,8 @@
     "openTelegram": "Открыть Telegram",
     "scanQr": "Или отсканируйте это телефоном",
     "waitingForTelegram": "Ждём, пока вы закончите в Telegram…",
+    "telegramNotDoneTitle": "Ещё не завершено",
+    "telegramNotDoneDesc": "Нажмите «Отправить мой номер» в нашем Telegram-боте, чтобы мы прислали код.",
     "telegramConnected": "Telegram подключён",
     "codeTitle": "Введите код",
     "codeDesc": "Мы отправили 6-значный код в ваш Telegram.",

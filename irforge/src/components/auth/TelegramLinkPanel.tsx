@@ -33,6 +33,7 @@ export function TelegramLinkPanel({
   connectedUsername,
   connectedName,
   waiting,
+  sameTab,
   onRefresh,
 }: {
   mode: LinkMode;
@@ -43,6 +44,16 @@ export function TelegramLinkPanel({
   connectedName?: string | null;
   /** آیا در حال انتظار برای تکمیل در تلگرام هستیم */
   waiting?: boolean;
+  /**
+   * لینک را در همین تب باز کن، نه تب جدید.
+   *
+   * روی موبایل `target="_blank"` یک تب تازه می‌سازد و مرورگرهای امروزی
+   * (Chrome 88 به بعد) برای تب‌های `_blank` به‌صورت ضمنی `noopener` می‌گذارند،
+   * یعنی آن تب `sessionStorage` والد را **به ارث نمی‌برد**. اگر کاربر بعد از
+   * تلگرام سر از آن تب دربیاورد، سایت فکر می‌کند هیچ ثبت‌نامی در جریان نیست.
+   * در همین تب، صفحه به bfcache می‌رود و دست‌نخورده برمی‌گردد.
+   */
+  sameTab?: boolean;
   onRefresh?: () => void;
 }) {
   const t = useT("auth") as Record<string, string>;
@@ -94,7 +105,11 @@ export function TelegramLinkPanel({
   return (
     <div className="space-y-4">
       <Button asChild disabled={!link} className="w-full gap-2">
-        <a href={link ?? "#"} target="_blank" rel="noopener noreferrer">
+        <a
+          href={link ?? "#"}
+          target={sameTab ? undefined : "_blank"}
+          rel={sameTab ? undefined : "noopener noreferrer"}
+        >
           <Send className="size-4" aria-hidden="true" />
           {t.openTelegram}
         </a>

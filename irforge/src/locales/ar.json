@@ -170,6 +170,8 @@
     "openTelegram": "افتح تيليجرام",
     "scanQr": "أو امسح هذا بهاتفك",
     "waitingForTelegram": "في انتظار إتمامك الخطوات في تيليجرام…",
+    "telegramNotDoneTitle": "لم يكتمل بعد",
+    "telegramNotDoneDesc": "اضغط «مشاركة رقمي» داخل بوت تيليجرام لنرسل لك الرمز.",
     "telegramConnected": "تم ربط تيليجرام",
     "codeTitle": "أدخل الرمز",
     "codeDesc": "أرسلنا رمزًا من ٦ أرقام إلى تيليجرام.",

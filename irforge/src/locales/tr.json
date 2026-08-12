@@ -170,6 +170,8 @@
     "openTelegram": "Telegram'ı aç",
     "scanQr": "Ya da bunu telefonunuzla tarayın",
     "waitingForTelegram": "Telegram'da tamamlamanız bekleniyor…",
+    "telegramNotDoneTitle": "Henüz tamamlanmadı",
+    "telegramNotDoneDesc": "Kodu gönderebilmemiz için Telegram botunda “Numaramı paylaş” düğmesine dokunun.",
     "telegramConnected": "Telegram bağlandı",
     "codeTitle": "Kodu girin",
     "codeDesc": "Telegram'ınıza 6 haneli bir kod gönderdik.",

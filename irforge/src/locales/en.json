@@ -170,6 +170,8 @@
     "openTelegram": "Open Telegram",
     "scanQr": "Or scan this with your phone",
     "waitingForTelegram": "Waiting for you to finish in Telegram…",
+    "telegramNotDoneTitle": "Not finished yet",
+    "telegramNotDoneDesc": "Tap “Share my number” inside our Telegram bot so we can send you the code.",
     "telegramConnected": "Telegram connected",
     "codeTitle": "Enter the code",
     "codeDesc": "We sent a 6-digit code to your Telegram.",

@@ -249,7 +249,7 @@ export default function Login() {
               total={TOTAL_STEPS}
               onBack={goBackToCredentials}
             />
-            <TelegramLinkPanel mode="register" deepLink={linkDeepLink} waiting />
+            <TelegramLinkPanel mode="register" deepLink={linkDeepLink} waiting sameTab />
 
             <Card>
               <CardContent className="flex items-start gap-3 p-4">
