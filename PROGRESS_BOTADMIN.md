@@ -1320,3 +1320,50 @@ pnpm --filter @workspace/api-server run test       ✅ ۳۴/۳۴
 داده شده‌اند ولی **روی داده‌ی زنده اجرا نشده‌اند**: این محیط نه کردنشیال گوگل
 دارد، نه توکن تلگرام، نه Postgres. طی مسیر کامل روی یک بات واقعی (بند ۲ فاز ۲۴)
 کاری است که باید روی محیطی با کردنشیال واقعی انجام شود.
+
+---
+
+## ممیزی محیط Railway (بعد از پایان فاز ۲۴)
+
+پروژه‌ی `eloquent-caring`، محیط `production`. سه چیز که با بررسی سرویس‌ها معلوم
+شد و روی این تسک اثر مستقیم دارند:
+
+### ۱. سرویس `irforge-web` از شاخه‌ی `main` دیپلوی می‌شود
+
+آخرین دیپلوی موفق: `21f2b3f` — یعنی **commit قبل از شروع این کار**. هیچ‌کدام از
+۱۸ commit این تسک روی production نیست. تا وقتی
+`claude/new-session-leu6ss` در `main` مرج نشود (یا شاخه‌ی سرویس عوض نشود)،
+Railway چیزی از این کار نمی‌بیند.
+
+### ۲. سرویس `irforge-app` هیچ `DATABASE_URL` ندارد
+
+متغیرهای بات: `ADMIN_PASSWORD`, `BACKEND_SECRET`, `BOT_TOKEN`,
+`BUSINESS_DATABASE_URL`, `GOOGLE_CREDENTIALS_JSON`, `MASTER_ADMIN_IDS`,
+`MINI_APP_URL`, `PORT`, `REGISTRY_SPREADSHEET_ID`, `SPREADSHEET_ID`.
+
+`utils/postgres_store.py:60` صریحاً `DATABASE_URL` یا `POSTGRES_URL` می‌خواند و
+هیچ‌کدام ست نیست. یعنی امروز:
+
+- **کش L2 بات اصلاً روی Postgres نیست** — `postgres_store` به `_fallback_cache`
+  درون‌پروسسی می‌افتد. پس `BOT_CACHE_DATABASE_URL` روی سایت، ردیف‌هایی را در
+  جدولی پاک می‌کند که هیچ‌کس نمی‌خواندش. بی‌ضرر ولی بی‌فایده، تا وقتی
+  `DATABASE_URL` روی `irforge-app` ست شود.
+- **صف `irforge_queue` هم مشترک نیست** — `_fallback_queue` درون‌پروسسی است.
+
+### ۳. `start_queue_worker()` هیچ‌جا صدا زده نمی‌شود
+
+`services/queue_worker.py` تابع را تعریف می‌کند و `handlers/broadcast.py` فقط
+`register_job_handler` را import می‌کند. جست‌وجوی کل سورس بات نشان می‌دهد
+`start_queue_worker(...)` **در هیچ فایلی فراخوانی نشده** — `main.py` چند تسک
+پس‌زمینه‌ی دیگر (`trial_watcher`, `deletion_worker`, `expiry_worker`,
+`tenant_status_watcher`, ...) را با `create_task` بالا می‌آورد ولی این یکی را نه.
+
+**اثرش روی فاز ۱۵:** پیام همگانی دقیقاً طبق قرارداد مستندشده enqueue می‌شود، ولی
+**هیچ مصرف‌کننده‌ای وجود ندارد** تا job را بردارد. job در وضعیت `pending` می‌ماند
+و UI هم همان را نشان می‌دهد. این نقصِ کدِ سایت نیست — قرارداد payload مو‌به‌مو
+رعایت شده — ولی تا وقتی بات worker را استارت نکند، مسیر end-to-end کامل نیست.
+
+**عمداً درست نشد:** بند ۶ پرامپت تغییر رفتار runtime بات را ممنوع می‌کند مگر با
+دلیل مکتوب و کمترین تغییر ممکن. این یک خط است (`asyncio.create_task(
+start_queue_worker(bot_provider))` در `main.py`) ولی تصمیمش با صاحب پروژه است،
+نه چیزی که این تسک بی‌اجازه انجام دهد.
