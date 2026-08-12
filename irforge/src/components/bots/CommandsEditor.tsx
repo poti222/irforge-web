@@ -1,17 +1,17 @@
+/**
+ * CommandsEditor.tsx — کامندهای سفارشی بات (بازنویسی‌شده، فاز ۱۲).
+ *
+ * قبلاً این کامپوننت روی جدول `commands` در Postgres سایت کار می‌کرد و شکلش
+ * (`name`, `permission`, `arguments`, `workflow`) هیچ ربطی به چیزی که بات
+ * می‌خواند نداشت — باگ B13. حالا مستقیم روی تب `custom_commands` شیت تننت است،
+ * با همان فیلدهایی که `handlers/custom_commands.py` می‌فهمد.
+ */
 import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 import {
-  useListCommands,
-  useCreateCommand,
-  useUpdateCommand,
-  useDeleteCommand,
-  getListCommandsQueryKey,
-  getGetBotQueryKey,
-} from "@workspace/api-client-react";
-import type {
-  BotCommand,
-  BotCommandInputPermission,
-} from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+  Plus, Loader2, Trash2, Terminal, ArrowLeftRight, AlertTriangle, Check, X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,376 +19,354 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Loader2, Terminal, Copy, Check } from "lucide-react";
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
-import { useLanguage } from "@/hooks/use-language";
 
-const PERMISSIONS: BotCommandInputPermission[] = ["all", "admin", "owner"];
-
-type FormState = {
-  id: string | null;
-  name: string;
+type BotCommand = {
+  command: string;
+  target: string;
   description: string;
-  permission: BotCommandInputPermission;
-  argumentsText: string;
-  workflow: string;
-  enabled: boolean;
+  admin_only: boolean;
+  is_active: boolean;
+  created_at: string;
 };
 
-const EMPTY_FORM: FormState = {
-  id: null,
-  name: "",
-  description: "",
-  permission: "all",
-  argumentsText: "",
-  workflow: "",
-  enabled: true,
+type Targets = {
+  builtin: Array<{ value: string; label: string }>;
+  panels: Array<{ id: string; title: string }>;
+  forms: Array<{ id: string; title: string }>;
 };
 
-// Split "a, b\nc" → ["a","b","c"] (used for the arguments field).
-function parseArgs(text: string): string[] {
-  return text
-    .split(/[\n,]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+const commandsKey = (botId: string) => ["bot-commands", botId] as const;
+
+function errMessage(err: any, fallback: string): string {
+  return err?.data?.error ?? err?.message ?? fallback;
+}
+function errCode(err: any): string | null {
+  return err?.data?.code ?? null;
+}
+
+/** انتخابگر مقصد — گروه‌بندی‌شده، بدون تایپ دستی uuid. */
+function TargetPicker({
+  value,
+  targets,
+  onChange,
+}: {
+  value: string;
+  targets: Targets | undefined;
+  onChange: (next: string) => void;
+}) {
+  const t = useT("botCommands");
+  const isUrl = value.startsWith("url:");
+
+  return (
+    <div className="space-y-2">
+      <Select value={isUrl ? "__url__" : value || "__none__"} onValueChange={(v) => onChange(v === "__url__" ? "url:https://" : v === "__none__" ? "" : v)}>
+        <SelectTrigger><SelectValue placeholder={t.pickTarget} /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">{t.pickTarget}</SelectItem>
+          {(targets?.builtin.length ?? 0) > 0 && (
+            <SelectGroup>
+              <SelectLabel>{t.targetGroupBuiltin}</SelectLabel>
+              {targets!.builtin.map((b) => (
+                <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+              ))}
+            </SelectGroup>
+          )}
+          {(targets?.panels.length ?? 0) > 0 && (
+            <SelectGroup>
+              <SelectLabel>{t.targetGroupPanels}</SelectLabel>
+              {targets!.panels.map((p) => (
+                <SelectItem key={p.id} value={`panel:${p.id}`}>{p.title || p.id}</SelectItem>
+              ))}
+            </SelectGroup>
+          )}
+          {(targets?.forms.length ?? 0) > 0 && (
+            <SelectGroup>
+              <SelectLabel>{t.targetGroupForms}</SelectLabel>
+              {targets!.forms.map((f) => (
+                <SelectItem key={f.id} value={`form:${f.id}`}>{f.title || f.id}</SelectItem>
+              ))}
+            </SelectGroup>
+          )}
+          <SelectGroup>
+            <SelectLabel>{t.targetGroupOther}</SelectLabel>
+            <SelectItem value="__url__">{t.targetUrl}</SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+
+      {isUrl && (
+        <Input
+          dir="ltr"
+          value={value.slice(4)}
+          onChange={(e) => onChange(`url:${e.target.value}`)}
+          aria-invalid={!/^https:\/\/\S+$/i.test(value.slice(4)) || undefined}
+        />
+      )}
+    </div>
+  );
 }
 
 export function CommandsEditor({ botId }: { botId: string }) {
-  const { lang } = useLanguage();
-  const fa = lang === "fa";
+  const t = useT("botCommands");
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
 
-  const { data: commands, isLoading } = useListCommands(botId);
-  const createCmd = useCreateCommand();
-  const updateCmd = useUpdateCommand();
-  const deleteCmd = useDeleteCommand();
+  const { data, isLoading, error } = useQuery({
+    queryKey: commandsKey(botId),
+    queryFn: () => customFetch<{ commands: BotCommand[]; count: number }>(`/api/bots/${botId}/commands`),
+  });
+  const { data: targets } = useQuery({
+    queryKey: ["bot-command-targets", botId],
+    queryFn: () => customFetch<Targets>(`/api/bots/${botId}/commands/targets`),
+    staleTime: 60_000,
+  });
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [deleting, setDeleting] = useState<BotCommand | null>(null);
-  const [copied, setCopied] = useState(false);
+  const invalidate = () => qc.invalidateQueries({ queryKey: commandsKey(botId) });
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: getListCommandsQueryKey(botId) });
-    queryClient.invalidateQueries({ queryKey: getGetBotQueryKey(botId) });
-  };
-
-  function openCreate() {
-    setForm(EMPTY_FORM);
-    setDialogOpen(true);
-  }
-
-  function openEdit(cmd: BotCommand) {
-    setForm({
-      id: cmd.id,
-      name: cmd.name,
-      description: cmd.description,
-      permission: cmd.permission,
-      argumentsText: (cmd.arguments ?? []).join(", "),
-      workflow: cmd.workflow ?? "",
-      enabled: cmd.enabled ?? true,
-    });
-    setDialogOpen(true);
-  }
-
-  function handleSave() {
-    if (!form.name.trim()) {
-      toast({ variant: "destructive", title: fa ? "نام دستور الزامی است" : "Command name is required" });
-      return;
-    }
-    const args = parseArgs(form.argumentsText);
-    const onDone = (verb: string) => {
+  const create = useMutation({
+    mutationFn: (body: Partial<BotCommand>) =>
+      customFetch<{ command: BotCommand }>(`/api/bots/${botId}/commands`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: invalidate,
+  });
+  const update = useMutation({
+    mutationFn: ({ command, patch }: { command: string; patch: Partial<BotCommand> }) =>
+      customFetch<{ command: BotCommand }>(`/api/bots/${botId}/commands/${command}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
+    onSuccess: invalidate,
+  });
+  const remove = useMutation({
+    mutationFn: (command: string) =>
+      customFetch(`/api/bots/${botId}/commands/${command}`, { method: "DELETE" }),
+    onSuccess: invalidate,
+  });
+  const migrate = useMutation({
+    mutationFn: () =>
+      customFetch<{ migrated: number; skipped: number; invalid: string[]; total: number }>(
+        `/api/bots/${botId}/commands/migrate`,
+        { method: "POST" }
+      ),
+    onSuccess: (result) => {
       invalidate();
-      setDialogOpen(false);
-      toast({ title: verb });
-    };
-    const onError = (err: any) =>
-      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: err?.message });
+      toast({
+        title: t.migrateDone
+          .replace("{migrated}", String(result.migrated))
+          .replace("{skipped}", String(result.skipped)),
+        description: result.invalid.length
+          ? t.migrateInvalid.replace("{names}", result.invalid.join("، "))
+          : undefined,
+      });
+    },
+    onError: (err: any) =>
+      toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
+  });
 
-    if (form.id) {
-      updateCmd.mutate(
-        {
-          botId,
-          commandId: form.id,
-          data: {
-            name: form.name.trim(),
-            description: form.description.trim(),
-            permission: form.permission,
-            arguments: args,
-            workflow: form.workflow.trim() || undefined,
-            enabled: form.enabled,
-          },
-        },
-        { onSuccess: () => onDone(fa ? "دستور به‌روزرسانی شد" : "Command updated"), onError }
-      );
-    } else {
-      createCmd.mutate(
-        {
-          botId,
-          data: {
-            name: form.name.trim(),
-            description: form.description.trim(),
-            permission: form.permission,
-            arguments: args,
-            workflow: form.workflow.trim() || undefined,
-          },
-        },
-        { onSuccess: () => onDone(fa ? "دستور ساخته شد" : "Command created"), onError }
-      );
+  const [createOpen, setCreateOpen] = useState(false);
+  const [draft, setDraft] = useState<Partial<BotCommand>>({ command: "", target: "", description: "", admin_only: false });
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 p-8 text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" /> {t.loading}
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+        {errCode(error) === "no_sheet" ? t.noSheetYet : errMessage(error, t.errorGeneric)}
+      </div>
+    );
+  }
+
+  const commands = data.commands;
+
+  function targetLabel(target: string): string {
+    if (target.startsWith("panel:")) {
+      const panel = targets?.panels.find((p) => p.id === target.slice(6));
+      return t.targetPanelLabel.replace("{name}", panel?.title || target.slice(6));
     }
+    if (target.startsWith("form:")) {
+      const form = targets?.forms.find((f) => f.id === target.slice(5));
+      return t.targetFormLabel.replace("{name}", form?.title || target.slice(5));
+    }
+    if (target.startsWith("url:")) return target.slice(4);
+    return targets?.builtin.find((b) => b.value === target)?.label ?? target;
   }
-
-  function toggleEnabled(cmd: BotCommand, enabled: boolean) {
-    updateCmd.mutate(
-      { botId, commandId: cmd.id, data: { enabled } },
-      { onSuccess: invalidate }
-    );
-  }
-
-  function confirmDelete() {
-    if (!deleting) return;
-    deleteCmd.mutate(
-      { botId, commandId: deleting.id },
-      {
-        onSuccess: () => {
-          invalidate();
-          setDeleting(null);
-          toast({ title: fa ? "دستور حذف شد" : "Command deleted" });
-        },
-        onError: (err: any) =>
-          toast({ variant: "destructive", title: fa ? "خطا در حذف" : "Delete failed", description: err?.message }),
-      }
-    );
-  }
-
-  const saving = createCmd.isPending || updateCmd.isPending;
-
-  // Q5: preview is generated ONLY from the real form fields — never a fabricated
-  // code sample. It updates live as the user types.
-  const preview = {
-    name: form.name.trim() || (fa ? "«بدون نام»" : "«unnamed»"),
-    description: form.description.trim() || null,
-    permission: form.permission,
-    arguments: parseArgs(form.argumentsText),
-    workflow: form.workflow.trim() || null,
-    enabled: form.enabled,
-  };
-  const previewText = JSON.stringify(preview, null, 2);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      {/* List / table */}
-      <div className="lg:col-span-2 space-y-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-lg font-semibold">{fa ? "دستورات ربات" : "Bot commands"}</h3>
-          <Button size="sm" onClick={openCreate} className="w-full sm:w-auto">
-            <Plus className="me-2 h-4 w-4" /> {fa ? "دستور جدید" : "New command"}
-          </Button>
-        </div>
-
-        {isLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-md bg-muted" />)}
-          </div>
-        ) : commands && commands.length > 0 ? (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{fa ? "نام" : "Name"}</TableHead>
-                  <TableHead className="hidden md:table-cell">{fa ? "توضیح" : "Description"}</TableHead>
-                  <TableHead>{fa ? "دسترسی" : "Permission"}</TableHead>
-                  <TableHead>{fa ? "فعال" : "Enabled"}</TableHead>
-                  <TableHead className="text-end">{fa ? "عملیات" : "Actions"}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {commands.map((cmd) => (
-                  <TableRow key={cmd.id}>
-                    <TableCell className="font-mono font-medium">/{cmd.name}</TableCell>
-                    <TableCell className="hidden md:table-cell text-muted-foreground max-w-[220px] truncate">
-                      {cmd.description || "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={cmd.permission === "all" ? "secondary" : "default"}>{cmd.permission}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={cmd.enabled ?? true}
-                        onCheckedChange={(v) => toggleEnabled(cmd, v)}
-                        aria-label="toggle enabled"
-                      />
-                    </TableCell>
-                    <TableCell className="text-end">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(cmd)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeleting(cmd)}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3 rounded-md border border-dashed py-10 text-center">
-            <Terminal className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              {fa ? "هنوز دستوری تعریف نشده است." : "No commands defined yet."}
-            </p>
-            <Button size="sm" variant="outline" onClick={openCreate}>
-              <Plus className="me-2 h-4 w-4" /> {fa ? "افزودن اولین دستور" : "Add your first command"}
-            </Button>
-          </div>
-        )}
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t.sectionDesc}</p>
+        <Button variant="outline" onClick={() => migrate.mutate()} disabled={migrate.isPending}>
+          {migrate.isPending ? <Loader2 className="me-1.5 size-4 animate-spin" /> : <ArrowLeftRight className="me-1.5 size-4" />}
+          {t.migrateCta}
+        </Button>
+        <Button onClick={() => { setDraft({ command: "", target: "", description: "", admin_only: false }); setCreateError(null); setCreateOpen(true); }}>
+          <Plus className="me-1.5 size-4" /> {t.createCta}
+        </Button>
       </div>
 
-      {/* Q5 live preview panel — derived only from the real command object */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-muted-foreground">
-            {fa ? "پیش‌نمایش زنده" : "Live preview"}
-          </h3>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => {
-              navigator.clipboard?.writeText(previewText);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1500);
-            }}
-          >
-            {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-          </Button>
-        </div>
-        <pre dir="ltr" className="max-h-[420px] overflow-auto rounded-md border bg-muted/40 p-3 text-xs leading-relaxed">
-          <code>{previewText}</code>
-        </pre>
-        <p className="text-xs text-muted-foreground">
-          {fa
-            ? "این پیش‌نمایش مستقیماً از فیلدهای همین فرم ساخته می‌شود."
-            : "This preview is generated directly from the fields in this form."}
+      {commands.length === 0 ? (
+        <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+          {t.noCommands}
         </p>
-      </div>
+      ) : (
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full min-w-[38rem] text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="p-2 text-start font-medium">{t.colCommand}</th>
+                <th className="p-2 text-start font-medium">{t.colTarget}</th>
+                <th className="p-2 text-start font-medium">{t.colDescription}</th>
+                <th className="p-2 text-start font-medium">{t.colAdminOnly}</th>
+                <th className="p-2 text-start font-medium">{t.colActive}</th>
+                <th className="p-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {commands.map((cmd) => (
+                <tr key={cmd.command} className="border-t">
+                  <td className="p-2">
+                    <code dir="ltr" className="flex items-center gap-1 font-mono">
+                      <Terminal className="size-3.5 shrink-0 text-muted-foreground" />/{cmd.command}
+                    </code>
+                  </td>
+                  <td className="p-2">
+                    <div className="min-w-0 max-w-48 truncate">
+                      <Badge variant="outline">{targetLabel(cmd.target)}</Badge>
+                    </div>
+                  </td>
+                  <td className="p-2">
+                    <span className="line-clamp-1 text-muted-foreground">{cmd.description || "—"}</span>
+                  </td>
+                  <td className="p-2">
+                    {cmd.admin_only ? <Check className="size-4 text-emerald-500" /> : <X className="size-4 text-muted-foreground" />}
+                  </td>
+                  <td className="p-2">
+                    <Switch
+                      checked={cmd.is_active}
+                      aria-label={t.colActive}
+                      onCheckedChange={(v) =>
+                        update.mutate(
+                          { command: cmd.command, patch: { is_active: v } },
+                          { onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }) }
+                        )
+                      }
+                    />
+                  </td>
+                  <td className="p-2 text-end">
+                    <Button
+                      variant="ghost" size="icon" aria-label={t.deleteCta}
+                      onClick={() =>
+                        remove.mutate(cmd.command, {
+                          onSuccess: () => toast({ title: t.commandDeleted }),
+                          onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
+                        })
+                      }
+                    >
+                      <Trash2 className="size-4 text-destructive" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {/* Create / edit dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+      <p className="flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+        <span>{t.migrateHint}</span>
+      </p>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {form.id ? (fa ? "ویرایش دستور" : "Edit command") : (fa ? "دستور جدید" : "New command")}
-            </DialogTitle>
+            <DialogTitle>{t.createTitle}</DialogTitle>
+            <DialogDescription>{t.createDesc}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-1">
+
+          <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="cmd-name">{fa ? "نام (بدون /)" : "Name (without /)"}</Label>
-              <Input
-                id="cmd-name" dir="ltr" className="font-mono"
-                placeholder="start"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cmd-desc">{fa ? "توضیح" : "Description"}</Label>
-              <Input
-                id="cmd-desc"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>{fa ? "دسترسی" : "Permission"}</Label>
-                <Select
-                  value={form.permission}
-                  onValueChange={(v) => setForm({ ...form, permission: v as BotCommandInputPermission })}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {PERMISSIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+              <Label htmlFor="cmd-name">{t.fieldCommand}</Label>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground" dir="ltr">/</span>
+                <Input
+                  id="cmd-name"
+                  dir="ltr"
+                  value={draft.command ?? ""}
+                  onChange={(e) => { setDraft((p) => ({ ...p, command: e.target.value.replace(/^\//, "") })); setCreateError(null); }}
+                />
               </div>
-              {form.id && (
-                <div className="space-y-1.5">
-                  <Label>{fa ? "فعال" : "Enabled"}</Label>
-                  <div className="flex h-9 items-center">
-                    <Switch checked={form.enabled} onCheckedChange={(v) => setForm({ ...form, enabled: v })} />
-                  </div>
-                </div>
-              )}
+              <p className="text-xs text-muted-foreground">{t.fieldCommandHint}</p>
             </div>
+
             <div className="space-y-1.5">
-              <Label htmlFor="cmd-args">{fa ? "آرگومان‌ها (با کاما جدا کنید)" : "Arguments (comma-separated)"}</Label>
-              <Input
-                id="cmd-args" dir="ltr"
-                placeholder="amount, currency"
-                value={form.argumentsText}
-                onChange={(e) => setForm({ ...form, argumentsText: e.target.value })}
+              <Label>{t.fieldTarget}</Label>
+              <TargetPicker
+                value={draft.target ?? ""}
+                targets={targets}
+                onChange={(target) => { setDraft((p) => ({ ...p, target })); setCreateError(null); }}
               />
             </div>
+
             <div className="space-y-1.5">
-              <Label htmlFor="cmd-workflow">{fa ? "ورک‌فلو (اختیاری)" : "Workflow (optional)"}</Label>
+              <Label htmlFor="cmd-desc">{t.fieldDescription}</Label>
               <Textarea
-                id="cmd-workflow" rows={2}
-                value={form.workflow}
-                onChange={(e) => setForm({ ...form, workflow: e.target.value })}
+                id="cmd-desc" rows={2}
+                value={draft.description ?? ""}
+                onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
               />
             </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <div className="min-w-0">
+                <Label htmlFor="cmd-admin">{t.fieldAdminOnly}</Label>
+                <p className="text-xs text-muted-foreground">{t.fieldAdminOnlyHint}</p>
+              </div>
+              <Switch
+                id="cmd-admin"
+                checked={Boolean(draft.admin_only)}
+                onCheckedChange={(v) => setDraft((p) => ({ ...p, admin_only: v }))}
+              />
+            </div>
+
+            {createError && <p className="text-sm text-destructive">{createError}</p>}
           </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
-              {fa ? "انصراف" : "Cancel"}
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-              {fa ? "ذخیره" : "Save"}
+            <Button
+              disabled={create.isPending}
+              onClick={() =>
+                create.mutate(draft, {
+                  onSuccess: () => {
+                    toast({ title: t.commandCreated });
+                    setCreateOpen(false);
+                  },
+                  onError: (err: any) => setCreateError(errMessage(err, t.errorGeneric)),
+                })
+              }
+            >
+              {create.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+              {t.createCta}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Delete confirm */}
-      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{fa ? "حذف دستور؟" : "Delete command?"}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {fa
-                ? `دستور «/${deleting?.name}» برای همیشه حذف می‌شود.`
-                : `The command “/${deleting?.name}” will be permanently deleted.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteCmd.isPending}>{fa ? "انصراف" : "Cancel"}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
-              disabled={deleteCmd.isPending}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {deleteCmd.isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-              {fa ? "حذف" : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

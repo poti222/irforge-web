@@ -2356,46 +2356,13 @@ router.delete("/bots/:botId/telegram-profile/photo", requireBotOwnership, async 
   }
 });
 
-router.get("/bots/:botId/commands", requireBotOwnership, async (req: any, res) => {
-  try {
-    const cmds = await db.select().from(commandsTable).where(eq(commandsTable.botId, req.params.botId));
-    res.json(cmds.map(c => ({ id: c.id, botId: c.botId, name: c.name, description: c.description, permission: c.permission, arguments: c.arguments, workflow: c.workflow, enabled: c.enabled, createdAt: c.createdAt.toISOString() })));
-  } catch (err) { logger.error({ err }, "List commands error"); res.status(500).json({ error: "Internal server error" }); }
-});
-
-router.post("/bots/:botId/commands", requireBotOwnership, async (req: any, res) => {
-  try {
-    const { name, description, permission, arguments: args, workflow } = req.body;
-    const id = crypto.randomUUID();
-    const [cmd] = await db.insert(commandsTable).values({ id, botId: req.params.botId, name, description: description ?? "", permission: permission ?? "all", arguments: args ?? [], workflow: workflow ?? null, enabled: true }).returning();
-    await db.update(botsTable).set({ commandCount: sql`(SELECT COUNT(*) FROM commands WHERE bot_id = ${req.params.botId})` }).where(eq(botsTable.id, req.params.botId));
-    res.status(201).json({ id: cmd.id, botId: cmd.botId, name: cmd.name, description: cmd.description, permission: cmd.permission, arguments: cmd.arguments, workflow: cmd.workflow, enabled: cmd.enabled, createdAt: cmd.createdAt.toISOString() });
-  } catch (err) { logger.error({ err }, "Create command error"); res.status(500).json({ error: "Internal server error" }); }
-});
-
-router.patch("/bots/:botId/commands/:commandId", requireBotOwnership, async (req: any, res) => {
-  try {
-    const update: Record<string, any> = {};
-    const { name, description, permission, arguments: args, workflow, enabled } = req.body;
-    if (name !== undefined) update.name = name;
-    if (description !== undefined) update.description = description;
-    if (permission !== undefined) update.permission = permission;
-    if (args !== undefined) update.arguments = args;
-    if (workflow !== undefined) update.workflow = workflow;
-    if (enabled !== undefined) update.enabled = enabled;
-    const [cmd] = await db.update(commandsTable).set(update).where(and(eq(commandsTable.id, req.params.commandId), eq(commandsTable.botId, req.params.botId))).returning();
-    if (!cmd) { res.status(404).json({ error: "Command not found" }); return; }
-    res.json({ id: cmd.id, botId: cmd.botId, name: cmd.name, description: cmd.description, permission: cmd.permission, arguments: cmd.arguments, workflow: cmd.workflow, enabled: cmd.enabled, createdAt: cmd.createdAt.toISOString() });
-  } catch (err) { logger.error({ err }, "Update command error"); res.status(500).json({ error: "Internal server error" }); }
-});
-
-router.delete("/bots/:botId/commands/:commandId", requireBotOwnership, async (req: any, res) => {
-  try {
-    await db.delete(commandsTable).where(and(eq(commandsTable.id, req.params.commandId), eq(commandsTable.botId, req.params.botId)));
-    await db.update(botsTable).set({ commandCount: sql`(SELECT COUNT(*) FROM commands WHERE bot_id = ${req.params.botId})` }).where(eq(botsTable.id, req.params.botId));
-    res.status(204).end();
-  } catch (err) { logger.error({ err }, "Delete command error"); res.status(500).json({ error: "Internal server error" }); }
-});
+// ─── کامندهای سفارشی ────────────────────────────────────────────────────────
+// چهار روت `/bots/:botId/commands` که اینجا بودند به `routes/botCommands.ts`
+// منتقل شدند. آن‌ها روی جدول `commands` در Postgres سایت کار می‌کردند، با شکلی
+// که هیچ فیلد مشترکی جز `description` با تب `custom_commands` بات نداشت — یعنی
+// کاربر در سایت کامند می‌ساخت و بات هرگز نمی‌دیدش (باگ B13). حالا منبع حقیقت
+// همان تب شیت است. جدول `commands` حذف نشده؛ فقط دیگر خوانده/نوشته نمی‌شود و
+// `POST /commands/migrate` محتوایش را یک‌بار به شیت می‌برد.
 
 router.get("/bots/:botId/plugins", requireBotOwnership, async (req: any, res) => {
   try {
