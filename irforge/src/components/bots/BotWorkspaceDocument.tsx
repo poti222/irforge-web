@@ -35,6 +35,7 @@ import { PluginsManager } from "@/components/bots/PluginsManager";
 import { BotStatsPanel } from "@/components/bots/BotStatsPanel";
 import { BotSettingsSection } from "@/components/bots/settings/BotSettingsSection";
 import { PanelsSection } from "@/components/bots/panels/PanelsSection";
+import { FormsSection } from "@/components/bots/forms/FormsSection";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
 import type { LocaleShape } from "@/hooks/use-translation";
@@ -94,7 +95,7 @@ const SECTION_GROUPS: SectionGroup[] = [
     labelKey: "groupContent",
     items: [
       { key: "panels", icon: LayoutPanelLeft, labelKey: "sectionPanels" },
-      { key: "forms", icon: FileText, labelKey: "sectionForms", locked: true },
+      { key: "forms", icon: FileText, labelKey: "sectionForms" },
       { key: "commands", icon: Terminal, labelKey: "sectionCommands" },
     ],
   },
@@ -191,6 +192,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
     // Tab state belongs to the section being left, not the one being entered.
     params.delete("tab");
     params.delete("panel");
+    params.delete("form");
     navigate(`/bots/${bot.id}?${params.toString()}`);
   }
 
@@ -296,6 +298,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
               </div>
             )}
             {section === "panels" && <PanelsSection bot={bot} />}
+            {section === "forms" && <FormsSection bot={bot} />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}
