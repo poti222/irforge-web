@@ -9,6 +9,7 @@ import {
   Settings,
   Globe,
   Lock,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
@@ -26,7 +27,7 @@ import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
 import type { LocaleShape } from "@/hooks/use-translation";
 
-type SectionKey = "overview" | "profile" | "commands" | "plugins" | "stats" | "language" | "settings";
+type SectionKey = "overview" | "profile" | "commands" | "plugins" | "stats" | "language" | "management" | "settings";
 
 const SECTION_META: {
   key: SectionKey;
@@ -43,6 +44,8 @@ const SECTION_META: {
   // The standalone /language page is gone; bot language belongs to the bot,
   // not to the account. Shown locked until the per-bot implementation lands.
   { key: "language", icon: Globe, labelKey: "sectionLanguage", locked: true },
+  // New tab — placeholder only for now, no content wired up yet.
+  { key: "management", icon: Wrench, labelKey: "sectionManagement" },
   { key: "settings", icon: Settings, labelKey: "sectionSettings" },
 ];
 
@@ -163,6 +166,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
                 <p className="text-sm text-muted-foreground">{t.languageSectionNotice}</p>
               </div>
             )}
+            {section === "management" && <div />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}
