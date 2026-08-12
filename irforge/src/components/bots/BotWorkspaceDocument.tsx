@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useLocation, useSearch } from "wouter";
 import {
   LayoutDashboard,
   IdCard,
@@ -9,7 +9,17 @@ import {
   Settings,
   Globe,
   Lock,
-  Wrench,
+  LayoutPanelLeft,
+  FileText,
+  Users,
+  ShieldCheck,
+  ShoppingCart,
+  Ticket,
+  Megaphone,
+  LifeBuoy,
+  Boxes,
+  Share2,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
@@ -27,35 +37,128 @@ import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
 import type { LocaleShape } from "@/hooks/use-translation";
 
-type SectionKey = "overview" | "profile" | "commands" | "plugins" | "stats" | "language" | "management" | "settings";
+type SectionKey =
+  | "overview"
+  | "profile"
+  | "stats"
+  | "panels"
+  | "forms"
+  | "commands"
+  | "users"
+  | "admins"
+  | "orders"
+  | "discounts"
+  | "broadcast"
+  | "tickets"
+  | "objects"
+  | "relations"
+  | "workflows"
+  | "plugins"
+  | "language"
+  | "settings";
 
-const SECTION_META: {
+type SectionMeta = {
   key: SectionKey;
   icon: LucideIcon;
   labelKey: keyof LocaleShape["botWorkspace"];
-  /** Rendered but not selectable — the feature has no implementation yet. */
+  /** Rendered but not selectable — the feature has no implementation yet.
+   *  Each migration phase unlocks exactly its own section, nothing else. */
   locked?: boolean;
-}[] = [
-  { key: "overview", icon: LayoutDashboard, labelKey: "sectionOverview" },
-  { key: "profile", icon: IdCard, labelKey: "sectionProfile" },
-  { key: "commands", icon: Terminal, labelKey: "sectionCommands" },
-  { key: "plugins", icon: Blocks, labelKey: "sectionPlugins" },
-  { key: "stats", icon: Activity, labelKey: "sectionStats" },
-  // The standalone /language page is gone; bot language belongs to the bot,
-  // not to the account. Shown locked until the per-bot implementation lands.
-  { key: "language", icon: Globe, labelKey: "sectionLanguage", locked: true },
-  // New tab — placeholder only for now, no content wired up yet.
-  { key: "management", icon: Wrench, labelKey: "sectionManagement" },
-  { key: "settings", icon: Settings, labelKey: "sectionSettings" },
+};
+
+type SectionGroup = {
+  key: string;
+  labelKey: keyof LocaleShape["botWorkspace"];
+  items: SectionMeta[];
+};
+
+/**
+ * The workspace is deliberately split into small, separate sections instead of
+ * one giant page: "build a panel" is not "bot settings" is not "forms". The
+ * groups below mirror how a bot admin actually thinks about their bot.
+ */
+const SECTION_GROUPS: SectionGroup[] = [
+  {
+    key: "overview",
+    labelKey: "groupOverview",
+    items: [
+      { key: "overview", icon: LayoutDashboard, labelKey: "sectionOverview" },
+      { key: "profile", icon: IdCard, labelKey: "sectionProfile" },
+      { key: "stats", icon: Activity, labelKey: "sectionStats" },
+    ],
+  },
+  {
+    key: "content",
+    labelKey: "groupContent",
+    items: [
+      { key: "panels", icon: LayoutPanelLeft, labelKey: "sectionPanels", locked: true },
+      { key: "forms", icon: FileText, labelKey: "sectionForms", locked: true },
+      { key: "commands", icon: Terminal, labelKey: "sectionCommands" },
+    ],
+  },
+  {
+    key: "people",
+    labelKey: "groupPeople",
+    items: [
+      { key: "users", icon: Users, labelKey: "sectionUsers", locked: true },
+      { key: "admins", icon: ShieldCheck, labelKey: "sectionAdmins", locked: true },
+    ],
+  },
+  {
+    key: "sales",
+    labelKey: "groupSales",
+    items: [
+      { key: "orders", icon: ShoppingCart, labelKey: "sectionOrders", locked: true },
+      { key: "discounts", icon: Ticket, labelKey: "sectionDiscounts", locked: true },
+    ],
+  },
+  {
+    key: "comms",
+    labelKey: "groupComms",
+    items: [
+      { key: "broadcast", icon: Megaphone, labelKey: "sectionBroadcast", locked: true },
+      { key: "tickets", icon: LifeBuoy, labelKey: "sectionTickets", locked: true },
+    ],
+  },
+  {
+    key: "advanced",
+    labelKey: "groupAdvanced",
+    items: [
+      { key: "objects", icon: Boxes, labelKey: "sectionObjects", locked: true },
+      { key: "relations", icon: Share2, labelKey: "sectionRelations", locked: true },
+      { key: "workflows", icon: Workflow, labelKey: "sectionWorkflows", locked: true },
+      { key: "plugins", icon: Blocks, labelKey: "sectionPlugins" },
+    ],
+  },
+  {
+    key: "settings",
+    labelKey: "groupSettings",
+    items: [
+      // The standalone /language page is gone; bot language belongs to the bot,
+      // not to the account. Shown locked until the per-bot implementation lands.
+      { key: "language", icon: Globe, labelKey: "sectionLanguage", locked: true },
+      // The gear, always last in the list.
+      { key: "settings", icon: Settings, labelKey: "sectionSettings" },
+    ],
+  },
 ];
+
+const ALL_SECTIONS: SectionMeta[] = SECTION_GROUPS.flatMap((g) => g.items);
+
+function findSection(key: string | null): SectionMeta | undefined {
+  return ALL_SECTIONS.find((s) => s.key === key);
+}
 
 /**
  * Q5: the bot workspace as a single "document" shell — a narrow sidebar for
  * jumping between sections and a main area that hosts each section's real
- * interactive content (Q1's command table + its live preview, Q2's plugin list,
- * Q3's stat cards, Q4's settings form). Sections cross-fade via AnimatePresence
- * (also satisfies W6/Y1), and the direction-aware slide respects RTL. The
- * Commands section carries the live, data-derived preview panel required by Q5.
+ * interactive content. Sections cross-fade via AnimatePresence (also satisfies
+ * W6/Y1), and the direction-aware slide respects RTL.
+ *
+ * The active section lives in the URL (`?section=panels`), not in component
+ * state, so a section is bookmarkable, survives a refresh, and the browser's
+ * back button walks between sections the way a user expects. An unknown or
+ * locked value falls back to `overview` instead of rendering nothing.
  */
 export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
   const { lang } = useLanguage();
@@ -63,7 +166,20 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
   const t = useT("botWorkspace");
   const reduce = useReducedMotion();
   const dir = useMotionDirection();
-  const [section, setSection] = useState<SectionKey>("overview");
+  const [, navigate] = useLocation();
+  const search = useSearch();
+
+  const requested = new URLSearchParams(search).get("section");
+  const match = findSection(requested);
+  // A locked section is not a valid destination either — someone with a stale
+  // bookmark from a future phase shouldn't land on a blank panel.
+  const section: SectionKey = match && !match.locked ? match.key : "overview";
+
+  function goTo(next: SectionKey) {
+    const params = new URLSearchParams(search);
+    params.set("section", next);
+    navigate(`/bots/${bot.id}?${params.toString()}`);
+  }
 
   const nf = (n: number | undefined) => (n ?? 0).toLocaleString(fa ? "fa-IR" : "en-US");
 
@@ -84,36 +200,43 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
 
   return (
     <div className="flex flex-1 flex-col gap-4 min-h-0 md:flex-row">
-      {/* Sidebar section nav — vertical on md+, horizontal scroll on mobile.
-          On md+ it carries the same brand header band as the app sidebar so
-          every sidebar surface in the product reads as the same component.
-          The header is hidden on mobile, where the nav collapses to a single
-          horizontal strip of chips and a 64px logo band would just eat space. */}
+      {/* Sidebar section nav — grouped and vertical on md+, one flat
+          horizontally-scrolling strip of chips on mobile (group headers are
+          hidden there; at 375px a stack of headers would eat the whole
+          viewport before the first item). The header band matches the app
+          sidebar so every sidebar surface reads as the same component. */}
       <nav className="flex shrink-0 flex-col md:w-52">
         <SidebarBrandHeader className="hidden md:flex mb-2" size="sm" />
-        <div className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
-          {SECTION_META.map((s) => {
-            const active = section === s.key;
-            return (
-              <button
-                key={s.key}
-                onClick={() => !s.locked && setSection(s.key)}
-                disabled={s.locked}
-                title={s.locked ? t.comingSoon : undefined}
-                className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors md:w-full ${
-                  s.locked
-                    ? "cursor-not-allowed text-muted-foreground/50"
-                    : active
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <s.icon className="h-4 w-4 shrink-0" />
-                <span>{t[s.labelKey]}</span>
-                {s.locked && <Lock className="ms-auto h-3 w-3 shrink-0" />}
-              </button>
-            );
-          })}
+        <div className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:gap-0 md:overflow-visible md:pb-0">
+          {SECTION_GROUPS.map((group) => (
+            <div key={group.key} className="contents md:block md:mb-3">
+              <div className="hidden md:block px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                {t[group.labelKey]}
+              </div>
+              {group.items.map((s) => {
+                const active = section === s.key;
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => !s.locked && goTo(s.key)}
+                    disabled={s.locked}
+                    title={s.locked ? t.comingSoon : undefined}
+                    className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors md:w-full ${
+                      s.locked
+                        ? "cursor-not-allowed text-muted-foreground/50"
+                        : active
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <s.icon className="h-4 w-4 shrink-0" />
+                    <span>{t[s.labelKey]}</span>
+                    {s.locked && <Lock className="ms-auto h-3 w-3 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </nav>
 
@@ -159,14 +282,6 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
                 </div>
               </div>
             )}
-            {section === "language" && (
-              <div className="rounded-md border border-dashed p-10 text-center">
-                <Globe className="mx-auto mb-3 size-8 text-muted-foreground" />
-                <Badge variant="secondary" className="mb-3">{t.comingSoon}</Badge>
-                <p className="text-sm text-muted-foreground">{t.languageSectionNotice}</p>
-              </div>
-            )}
-            {section === "management" && <div />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}
@@ -175,6 +290,18 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
           </motion.div>
         </AnimatePresence>
       </div>
+    </div>
+  );
+}
+
+/** Placeholder for a section whose phase hasn't landed yet. */
+export function LockedSectionNotice({ label }: { label: string }) {
+  const t = useT("botWorkspace");
+  return (
+    <div className="rounded-md border border-dashed p-10 text-center">
+      <Lock className="mx-auto mb-3 size-8 text-muted-foreground" />
+      <Badge variant="secondary" className="mb-3">{t.comingSoon}</Badge>
+      <p className="text-sm text-muted-foreground">{label}</p>
     </div>
   );
 }

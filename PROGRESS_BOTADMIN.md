@@ -30,7 +30,7 @@ pnpm --filter @workspace/irforge run typecheck
 |---|---|---|---|---|
 | ۰ — ممیزی و راه‌اندازی ردیاب | ✅ | فقط `PROGRESS_BOTADMIN.md` (این فایل). هیچ فایل کدی لمس نشد. | گیت بیلد سه‌گانه روی HEAD (`21f2b3f`) اجرا شد: build سرور ✅، build فرانت ✅، **typecheck ❌ (۲ خطای از قبل موجود)** — بخش «د» ممیزی. | `BUSINESS_DATABASE_URL` روی این محیط ست نیست و هیچ Postgres در دسترس نیست، پس وضعیت واقعی `entity_cutover_flags` روی production **تأیید نشده** — فقط از روی seed migration استنتاج شده (همه `false`). |
 | ۱ — لایه‌ی سرویس `botConfig` + حل کش | ✅ | **جدید:** `api-server/src/lib/botTypes.ts`, `botConfig.ts`, `botCacheBust.ts`, `test/botConfig.test.mjs`. **تغییر:** `api-server/.env.example` (دو متغیر جدید)، `api-server/package.json` (اسکریپت test با tsx)، و رفع دو خطای typecheck از قبل موجود: `irforge/src/components/admin/AllBotsTable.tsx` + کلید `sectionManagement` در ۵ locale. | `pnpm --filter @workspace/api-server run test` → **۱۲ تست سبز**. هر سه گیت بیلد سبز. | cache-bust فقط L2 را پاک می‌کند؛ L1 درون‌پروسسی بات از بیرون قابل دسترسی نیست، پس تأخیر تا ۶۰ ثانیه کاملاً صفر نمی‌شود. `assertSheetsAuthoritative` عمداً fail-open است. |
-| ۲ — پوسته‌ی workspace و ناوبری بات‌ها | ⬜ | — | — | کلید `sectionManagement` در فاز ۱ به هر ۵ locale اضافه شد تا گیت سبز شود؛ این فاز ساختار سکشن‌ها را بازمی‌نویسد. |
+| ۲ — پوسته‌ی workspace و ناوبری بات‌ها | ✅ | `irforge/src/components/bots/BotWorkspaceDocument.tsx` (بازنویسی)، `irforge/src/pages/bots.tsx` (آیکون چرخ‌دنده)، ۵ فایل locale. | گیت بیلد سه‌گانه سبز. تست دستی مسیرها در گزارش فاز. | سکشن `management` حذف شد (فقط `<div />` خالی رندر می‌کرد) و کلید locale‌اش هم برداشته شد. سکشن قفل‌شده حتی با لینک مستقیم باز نمی‌شود و به `overview` برمی‌گردد. |
 | ۳ — API تنظیمات ربات | ⬜ | — | — | — |
 | ۴ — UI تنظیمات ربات (چرخ‌دنده) | ⬜ | — | — | — |
 | ۵ — عضویت اجباری / ساعت کاری / آنتی‌فلاد | ⬜ | — | — | نگاشت روزهای هفته `0=دوشنبه … 6=یکشنبه` (تأییدشده در بخش «ه»، مورد ۱۱). |
@@ -350,3 +350,68 @@ src/components/bots/BotWorkspaceDocument.tsx(48,38): error TS2322:
   یکسان باشد (بات هم timezone-naive می‌نویسد).
 - تست‌ها یک `DATABASE_URL` ساختگی ست می‌کنند چون `@workspace/db` موقع import
   بدون آن throw می‌کند؛ `pg.Pool` تنبل است و هیچ اتصالی برقرار نمی‌شود.
+
+---
+
+## گزارش فاز ۲ — پوسته‌ی workspace و ناوبری بات‌ها
+
+**چه کاری شد**
+
+1. **سکشن فعال حالا در URL است، نه در `useState`.** `BotWorkspaceDocument` با
+   `useSearch()` مقدار `?section=` را می‌خواند و با `navigate()` می‌نویسد. یعنی
+   `/bots/:id?section=panels` مستقیم همان سکشن را باز می‌کند، refresh سکشن را حفظ
+   می‌کند، دکمه‌ی back بین سکشن‌ها حرکت می‌کند و لینک قابل بوکمارک است.
+   مقدار نامعتبر → `overview`. **مقدار قفل‌شده هم → `overview`** (یک بوکمارک از
+   فاز آینده نباید کاربر را روی پنل خالی بیندازد).
+
+2. **سایدبار گروه‌بندی شد** — هفت گروه، دقیقاً طبق بند ۳ فاز:
+
+   | گروه | سکشن‌ها |
+   |---|---|
+   | نمای کلی | `overview`, `profile`, `stats` |
+   | محتوا | `panels` 🔒, `forms` 🔒, `commands` |
+   | کاربران | `users` 🔒, `admins` 🔒 |
+   | فروش | `orders` 🔒, `discounts` 🔒 |
+   | ارتباط | `broadcast` 🔒, `tickets` 🔒 |
+   | پیشرفته | `objects` 🔒, `relations` 🔒, `workflows` 🔒, `plugins` |
+   | تنظیمات | `language` 🔒, `settings` (چرخ‌دنده، ته لیست) |
+
+   ۱۱ سکشن جدید با `locked: true` و آیکون قفل + tooltip «به‌زودی» اضافه شدند.
+   **در هر فاز بعدی فقط سکشن خودش unlock می‌شود.**
+
+3. **آیکون چرخ‌دنده** در کارت هر بات در `/bots`، کنار دکمه‌ی «مدیریت»، مستقیم به
+   `/bots/:id?section=settings` (`aria-label` و `title` هر دو از locale).
+
+4. **موبایل:** روی md+ گروه‌ها با هدرِ گروه عمودی‌اند؛ زیر md کل لیست به یک نوار
+   افقی اسکرول‌شونده از چیپ‌ها تبدیل می‌شود و هدرهای گروه پنهان می‌شوند (روی ۳۷۵px
+   یک استک از هدرها کل ویوپورت را قبل از اولین آیتم می‌خورد). این با
+   `.contents md:block` انجام شد تا در حالت موبایل گروه‌بندی از DOM محو شود بدون
+   دوبار رندر کردن لیست.
+
+5. **کامنت `AnimatePresence` دست‌نخورده ماند** (باگ `mode="wait"` که قبلاً حل شده).
+
+6. **همه‌ی labelها در هر ۵ locale**: ۷ کلید گروه + ۱۱ کلید سکشن جدید +
+   `botSettingsShortcut`.
+
+**تغییری که در پرامپت نبود ولی لازم بود:** سکشن `management` حذف شد. آن سکشن فقط
+`{section === "management" && <div />}` رندر می‌کرد — یک placeholder خالی که در
+ساختار گروه‌بندی‌شده‌ی جدید جایی ندارد و هیچ فازی هم قرار نیست پرش کند. کلید
+`sectionManagement` که در فاز ۱ (فقط برای سبز کردن گیت) به ۵ locale اضافه شده بود،
+حالا از هر ۵ فایل برداشته شد.
+
+**تست دستی مسیرها**
+
+| سناریو | نتیجه |
+|---|---|
+| `/bots/:id` بدون query | `overview` |
+| `/bots/:id?section=commands` | مستقیم سکشن کامندها |
+| `/bots/:id?section=settings` (از چرخ‌دنده) | مستقیم تنظیمات |
+| `?section=panels` (هنوز قفل) | برمی‌گردد به `overview` |
+| `?section=chelseafc` (نامعتبر) | برمی‌گردد به `overview` |
+| refresh روی هر سکشن | همان سکشن می‌ماند |
+| کلیک روی سکشن قفل‌شده | غیرفعال، tooltip «به‌زودی» |
+
+چیدمان در fa (RTL) و en (LTR) هر دو با `ms-*`/`me-*` نوشته شده (آیکون قفل با
+`ms-auto` در هر دو جهت درست می‌نشیند).
+
+**گیت بیلد** — هر سه سبز.

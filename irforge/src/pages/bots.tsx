@@ -1,7 +1,7 @@
 import { useListBots } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Bot as BotIcon, ArrowRight, Gift } from "lucide-react";
+import { Plus, Bot as BotIcon, ArrowRight, Gift, Settings } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/hooks/use-language";
@@ -103,10 +103,18 @@ export default function Bots() {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="pt-0 border-t mt-4">
-                <Button variant="ghost" className="w-full mt-4" asChild>
+              <CardFooter className="pt-0 border-t mt-4 gap-2">
+                <Button variant="ghost" className="flex-1 mt-4" asChild>
                   <Link href={`/bots/${bot.id}`}>
                     {t.manageBot} <ArrowRight className="ms-2 h-4 w-4 rtl-flip" />
+                  </Link>
+                </Button>
+                {/* Straight to the gear — the settings section is where most
+                    return visits go, and the workspace reads the section from
+                    the URL, so this deep link lands exactly there. */}
+                <Button variant="ghost" size="icon" className="mt-4 shrink-0" asChild title={t.botSettingsShortcut}>
+                  <Link href={`/bots/${bot.id}?section=settings`} aria-label={t.botSettingsShortcut}>
+                    <Settings className="h-4 w-4" />
                   </Link>
                 </Button>
               </CardFooter>
