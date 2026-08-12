@@ -106,7 +106,13 @@ export default function Login() {
         method: "POST",
         body: JSON.stringify({ challengeId, code: entered }),
       });
-      localStorage.setItem("token", res.token);
+      // Must match the key `customFetch`'s auth-token getter reads in main.tsx
+      // ("irforge_token") — writing to a different key here means every
+      // request after login silently goes out with no Authorization header,
+      // and the server 401s ("Unauthorized") on the very next authenticated
+      // call (e.g. connecting Telegram, starting a bot trial) even though the
+      // UI still shows the user as signed in.
+      localStorage.setItem("irforge_token", res.token);
       queryClient.setQueryData(getGetMeQueryKey(), res.user);
       navigate("/dashboard");
     } catch (err: any) {
