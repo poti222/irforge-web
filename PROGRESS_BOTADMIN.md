@@ -31,7 +31,7 @@ pnpm --filter @workspace/irforge run typecheck
 | ۰ — ممیزی و راه‌اندازی ردیاب | ✅ | فقط `PROGRESS_BOTADMIN.md` (این فایل). هیچ فایل کدی لمس نشد. | گیت بیلد سه‌گانه روی HEAD (`21f2b3f`) اجرا شد: build سرور ✅، build فرانت ✅، **typecheck ❌ (۲ خطای از قبل موجود)** — بخش «د» ممیزی. | `BUSINESS_DATABASE_URL` روی این محیط ست نیست و هیچ Postgres در دسترس نیست، پس وضعیت واقعی `entity_cutover_flags` روی production **تأیید نشده** — فقط از روی seed migration استنتاج شده (همه `false`). |
 | ۱ — لایه‌ی سرویس `botConfig` + حل کش | ✅ | **جدید:** `api-server/src/lib/botTypes.ts`, `botConfig.ts`, `botCacheBust.ts`, `test/botConfig.test.mjs`. **تغییر:** `api-server/.env.example` (دو متغیر جدید)، `api-server/package.json` (اسکریپت test با tsx)، و رفع دو خطای typecheck از قبل موجود: `irforge/src/components/admin/AllBotsTable.tsx` + کلید `sectionManagement` در ۵ locale. | `pnpm --filter @workspace/api-server run test` → **۱۲ تست سبز**. هر سه گیت بیلد سبز. | cache-bust فقط L2 را پاک می‌کند؛ L1 درون‌پروسسی بات از بیرون قابل دسترسی نیست، پس تأخیر تا ۶۰ ثانیه کاملاً صفر نمی‌شود. `assertSheetsAuthoritative` عمداً fail-open است. |
 | ۲ — پوسته‌ی workspace و ناوبری بات‌ها | ✅ | `irforge/src/components/bots/BotWorkspaceDocument.tsx` (بازنویسی)، `irforge/src/pages/bots.tsx` (آیکون چرخ‌دنده)، ۵ فایل locale. | گیت بیلد سه‌گانه سبز. تست دستی مسیرها در گزارش فاز. | سکشن `management` حذف شد (فقط `<div />` خالی رندر می‌کرد) و کلید locale‌اش هم برداشته شد. سکشن قفل‌شده حتی با لینک مستقیم باز نمی‌شود و به `overview` برمی‌گردد. |
-| ۳ — API تنظیمات ربات | ⬜ | — | — | — |
+| ۳ — API تنظیمات ربات | ✅ | **جدید:** `api-server/src/routes/botSettings.ts`. **تغییر:** `api-server/src/routes/index.ts` (ثبت روتر). | build سرور سبز. ولیدیشن‌ها در گزارش فاز فهرست شده‌اند. | whitelist صریح است: هر کلید ناشناخته در body بی‌سروصدا دور ریخته می‌شود، نه ذخیره. |
 | ۴ — UI تنظیمات ربات (چرخ‌دنده) | ⬜ | — | — | — |
 | ۵ — عضویت اجباری / ساعت کاری / آنتی‌فلاد | ⬜ | — | — | نگاشت روزهای هفته `0=دوشنبه … 6=یکشنبه` (تأییدشده در بخش «ه»، مورد ۱۱). |
 | ۶ — API پنل‌ها (CRUD پایه) | ⬜ | — | — | شکل واقعی مدیای پنل با متن پرامپت فرق دارد — بخش «ه»، موارد ۱ و ۲. |
@@ -415,3 +415,62 @@ src/components/bots/BotWorkspaceDocument.tsx(48,38): error TS2322:
 `ms-auto` در هر دو جهت درست می‌نشیند).
 
 **گیت بیلد** — هر سه سبز.
+
+---
+
+## گزارش فاز ۳ — API تنظیمات ربات
+
+**فایل جدید:** `api-server/src/routes/botSettings.ts` — در `routes/index.ts` ثبت
+شد، **بعد از** `botsRouter` تا یک روت عمومی‌تر در `bots.ts` زودتر مسیرهای
+`/bots/:botId/settings/*` را نبلعد.
+
+| متد | مسیر | کار |
+|---|---|---|
+| GET | `/api/bots/:botId/settings` | `BotSettings` کامل با پیش‌فرض‌ها |
+| PATCH | `/api/bots/:botId/settings` | آپدیت partial با whitelist |
+| GET | `/api/bots/:botId/settings/channels` | لیست کانال‌ها + `force_join_message` |
+| POST | `/api/bots/:botId/settings/channels` | افزودن کانال |
+| DELETE | `/api/bots/:botId/settings/channels/:idx` | حذف با ایندکس |
+| PUT | `/api/bots/:botId/settings/working-hours` | `WorkingHours` کامل |
+| PUT | `/api/bots/:botId/settings/anti-flood` | `AntiFlood` کامل |
+
+**دسترسی (باگ B3):** هیچ روتی بدون کنترل مالکیت نیست — همه از `resolveBotSheet`
+رد می‌شوند که ۴۰۴ («این بات پیدا نشد یا مال شما نیست») و ۴۰۹ («هنوز شیت اختصاصی
+ندارد») می‌دهد و سوپرادمین را عبور می‌دهد. برخلاف بات که سه هندلر
+`pb:ef:title`/`content`/`media` هیچ چک ادمینی ندارند، اینجا استثنا وجود ندارد.
+
+**ولیدیشن سمت سرور — هر کدام با پیام فارسی مشخص، هیچ‌کدام «Internal server error»:**
+
+| قانون | پیام |
+|---|---|
+| `open_time`/`close_time` = `HH:MM` ۲۴ساعته | «باید به شکل ساعت ۲۴ساعته باشد، مثلاً 09:00 یا 21:30» |
+| `days` آرایه‌ی ۰..۶ | «نباید کمتر از ۰ / بیشتر از ۶ باشد» |
+| `days` بدون تکرار | «روزهای هفته نباید تکراری باشند» |
+| `max_messages` ≥ ۱ | «مقدار «max_messages» نباید کمتر از ۱ باشد» |
+| `interval_seconds` ≥ ۱ | همان الگو |
+| `ban_duration_seconds` ≥ ۰ | همان الگو |
+| کانال با `@` یا آی‌دی عددی منفی | «باید با @ شروع شود (مثل @mychannel) یا یک آی‌دی عددی منفی باشد» |
+| کانال تکراری | ۴۰۹ «این کانال از قبل در لیست هست» (مقایسه case-insensitive) |
+| طول پیام ≤ ۴۰۰۰ | «طول «…» از ۴۰۰۰ کاراکتر بیشتر است (سقف تلگرام)» |
+| `home_panel_id` باید پنل موجود باشد | ۴۰۰ با کد `panel_not_found`، بعد از خواندن واقعی تب `panels` |
+| زبان از لیست پشتیبانی‌شده | «زبان «xx» پشتیبانی نمی‌شود…» |
+| یوزرنیم پشتیبانی | «۵ تا ۳۲ کاراکتر انگلیسی/عدد/زیرخط» |
+
+**فیلد ناشناخته:** `PATCHABLE_FIELDS` یک whitelist صریح است؛ هر کلید دیگری در
+body **نادیده گرفته می‌شود، نه ذخیره**. بدون این، یک کلاینت می‌توانست
+`__plugin_states__` یا هر کلید دلخواهی را در تب تنظیمات بات بنویسد. اگر بعد از
+فیلتر هیچ فیلد معتبری نماند، ۴۰۰ با کد `empty_patch` برمی‌گردد.
+
+**cache-bust:** هر مسیر نوشتن از `patchSettings` می‌گذرد که خودش بعد از نوشتن
+`bustTabCache` می‌زند — قابل فراموش‌کردن نیست چون روت اصلاً دسترسی مستقیم به
+`tenantSheets` ندارد.
+
+**cutover:** هر سه مسیر نوشتن اول `assertSheetsAuthoritative("bot_settings")` را
+صدا می‌زنند؛ اگر آن entity به Postgres مهاجرت کرده باشد، ۴۰۹ با کد
+`entity_on_postgres` برمی‌گردد به‌جای اینکه کاربر فکر کند ذخیره شد.
+
+**متادیتای پاسخ:** `GET`/`PATCH` علاوه بر `settings` یک فیلد `cacheBust: boolean`
+برمی‌گردانند تا UI فاز ۴ بتواند بنر درست را نشان دهد («چند ثانیه» وقتی cache-bust
+فعال است، «تا حدود یک دقیقه» وقتی نیست) به‌جای اینکه عدد را حدس بزند.
+
+**گیت بیلد:** build سرور سبز.
