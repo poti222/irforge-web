@@ -36,6 +36,7 @@ import botMediaRouter from "./botMedia.js";
 import botFormsRouter from "./botForms.js";
 import botCommandsRouter from "./botCommands.js";
 import botAdminsRouter from "./botAdmins.js";
+import botUsersRouter from "./botUsers.js";
 
 const router: IRouter = Router();
 
@@ -71,5 +72,6 @@ router.use(botMediaRouter);
 router.use(botFormsRouter);
 router.use(botCommandsRouter);
 router.use(botAdminsRouter);
+router.use(botUsersRouter);
 
 export default router;

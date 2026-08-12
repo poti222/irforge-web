@@ -37,6 +37,7 @@ import { BotSettingsSection } from "@/components/bots/settings/BotSettingsSectio
 import { PanelsSection } from "@/components/bots/panels/PanelsSection";
 import { FormsSection } from "@/components/bots/forms/FormsSection";
 import { AdminsSection } from "@/components/bots/admins/AdminsSection";
+import { UsersSection } from "@/components/bots/users/UsersSection";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
 import type { LocaleShape } from "@/hooks/use-translation";
@@ -104,7 +105,7 @@ const SECTION_GROUPS: SectionGroup[] = [
     key: "people",
     labelKey: "groupPeople",
     items: [
-      { key: "users", icon: Users, labelKey: "sectionUsers", locked: true },
+      { key: "users", icon: Users, labelKey: "sectionUsers" },
       { key: "admins", icon: ShieldCheck, labelKey: "sectionAdmins" },
     ],
   },
@@ -301,6 +302,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "panels" && <PanelsSection bot={bot} />}
             {section === "forms" && <FormsSection bot={bot} />}
             {section === "admins" && <AdminsSection bot={bot} />}
+            {section === "users" && <UsersSection bot={bot} />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}
