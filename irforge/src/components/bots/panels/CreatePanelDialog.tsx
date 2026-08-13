@@ -2,10 +2,18 @@
  * CreatePanelDialog.tsx — ساخت پنل، مرحله‌ای ولی **در یک دیالوگ**.
  *
  * در بات، ساخت پنل یک FSM چندپیامی است: عنوان بفرست، نوع را انتخاب کن، محتوا
- * بفرست… و اگر وسط کار بروی، همه‌چیز می‌پرد. اینجا هر چهار مرحله در یک دیالوگ
+ * بفرست… و اگر وسط کار بروی، همه‌چیز می‌پرد. اینجا هر سه مرحله در یک دیالوگ
  * زندگی می‌کنند، عقب‌وجلو رفتن آزاد است و تا لحظه‌ی «ساخت» چیزی به سرور نمی‌رود.
+ *
+ * فاز ۲ (اسپک panel-builder): مرحلهٔ «نوع» را فاز ۱ حذف کرد؛ اینجا آپلودگر
+ * واقعی (`MediaList`) وصل می‌شود و `type` قبل از submit خودکار محاسبه می‌شود:
+ *   فقط متن → text | ۱ عکس → photo | چند عکس → carousel
+ *   ویدیو → video | صوت → audio | فایل → document
+ *   نه متن نه مدیا → جلوی submit گرفته می‌شود.
+ * انواع خاص (form/sell/پلاگینی) که با این منطق حدس‌زدنی نیستند پشت دکمهٔ
+ * ثانویهٔ «نوع خاص…» می‌مانند و فقط با انتخاب صریح کاربر فعال می‌شوند.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, ChevronRight, ChevronLeft } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -20,9 +28,14 @@ import {
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage, useCreatePanel, type Panel, type PanelCatalog } from "./api";
+import { MediaList, type MediaKind } from "./MediaList";
+import { panelTypeLabel } from "./labels";
 
 const STEPS = ["title", "content", "parent"] as const;
 type Step = (typeof STEPS)[number];
+
+/** نوع‌هایی که از روی متن/مدیا خودکار حدس زده می‌شوند؛ بقیه‌ی catalog.panelTypes «خاص» هستند. */
+const AUTO_GUESSABLE_TYPES = ["text", "photo", "carousel", "video", "audio", "document"];
 
 export function CreatePanelDialog({
   botId,
@@ -45,24 +58,32 @@ export function CreatePanelDialog({
 
   const [step, setStep] = useState<Step>("title");
   const [title, setTitle] = useState("");
-  const [type, setType] = useState("text");
   const [content, setContent] = useState("");
-  const [mediaFileId, setMediaFileId] = useState("");
+  const [mediaIds, setMediaIds] = useState<string[]>([]);
+  const [mediaKind, setMediaKind] = useState<MediaKind | null>(null);
   const [parentId, setParentId] = useState<string>("");
   const [fieldError, setFieldError] = useState<string | null>(null);
 
-  // types/textOnly/needsMedia حذف شدن: انتخاب نوع دیگه دستی نیست (فاز ۱).
-  // catalog همچنان به‌عنوان prop نگه داشته می‌شه، چون در فاز ۲ برای تشخیص
-  // خودکار type و نوع‌های خاص («فرم»/«فروش»/پلاگینی) لازم می‌شه.
+  // نوع خاص (form/sell/پلاگینی): پیش‌فرض بسته است، فقط با کلیک روی «نوع
+  // خاص…» باز می‌شود. وقتی مقدار دارد، جای تشخیص خودکار را می‌گیرد.
+  const [showSpecialType, setShowSpecialType] = useState(false);
+  const [specialType, setSpecialType] = useState<string>("");
+
+  const specialTypes = useMemo(
+    () => (catalog?.panelTypes ?? []).filter((x) => !AUTO_GUESSABLE_TYPES.includes(x)),
+    [catalog]
+  );
 
   function reset() {
     setStep("title");
     setTitle("");
-    setType("text");
     setContent("");
-    setMediaFileId("");
+    setMediaIds([]);
+    setMediaKind(null);
     setParentId("");
     setFieldError(null);
+    setShowSpecialType(false);
+    setSpecialType("");
   }
 
   function next() {
@@ -82,10 +103,34 @@ export function CreatePanelDialog({
     if (index > 0) setStep(STEPS[index - 1]);
   }
 
+  /** تشخیص خودکار type از روی محتوا/مدیا، مگر اینکه یک «نوع خاص» صریحاً انتخاب شده باشد. */
+  function resolveType(): { type: string; error: string | null } {
+    if (specialType) return { type: specialType, error: null };
+
+    const hasText = content.trim().length > 0;
+    const hasMedia = mediaIds.length > 0;
+
+    if (!hasText && !hasMedia) {
+      // TODO(فاز ۳): این پیام باید یک کلید i18n بگیرد.
+      return { type: "", error: "یا متنی بنویس، یا مدیایی اضافه کن." };
+    }
+    if (hasMedia && mediaKind) {
+      if (mediaKind === "photo") return { type: mediaIds.length > 1 ? "carousel" : "photo", error: null };
+      return { type: mediaKind, error: null }; // video/audio/document نامشون دقیقاً با type یکیه
+    }
+    return { type: "text", error: null };
+  }
+
   function submit() {
     if (!title.trim()) {
       setStep("title");
       setFieldError(t.errorTitleRequired);
+      return;
+    }
+    const { type, error } = resolveType();
+    if (error) {
+      setStep("content");
+      setFieldError(error);
       return;
     }
     create.mutate(
@@ -93,7 +138,9 @@ export function CreatePanelDialog({
         title: title.trim(),
         type,
         content,
-        media_file_id: mediaFileId.trim(),
+        // مدیای اول برای پیام تکی، لیست کامل برای کاروسل — همان قراردادِ PanelEditor.
+        media_file_id: mediaIds[0] ?? "",
+        ...(type === "carousel" ? { settings: { carousel_ids: mediaIds } } : {}),
         parent_id: parentId || null,
       },
       {
@@ -149,13 +196,46 @@ export function CreatePanelDialog({
                 <Label htmlFor="cp-content">{t.fieldContent}</Label>
                 <Textarea id="cp-content" rows={4} value={content} onChange={(e) => setContent(e.target.value)} />
               </div>
+
               <div className="space-y-1.5">
-                <Label htmlFor="cp-media">{t.fieldMediaFileId}</Label>
-                {/* placeholder آپلودگر — در فاز ۲ با MediaList واقعی جایگزین می‌شود
-                    و type بر اساس محتوای واردشده خودکار محاسبه خواهد شد. */}
-                <Input id="cp-media" dir="ltr" className="font-mono text-sm" value={mediaFileId} onChange={(e) => setMediaFileId(e.target.value)} />
+                <Label>{t.fieldMediaList}</Label>
+                <MediaList
+                  botId={botId}
+                  fileIds={mediaIds}
+                  multiple
+                  onChange={setMediaIds}
+                  onKindChange={setMediaKind}
+                />
                 <p className="text-xs text-muted-foreground">{t.fieldMediaHint}</p>
               </div>
+
+              {!showSpecialType ? (
+                <Button
+                  type="button" variant="link" size="sm" className="h-auto p-0 text-xs text-muted-foreground"
+                  onClick={() => setShowSpecialType(true)}
+                >
+                  {/* TODO(فاز ۳): این متن باید یک کلید i18n بگیرد. */}
+                  نوع خاص… (فرم، فروش و مشابه)
+                </Button>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="cp-special-type">{t.fieldType}</Label>
+                  <Select
+                    value={specialType || "__auto__"}
+                    onValueChange={(v) => setSpecialType(v === "__auto__" ? "" : v)}
+                  >
+                    <SelectTrigger id="cp-special-type"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {/* TODO(فاز ۳): این متن باید یک کلید i18n بگیرد. */}
+                      <SelectItem value="__auto__">تشخیص خودکار</SelectItem>
+                      {specialTypes.map((x) => (
+                        <SelectItem key={x} value={x}>{panelTypeLabel(t, x)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">{t.fieldTypeHint}</p>
+                </div>
+              )}
             </div>
           )}
 
