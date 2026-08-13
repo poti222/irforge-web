@@ -51,7 +51,7 @@ import {
   readKV,
   registrySheetId,
 } from "../lib/sheetsSync";
-import { renameSpreadsheet, sheetIsAccessible } from "../lib/sheets";
+import { renameSpreadsheet, sheetIsAccessible, resetSpreadsheet } from "../lib/sheets";
 import { readTabRows } from "../lib/tenantSheets.js";
 import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
 import { createNotification, formatTomanFa } from "../lib/notify";
@@ -121,10 +121,19 @@ async function purgeBotFully(
   syncTenantDelete(plainToken);
 
   if (bot.sheetId) {
-    // BUG FIX: این فقط رجیستری گوگل‌شیت رو آزاد می‌کرد، نه ردیف واقعی
-    // sheet_pool توی Postgres — در نتیجه بعد از حذف بات (چه دستی، چه با
-    // expiry، چه توسط خود کاربر)، شیت توی پنل همچنان "assigned" می‌موند و
-    // نه قابل استفاده‌ی مجدد بود نه قابل حذف. حالا هر دو رو آزاد می‌کنیم.
+    // BUG FIX: قبلاً فقط رجیستری/وضعیت Postgres آزاد می‌شد ولی خودِ
+    // گوگل‌شیت پاک نمی‌شد، پس بات بعدی که این شیت بهش assign می‌شد
+    // تب‌ها و دیتای بات قبلی رو می‌دید. حالا قبل از available کردن،
+    // خودِ شیت کاملاً ریست می‌شه (انگار تازه ساخته شده).
+    try {
+      await resetSpreadsheet(bot.sheetId);
+    } catch (err) {
+      logger.error(
+        { err, sheetId: bot.sheetId },
+        "resetSpreadsheet failed during bot purge — sheet may still contain previous tenant's data, do NOT reassign without manual check"
+      );
+    }
+
     await db
       .update(sheetPoolTable)
       .set({ status: "available", assignedBotId: null })
@@ -1403,6 +1412,18 @@ router.post("/sheet-pool/:id/release", requireSuperAdmin, async (req: any, res) 
     const [entry] = await db.select().from(sheetPoolTable).where(eq(sheetPoolTable.id, id)).limit(1);
     if (!entry) {
       res.status(404).json({ error: "Sheet not found" });
+      return;
+    }
+
+    // BUG FIX: قبلاً این دکمه فقط وضعیت رو "available" می‌کرد ولی دیتای
+    // واقعی توی گوگل‌شیت پاک نمی‌شد. حالا اول خودِ شیت ریست می‌شه؛ اگه
+    // ریست fail بشه، شیت اصلاً available نمی‌شه که یه شیت کثیف دوباره
+    // به یه بات جدید داده نشه.
+    try {
+      await resetSpreadsheet(entry.sheetId);
+    } catch (err) {
+      logger.error({ err, sheetId: entry.sheetId }, "resetSpreadsheet failed during manual release");
+      res.status(500).json({ error: "Failed to clear the sheet's data. Sheet was NOT released." });
       return;
     }
 
