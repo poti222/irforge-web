@@ -19,9 +19,10 @@ import {
   listTabs,
   addTab,
   quoteTab,
+  ensureAllTenantTabs,
 } from "./sheets.js";
 
-export { listTabs, addTab };
+export { listTabs, addTab, ensureAllTenantTabs };
 
 export type TenantRow = {
   key: string;
