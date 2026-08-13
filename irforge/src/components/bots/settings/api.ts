@@ -30,6 +30,7 @@ export type AntiFlood = {
 export type BotSettings = {
   language: string;
   welcome_msg: string;
+  welcome_enabled: boolean;
   error_msg: string;
   not_found_msg: string;
   panel_inactive_msg: string;

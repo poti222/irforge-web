@@ -1135,6 +1135,8 @@
     "lang_tr": "التركية",
     "lang_ar": "العربية",
     "lang_ru": "الروسية",
+    "welcomeEnabled": "رسالة الترحيب",
+    "welcomeEnabledHint": "عند إيقافها، يرى المستخدم اللوحة الرئيسية مباشرة بعد /start.",
     "watermarkEnabled": "العلامة المائية",
     "watermarkHint": "نص يُضاف إلى نهاية رسائل البوت.",
     "watermarkPlaceholder": "مثلاً: صُنع بواسطة IrForge",

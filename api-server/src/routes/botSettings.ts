@@ -55,13 +55,14 @@ const PATCHABLE_FIELDS = [
   "watermark",
   "watermark_enabled",
   "maintenance",
+  "welcome_enabled",
   "home_panel_id",
   "support_username",
   "currency",
   "payment_info",
 ] as const;
 
-const BOOLEAN_FIELDS = new Set(["watermark_enabled", "maintenance"]);
+const BOOLEAN_FIELDS = new Set(["watermark_enabled", "maintenance", "welcome_enabled"]);
 const MESSAGE_FIELDS = new Set<string>(SETTINGS_MESSAGE_FIELDS);
 
 // ─── helpers ────────────────────────────────────────────────────────────────

@@ -1135,6 +1135,8 @@
     "lang_tr": "ترکی",
     "lang_ar": "عربی",
     "lang_ru": "روسی",
+    "welcomeEnabled": "پیام خوش‌آمد",
+    "welcomeEnabledHint": "وقتی خاموش باشد، کاربر بعد از /start مستقیم پنل خانه را می‌بیند.",
     "watermarkEnabled": "واترمارک",
     "watermarkHint": "متنی که ته پیام‌های بات اضافه می‌شود.",
     "watermarkPlaceholder": "مثلاً: ساخته‌شده با IrForge",
