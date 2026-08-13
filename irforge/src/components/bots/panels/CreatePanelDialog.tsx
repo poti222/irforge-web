@@ -20,9 +20,8 @@ import {
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage, useCreatePanel, type Panel, type PanelCatalog } from "./api";
-import { panelTypeLabel } from "./labels";
 
-const STEPS = ["title", "type", "content", "parent"] as const;
+const STEPS = ["title", "content", "parent"] as const;
 type Step = (typeof STEPS)[number];
 
 export function CreatePanelDialog({
@@ -52,9 +51,9 @@ export function CreatePanelDialog({
   const [parentId, setParentId] = useState<string>("");
   const [fieldError, setFieldError] = useState<string | null>(null);
 
-  const types = catalog?.panelTypes ?? ["text"];
-  const textOnly = catalog?.textOnlyTypes ?? ["text", "form", "sell"];
-  const needsMedia = !textOnly.includes(type);
+  // types/textOnly/needsMedia حذف شدن: انتخاب نوع دیگه دستی نیست (فاز ۱).
+  // catalog همچنان به‌عنوان prop نگه داشته می‌شه، چون در فاز ۲ برای تشخیص
+  // خودکار type و نوع‌های خاص («فرم»/«فروش»/پلاگینی) لازم می‌شه.
 
   function reset() {
     setStep("title");
@@ -144,36 +143,19 @@ export function CreatePanelDialog({
             </div>
           )}
 
-          {step === "type" && (
-            <div className="space-y-1.5">
-              <Label htmlFor="cp-type">{t.fieldType}</Label>
-              <Select value={type} onValueChange={setType}>
-                <SelectTrigger id="cp-type"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {types.map((x) => (
-                    <SelectItem key={x} value={x}>{panelTypeLabel(t, x)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">{t.fieldTypeHint}</p>
-            </div>
-          )}
-
           {step === "content" && (
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="cp-content">{t.fieldContent}</Label>
                 <Textarea id="cp-content" rows={4} value={content} onChange={(e) => setContent(e.target.value)} />
               </div>
-              {needsMedia && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="cp-media">{t.fieldMediaFileId}</Label>
-                  <Input id="cp-media" dir="ltr" className="font-mono text-sm" value={mediaFileId} onChange={(e) => setMediaFileId(e.target.value)} />
-                  {/* آپلود واقعی در ویرایشگر پنل هست؛ اینجا عمداً ساده نگه داشته
-                      شده تا دیالوگ ساخت سنگین نشود. */}
-                  <p className="text-xs text-muted-foreground">{t.fieldMediaHint}</p>
-                </div>
-              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="cp-media">{t.fieldMediaFileId}</Label>
+                {/* placeholder آپلودگر — در فاز ۲ با MediaList واقعی جایگزین می‌شود
+                    و type بر اساس محتوای واردشده خودکار محاسبه خواهد شد. */}
+                <Input id="cp-media" dir="ltr" className="font-mono text-sm" value={mediaFileId} onChange={(e) => setMediaFileId(e.target.value)} />
+                <p className="text-xs text-muted-foreground">{t.fieldMediaHint}</p>
+              </div>
             </div>
           )}
 
