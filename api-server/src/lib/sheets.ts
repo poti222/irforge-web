@@ -216,6 +216,59 @@ export async function clearSheet(
   }
 }
 
+/**
+ * یک اسپردشیت رو کاملاً ریست می‌کنه: همه‌ی تب‌های موجود رو حذف می‌کنه و
+ * فقط یه تب خالی به اسم "Sheet1" جاش می‌ذاره — دقیقاً مثل حالتی که یه
+ * اسپردشیت تازه ساخته شده. برای جلوگیری از نشت دیتای بات قبلی به بات
+ * بعدی، هر جا شیتی از یه بات آزاد می‌شه (حذف بات یا release دستی توسط
+ * سوپرادمین) باید این تابع صدا زده بشه.
+ */
+export async function resetSpreadsheet(spreadsheetId: string): Promise<void> {
+  try {
+    const sheets = getSheetsClient();
+    const current = await sheets.spreadsheets.get({
+      spreadsheetId,
+      fields: "sheets.properties(sheetId,title)",
+    });
+    const existingSheets = current.data.sheets ?? [];
+    const tempTitle = `_reset_${Date.now()}`;
+
+    // اول یه تب موقت خالی اضافه می‌کنیم، بعد همه‌ی تب‌های قبلی رو حذف
+    // می‌کنیم — این ترتیب لازمه چون گوگل‌شیت نمی‌ذاره آخرین تب حذف بشه.
+    const addResult = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          { addSheet: { properties: { title: tempTitle } } },
+          ...existingSheets
+            .filter((s) => s.properties?.sheetId != null)
+            .map((s) => ({ deleteSheet: { sheetId: s.properties!.sheetId! } })),
+        ],
+      },
+    });
+
+    const newSheetId = addResult.data.replies?.[0]?.addSheet?.properties?.sheetId;
+    if (newSheetId != null) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: { sheetId: newSheetId, title: "Sheet1" },
+                fields: "title",
+              },
+            },
+          ],
+        },
+      });
+    }
+  } catch (err) {
+    logger.error({ err, spreadsheetId }, "resetSpreadsheet error");
+    throw err;
+  }
+}
+
 /** Read sheet as array of objects using first row as headers */
 export async function readSheetAsObjects(
   spreadsheetId: string,
