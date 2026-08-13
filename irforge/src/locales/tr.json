@@ -1300,11 +1300,11 @@
     "panelSavedWithDrop": "Tür değişikliği bazı medyaları kaldırdı.",
     "fieldTitle": "Başlık",
     "fieldType": "Tür",
-    "fieldTypeHint": "Tür, botun ne göndereceğini belirler: düz metin, fotoğraf, karusel, form…",
+    "fieldTypeHint": "Bunu formlar, satış panelleri veya eklenti türleri için kullanın; metin/fotoğraf/video için elle seçim gerekmez.",
     "fieldTypeChangeHint": "Türü sonra da değiştirebilirsiniz; uyumsuz içerik silinmeden önce bildirilir.",
     "fieldContent": "İçerik",
     "fieldMediaFileId": "Medya file_id",
-    "fieldMediaHint": "Dosyayı bota gönderip file_id'sini kopyalayın veya panel düzenleyicisinden yükleyin.",
+    "fieldMediaHint": "Metin yazın veya fotoğraf/video/dosya yükleyin — mesaj türü otomatik belirlenir.",
     "fieldMediaList": "Medya (sırayla)",
     "fieldMediaSingle": "Medya",
     "fieldParent": "Üst panel",
@@ -1426,7 +1426,11 @@
     "healthTitle": "Panel yapısında {n} sorun bulundu",
     "healthMore": "ve {n} tane daha",
     "repairCta": "Onar",
-    "repairDone": "{n} panel düzeltildi"
+    "repairDone": "{n} panel düzeltildi",
+    "errorContentOrMediaRequired": "Metin ekleyin ya da medya ekleyin.",
+    "specialTypeToggle": "Özel tür… (form, satış vb.)",
+    "specialTypeAuto": "Otomatik algıla",
+    "mediaKindMismatch": "Bu mesaj zaten «{existing}» ile başladı; «{new}» de eklenemez."
   },
   "botForms": {
     "loading": "Formlar yükleniyor…",

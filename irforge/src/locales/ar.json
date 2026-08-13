@@ -1300,11 +1300,11 @@
     "panelSavedWithDrop": "أدى تغيير النوع إلى حذف بعض الوسائط.",
     "fieldTitle": "العنوان",
     "fieldType": "النوع",
-    "fieldTypeHint": "النوع يحدد ما يرسله البوت: نص، صورة، كاروسيل، نموذج…",
+    "fieldTypeHint": "استخدم هذا للنماذج أو لوحات البيع أو أنواع الإضافات؛ النص/الصورة/الفيديو لا تحتاج اختيارًا يدويًا.",
     "fieldTypeChangeHint": "يمكنك تغيير النوع لاحقاً؛ سيُبلَّغ عن المحتوى غير المتوافق قبل حذفه.",
     "fieldContent": "المحتوى",
     "fieldMediaFileId": "معرّف الملف (file_id)",
-    "fieldMediaHint": "أرسل الملف إلى البوت وانسخ file_id، أو ارفعه من محرر اللوحة.",
+    "fieldMediaHint": "اكتب نصًا أو ارفع صورة/فيديو/ملفًا — سيُحدَّد نوع الرسالة تلقائيًا.",
     "fieldMediaList": "الوسائط (بالترتيب)",
     "fieldMediaSingle": "الوسائط",
     "fieldParent": "اللوحة الأم",
@@ -1426,7 +1426,11 @@
     "healthTitle": "عُثر على {n} مشكلة في بنية اللوحات",
     "healthMore": "و{n} أخرى",
     "repairCta": "إصلاح",
-    "repairDone": "تم إصلاح {n} لوحة"
+    "repairDone": "تم إصلاح {n} لوحة",
+    "errorContentOrMediaRequired": "أضف نصًا أو أضف وسائط.",
+    "specialTypeToggle": "نوع خاص… (نموذج، بيع وما شابه)",
+    "specialTypeAuto": "كشف تلقائي",
+    "mediaKindMismatch": "بدأت هذه الرسالة بالفعل بـ «{existing}»؛ لا يمكن إضافة «{new}» أيضًا."
   },
   "botForms": {
     "loading": "جارٍ تحميل النماذج…",

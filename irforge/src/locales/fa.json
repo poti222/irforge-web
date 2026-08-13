@@ -1300,11 +1300,11 @@
     "panelSavedWithDrop": "با تغییر نوع، بخشی از مدیا حذف شد.",
     "fieldTitle": "عنوان",
     "fieldType": "نوع",
-    "fieldTypeHint": "نوع تعیین می‌کند بات چه چیزی می‌فرستد: متن ساده، عکس، کاروسل، فرم…",
+    "fieldTypeHint": "برای فرم، فروش یا انواع پلاگینی از اینجا انتخاب کن؛ برای متن/عکس/ویدیو نیازی به انتخاب دستی نیست.",
     "fieldTypeChangeHint": "نوع را بعداً هم می‌توانید عوض کنید؛ قبل از حذف محتوای ناسازگار، دقیقاً به شما گفته می‌شود.",
     "fieldContent": "محتوا",
     "fieldMediaFileId": "شناسه‌ی فایل (file_id)",
-    "fieldMediaHint": "فایل را به بات بفرستید و file_id آن را کپی کنید، یا از ویرایشگر پنل آپلودش کنید.",
+    "fieldMediaHint": "متنی بنویس یا عکس/ویدیو/فایلت رو آپلود کن؛ نوع پیام خودش تعیین می‌شه.",
     "fieldMediaList": "مدیا (به ترتیب)",
     "fieldMediaSingle": "مدیا",
     "fieldParent": "پنل والد",
@@ -1426,7 +1426,11 @@
     "healthTitle": "{n} مشکل در ساختار پنل‌ها پیدا شد",
     "healthMore": "و {n} مورد دیگر",
     "repairCta": "رفع خودکار",
-    "repairDone": "{n} پنل اصلاح شد"
+    "repairDone": "{n} پنل اصلاح شد",
+    "errorContentOrMediaRequired": "یا متنی بنویس، یا مدیایی اضافه کن.",
+    "specialTypeToggle": "نوع خاص… (فرم، فروش و مشابه)",
+    "specialTypeAuto": "تشخیص خودکار",
+    "mediaKindMismatch": "این پیام قبلاً با «{existing}» شروع شده؛ نمی‌شود «{new}» هم اضافه کرد."
   },
   "botForms": {
     "loading": "در حال بارگذاری فرم‌ها…",

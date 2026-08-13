@@ -12,6 +12,9 @@
  *   نه متن نه مدیا → جلوی submit گرفته می‌شود.
  * انواع خاص (form/sell/پلاگینی) که با این منطق حدس‌زدنی نیستند پشت دکمهٔ
  * ثانویهٔ «نوع خاص…» می‌مانند و فقط با انتخاب صریح کاربر فعال می‌شوند.
+ *
+ * فاز ۳: متن‌های تازهٔ همین دیالوگ (خطای «نه متن نه مدیا»، دکمهٔ «نوع
+ * خاص…»، گزینهٔ «تشخیص خودکار») به locales/*.json (هر ۵ زبان) منتقل شدند.
  */
 import { useMemo, useState } from "react";
 import { Loader2, ChevronRight, ChevronLeft } from "lucide-react";
@@ -111,8 +114,7 @@ export function CreatePanelDialog({
     const hasMedia = mediaIds.length > 0;
 
     if (!hasText && !hasMedia) {
-      // TODO(فاز ۳): این پیام باید یک کلید i18n بگیرد.
-      return { type: "", error: "یا متنی بنویس، یا مدیایی اضافه کن." };
+      return { type: "", error: t.errorContentOrMediaRequired };
     }
     if (hasMedia && mediaKind) {
       if (mediaKind === "photo") return { type: mediaIds.length > 1 ? "carousel" : "photo", error: null };
@@ -214,8 +216,7 @@ export function CreatePanelDialog({
                   type="button" variant="link" size="sm" className="h-auto p-0 text-xs text-muted-foreground"
                   onClick={() => setShowSpecialType(true)}
                 >
-                  {/* TODO(فاز ۳): این متن باید یک کلید i18n بگیرد. */}
-                  نوع خاص… (فرم، فروش و مشابه)
+                  {t.specialTypeToggle}
                 </Button>
               ) : (
                 <div className="space-y-1.5">
@@ -226,8 +227,7 @@ export function CreatePanelDialog({
                   >
                     <SelectTrigger id="cp-special-type"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {/* TODO(فاز ۳): این متن باید یک کلید i18n بگیرد. */}
-                      <SelectItem value="__auto__">تشخیص خودکار</SelectItem>
+                      <SelectItem value="__auto__">{t.specialTypeAuto}</SelectItem>
                       {specialTypes.map((x) => (
                         <SelectItem key={x} value={x}>{panelTypeLabel(t, x)}</SelectItem>
                       ))}

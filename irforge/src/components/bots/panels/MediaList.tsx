@@ -20,6 +20,8 @@
  * onKindChange به والد (مثلاً CreatePanelDialog) خبر می‌دهد؛ پراپ‌های قبلی
  * (fileIds/multiple/onChange) دست‌نخورده ماندند تا PanelEditor نیاز به تغییر
  * نداشته باشد.
+ *
+ * فاز ۳: پیام تداخل نوع مدیا (mediaKindMismatch) به locales/*.json منتقل شد.
  */
 import { useRef, useState } from "react";
 import { customFetch } from "@workspace/api-client-react";
@@ -105,10 +107,11 @@ export function MediaList({
       return;
     }
     if (lockedKind && kind !== lockedKind) {
-      // TODO(فاز ۳): این متن باید یک کلید i18n بگیرد.
       toast({
         variant: "destructive",
-        title: `این پیام قبلاً با «${panelTypeLabel(t, lockedKind)}» شروع شده؛ نمی‌شود «${panelTypeLabel(t, kind)}» هم اضافه کرد.`,
+        title: t.mediaKindMismatch
+          .replace("{existing}", panelTypeLabel(t, lockedKind))
+          .replace("{new}", panelTypeLabel(t, kind)),
       });
       return;
     }
@@ -130,7 +133,9 @@ export function MediaList({
     if (lockedKind && prospectiveKind !== lockedKind) {
       toast({
         variant: "destructive",
-        title: `این پیام قبلاً با «${panelTypeLabel(t, lockedKind)}» شروع شده؛ نمی‌شود «${panelTypeLabel(t, prospectiveKind)}» هم اضافه کرد.`,
+        title: t.mediaKindMismatch
+          .replace("{existing}", panelTypeLabel(t, lockedKind))
+          .replace("{new}", panelTypeLabel(t, prospectiveKind)),
       });
       return;
     }
