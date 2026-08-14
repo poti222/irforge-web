@@ -83,7 +83,7 @@ export function PaymentApprovals() {
                   {d.receiptUrl && (
                     <ReceiptLightbox src={d.receiptUrl}>
                       <button type="button" className="block w-full text-start">
-                        <img src={d.receiptUrl} alt="receipt" className="max-h-40 w-full rounded-md border object-contain bg-muted" />
+                        <img src={d.receiptUrl} alt="receipt" loading="lazy" decoding="async" className="max-h-40 w-full rounded-md border object-contain bg-muted" />
                       </button>
                     </ReceiptLightbox>
                   )}
