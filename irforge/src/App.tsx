@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
 import { navigate } from "wouter/use-browser-location";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -9,18 +9,11 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import NotFound from "@/pages/not-found";
 
-// Pages
+// Public, prerendered pages: kept as static imports so SSG (scripts/ssg.mjs)
+// can render them directly and the first paint of a marketing page doesn't
+// wait on a network round-trip for its own chunk.
 import Landing from "@/pages/landing";
 import Docs from "@/pages/docs";
-import Login from "@/pages/login";
-import Register from "@/pages/register";
-import ForgotPassword from "@/pages/forgot-password";
-import ResetPassword from "@/pages/reset-password";
-import Dashboard from "@/pages/dashboard";
-import Bots from "@/pages/bots";
-import BuyBot from "@/pages/buy-bot";
-import BuyBotDetail from "@/pages/buy-bot-detail";
-import Checkout from "@/pages/checkout";
 import LearnHub from "@/pages/learn";
 import LearnTelegramBotToken from "@/pages/learn/telegram-bot-token";
 import LearnHowToMake from "@/pages/learn/how-to-make-a-telegram-bot";
@@ -32,24 +25,47 @@ import LearnBotCost from "@/pages/learn/telegram-bot-cost";
 import LearnBotFather from "@/pages/learn/botfather-commands";
 import LearnWebhook from "@/pages/learn/telegram-bot-webhook-vs-polling";
 import Pricing from "@/pages/pricing";
-import BotWorkspace from "@/pages/bot-workspace";
-import Marketplace from "@/pages/marketplace";
-import Invoices from "@/pages/invoices";
-import Tickets from "@/pages/tickets";
-import WalletPage from "@/pages/wallet";
-import Profile from "@/pages/profile";
-import Admin from "@/pages/admin";
 
-import AdminPendingPayments from "@/pages/admin-pending-payments";
-import AdminSheetPool from "@/pages/admin-sheet-pool";
-import Support from "@/pages/support";
-import Notifications from "@/pages/notifications";
-import Updates from "@/pages/updates";
-import AdminUsers from "@/pages/admin-users";
-import AdminUserDetail from "@/pages/admin-user-detail";
-import UpdateDetail from "@/pages/update-detail";
-import NotificationDetail from "@/pages/notification-detail";
-import DatabasePage from "@/pages/database";
+/**
+ * NOTE [perf]: everything below used to be a static import too, which meant
+ * every one of these ~25 authenticated/admin pages shipped in the SAME JS
+ * bundle as the homepage — a visitor landing on "/" was downloading the
+ * wallet, admin, and database page code before they'd even logged in. That's
+ * the main reason mobile Performance scored ~30 points below Desktop on
+ * PageSpeed Insights (mobile CPUs pay for parsing/executing all of that JS
+ * up front; desktop CPUs mostly hide it).
+ *
+ * React.lazy() + Suspense (see <Router/> below) makes each of these its own
+ * chunk, fetched only when a visitor actually navigates to that route. None
+ * of these are public/prerendered routes, so this has zero effect on SSG.
+ */
+const Login = lazy(() => import("@/pages/login"));
+const Register = lazy(() => import("@/pages/register"));
+const ForgotPassword = lazy(() => import("@/pages/forgot-password"));
+const ResetPassword = lazy(() => import("@/pages/reset-password"));
+const Dashboard = lazy(() => import("@/pages/dashboard"));
+const Bots = lazy(() => import("@/pages/bots"));
+const BuyBot = lazy(() => import("@/pages/buy-bot"));
+const BuyBotDetail = lazy(() => import("@/pages/buy-bot-detail"));
+const Checkout = lazy(() => import("@/pages/checkout"));
+const BotWorkspace = lazy(() => import("@/pages/bot-workspace"));
+const Marketplace = lazy(() => import("@/pages/marketplace"));
+const Invoices = lazy(() => import("@/pages/invoices"));
+const Tickets = lazy(() => import("@/pages/tickets"));
+const WalletPage = lazy(() => import("@/pages/wallet"));
+const Profile = lazy(() => import("@/pages/profile"));
+const Admin = lazy(() => import("@/pages/admin"));
+
+const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
+const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
+const Support = lazy(() => import("@/pages/support"));
+const Notifications = lazy(() => import("@/pages/notifications"));
+const Updates = lazy(() => import("@/pages/updates"));
+const AdminUsers = lazy(() => import("@/pages/admin-users"));
+const AdminUserDetail = lazy(() => import("@/pages/admin-user-detail"));
+const UpdateDetail = lazy(() => import("@/pages/update-detail"));
+const NotificationDetail = lazy(() => import("@/pages/notification-detail"));
+const DatabasePage = lazy(() => import("@/pages/database"));
 
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -134,8 +150,19 @@ function PublicOnlyRoute({ component: Component, ...rest }: { component: any }) 
   return <Component {...rest} />;
 }
 
+/** Fallback shown only while a lazy route's own chunk is being fetched —
+ * public/prerendered routes never hit this since they're static imports. */
+function RouteFallback() {
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-background">
+      <Spinner size="lg" />
+    </div>
+  );
+}
+
 function Router() {
   return (
+    <Suspense fallback={<RouteFallback />}>
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/docs" component={Docs} />
@@ -198,6 +225,7 @@ function Router() {
 
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 
