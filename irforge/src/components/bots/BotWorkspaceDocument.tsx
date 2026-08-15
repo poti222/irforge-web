@@ -23,7 +23,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
-import { useGetBotStats, getGetBotStatsQueryKey } from "@workspace/api-client-react";
+import { useGetBotStats, getGetBotStatsQueryKey, customFetch } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/hooks/use-language";
@@ -78,6 +79,15 @@ type SectionMeta = {
   /** Rendered but not selectable — the feature has no implementation yet.
    *  Each migration phase unlocks exactly its own section, nothing else. */
   locked?: boolean;
+  /**
+   * پلاگینی که این سکشن بدون آن بی‌معناست.
+   *
+   * سکشن **اصلاً رندر نمی‌شود** وقتی پلاگین خاموش است — نه قفل‌شده و نه
+   * خاکستری. یک تب قفل، کاربر را وسوسه می‌کند رویش کلیک کند و چیزی به او
+   * نمی‌گوید؛ یک بات بدون فروش هم اصلاً نباید «سفارش‌ها» را ببیند.
+   * گیت واقعی سمت سرور است (`lib/pluginGate.ts`).
+   */
+  requiresPlugin?: string;
 };
 
 type SectionGroup = {
@@ -122,7 +132,7 @@ const SECTION_GROUPS: SectionGroup[] = [
     key: "sales",
     labelKey: "groupSales",
     items: [
-      { key: "orders", icon: ShoppingCart, labelKey: "sectionOrders" },
+      { key: "orders", icon: ShoppingCart, labelKey: "sectionOrders", requiresPlugin: "wallet" },
       // Deliberately still locked, and the only one left. "Discounts" means two
       // different things here: the platform's own discount codes (routes/
       // discounts.ts, site Postgres) and the bot's `discount` plugin with its
@@ -171,6 +181,24 @@ function findSection(key: string | null): SectionMeta | undefined {
 }
 
 /**
+ * پلاگین‌های فعالِ این بات — همان چیزی که خودِ بات می‌بیند
+ * (`__plugin_states__`). موقع لود شدن `undefined` است؛ در آن فاصله سکشن‌های
+ * پلاگین‌دار پنهان می‌مانند تا با آمدن پاسخ ناگهان ظاهر شوند، نه اینکه اول
+ * ظاهر شوند و بعد بپرند.
+ */
+function useEnabledPlugins(botId: string): Set<string> | undefined {
+  const { data } = useQuery({
+    queryKey: ["bot-plugins", botId],
+    queryFn: () =>
+      customFetch<{ plugins: Array<{ id: string; enabled: boolean }> }>(`/api/bots/${botId}/plugins`),
+    staleTime: 60_000,
+    retry: false,
+  });
+  if (!data) return undefined;
+  return new Set(data.plugins.filter((p) => p.enabled).map((p) => p.id));
+}
+
+/**
  * Q5: the bot workspace as a single "document" shell — a narrow sidebar for
  * jumping between sections and a main area that hosts each section's real
  * interactive content. Sections cross-fade via AnimatePresence (also satisfies
@@ -195,11 +223,21 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
   // somewhere that has the locale.
   setDiscardMessage(ts.unsavedLeaveWarning);
 
+  const enabledPlugins = useEnabledPlugins(bot.id);
+
+  /** سکشنی که پلاگینش خاموش است اصلاً وجود ندارد. */
+  function visible(meta: SectionMeta): boolean {
+    if (!meta.requiresPlugin) return true;
+    return enabledPlugins?.has(meta.requiresPlugin) ?? false;
+  }
+
   const requested = new URLSearchParams(search).get("section");
   const match = findSection(requested);
   // A locked section is not a valid destination either — someone with a stale
-  // bookmark from a future phase shouldn't land on a blank panel.
-  const section: SectionKey = match && !match.locked ? match.key : "overview";
+  // bookmark from a future phase shouldn't land on a blank panel. Same for a
+  // section whose plugin is off: a bookmark from when it was on must not land
+  // on a section the server will 403.
+  const section: SectionKey = match && !match.locked && visible(match) ? match.key : "overview";
 
   function goTo(next: SectionKey) {
     // Leaving a section with an unsaved form throws the user's work away
@@ -248,12 +286,13 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
       <nav className="flex shrink-0 flex-col md:w-52">
         <SidebarBrandHeader className="hidden md:flex mb-2" size="sm" />
         <div className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:gap-0 md:overflow-visible md:pb-0">
-          {SECTION_GROUPS.map((group) => (
+          {/* گروهی که همه‌ی آیتم‌هایش پنهان شده‌اند، عنوانِ تنها نشان نمی‌دهد. */}
+          {SECTION_GROUPS.filter((g) => g.items.some(visible)).map((group) => (
             <div key={group.key} className="contents md:block md:mb-3">
               <div className="hidden md:block px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
                 {t[group.labelKey]}
               </div>
-              {group.items.map((s) => {
+              {group.items.filter(visible).map((s) => {
                 const active = section === s.key;
                 return (
                   <button

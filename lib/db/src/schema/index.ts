@@ -25,3 +25,5 @@ export * from "./auth";
 // در Google Sheets نگه‌داری می‌شود (ببینید api-server/src/lib/discountStore.ts).
 // تنظیمات سطح پلتفرم (آدرس کیف پول تتر، شماره کارت، …)
 export * from "./platformSettings";
+// «با بات بفرست» — جلسه‌ی کوتاه‌عمر ضبط محتوا از داخل تلگرام
+export * from "./uploadSessions";

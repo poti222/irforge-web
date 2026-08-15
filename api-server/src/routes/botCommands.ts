@@ -18,12 +18,16 @@ import { db, botsTable, commandsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "./auth.js";
 import { logger } from "../lib/logger.js";
+import { decryptToken } from "../lib/tokenCrypto.js";
+import { tgApi } from "../lib/telegram.js";
 import {
   resolveBotSheet,
   listEntity,
   getEntity,
   putEntity,
   removeEntity,
+  readSettings,
+  patchSettings,
   assertSheetsAuthoritative,
   sendBotConfigError,
   BotConfigError,
@@ -89,6 +93,98 @@ async function validateTarget(spreadsheetId: string, value: unknown): Promise<st
   return target;
 }
 
+// ─── منوی دستورات تلگرام (دکمه‌ی «/» کنار کادر پیام) ─────────────────────────
+
+/**
+ * منبع حقیقتِ منو، `bot_settings.bot_commands` است — **نه یک جای تازه**.
+ *
+ * خودِ بات از قبل همین کلید را می‌خواند و در بوت `set_my_commands` می‌زند
+ * (`utils/telegram_capabilities.py::apply_bot_commands`)، به شکل
+ * `[{command, description}]`. پس سایت در همان کلید می‌نویسد، و علاوه بر آن
+ * `setMyCommands` را همان لحظه هم صدا می‌زند تا کاربر برای دیدن نتیجه مجبور
+ * به ری‌استارت بات نباشد.
+ */
+type MenuEntry = { command: string; description: string };
+
+function readMenu(settings: Record<string, unknown>): MenuEntry[] {
+  const raw = settings.bot_commands;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((c): c is Record<string, unknown> => Boolean(c) && typeof c === "object")
+    .map((c) => ({
+      command: String(c.command ?? "").replace(/^\//, "").slice(0, 32),
+      description: String(c.description ?? "").slice(0, 256),
+    }))
+    .filter((c) => c.command);
+}
+
+/**
+ * منوی ذخیره‌شده را با منوی **زنده‌ی** تلگرام ادغام می‌کند.
+ *
+ * صریحاً بدون overwrite: ممکن است کسی قبلاً با BotFather یا از جای دیگری
+ * کامندی روی منو گذاشته باشد که در شیت ما نیست؛ پاک‌کردنش یعنی خرابکاری در
+ * چیزی که مالِ ما نبوده. `getMyCommands` هرگز باعث شکست نمی‌شود — اگر جواب
+ * نداد، فقط با لیست ذخیره‌شده جلو می‌رویم.
+ */
+async function mergedMenu(token: string, stored: MenuEntry[]): Promise<MenuEntry[]> {
+  const byName = new Map<string, MenuEntry>();
+  try {
+    const live = await tgApi<MenuEntry[]>(token, "getMyCommands");
+    if (live.ok && Array.isArray(live.result)) {
+      for (const c of live.result) {
+        const command = String(c?.command ?? "").replace(/^\//, "");
+        if (command) byName.set(command, { command, description: String(c?.description ?? "") });
+      }
+    }
+  } catch (err) {
+    logger.debug({ err }, "getMyCommands failed; merging against stored list only");
+  }
+  // مقدارِ ما برنده است: توضیحی که کاربر همین الان در سایت نوشته باید جایگزین
+  // نسخه‌ی قدیمیِ روی تلگرام شود.
+  for (const entry of stored) byName.set(entry.command, entry);
+  return [...byName.values()];
+}
+
+/** توکنِ رمزگشایی‌شده‌ی بات، یا ۴۰۹ با پیام روشن. */
+async function botToken(botId: string): Promise<string> {
+  const [bot] = await db.select({ token: botsTable.token }).from(botsTable).where(eq(botsTable.id, botId)).limit(1);
+  try {
+    const token = decryptToken(bot?.token ?? "");
+    if (token) return token;
+  } catch {
+    /* افتاد پایین */
+  }
+  throw new BotConfigError(
+    409,
+    "توکن این بات روی سرور در دسترس نیست، پس تغییر منوی دستورات تلگرام ممکن نیست.",
+    "no_token"
+  );
+}
+
+/**
+ * کامند حذف/تغییرنام‌داده‌شده را از منوی تلگرام برمی‌دارد.
+ *
+ * **غیرقطعی و بی‌صدا**: حذف یک کامند نباید به‌خاطر در دسترس نبودن تلگرام
+ * شکست بخورد. ولی نکردنش یعنی روی منوی «/» کاربر یک دستور می‌ماند که دیگر
+ * هیچ کاری نمی‌کند — دقیقاً همان دسته‌ی «خرابیِ بی‌صدا» که این دور رفع‌باگ
+ * درباره‌اش است.
+ */
+async function dropFromMenu(spreadsheetId: string, botId: string, commandName: string): Promise<void> {
+  try {
+    const settings = (await readSettings(spreadsheetId)) as unknown as Record<string, unknown>;
+    const stored = readMenu(settings);
+    if (!stored.some((m) => m.command === commandName)) return;
+
+    const next = stored.filter((m) => m.command !== commandName);
+    await patchSettings(spreadsheetId, { bot_commands: next } as Record<string, unknown>);
+
+    const token = await botToken(botId);
+    await tgApi(token, "setMyCommands", { commands: next });
+  } catch (err) {
+    logger.warn({ err, botId, commandName }, "dropFromMenu failed (ignored)");
+  }
+}
+
 async function readCommands(spreadsheetId: string): Promise<CustomCommand[]> {
   const rows = await listEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB);
   return rows
@@ -113,9 +209,68 @@ router.get("/bots/:botId/commands", requireAuth, async (req: any, res) => {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
     const commands = await readCommands(spreadsheetId);
     await syncCommandCount(req.params.botId, commands.length);
-    res.json({ commands, count: commands.length });
+
+    // کدام‌ها روی منوی «/» تلگرام هم هستند. از تنظیمات خوانده می‌شود نه از
+    // تلگرام: یک درخواست شبکه به‌ازای هر بار باز کردن این سکشن، به‌خاطر یک
+    // چک‌باکس، ارزشش را ندارد.
+    let menu: string[] = [];
+    try {
+      menu = readMenu((await readSettings(spreadsheetId)) as unknown as Record<string, unknown>).map((m) => m.command);
+    } catch (err) {
+      logger.debug({ err }, "reading bot_commands menu failed (ignored)");
+    }
+
+    res.json({ commands, count: commands.length, menu });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to list commands");
+  }
+});
+
+/**
+ * PUT /bots/:botId/commands/:command/menu — این کامند روی منوی «/» تلگرام
+ * باشد یا نباشد.
+ *
+ * دو نوشتن انجام می‌شود و هر دو لازم‌اند: `bot_settings.bot_commands` تا
+ * بعد از ری‌استارت هم بماند (بات خودش موقع بوت از همین می‌خواند)، و
+ * `setMyCommands` تا همین حالا اثر کند.
+ */
+router.put("/bots/:botId/commands/:command/menu", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    const key = String(req.params.command).replace(/^\//, "");
+    const inMenu = Boolean(req.body?.inMenu);
+
+    const command = await getEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB, key);
+    if (!command) throw new BotConfigError(404, "این کامند پیدا نشد.", "command_not_found");
+
+    const settings = (await readSettings(spreadsheetId)) as unknown as Record<string, unknown>;
+    const stored = readMenu(settings).filter((m) => m.command !== key);
+    if (inMenu) {
+      // تلگرام توضیح خالی را برای یک آیتم منو رد می‌کند، پس اگر کاربر چیزی
+      // ننوشته خودِ نام کامند گذاشته می‌شود.
+      stored.push({ command: key, description: (command.description || `/${key}`).slice(0, 256) });
+    }
+
+    const token = await botToken(req.params.botId);
+    const merged = await mergedMenu(token, stored);
+    // آیتمی که کاربر همین الان برداشت نباید از راه ادغام برگردد.
+    const finalMenu = inMenu ? merged : merged.filter((m) => m.command !== key);
+
+    const applied = await tgApi(token, "setMyCommands", { commands: finalMenu });
+    if (!applied.ok)
+      throw new BotConfigError(
+        409,
+        `تلگرام منو را نپذیرفت: ${applied.description ?? "خطای نامشخص"}`,
+        "telegram_rejected"
+      );
+
+    // فقط بعد از موفقیت تلگرام ذخیره می‌شود، وگرنه شیت چیزی را ادعا می‌کرد
+    // که روی بات نیست.
+    await patchSettings(spreadsheetId, { bot_commands: finalMenu } as Record<string, unknown>);
+
+    res.json({ menu: finalMenu.map((m) => m.command) });
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to update the Telegram command menu");
   }
 });
 
@@ -247,6 +402,10 @@ router.patch("/bots/:botId/commands/:command", requireAuth, async (req: any, res
         next.command = renamed;
         await putEntity(spreadsheetId, COMMANDS_TAB, renamed, next);
         await removeEntity(spreadsheetId, COMMANDS_TAB, key);
+        // نام قدیمی اگر روی منو بود باید برود؛ نام جدید را کاربر دوباره
+        // خودش به منو اضافه می‌کند (بی‌صدا اضافه‌کردنش یعنی تصمیمی که
+        // نگرفته را برایش گرفته‌ایم).
+        await dropFromMenu(spreadsheetId, req.params.botId, key);
         res.json({ command: next });
         return;
       }
@@ -267,6 +426,7 @@ router.delete("/bots/:botId/commands/:command", requireAuth, async (req: any, re
     const key = String(req.params.command).replace(/^\//, "");
     const removed = await removeEntity(spreadsheetId, COMMANDS_TAB, key);
     if (!removed) throw new BotConfigError(404, "این کامند پیدا نشد.", "command_not_found");
+    await dropFromMenu(spreadsheetId, req.params.botId, key);
     await syncCommandCount(req.params.botId, (await readCommands(spreadsheetId)).length);
     res.json({ deleted: key });
   } catch (err) {

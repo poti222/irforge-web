@@ -10,7 +10,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
-import { Plus, Loader2, Trash2, ShieldCheck, UserPlus, AlertTriangle } from "lucide-react";
+import { Plus, Loader2, Trash2, ShieldCheck, UserPlus, AlertTriangle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -115,6 +115,7 @@ export function AdminsSection({ bot }: { bot: Bot }) {
   const [tab, setTab] = useState<"admins" | "roles">("admins");
   const [addOpen, setAddOpen] = useState(false);
   const [identifier, setIdentifier] = useState("");
+  const [addErrorCode, setAddErrorCode] = useState<string | null>(null);
   const [newAdminRole, setNewAdminRole] = useState<string>("__none__");
   const [newAdminSuper, setNewAdminSuper] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -321,7 +322,7 @@ export function AdminsSection({ bot }: { bot: Bot }) {
                 id="admin-id" dir="ltr"
                 placeholder="@username یا 123456789"
                 value={identifier}
-                onChange={(e) => { setIdentifier(e.target.value); setAddError(null); }}
+                onChange={(e) => { setIdentifier(e.target.value); setAddError(null); setAddErrorCode(null); }}
               />
               <p className="text-xs text-muted-foreground">{t.fieldIdentifierHint}</p>
             </div>
@@ -339,7 +340,19 @@ export function AdminsSection({ bot }: { bot: Bot }) {
               <Checkbox checked={newAdminSuper} onCheckedChange={(v) => setNewAdminSuper(Boolean(v))} />
               <span>{t.fieldSuperAdmin}</span>
             </label>
-            {addError && <p className="text-sm text-destructive">{addError}</p>}
+            {/* «کاربر بات را استارت نکرده» یک محدودیت خودِ تلگرام است، نه
+                ورودی غلط کاربر — پس قرمزِ خطا نمی‌گیرد، چون کاربر را دنبال
+                اصلاح یوزرنیمی می‌فرستد که هیچ ایرادی ندارد. */}
+            {addError && (
+              addErrorCode === "username_unresolvable" ? (
+                <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+                  <Info className="mt-0.5 size-4 shrink-0 text-amber-500" />
+                  <span>{addError}</span>
+                </div>
+              ) : (
+                <p className="text-sm text-destructive">{addError}</p>
+              )
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -353,7 +366,10 @@ export function AdminsSection({ bot }: { bot: Bot }) {
                   },
                   {
                     onSuccess: () => { toast({ title: t.adminAdded }); setAddOpen(false); },
-                    onError: (err: any) => setAddError(errMessage(err, t.errorGeneric)),
+                    onError: (err: any) => {
+                      setAddError(errMessage(err, t.errorGeneric));
+                      setAddErrorCode(errCode(err));
+                    },
                   }
                 )
               }

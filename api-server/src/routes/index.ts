@@ -17,6 +17,7 @@ import databaseRouter from "./database.js";
 import superAdminRouter from "./superAdmin.js";
 // G8: اتصال با ربات (webhook دریافت آپدیت از تلگرام)
 import telegramWebhookRouter from "./telegramWebhook.js";
+import uploadSessionsRouter from "./uploadSessions.js";
 // سیستم اعلان‌های جدید سایت (تریال و آینده)
 import notificationsRouter from "./notifications.js";
 // Phase 9: کدهای تخفیف
@@ -68,6 +69,7 @@ router.use(databaseRouter);
 router.use(superAdminRouter);
 // G8
 router.use(telegramWebhookRouter);
+router.use(uploadSessionsRouter);
 router.use(notificationsRouter);
 router.use(discountsRouter);
 router.use(updatesRouter);

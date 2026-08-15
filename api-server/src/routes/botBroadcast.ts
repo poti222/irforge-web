@@ -38,9 +38,24 @@ import {
   sendBotConfigError,
   BotConfigError,
 } from "../lib/botConfig.js";
+import { getSession } from "../lib/uploadSessions.js";
 import { TELEGRAM_TEXT_LIMIT, type BotUser } from "../lib/botTypes.js";
 
 const router = Router();
+
+/**
+ * نگاشت نوع مدیا به متد تلگرام. `voice` و `animation` هم اینجا هستند چون
+ * محتوای ضبط‌شده از «ارسال با بات» می‌تواند هرکدامشان باشد — قبلاً هر چیزی
+ * که عکس نبود بی‌صدا به `sendPhoto` می‌افتاد و تلگرام ردش می‌کرد.
+ */
+const MEDIA_METHODS: Record<string, { method: string; field: string }> = {
+  photo: { method: "sendPhoto", field: "photo" },
+  video: { method: "sendVideo", field: "video" },
+  audio: { method: "sendAudio", field: "audio" },
+  voice: { method: "sendVoice", field: "voice" },
+  animation: { method: "sendAnimation", field: "animation" },
+  document: { method: "sendDocument", field: "document" },
+};
 
 function queueUnavailable(): BotConfigError {
   return new BotConfigError(
@@ -127,9 +142,34 @@ router.post("/bots/:botId/broadcast", requireAuth, async (req: any, res) => {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
     if (!botQueueAvailable()) throw queueUnavailable();
 
-    const text = String(req.body?.text ?? "");
-    const mediaFileId = String(req.body?.mediaFileId ?? "").trim();
-    const mediaType = String(req.body?.mediaType ?? "").trim();
+    let text = String(req.body?.text ?? "");
+    let mediaFileId = String(req.body?.mediaFileId ?? "").trim();
+    let mediaType = String(req.body?.mediaType ?? "").trim();
+    /** `entities` تلگرام — فقط از مسیر «ارسال با بات» می‌آید. */
+    let entities: unknown = null;
+
+    // ── محتوای ضبط‌شده از تلگرام («ارسال با بات») ─────────────────────────
+    //
+    // پیامی که کاربر به بات پلتفرم داده در چتی است که بات تننت اصلاً عضوش
+    // نیست، پس `copy_message` مستقیم بینشان کار نمی‌کند. ولی `file_id`
+    // تلگرام را هر باتی می‌تواند برای ارسال استفاده کند و `entities` فرمت
+    // متن را مو‌به‌مو نگه می‌دارد — پس همان محتوا با توکن بات تننت بازتولید
+    // می‌شود و از آن به بعد مسیر عادی است.
+    const sessionId = String(req.body?.uploadSessionId ?? "").trim();
+    if (sessionId) {
+      const session = await getSession(sessionId, req.userId);
+      if (!session) throw new BotConfigError(404, "این جلسه‌ی ارسال پیدا نشد.", "session_not_found");
+      if (session.status !== "filled")
+        throw new BotConfigError(
+          409,
+          "هنوز پیامی از تلگرام دریافت نشده است.",
+          "session_not_filled"
+        );
+      text = session.content ?? "";
+      mediaFileId = session.fileId ?? "";
+      mediaType = session.mediaType === "text" ? "" : (session.mediaType ?? "");
+      entities = session.entities ?? null;
+    }
 
     if (!text.trim() && !mediaFileId) throw new BotConfigError(400, "پیام همگانی نمی‌تواند خالی باشد.");
     if (text.length > TELEGRAM_TEXT_LIMIT)
@@ -154,19 +194,21 @@ router.post("/bots/:botId/broadcast", requireAuth, async (req: any, res) => {
     // آنچه ادمین در این چت می‌بیند دقیقاً همان چیزی است که کاربران می‌گیرند.
     let sent: { ok: boolean; description?: string; result?: { message_id: number } };
     if (mediaFileId) {
-      const method =
-        mediaType === "video" ? "sendVideo"
-        : mediaType === "audio" ? "sendAudio"
-        : mediaType === "document" ? "sendDocument"
-        : "sendPhoto";
-      const field =
-        method === "sendVideo" ? "video"
-        : method === "sendAudio" ? "audio"
-        : method === "sendDocument" ? "document"
-        : "photo";
-      sent = await tgApi(token, method, { chat_id: chatId, [field]: mediaFileId, caption: text || undefined });
+      const { method, field } = MEDIA_METHODS[mediaType] ?? MEDIA_METHODS.photo;
+      sent = await tgApi(token, method, {
+        chat_id: chatId,
+        [field]: mediaFileId,
+        caption: text || undefined,
+        // `caption_entities` فقط وقتی معنی دارد که کپشنی باشد. اگر فرستاده
+        // شود ولی کپشن خالی باشد، تلگرام کل درخواست را رد می‌کند.
+        ...(entities && text ? { caption_entities: entities } : {}),
+      });
     } else {
-      sent = await tgApi(token, "sendMessage", { chat_id: chatId, text });
+      sent = await tgApi(token, "sendMessage", {
+        chat_id: chatId,
+        text,
+        ...(entities ? { entities } : {}),
+      });
     }
 
     if (!sent.ok || !sent.result?.message_id)

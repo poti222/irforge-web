@@ -35,6 +35,12 @@ import {
   getTelegramUserPhotoFileId,
 } from "../lib/telegram";
 import { askForContact, sendRegistrationCode, sendPlain } from "../lib/registrationBot";
+import {
+  markWaiting,
+  openSessionForChat,
+  extractContent,
+  fillSession,
+} from "../lib/uploadSessions";
 import { codeExpiry, generateCode, hashCode, normalizePhone } from "../lib/otp";
 
 const router = Router();
@@ -99,7 +105,18 @@ router.post("/telegram/webhook", async (req, res) => {
     }
 
     const text: string | undefined = message?.text;
-    if (!text || !text.startsWith("/start")) return;
+
+    // ── «با بات بفرست»: پیام بعدی بعد از /start upload_<id> ───────────────
+    //
+    // قبل از شاخه‌ی `/start` چک می‌شود، چون محتوایی که کاربر می‌فرستد
+    // هر شکلی می‌تواند داشته باشد (عکس، ویس، فوروارد، متن ساده) و هیچ‌کدام
+    // به بقیه‌ی این هندلر ربطی ندارند. یک پیامِ `/start` عمداً ضبط **نمی‌شود**
+    // تا کاربری که دوباره لینک را باز می‌کند، خودِ لینک را به‌عنوان محتوا
+    // ثبت نکند.
+    if (!text || !text.startsWith("/start")) {
+      await tryCaptureUpload(botToken, chatId, message);
+      return;
+    }
 
     const token = text.trim().split(/\s+/)[1];
     if (!token) {
@@ -108,6 +125,12 @@ router.post("/telegram/webhook", async (req, res) => {
         chatId,
         "سلام! برای اتصال حساب تلگرام به IRForge، از داخل پروفایل سایت روی «اتصال با ربات» بزنید."
       );
+      return;
+    }
+
+    // ── `/start upload_<id>` — شروع ضبط ──────────────────────────────────
+    if (token.startsWith("upload_")) {
+      await handleUploadStart(botToken, chatId, token.slice("upload_".length));
       return;
     }
 
@@ -399,6 +422,63 @@ async function handleContact(botToken: string, chatId: string, from: any, contac
 
   logger.info({ registrationId: pending.id }, "Registration: phone verified, code sent");
   await sendRegistrationCode(chatId, code, pending.locale);
+}
+
+/**
+ * `/start upload_<id>` — جلسه را منتظر پیام بعدی می‌کند.
+ *
+ * پیام تأیید عمداً می‌گوید **چه چیزهایی** قابل فرستادن است: کاربری که فقط
+ * «حالا بفرست» ببیند نمی‌داند می‌تواند یک پیام را فوروارد کند.
+ */
+async function handleUploadStart(botToken: string, chatId: string, sessionId: string) {
+  const session = await markWaiting(sessionId, chatId);
+  if (!session) {
+    await sendTelegramMessage(
+      botToken,
+      chatId,
+      "این لینک منقضی شده یا قبلاً استفاده شده است. از داخل سایت دوباره روی «ارسال با بات» بزنید."
+    );
+    return;
+  }
+  await sendTelegramMessage(
+    botToken,
+    chatId,
+    "📨 <b>منتظر پیام شما هستم.</b>\n\n" +
+      "همین حالا پیامی که می‌خواهید در سایت استفاده شود را بفرستید — متن، عکس، ویس، " +
+      "یا یک پیام فوروارد‌شده. اولین پیامی که بفرستید ثبت می‌شود."
+  );
+}
+
+/**
+ * ضبط پیام برای جلسه‌ی بازِ این چت.
+ *
+ * اگر جلسه‌ی بازی نباشد **بی‌صدا رد می‌شود** — این هندلر روی هر پیامی که به
+ * بات پلتفرم می‌رسد صدا زده می‌شود و نباید به گپ‌وگفت عادی جواب بدهد.
+ */
+async function tryCaptureUpload(botToken: string, chatId: string, message: any) {
+  const session = await openSessionForChat(chatId);
+  if (!session) return;
+
+  const extracted = extractContent(message);
+  if (!extracted) {
+    await sendTelegramMessage(
+      botToken,
+      chatId,
+      "این نوع پیام پشتیبانی نمی‌شود. متن، عکس، ویس، صوت، ویدیو یا فایل بفرستید."
+    );
+    return;
+  }
+
+  const filled = await fillSession(session.id, extracted);
+  if (!filled) return; // یک ضبط موازی زودتر رسیده
+
+  const siteUrl = process.env.PUBLIC_SITE_URL?.trim();
+  await sendTelegramMessage(
+    botToken,
+    chatId,
+    "✅ <b>پیام شما ثبت شد.</b>\n\nبه صفحه‌ی سایت برگردید؛ همان‌جا نمایش داده می‌شود." +
+      (siteUrl ? `\n\n${siteUrl}` : "")
+  );
 }
 
 export default router;

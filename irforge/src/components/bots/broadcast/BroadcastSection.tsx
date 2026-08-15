@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { SendViaBotButton, type CapturedContent } from "@/components/bots/SendViaBotButton";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -70,6 +71,12 @@ export function BroadcastSection({ bot }: { bot: Bot }) {
 
   const [text, setText] = useState("");
   const [mediaFileId, setMediaFileId] = useState("");
+  /**
+   * جلسه‌ی «ارسال با بات» — وقتی پر شود، همین شناسه به سرور می‌رود و سرور
+   * محتوا را از آن برمی‌دارد. متن/فایل تایپ‌شده در آن حالت نادیده گرفته
+   * می‌شوند، پس فرم هم صریحاً می‌گوید چه چیزی فرستاده می‌شود.
+   */
+  const [captured, setCaptured] = useState<CapturedContent | null>(null);
   const [mediaType, setMediaType] = useState("photo");
   const [confirmText, setConfirmText] = useState("");
 
@@ -94,7 +101,8 @@ export function BroadcastSection({ bot }: { bot: Bot }) {
   // تأیید دو مرحله‌ای: کاربر باید تعداد گیرندگان را تایپ کند. عدد لاتین پذیرفته
   // می‌شود چون همان چیزی است که در فیلد نشان داده می‌شود.
   const confirmed = confirmText.trim() === String(recipients);
-  const canSend = data.queueAvailable && (text.trim() || mediaFileId) && confirmed && recipients > 0;
+  const canSend =
+    data.queueAvailable && (Boolean(captured) || text.trim() || mediaFileId) && confirmed && recipients > 0;
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -111,9 +119,34 @@ export function BroadcastSection({ bot }: { bot: Bot }) {
           <CardDescription>{t.composerDesc}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* «با بات بفرست» — تنها راه فرستادن پیامی که فرمت، ویس یا فورواردِ
+              واقعی دارد؛ چیزهایی که در یک textarea ساخته نمی‌شوند. */}
+          <div className="space-y-2">
+            <SendViaBotButton
+              kind="broadcast"
+              botId={bot.id}
+              onCaptured={(c) => {
+                setCaptured(c);
+                // متن ضبط‌شده در پیش‌نمایش دیده شود؛ ولی مرجع همان جلسه است.
+                setText(c.content ?? "");
+                setMediaFileId("");
+              }}
+            />
+            {captured && (
+              <p className="flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                <span>{t.capturedNotice}</span>
+              </p>
+            )}
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="bc-text">{t.messageText}</Label>
-            <Textarea id="bc-text" rows={5} value={text} onChange={(e) => setText(e.target.value)} />
+            <Textarea
+              id="bc-text" rows={5} value={text}
+              disabled={Boolean(captured)}
+              onChange={(e) => setText(e.target.value)}
+            />
             <p className="text-xs text-muted-foreground tabular-nums">{text.length} / 4000</p>
           </div>
 
@@ -122,7 +155,8 @@ export function BroadcastSection({ bot }: { bot: Bot }) {
               <Label htmlFor="bc-media">{t.mediaFileId}</Label>
               <Input
                 id="bc-media" dir="ltr" className="font-mono text-sm"
-                value={mediaFileId}
+                value={captured?.fileId ?? mediaFileId}
+                disabled={Boolean(captured)}
                 onChange={(e) => setMediaFileId(e.target.value)}
               />
             </div>
@@ -192,19 +226,21 @@ export function BroadcastSection({ bot }: { bot: Bot }) {
             disabled={!canSend || send.isPending}
             onClick={() =>
               send.mutate(
-                {
-                  text,
-                  mediaFileId: mediaFileId || undefined,
-                  mediaType: mediaFileId ? mediaType : undefined,
-                  confirmRecipients: recipients,
-                },
+                captured
+                  ? { uploadSessionId: captured.id, confirmRecipients: recipients }
+                  : {
+                      text,
+                      mediaFileId: mediaFileId || undefined,
+                      mediaType: mediaFileId ? mediaType : undefined,
+                      confirmRecipients: recipients,
+                    },
                 {
                   onSuccess: (result) => {
                     toast({
                       title: t.queued,
                       description: t.queuedDesc.replace("{n}", nf(result.estimatedRecipients)),
                     });
-                    setText(""); setMediaFileId(""); setConfirmText("");
+                    setText(""); setMediaFileId(""); setConfirmText(""); setCaptured(null);
                   },
                   onError: (err: any) =>
                     toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),

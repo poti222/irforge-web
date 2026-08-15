@@ -22,7 +22,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
@@ -51,7 +51,25 @@ function errCode(err: any): string | null {
   return err?.data?.code ?? null;
 }
 
-/** انتخابگر مقصد — گروه‌بندی‌شده، بدون تایپ دستی uuid. */
+/**
+ * انتخابگر مقصد — **دو مرحله‌ای**.
+ *
+ * قبلاً همه‌چیز در یک دراپ‌داون بود: چهار اکشن داخلی، همه‌ی پنل‌ها، همه‌ی فرم‌ها
+ * و یک گزینه‌ی URL، پشت‌سرهم. روی باتی با ۲۰ پنل، پیدا کردن «فرم ثبت‌نام» یعنی
+ * اسکرول در فهرستی که سه نوع چیزِ کاملاً متفاوت را قاطی کرده بود.
+ *
+ * حالا اول **نوع** انتخاب می‌شود و بعد فقط انتخابگر همان نوع نشان داده می‌شود.
+ */
+type TargetKind = "builtin" | "panel" | "form" | "url";
+
+function kindOf(target: string): TargetKind | "" {
+  if (!target) return "";
+  if (target.startsWith("panel:")) return "panel";
+  if (target.startsWith("form:")) return "form";
+  if (target.startsWith("url:")) return "url";
+  return "builtin";
+}
+
 function TargetPicker({
   value,
   targets,
@@ -62,49 +80,77 @@ function TargetPicker({
   onChange: (next: string) => void;
 }) {
   const t = useT("botCommands");
-  const isUrl = value.startsWith("url:");
+  // نوع از روی مقدار فعلی استنتاج می‌شود تا حالت تکراری نگه نداریم؛ ولی وقتی
+  // کاربر نوع را عوض می‌کند و هنوز چیزی انتخاب نکرده، مقدار خالی است و
+  // استنتاج جواب نمی‌دهد — پس همان یک حالت جدا نگه داشته می‌شود.
+  const [pendingKind, setPendingKind] = useState<TargetKind | "">("");
+  const kind = kindOf(value) || pendingKind;
+
+  function pickKind(next: TargetKind) {
+    setPendingKind(next);
+    // عوض‌کردن نوع، مقدار قبلی را بی‌معنا می‌کند — نگه‌داشتنش یعنی ذخیره‌ی یک
+    // `panel:<id>` وقتی کاربر «فرم» را انتخاب کرده.
+    onChange(next === "url" ? "url:https://" : "");
+  }
 
   return (
     <div className="space-y-2">
-      <Select value={isUrl ? "__url__" : value || "__none__"} onValueChange={(v) => onChange(v === "__url__" ? "url:https://" : v === "__none__" ? "" : v)}>
-        <SelectTrigger><SelectValue placeholder={t.pickTarget} /></SelectTrigger>
+      <Select value={kind || undefined} onValueChange={(v) => pickKind(v as TargetKind)}>
+        <SelectTrigger><SelectValue placeholder={t.pickTargetKind} /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="__none__">{t.pickTarget}</SelectItem>
-          {(targets?.builtin.length ?? 0) > 0 && (
-            <SelectGroup>
-              <SelectLabel>{t.targetGroupBuiltin}</SelectLabel>
-              {targets!.builtin.map((b) => (
-                <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
-              ))}
-            </SelectGroup>
-          )}
-          {(targets?.panels.length ?? 0) > 0 && (
-            <SelectGroup>
-              <SelectLabel>{t.targetGroupPanels}</SelectLabel>
-              {targets!.panels.map((p) => (
-                <SelectItem key={p.id} value={`panel:${p.id}`}>{p.title || p.id}</SelectItem>
-              ))}
-            </SelectGroup>
-          )}
-          {(targets?.forms.length ?? 0) > 0 && (
-            <SelectGroup>
-              <SelectLabel>{t.targetGroupForms}</SelectLabel>
-              {targets!.forms.map((f) => (
-                <SelectItem key={f.id} value={`form:${f.id}`}>{f.title || f.id}</SelectItem>
-              ))}
-            </SelectGroup>
-          )}
-          <SelectGroup>
-            <SelectLabel>{t.targetGroupOther}</SelectLabel>
-            <SelectItem value="__url__">{t.targetUrl}</SelectItem>
-          </SelectGroup>
+          <SelectItem value="builtin">{t.targetGroupBuiltin}</SelectItem>
+          <SelectItem value="panel">{t.targetGroupPanels}</SelectItem>
+          <SelectItem value="form">{t.targetGroupForms}</SelectItem>
+          <SelectItem value="url">{t.targetUrl}</SelectItem>
         </SelectContent>
       </Select>
 
-      {isUrl && (
+      {kind === "builtin" && (
+        <Select value={value || undefined} onValueChange={onChange}>
+          <SelectTrigger><SelectValue placeholder={t.pickBuiltin} /></SelectTrigger>
+          <SelectContent>
+            {targets?.builtin.map((b) => (
+              <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {kind === "panel" && (
+        (targets?.panels.length ?? 0) === 0 ? (
+          <p className="text-xs text-muted-foreground">{t.noPanelsYet}</p>
+        ) : (
+          <Select value={value || undefined} onValueChange={onChange}>
+            <SelectTrigger><SelectValue placeholder={t.pickPanel} /></SelectTrigger>
+            <SelectContent>
+              {targets!.panels.map((p) => (
+                <SelectItem key={p.id} value={`panel:${p.id}`}>{p.title || p.id}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )
+      )}
+
+      {kind === "form" && (
+        (targets?.forms.length ?? 0) === 0 ? (
+          <p className="text-xs text-muted-foreground">{t.noFormsYet}</p>
+        ) : (
+          <Select value={value || undefined} onValueChange={onChange}>
+            <SelectTrigger><SelectValue placeholder={t.pickForm} /></SelectTrigger>
+            <SelectContent>
+              {targets!.forms.map((f) => (
+                <SelectItem key={f.id} value={`form:${f.id}`}>{f.title || f.id}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )
+      )}
+
+      {kind === "url" && (
         <Input
           dir="ltr"
-          value={value.slice(4)}
+          placeholder="https://"
+          value={value.startsWith("url:") ? value.slice(4) : ""}
           onChange={(e) => onChange(`url:${e.target.value}`)}
           aria-invalid={!/^https:\/\/\S+$/i.test(value.slice(4)) || undefined}
         />
@@ -120,7 +166,7 @@ export function CommandsEditor({ botId }: { botId: string }) {
 
   const { data, isLoading, error } = useQuery({
     queryKey: commandsKey(botId),
-    queryFn: () => customFetch<{ commands: BotCommand[]; count: number }>(`/api/bots/${botId}/commands`),
+    queryFn: () => customFetch<{ commands: BotCommand[]; count: number; menu: string[] }>(`/api/bots/${botId}/commands`),
   });
   const { data: targets } = useQuery({
     queryKey: ["bot-command-targets", botId],
@@ -150,6 +196,24 @@ export function CommandsEditor({ botId }: { botId: string }) {
     mutationFn: (command: string) =>
       customFetch(`/api/bots/${botId}/commands/${command}`, { method: "DELETE" }),
     onSuccess: invalidate,
+  });
+  /**
+   * افزودن/برداشتن از منوی «/» تلگرام. جدا از `update` است چون سرور علاوه بر
+   * نوشتن روی شیت، همان لحظه `setMyCommands` را هم صدا می‌زند و ممکن است
+   * تلگرام ردش کند — آن خطا باید جدا از خطای ذخیره‌ی خود کامند دیده شود.
+   */
+  const setMenu = useMutation({
+    mutationFn: ({ command, inMenu }: { command: string; inMenu: boolean }) =>
+      customFetch<{ menu: string[] }>(`/api/bots/${botId}/commands/${command}/menu`, {
+        method: "PUT",
+        body: JSON.stringify({ inMenu }),
+      }),
+    onSuccess: (_result, variables) => {
+      invalidate();
+      toast({ title: variables.inMenu ? t.menuAdded : t.menuRemoved });
+    },
+    onError: (err: any) =>
+      toast({ variant: "destructive", title: t.menuFailed, description: errMessage(err, t.errorGeneric) }),
   });
   const migrate = useMutation({
     mutationFn: () =>
@@ -193,6 +257,7 @@ export function CommandsEditor({ botId }: { botId: string }) {
   }
 
   const commands = data.commands;
+  const menu = data.menu ?? [];
 
   function targetLabel(target: string): string {
     if (target.startsWith("panel:")) {
@@ -234,6 +299,7 @@ export function CommandsEditor({ botId }: { botId: string }) {
                 <th className="p-2 text-start font-medium">{t.colDescription}</th>
                 <th className="p-2 text-start font-medium">{t.colAdminOnly}</th>
                 <th className="p-2 text-start font-medium">{t.colActive}</th>
+                <th className="p-2 text-start font-medium">{t.colInMenu}</th>
                 <th className="p-2" />
               </tr>
             </thead>
@@ -266,6 +332,17 @@ export function CommandsEditor({ botId }: { botId: string }) {
                           { onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }) }
                         )
                       }
+                    />
+                  </td>
+                  <td className="p-2">
+                    {/* منوی «/» تلگرام — همان چیزی که کاربر کنار کادر پیام
+                        می‌بیند. مستقل از `is_active` است: یک کامند می‌تواند کار
+                        کند ولی عمداً در منو نباشد. */}
+                    <Switch
+                      checked={menu.includes(cmd.command)}
+                      aria-label={t.colInMenu}
+                      disabled={setMenu.isPending}
+                      onCheckedChange={(v) => setMenu.mutate({ command: cmd.command, inMenu: v })}
                     />
                   </td>
                   <td className="p-2 text-end">

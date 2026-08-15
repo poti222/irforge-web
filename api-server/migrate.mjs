@@ -543,6 +543,26 @@ CREATE TABLE IF NOT EXISTS platform_settings (
   updated_by TEXT
 );
 
+-- ─── BOT_UPLOAD_SESSIONS («با بات بفرست») ───────────────────────────────────
+-- جلسه‌ی کوتاه‌عمری که کاربر محتوا را از داخل تلگرام به سایت می‌دهد.
+-- ببینید lib/db/src/schema/uploadSessions.ts.
+CREATE TABLE IF NOT EXISTS bot_upload_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  bot_id TEXT,
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  chat_id TEXT,
+  message_id TEXT,
+  media_type TEXT,
+  file_id TEXT,
+  content TEXT,
+  entities JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS bot_upload_sessions_chat_idx ON bot_upload_sessions(chat_id, status);
+
 -- ─── تحویل اعلان در تلگرام ──────────────────────────────────────────────────
 -- اعلان‌های سایت علاوه بر زنگوله، در بات پلتفرم هم فرستاده می‌شوند؛ این ستون
 -- سوئیچ خاموش‌کردنش برای هر کاربر است (پیش‌فرض روشن).
@@ -638,9 +658,15 @@ async function cleanupExpired(client) {
   const chall = await client.query(
     "DELETE FROM login_challenges WHERE code_expires_at < NOW() - INTERVAL '1 day'"
   );
+  // جلسه‌های «با بات بفرست» عمر کوتاهی دارند و بعدش بی‌مصرف‌اند؛ نگه‌داشتنشان
+  // فقط جدول را بزرگ می‌کند.
+  const uploads = await client.query(
+    "DELETE FROM bot_upload_sessions WHERE expires_at < NOW() - INTERVAL '1 day'"
+  );
   console.log(
     `[migrate] cleanup: ${pend.rowCount} pending registrations, ` +
-    `${guests.rowCount} guest sessions, ${chall.rowCount} login challenges`
+    `${guests.rowCount} guest sessions, ${chall.rowCount} login challenges, ` +
+    `${uploads.rowCount} upload sessions`
   );
 }
 

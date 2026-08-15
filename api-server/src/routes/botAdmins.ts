@@ -17,11 +17,8 @@
  *     فرمت قدیمی را موقع خواندن می‌فهمد.
  */
 import { Router } from "express";
-import { db, botsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { requireAuth } from "./auth.js";
-import { decryptToken } from "../lib/tokenCrypto.js";
-import { tgApi } from "../lib/telegram.js";
+import { resolveTelegramUser } from "../lib/telegramResolve.js";
 import {
   resolveBotSheet,
   listEntity,
@@ -135,35 +132,13 @@ function hasFullAccess(admin: ReturnType<typeof normalizeAdmin>, roles: Record<s
   return Boolean(role?.permissions.includes("*"));
 }
 
-/** آی‌دی عددی تلگرام یک یوزرنیم — یا خطای روشن (باگ B10). */
-async function resolveTelegramId(botId: string, input: string): Promise<{ userId: string; username: string }> {
-  const raw = input.trim();
-  if (/^\d{4,}$/.test(raw)) return { userId: raw, username: "" };
-
-  const handle = raw.replace(/^@/, "");
-  if (!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(handle))
-    throw bad("یوزرنیم یا آی‌دی عددی معتبر نیست. یوزرنیم باید ۵ تا ۳۲ کاراکتر انگلیسی باشد.", "bad_identifier");
-
-  const [bot] = await db.select({ token: botsTable.token }).from(botsTable).where(eq(botsTable.id, botId)).limit(1);
-  let token = "";
-  try {
-    token = decryptToken(bot?.token ?? "");
-  } catch {
-    token = "";
-  }
-
-  // باگ B10 در بات: افزودن با یوزرنیم به `getChat` وابسته است و اگر کاربر بات
-  // را استارت نکرده باشد شکست می‌خورد — با خطای مبهم. اینجا پیام دقیقاً
-  // می‌گوید چه کاری از کاربر برمی‌آید.
-  const guidance =
-    "نشد آی‌دی عددی این یوزرنیم را از تلگرام بگیریم. یا کاربر باید یک‌بار بات را استارت کند، یا آی‌دی عددی‌اش را مستقیم وارد کنید.";
-  if (!token) throw new BotConfigError(409, guidance, "username_unresolvable");
-
-  const chat = await tgApi<{ id: number; username?: string }>(token, "getChat", { chat_id: `@${handle}` });
-  if (!chat.ok || !chat.result?.id) throw new BotConfigError(409, guidance, "username_unresolvable");
-
-  return { userId: String(chat.result.id), username: chat.result.username ?? handle };
-}
+/**
+ * آی‌دی عددی تلگرام یک یوزرنیم — یا خطای روشن (باگ B10).
+ *
+ * منطقش به `lib/telegramResolve.ts` منتقل شد تا کانال‌های عضویت اجباری هم
+ * دقیقاً همین رفتار را داشته باشند؛ این فقط یک نام محلی است.
+ */
+const resolveTelegramId = resolveTelegramUser;
 
 // ─── گروه‌های دسترسی ────────────────────────────────────────────────────────
 

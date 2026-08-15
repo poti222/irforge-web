@@ -26,6 +26,7 @@ import {
   sendBotConfigError,
   BotConfigError,
 } from "../lib/botConfig.js";
+import { requirePluginEnabled } from "../lib/pluginGate.js";
 import { nowIso } from "../lib/botTypes.js";
 
 const router = Router();
@@ -85,6 +86,9 @@ async function botToken(botId: string): Promise<string | null> {
 router.get("/bots/:botId/orders", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    // سفارش‌ها پشت پلاگین کیف پول‌اند. گیت اینجاست نه فقط در UI، چون این
+    // روت مستقیم هم قابل صدا زدن است.
+    await requirePluginEnabled(spreadsheetId, "wallet");
     const all = await readOrders(spreadsheetId);
 
     const search = String(req.query.search ?? "").trim().toLowerCase();
@@ -124,6 +128,9 @@ router.get("/bots/:botId/orders", requireAuth, async (req: any, res) => {
 router.get("/bots/:botId/orders/:orderId", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    // سفارش‌ها پشت پلاگین کیف پول‌اند. گیت اینجاست نه فقط در UI، چون این
+    // روت مستقیم هم قابل صدا زدن است.
+    await requirePluginEnabled(spreadsheetId, "wallet");
     const order = await getEntity<Order>(spreadsheetId, PAYMENTS_TAB, req.params.orderId);
     if (!order) throw new BotConfigError(404, "این سفارش پیدا نشد.", "order_not_found");
     res.json({ order: { ...order, order_id: String(order.order_id ?? req.params.orderId) } });
@@ -144,6 +151,9 @@ router.get("/bots/:botId/orders/:orderId", requireAuth, async (req: any, res) =>
 router.post("/bots/:botId/orders/:orderId/status", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    // سفارش‌ها پشت پلاگین کیف پول‌اند. گیت اینجاست نه فقط در UI، چون این
+    // روت مستقیم هم قابل صدا زدن است.
+    await requirePluginEnabled(spreadsheetId, "wallet");
     await assertSheetsAuthoritative(PAYMENTS_TAB);
 
     const status = String(req.body?.status ?? "") as OrderStatus;
@@ -213,6 +223,9 @@ const BUTTON_SETS = ["receipt_buttons", "approved_buttons", "rejected_buttons"] 
 router.get("/bots/:botId/orders-config", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    // سفارش‌ها پشت پلاگین کیف پول‌اند. گیت اینجاست نه فقط در UI، چون این
+    // روت مستقیم هم قابل صدا زدن است.
+    await requirePluginEnabled(spreadsheetId, "wallet");
     const out: Record<string, unknown> = {};
     for (const key of BUTTON_SETS) {
       out[key] = (await getEntity<unknown>(spreadsheetId, "bot_settings", key)) ?? [];
@@ -226,6 +239,9 @@ router.get("/bots/:botId/orders-config", requireAuth, async (req: any, res) => {
 router.patch("/bots/:botId/orders-config", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    // سفارش‌ها پشت پلاگین کیف پول‌اند. گیت اینجاست نه فقط در UI، چون این
+    // روت مستقیم هم قابل صدا زدن است.
+    await requirePluginEnabled(spreadsheetId, "wallet");
     await assertSheetsAuthoritative("bot_settings");
 
     const body = req.body ?? {};

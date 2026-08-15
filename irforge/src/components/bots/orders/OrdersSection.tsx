@@ -120,9 +120,15 @@ export function OrdersSection({ bot }: { bot: Bot }) {
     );
   }
   if (error || !data) {
+    // `plugin_disabled` خطا نیست: کاربر با یک بوکمارک قدیمی رسیده به سکشنی که
+    // دیگر در نوار کناری نیست. پیام باید بگوید کجا روشنش کند.
     return (
       <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-        {errCode(error) === "no_sheet" ? t.noSheetYet : errMessage(error, t.errorGeneric)}
+        {errCode(error) === "no_sheet"
+          ? t.noSheetYet
+          : errCode(error) === "plugin_disabled"
+            ? t.walletPluginRequired
+            : errMessage(error, t.errorGeneric)}
       </div>
     );
   }
