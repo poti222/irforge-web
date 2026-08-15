@@ -7,6 +7,7 @@ import { eq, and, desc } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { createNotification, formatTomanFa } from "../lib/notify";
+import { getPaymentMethods, setPaymentMethods } from "../lib/platformSettings";
 
 const router = Router();
 
@@ -66,6 +67,46 @@ router.get("/wallet/transactions", requireAuth, async (req: any, res) => {
   }
 });
 
+/**
+ * GET /api/wallet/deposit-info — «پول را کجا بفرستم؟»
+ *
+ * تا پیش از این، تب تتر در صفحه‌ی کیف پول فقط «هش تراکنش» می‌خواست و هیچ‌جا
+ * آدرس مقصد را نشان نمی‌داد؛ یعنی کاربر عملاً نمی‌توانست واریز کند. این
+ * endpoint همان اطلاعات را از `platform_settings` می‌دهد (ببینید
+ * lib/platformSettings.ts). فقط برای کاربر لاگین‌شده، چون شماره کارت مقصد
+ * چیزی نیست که روی اینترنتِ باز بگذاریم.
+ */
+router.get("/wallet/deposit-info", requireAuth, async (_req: any, res) => {
+  try {
+    res.json(await getPaymentMethods());
+  } catch (err) {
+    logger.error({ err }, "Get deposit info error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/admin/payment-settings — همان مقادیر، برای ویرایش در پنل ادمین.
+router.get("/admin/payment-settings", requireSuperAdmin, async (_req: any, res) => {
+  try {
+    res.json(await getPaymentMethods());
+  } catch (err) {
+    logger.error({ err }, "Get payment settings error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// PUT /api/admin/payment-settings — ذخیره‌ی آدرس تتر / شماره کارت.
+router.put("/admin/payment-settings", requireSuperAdmin, blockWhileImpersonating, async (req: any, res) => {
+  try {
+    const saved = await setPaymentMethods(req.body, req.userId);
+    logger.info({ userId: req.userId }, "payment settings updated");
+    res.json(saved);
+  } catch (err) {
+    logger.error({ err }, "Update payment settings error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // POST /api/wallet/deposit — card-to-card or USDT (gateway is disabled/coming soon)
 router.post("/wallet/deposit", requireAuth, blockWhileImpersonating, requireCompleteProfile(), async (req: any, res) => {
   try {
@@ -75,11 +116,16 @@ router.post("/wallet/deposit", requireAuth, blockWhileImpersonating, requireComp
       res.status(400).json({ error: "A positive amount is required" });
       return;
     }
+    // روشی که سوپرادمین خاموشش کرده نباید از راه API باز بماند — فرانت تبش
+    // را پنهان می‌کند، ولی تصمیم واقعی باید سمت سرور گرفته شود.
+    const methods = await getPaymentMethods();
     let type: string;
     if (method === "card") {
+      if (!methods.card.enabled) { res.status(400).json({ error: "Card deposits are currently disabled" }); return; }
       if (!receiptUrl) { res.status(400).json({ error: "Receipt is required for card deposits" }); return; }
       type = "deposit_card";
     } else if (method === "usdt") {
+      if (!methods.usdt.enabled) { res.status(400).json({ error: "USDT deposits are currently disabled" }); return; }
       if (!txHash) { res.status(400).json({ error: "Transaction hash is required for USDT deposits" }); return; }
       type = "deposit_usdt";
     } else {

@@ -531,6 +531,22 @@ CREATE INDEX IF NOT EXISTS admin_audit_log_actor_idx ON admin_audit_log(actor_us
 -- databases that were provisioned before this change).
 DROP TABLE IF EXISTS discount_redemptions;
 DROP TABLE IF EXISTS discount_codes;
+
+-- ─── PLATFORM_SETTINGS (تنظیمات سطح پلتفرم) ─────────────────────────────────
+-- key/value ساده برای تنظیماتی که مالک سایت وارد می‌کند و به کاربر یا بات
+-- خاصی گره نخورده‌اند — امروز فقط «روش‌های واریز» (آدرس تتر، شماره کارت).
+-- ببینید lib/db/src/schema/platformSettings.ts.
+CREATE TABLE IF NOT EXISTS platform_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_by TEXT
+);
+
+-- ─── تحویل اعلان در تلگرام ──────────────────────────────────────────────────
+-- اعلان‌های سایت علاوه بر زنگوله، در بات پلتفرم هم فرستاده می‌شوند؛ این ستون
+-- سوئیچ خاموش‌کردنش برای هر کاربر است (پیش‌فرض روشن).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_telegram BOOLEAN NOT NULL DEFAULT true;
 `;
 
 

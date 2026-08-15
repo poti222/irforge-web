@@ -61,6 +61,53 @@ router.patch("/users/profile", requireAuth, async (req: any, res) => {
   }
 });
 
+/**
+ * تنظیمات تحویل اعلان.
+ *
+ * عمداً یک endpoint جدا از `PATCH /users/profile` است و نه یک فیلد دیگر در
+ * آن: شکل پاسخ پروفایل در `@workspace/api-spec` تعریف شده و کلاینتِ تولیدشده
+ * از رویش ساخته می‌شود؛ افزودن فیلد به آن یعنی دست‌زدن به قرارداد API برای
+ * چیزی که فقط یک سوئیچ در صفحه‌ی پروفایل است.
+ */
+router.get("/users/notification-prefs", requireAuth, async (req: any, res) => {
+  try {
+    const [user] = await db
+      .select({ notifyTelegram: usersTable.notifyTelegram, telegramId: usersTable.telegramId })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.userId))
+      .limit(1);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    // `telegramLinked` را هم برمی‌گردانیم چون سوئیچ بدون اتصال تلگرام بی‌معناست
+    // و فرانت باید بتواند به‌جای یک کلید بی‌اثر، دلیلش را نشان دهد.
+    res.json({ notifyTelegram: user.notifyTelegram, telegramLinked: Boolean(user.telegramId) });
+  } catch (err) {
+    logger.error({ err }, "Get notification prefs error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.patch("/users/notification-prefs", requireAuth, async (req: any, res) => {
+  try {
+    const { notifyTelegram } = req.body;
+    if (typeof notifyTelegram !== "boolean") {
+      res.status(400).json({ error: "notifyTelegram must be a boolean" });
+      return;
+    }
+    const [updated] = await db
+      .update(usersTable)
+      .set({ notifyTelegram })
+      .where(eq(usersTable.id, req.userId))
+      .returning({ notifyTelegram: usersTable.notifyTelegram, telegramId: usersTable.telegramId });
+    res.json({ notifyTelegram: updated.notifyTelegram, telegramLinked: Boolean(updated.telegramId) });
+  } catch (err) {
+    logger.error({ err }, "Update notification prefs error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // PATCH /api/users/password
 router.patch("/users/password", requireAuth, async (req: any, res) => {
   try {

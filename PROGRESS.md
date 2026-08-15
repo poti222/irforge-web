@@ -2276,3 +2276,51 @@ Verification this time is on the real script, not a proxy for it:
   normalised (`[migrate] normalised 1 e-mail address(es) to lowercase`), the
   functional unique index is created, and a case-variant insert is then rejected
   with `23505`. A second boot against that same database is a clean no-op.
+
+---
+
+# اعلان در تلگرام + اطلاعات واریز رمزارز
+
+دو قابلیت، هر دو بستنِ یک «شکست بی‌صدا». شرح کامل در
+`docs/TELEGRAM_NOTIFICATIONS_AND_DEPOSIT_INFO.md`.
+
+**۱. اعلان‌های سایت حالا در تلگرام هم می‌رسند.** `createNotification()` تا
+امروز فقط یک ردیف در جدول `notifications` می‌ساخت — یعنی تأیید فیش، پاسخ
+تیکت و هشدار تریال تا وقتی کاربر خودش سایت را باز نمی‌کرد به او نمی‌رسید.
+`lib/notifyTelegram.ts` همان اعلان را از طریق **بات پلتفرم**
+(`TELEGRAM_BOT_TOKEN`) هم می‌فرستد؛ بات پلتفرم انتخاب شد چون
+`users.telegramId` دقیقاً از مسیر همان بات پر می‌شود و تلگرام اجازه‌ی پیام
+دادن به کاربری که چت را شروع نکرده نمی‌دهد. سوئیچ خاموش‌کردنش
+(`users.notify_telegram`) در کارت تلگرامِ صفحه‌ی پروفایل است.
+
+**۲. جایی برای وارد کردن آدرس کیف پول.** تب USDT صفحه‌ی کیف پول «هش تراکنش»
+می‌خواست ولی آدرس مقصد را نشان نمی‌داد — واریز عملاً غیرممکن بود. جدول تازه‌ی
+`platform_settings` این را نگه می‌دارد؛ سوپرادمین در **پنل ادمین → پرداخت‌ها →
+اطلاعات واریز** پرش می‌کند و کاربر آن را با دکمه‌ی کپی در صفحه‌ی کیف پول
+می‌بیند. اگر خالی باشد، مقدار از env خوانده می‌شود و اگر آن هم نبود، فرانت
+صریح می‌گوید این روش تنظیم نشده، به‌جای نمایش کادر خالی.
+
+## راستی‌آزمایی
+
+درس پرونده‌ی قبلی (`0019_update_blocks`) این بود که فایل مایگریشنِ drizzle و
+`api-server/migrate.mjs` دو تکه SQL متفاوت‌اند و تست یکی چیزی درباره‌ی دیگری
+نمی‌گوید. این بار همان چیزی تست شد که واقعاً روی Railway اجرا می‌شود:
+
+- `node --check api-server/migrate.mjs` — parse تمیز.
+- `node api-server/migrate.mjs` روی یک **Postgres 16 واقعی و خالی**:
+  `[migrate] Done.`، و اجرای بلافاصله‌ی دوم هم تمیز (این اسکریپت با هر ری‌استارت
+  اجرا می‌شود). سپس با `psql` تأیید شد که `platform_settings` با کلید اصلی روی
+  `key` ساخته شده و `users.notify_telegram` با پیش‌فرض `true` اضافه شده.
+- `lib/platformSettings.ts` روی همان دیتابیس: مقدار خالی → پیش‌فرض env؛ ذخیره →
+  trim آدرس، عددی‌شدن نرخ، حفظ فیلدهایی که فرستاده نشده‌اند؛ upsert دوباره روی
+  همان کلید بدون خطا و بدون ردیف دوم.
+- فیلتر گیرنده‌های تلگرام روی همان دیتابیس با سه کاربر (لینک‌شده+روشن،
+  لینک‌شده+خاموش، بدون تلگرام): فقط اولی واجد شرایط شد. و بدون
+  `TELEGRAM_BOT_TOKEN`، `deliverToTelegram` **صفر** درخواست شبکه زد و throw نکرد.
+- `test/notifyTelegram.test.mjs` (۶ تست تازه): مقصد دکمه‌ی «مشاهده در سایت» برای
+  هر نوع اعلان، نوع ناشناخته → `/notifications` به‌جای لینک شکسته، نبودن
+  `refId`/`botId` → مسیر عمومی به‌جای `/updates/undefined`، اسلش اضافی
+  `PUBLIC_SITE_URL`، و escape شدن `<`/`&` در عنوان و متن (یک `<` رهاشده کل پیام
+  را از طرف تلگرام رد می‌کند).
+- گیت بیلد: `api-server build` ✅ · `irforge build` ✅ (۶۵ صفحه، بدون
+  TODO_TRANSLATE) · `irforge typecheck` ✅ · `api-server test` ✅ ۴۰/۴۰.

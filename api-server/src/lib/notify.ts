@@ -16,6 +16,7 @@ import crypto from "crypto";
 import { and, eq } from "drizzle-orm";
 import { db, notificationsTable } from "@workspace/db";
 import { logger } from "./logger";
+import { deliverToTelegramInBackground } from "./notifyTelegram";
 
 export type NotificationSeverity = "info" | "warning" | "critical";
 
@@ -67,6 +68,12 @@ export async function createNotification(input: NotificationInput): Promise<void
       dedupeKey: input.dedupeKey ?? null,
       refId: input.refId ?? null,
     });
+
+    // همین اعلان را در تلگرام هم برسان. عمداً **بعد از** insert و **بعد از**
+    // چک dedupe: اگر اعلان ساخته نشود (تکراری بوده) پیام تلگرامی هم نباید
+    // برود. منتظرش نمی‌مانیم تا رفت‌وبرگشت با تلگرام، پاسخ این درخواست را
+    // کند نکند.
+    deliverToTelegramInBackground([input.userId], input);
   } catch (err) {
     logger.warn({ err, type: input.type, userId: input.userId }, "createNotification failed (non-fatal)");
   }
@@ -112,6 +119,11 @@ export async function createNotificationsBulk(
         refId: input.refId ?? null,
       })),
     );
+
+    // فقط برای همان کاربرانی که واقعاً اعلان گرفتند (`targets`)، نه کل
+    // `userIds` — وگرنه کسی که قبلاً اعلان سراسری را دیده، با هر بار اجرای
+    // دوباره یک پیام تلگرامی تکراری می‌گرفت.
+    deliverToTelegramInBackground(targets, input);
   } catch (err) {
     logger.warn({ err, type: input.type, count: userIds.length }, "createNotificationsBulk failed (non-fatal)");
   }

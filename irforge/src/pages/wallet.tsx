@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wallet as WalletIcon, CreditCard, Landmark, Bitcoin, Upload, Loader2, X } from "lucide-react";
+import { Wallet as WalletIcon, CreditCard, Landmark, Bitcoin, Upload, Loader2, X, Copy, Check, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
@@ -28,6 +28,63 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "dest
   pending: "outline", approved: "default", rejected: "destructive",
 };
 
+/** شکل پاسخ GET /api/wallet/deposit-info — آینه‌ی PaymentMethodsSettings سرور. */
+type DepositInfo = {
+  usdt: { address: string; network: string; memo: string; tomanPerUsdt: number; note: string; enabled: boolean };
+  card: { number: string; holder: string; bank: string; note: string; enabled: boolean };
+};
+
+/**
+ * یک مقدارِ قابل کپی (آدرس کیف پول، شماره کارت).
+ *
+ * دکمه‌ی کپی اینجا تزئین نیست: تایپ‌کردن دستیِ یک آدرس TRC20 راهی مطمئن برای
+ * از دست دادن پول است. `dir="ltr"` و فونت mono هم به همین دلیل‌اند — آدرس در
+ * صفحه‌ی راست‌به‌چپ نباید تکه‌تکه یا جابه‌جا دیده شود.
+ */
+function CopyField({ label, value, fa }: { label: string; value: string; fa: boolean }) {
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // مرورگرهای قدیمی/بدون HTTPS اجازه‌ی clipboard نمی‌دهند — کاربر باید
+      // بداند چرا کلیک اثری نکرد، وگرنه فکر می‌کند کپی شده و آدرس خالی می‌چسباند.
+      toast({ variant: "destructive", title: fa ? "کپی نشد — دستی انتخاب کنید" : "Copy failed — select manually" });
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
+        <code dir="ltr" className="min-w-0 flex-1 select-all break-all font-mono text-xs">{value}</code>
+        <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0" onClick={copy}
+          aria-label={fa ? "کپی" : "Copy"}>
+          {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** وقتی سوپرادمین هنوز آدرس/شماره‌ای وارد نکرده. */
+function NotConfigured({ fa }: { fa: boolean }) {
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
+      <span>
+        {fa
+          ? "اطلاعات این روش واریز هنوز توسط پشتیبانی وارد نشده. لطفاً از روش دیگری استفاده کنید یا با پشتیبانی تماس بگیرید."
+          : "This deposit method hasn't been configured yet. Please use another method or contact support."}
+      </span>
+    </div>
+  );
+}
+
 export default function Wallet() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
@@ -43,6 +100,14 @@ export default function Wallet() {
     queryKey: ["wallet-tx"],
     queryFn: () => customFetch<WalletTx[]>("/api/wallet/transactions"),
     refetchInterval: 10000,
+  });
+  // «پول را کجا بفرستم؟» — آدرس تتر و شماره کارت مقصد، از تنظیمات پلتفرم.
+  // این‌ها ثابت‌اند، پس برخلاف موجودی و تراکنش‌ها هر ۱۰ ثانیه دوباره خوانده
+  // نمی‌شوند.
+  const { data: depositInfo } = useQuery({
+    queryKey: ["wallet-deposit-info"],
+    queryFn: () => customFetch<DepositInfo>("/api/wallet/deposit-info"),
+    staleTime: 5 * 60 * 1000,
   });
 
   // Detect a tracked pending deposit flipping to approved → toast (Z5 auto-return).
@@ -118,15 +183,32 @@ export default function Wallet() {
           <CardContent>
             <Tabs defaultValue="card">
               <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="card"><CreditCard className="me-1 h-4 w-4" /> {fa ? "کارت" : "Card"}</TabsTrigger>
+                {/* روشی که سوپرادمین خاموش کرده اصلاً قابل انتخاب نیست — سرور هم
+                    همین را جدا چک می‌کند (POST /api/wallet/deposit). */}
+                <TabsTrigger value="card" disabled={depositInfo?.card.enabled === false}><CreditCard className="me-1 h-4 w-4" /> {fa ? "کارت" : "Card"}</TabsTrigger>
                 <TabsTrigger value="gateway" disabled><Landmark className="me-1 h-4 w-4" /> {fa ? "درگاه" : "Gateway"}</TabsTrigger>
-                <TabsTrigger value="usdt"><Bitcoin className="me-1 h-4 w-4" /> USDT</TabsTrigger>
+                <TabsTrigger value="usdt" disabled={depositInfo?.usdt.enabled === false}><Bitcoin className="me-1 h-4 w-4" /> USDT</TabsTrigger>
               </TabsList>
 
               <TabsContent value="card" className="space-y-3 pt-3">
                 <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
                   {fa ? "ممکن است تأیید این روش تا ۱ ساعت طول بکشد." : "This method may take up to 1 hour to confirm."}
                 </p>
+
+                {/* مقصد واریز — اول کاربر باید بداند پول را کجا بفرستد، بعد فیش را آپلود کند. */}
+                {depositInfo && (depositInfo.card.number ? (
+                  <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-3">
+                    <CopyField label={fa ? "شماره کارت مقصد" : "Destination card number"} value={depositInfo.card.number} fa={fa} />
+                    {depositInfo.card.holder && (
+                      <p className="text-xs text-muted-foreground">
+                        {fa ? "به نام: " : "Card holder: "}<span className="font-medium text-foreground">{depositInfo.card.holder}</span>
+                        {depositInfo.card.bank ? ` · ${depositInfo.card.bank}` : ""}
+                      </p>
+                    )}
+                    {depositInfo.card.note && <p className="text-xs text-muted-foreground">{depositInfo.card.note}</p>}
+                  </div>
+                ) : <NotConfigured fa={fa} />)}
+
                 <div className="space-y-1.5">
                   <Label>{fa ? "مبلغ (تومان)" : "Amount (Toman)"}</Label>
                   <Input type="number" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} />
@@ -145,7 +227,7 @@ export default function Wallet() {
                   )}
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
                 </div>
-                <Button onClick={() => deposit("card")} disabled={busy} className="w-full">
+                <Button onClick={() => deposit("card")} disabled={busy || !depositInfo?.card.number} className="w-full">
                   {busy && <Loader2 className="me-2 h-4 w-4 animate-spin" />}{fa ? "ثبت واریز" : "Submit deposit"}
                 </Button>
               </TabsContent>
@@ -158,6 +240,35 @@ export default function Wallet() {
               </TabsContent>
 
               <TabsContent value="usdt" className="space-y-3 pt-3">
+                {/* آدرس مقصد + شبکه. شبکه با تأکید نمایش داده می‌شود چون واریز
+                    روی شبکه‌ی اشتباه یعنی پولِ برنگشتنی. */}
+                {depositInfo && (depositInfo.usdt.address ? (
+                  <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-3">
+                    <CopyField
+                      label={fa ? `آدرس کیف پول مقصد (${depositInfo.usdt.network})` : `Destination wallet address (${depositInfo.usdt.network})`}
+                      value={depositInfo.usdt.address}
+                      fa={fa}
+                    />
+                    {depositInfo.usdt.memo && (
+                      <CopyField label={fa ? "Memo / Tag (الزامی)" : "Memo / Tag (required)"} value={depositInfo.usdt.memo} fa={fa} />
+                    )}
+                    <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                      {fa
+                        ? `فقط از شبکه‌ی ${depositInfo.usdt.network} استفاده کنید؛ ارسال روی شبکه‌ی دیگر قابل بازگشت نیست.`
+                        : `Send only over the ${depositInfo.usdt.network} network — transfers on any other network cannot be recovered.`}
+                    </p>
+                    {depositInfo.usdt.tomanPerUsdt > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {fa
+                          ? `نرخ فعلی: هر ۱ تتر ≈ ${formatToman(depositInfo.usdt.tomanPerUsdt, lang)}`
+                          : `Current rate: 1 USDT ≈ ${formatToman(depositInfo.usdt.tomanPerUsdt, lang)}`}
+                      </p>
+                    )}
+                    {depositInfo.usdt.note && <p className="text-xs text-muted-foreground">{depositInfo.usdt.note}</p>}
+                  </div>
+                ) : <NotConfigured fa={fa} />)}
+
                 <div className="space-y-1.5">
                   <Label>{fa ? "مبلغ (تومان)" : "Amount (Toman)"}</Label>
                   <Input type="number" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} />
@@ -166,7 +277,7 @@ export default function Wallet() {
                   <Label>{fa ? "هش تراکنش / آدرس کیف پول مبدأ" : "Transaction hash / sending address"}</Label>
                   <Input dir="ltr" className="font-mono text-xs" value={txHash} onChange={(e) => setTxHash(e.target.value)} />
                 </div>
-                <Button onClick={() => deposit("usdt")} disabled={busy} className="w-full">
+                <Button onClick={() => deposit("usdt")} disabled={busy || !depositInfo?.usdt.address} className="w-full">
                   {busy && <Loader2 className="me-2 h-4 w-4 animate-spin" />}{fa ? "ثبت واریز" : "Submit deposit"}
                 </Button>
               </TabsContent>

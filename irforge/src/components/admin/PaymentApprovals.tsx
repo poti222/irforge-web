@@ -10,6 +10,7 @@ import { Check, X, Loader2, Inbox, Wallet as WalletIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
+import { PaymentMethodsSettings } from "./PaymentMethodsSettings";
 
 type WalletDeposit = {
   id: string; type: string; amount: number; status: string;
@@ -58,6 +59,10 @@ export function PaymentApprovals() {
 
   return (
     <div className="space-y-8">
+      {/* اطلاعات واریز — قبل از لیست تأییدها، چون تا این پر نشود اصلاً واریزی
+          برای تأیید نمی‌آید (کاربر نمی‌داند پول را کجا بفرستد). */}
+      <PaymentMethodsSettings />
+
       {/* Wallet deposits */}
       <section className="space-y-3">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">

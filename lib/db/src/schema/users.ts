@@ -75,6 +75,16 @@ export const usersTable = pgTable("users", {
   /** expiry of the current reset code */
   resetCodeExpiresAt: timestamp("reset_code_expires_at", { withTimezone: true }),
 
+  /**
+   * آیا اعلان‌های سایت علاوه بر زنگوله‌ی سایت، در تلگرام هم فرستاده شوند؟
+   *
+   * پیش‌فرض `true` است چون کاربر با اتصال تلگرام عملاً همین را خواسته — ولی
+   * تحویل فقط وقتی اتفاق می‌افتد که `telegramId` هم پر باشد (ببینید
+   * `api-server/src/lib/notifyTelegram.ts`). خاموش‌کردنش هیچ اثری روی
+   * ساخته‌شدن خودِ اعلان در سایت ندارد؛ فقط تحویلِ تلگرامی قطع می‌شود.
+   */
+  notifyTelegram: boolean("notify_telegram").notNull().default(true),
+
   status: text("status").notNull().default("active"),
 
   // ─── تریال ۷ روزه ─────────────────────────────────────────

@@ -23,3 +23,5 @@ export * from "./updates";
 export * from "./auth";
 // Phase 9: کدهای تخفیف — دیگر جدول Postgres ندارد؛ داده‌ی کدهای تخفیف کامل
 // در Google Sheets نگه‌داری می‌شود (ببینید api-server/src/lib/discountStore.ts).
+// تنظیمات سطح پلتفرم (آدرس کیف پول تتر، شماره کارت، …)
+export * from "./platformSettings";

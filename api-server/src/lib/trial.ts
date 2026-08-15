@@ -17,6 +17,7 @@ import crypto from "crypto";
 import { eq, and } from "drizzle-orm";
 import { db, botsTable, notificationsTable, type Bot } from "@workspace/db";
 import { logger } from "./logger";
+import { deliverToTelegramInBackground } from "./notifyTelegram";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 /** از این تعداد روز مانده به بعد، هر روز یک اعلان هشدار ساخته می‌شود. */
@@ -48,6 +49,18 @@ async function createNotificationOnce(params: {
       message: params.message,
       read: false,
       dedupeKey: params.dedupeKey,
+    });
+
+    // تحویل در تلگرام فقط وقتی insert موفق بوده — یعنی این اعلان تازه ساخته
+    // شده. اگر unique index روی dedupe_key خطا بدهد (اعلان تکراری) هرگز به
+    // اینجا نمی‌رسیم، پس کاربر روزی چند بار پیام «۲ روز تا پایان تریال»
+    // نمی‌گیرد؛ دقیقاً همان تضمینی که خود جدول می‌دهد.
+    deliverToTelegramInBackground([params.userId], {
+      type: params.type,
+      severity: params.severity,
+      title: params.title,
+      message: params.message,
+      botId: params.botId,
     });
   } catch (err: any) {
     // نقض unique index روی dedupe_key یعنی این اعلان قبلاً ساخته شده — بی‌خطر نادیده بگیر.

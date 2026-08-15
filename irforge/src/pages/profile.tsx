@@ -14,6 +14,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { TelegramLoginButton, type TelegramWidgetUser } from "@/components/telegram-login-button";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { useTelegramWebApp } from "@/hooks/use-telegram-webapp";
+import { TelegramNotifyToggle } from "@/components/profile/TelegramNotifyToggle";
 import { Send, Info, Loader2, Save, KeyRound, LogOut, ShieldCheck} from "lucide-react";
 
 type ProfileUser = {
@@ -336,18 +337,21 @@ export default function Profile() {
             </p>
           </div>
           {isTelegramLinked ? (
-            // حساب لینک شده — نمایش اطلاعات
-            <div className="flex items-center gap-4">
-              <Avatar className="h-14 w-14">
-                <AvatarImage src={u.telegramPhotoUrl || ""} />
-                <AvatarFallback>{(u.telegramFirstName ?? "T").charAt(0)}</AvatarFallback>
-              </Avatar>
-              <div className="space-y-1">
-                {telegramFullName && <p className="font-medium">{telegramFullName}</p>}
-                {u.telegramUsername && (
-                  <Badge variant="secondary" className="font-mono">@{u.telegramUsername}</Badge>
-                )}
+            // حساب لینک شده — نمایش اطلاعات + تنظیم تحویل اعلان
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-14 w-14">
+                  <AvatarImage src={u.telegramPhotoUrl || ""} />
+                  <AvatarFallback>{(u.telegramFirstName ?? "T").charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="space-y-1">
+                  {telegramFullName && <p className="font-medium">{telegramFullName}</p>}
+                  {u.telegramUsername && (
+                    <Badge variant="secondary" className="font-mono">@{u.telegramUsername}</Badge>
+                  )}
+                </div>
               </div>
+              <TelegramNotifyToggle />
             </div>
           ) : isInsideTelegram && tgUser ? (
             // داخل Mini App — دکمه اتصال خودکار
