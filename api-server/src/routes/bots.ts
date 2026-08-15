@@ -51,7 +51,7 @@ import {
   readKV,
   registrySheetId,
 } from "../lib/sheetsSync";
-import { renameSpreadsheet, sheetIsAccessible } from "../lib/sheets";
+import { renameSpreadsheet, sheetIsAccessible, resetSpreadsheet, ensureAllTenantTabs } from "../lib/sheets";
 import { readTabRows } from "../lib/tenantSheets.js";
 import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
 import { createNotification, formatTomanFa } from "../lib/notify";
@@ -121,10 +121,19 @@ async function purgeBotFully(
   syncTenantDelete(plainToken);
 
   if (bot.sheetId) {
-    // BUG FIX: این فقط رجیستری گوگل‌شیت رو آزاد می‌کرد، نه ردیف واقعی
-    // sheet_pool توی Postgres — در نتیجه بعد از حذف بات (چه دستی، چه با
-    // expiry، چه توسط خود کاربر)، شیت توی پنل همچنان "assigned" می‌موند و
-    // نه قابل استفاده‌ی مجدد بود نه قابل حذف. حالا هر دو رو آزاد می‌کنیم.
+    // BUG FIX: قبلاً فقط رجیستری/وضعیت Postgres آزاد می‌شد ولی خودِ
+    // گوگل‌شیت پاک نمی‌شد، پس بات بعدی که این شیت بهش assign می‌شد
+    // تب‌ها و دیتای بات قبلی رو می‌دید. حالا قبل از available کردن،
+    // خودِ شیت کاملاً ریست می‌شه (انگار تازه ساخته شده).
+    try {
+      await resetSpreadsheet(bot.sheetId);
+    } catch (err) {
+      logger.error(
+        { err, sheetId: bot.sheetId },
+        "resetSpreadsheet failed during bot purge — sheet may still contain previous tenant's data, do NOT reassign without manual check"
+      );
+    }
+
     await db
       .update(sheetPoolTable)
       .set({ status: "available", assignedBotId: null })
@@ -1333,6 +1342,16 @@ router.post("/sheet-pool", requireSuperAdmin, async (req: any, res) => {
       })
       .returning();
 
+    // شیتی که تازه به Pool اضافه می‌شه معمولاً یه اسپردشیت کاملاً خام گوگلی
+    // (فقط Sheet1) هست — قبل از اینکه به هیچ باتی assign بشه باید همه‌ی
+    // تب‌های تننت رو داشته باشه، وگرنه اولین باتی که این رو می‌گیره همون
+    // خطای «تب پیدا نشد» رو می‌خوره.
+    try {
+      await ensureAllTenantTabs(entry.sheetId);
+    } catch (err) {
+      logger.error({ err, sheetId: entry.sheetId }, "ensureAllTenantTabs failed after adding to sheet pool");
+    }
+
     syncSheetPoolUpsert({
       sheet_id: entry.sheetId,
       status: "available",
@@ -1403,6 +1422,18 @@ router.post("/sheet-pool/:id/release", requireSuperAdmin, async (req: any, res) 
     const [entry] = await db.select().from(sheetPoolTable).where(eq(sheetPoolTable.id, id)).limit(1);
     if (!entry) {
       res.status(404).json({ error: "Sheet not found" });
+      return;
+    }
+
+    // BUG FIX: قبلاً این دکمه فقط وضعیت رو "available" می‌کرد ولی دیتای
+    // واقعی توی گوگل‌شیت پاک نمی‌شد. حالا اول خودِ شیت ریست می‌شه؛ اگه
+    // ریست fail بشه، شیت اصلاً available نمی‌شه که یه شیت کثیف دوباره
+    // به یه بات جدید داده نشه.
+    try {
+      await resetSpreadsheet(entry.sheetId);
+    } catch (err) {
+      logger.error({ err, sheetId: entry.sheetId }, "resetSpreadsheet failed during manual release");
+      res.status(500).json({ error: "Failed to clear the sheet's data. Sheet was NOT released." });
       return;
     }
 
@@ -2418,6 +2449,16 @@ router.post("/bots/:botId/sheet", requireSuperAdmin, async (req: any, res) => {
     }
 
     const previousSheetId: string | null = bot.sheetId ?? null;
+
+    // 2.5. این شیت الان مال این باته — هر تب تننتی که نداره الان ساخته بشه.
+    //      اگه شیت از قبل دیتای بات دیگه‌ای رو داشته باشه دست‌نخورده می‌مونه
+    //      (فقط تب‌های غایب اضافه می‌شن)، ولی اگه یه شیت خام باشه دیگه پنل
+    //      و بقیه‌ی صفحات سایت روی «تب پیدا نشد» نمی‌ترکن.
+    try {
+      await ensureAllTenantTabs(sheetId);
+    } catch (err) {
+      logger.error({ err, sheetId }, "ensureAllTenantTabs failed while assigning sheet to bot");
+    }
 
     // 3. Rename the spreadsheet to match the bot (best-effort — don't fail the
     //    whole request if the title can't be changed).

@@ -1135,6 +1135,8 @@
     "lang_tr": "Türkçe",
     "lang_ar": "Arapça",
     "lang_ru": "Rusça",
+    "welcomeEnabled": "Karşılama mesajı",
+    "welcomeEnabledHint": "Kapalıyken kullanıcı /start sonrası doğrudan ana paneli görür.",
     "watermarkEnabled": "Filigran",
     "watermarkHint": "Bot mesajlarının sonuna eklenen metin.",
     "watermarkPlaceholder": "örn. IrForge ile yapıldı",

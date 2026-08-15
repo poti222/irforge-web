@@ -504,16 +504,19 @@ function HeroBackdrop({ animate }: { animate: boolean }) {
         className="absolute bottom-0 end-[10%] size-[320px] rounded-full bg-primary/5 blur-2xl"
         {...drift({ x: [0, -34, 22, 0], y: [0, 20, -16, 0], scale: [1, 0.95, 1.05, 1] }, 16)}
       />
-      <img
-        src="/lion-sun-flag.png"
-        alt=""
-        aria-hidden="true"
-        width={560}
-        height={336}
-        loading="lazy"
-        decoding="async"
-        className="absolute -end-32 top-1/2 hidden w-[560px] -translate-y-1/2 select-none opacity-[0.07] md:block dark:opacity-[0.1] [mask-image:radial-gradient(ellipse_at_center,black_10%,transparent_68%)]"
-      />
+      <picture className="contents">
+        <source srcSet="/lion-sun-flag.webp" type="image/webp" />
+        <img
+          src="/lion-sun-flag.png"
+          alt=""
+          aria-hidden="true"
+          width={560}
+          height={336}
+          loading="lazy"
+          decoding="async"
+          className="absolute -end-32 top-1/2 hidden w-[560px] -translate-y-1/2 select-none opacity-[0.07] md:block dark:opacity-[0.1] [mask-image:radial-gradient(ellipse_at_center,black_10%,transparent_68%)]"
+        />
+      </picture>
     </div>
   );
 }

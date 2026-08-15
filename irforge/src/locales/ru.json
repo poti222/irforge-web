@@ -1135,6 +1135,8 @@
     "lang_tr": "Турецкий",
     "lang_ar": "Арабский",
     "lang_ru": "Русский",
+    "welcomeEnabled": "Приветственное сообщение",
+    "welcomeEnabledHint": "Если выключено, пользователь после /start сразу увидит главную панель.",
     "watermarkEnabled": "Водяной знак",
     "watermarkHint": "Текст, добавляемый в конец сообщений бота.",
     "watermarkPlaceholder": "например: Сделано в IrForge",

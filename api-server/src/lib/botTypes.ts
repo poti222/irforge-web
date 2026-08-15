@@ -245,6 +245,7 @@ export type AntiFlood = {
 export type BotSettings = {
   language: string;
   welcome_msg: string;
+  welcome_enabled: boolean;
   error_msg: string;
   not_found_msg: string;
   panel_inactive_msg: string;
@@ -333,6 +334,7 @@ export function defaultBotSettings(): BotSettings {
   return {
     language: "fa",
     welcome_msg: "سلام! به ربات خوش آمدید. 👋",
+    welcome_enabled: true,
     error_msg: "خطایی رخ داد. لطفاً دوباره تلاش کنید.",
     not_found_msg: "این بخش یافت نشد.",
     panel_inactive_msg: "این بخش فعلاً غیرفعال است. لطفاً بعداً مراجعه کنید.",

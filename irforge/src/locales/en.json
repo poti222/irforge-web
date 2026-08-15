@@ -1135,6 +1135,8 @@
     "lang_tr": "Turkish",
     "lang_ar": "Arabic",
     "lang_ru": "Russian",
+    "welcomeEnabled": "Welcome message",
+    "welcomeEnabledHint": "When off, the user goes straight to the home panel after /start.",
     "watermarkEnabled": "Watermark",
     "watermarkHint": "Text appended to the bot's messages.",
     "watermarkPlaceholder": "e.g. Built with IrForge",

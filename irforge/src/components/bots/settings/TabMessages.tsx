@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
 import { SettingsSaveBar, SettingsError, CachePropagationNotice } from "./SettingsSaveBar";
@@ -47,11 +48,12 @@ const PLACEHOLDERS: Partial<Record<MessageField, string[]>> = {
   order_track_msg: ["{order_id}", "{reason}"],
 };
 
-type MessagesDraft = Record<MessageField, string>;
+type MessagesDraft = Record<MessageField, string> & { welcome_enabled: boolean };
 
 function pick(settings: BotSettings): MessagesDraft {
   const out = {} as MessagesDraft;
   for (const f of MESSAGE_FIELDS) out[f] = settings[f];
+  out.welcome_enabled = settings.welcome_enabled;
   return out;
 }
 
@@ -161,12 +163,26 @@ export function TabMessages({ botId, data }: { botId: string; data: SettingsEnve
       </CardHeader>
       <CardContent className="space-y-5">
         {MESSAGE_FIELDS.map((field) => (
-          <MessageEditor
-            key={field}
-            field={field}
-            value={draft.value[field] ?? ""}
-            onChange={(next) => draft.set(field, next)}
-          />
+          <div key={field} className="space-y-2">
+            {field === "welcome_msg" && (
+              <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+                <div className="min-w-0">
+                  <Label htmlFor="msg-welcome-enabled">{t.welcomeEnabled}</Label>
+                  <p className="text-xs text-muted-foreground">{t.welcomeEnabledHint}</p>
+                </div>
+                <Switch
+                  id="msg-welcome-enabled"
+                  checked={draft.value.welcome_enabled}
+                  onCheckedChange={(v) => draft.set("welcome_enabled", v)}
+                />
+              </div>
+            )}
+            <MessageEditor
+              field={field}
+              value={draft.value[field] ?? ""}
+              onChange={(next) => draft.set(field, next)}
+            />
+          </div>
         ))}
         <SettingsError error={patch.error} />
         <CachePropagationNotice cacheBust={data.cacheBust} />

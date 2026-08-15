@@ -45,7 +45,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!--
+      NOTE [perf]: telegram-web-app.js was previously loaded synchronously
+      here on every single page (render-blocking), but nothing in src/
+      references window.Telegram — it was dead weight. If/when a Telegram
+      Mini App integration is actually built, load it with `defer` (or lazy
+      import it only inside the component that needs it) instead of blocking
+      first paint on every route.
+    -->
 
     <!--
       FIX [lang]: تنظیم زبان و جهت — قبل از render اجرا می‌شه.

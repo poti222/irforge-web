@@ -245,6 +245,8 @@ export function OrdersSection({ bot }: { bot: Bot }) {
                   <img
                     src={`/api/bots/${bot.id}/media/${encodeURIComponent(selected.receipt_file_id)}`}
                     alt={t.receipt}
+                    loading="lazy"
+                    decoding="async"
                     className="max-h-72 w-full rounded-md border object-contain"
                   />
                 </div>

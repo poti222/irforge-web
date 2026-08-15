@@ -216,6 +216,146 @@ export async function clearSheet(
   }
 }
 
+/**
+ * یک اسپردشیت رو کاملاً ریست می‌کنه: همه‌ی تب‌های موجود رو حذف می‌کنه و
+ * فقط یه تب خالی به اسم "Sheet1" جاش می‌ذاره — دقیقاً مثل حالتی که یه
+ * اسپردشیت تازه ساخته شده. برای جلوگیری از نشت دیتای بات قبلی به بات
+ * بعدی، هر جا شیتی از یه بات آزاد می‌شه (حذف بات یا release دستی توسط
+ * سوپرادمین) باید این تابع صدا زده بشه.
+ */
+export async function resetSpreadsheet(spreadsheetId: string): Promise<void> {
+  try {
+    const sheets = getSheetsClient();
+    const current = await sheets.spreadsheets.get({
+      spreadsheetId,
+      fields: "sheets.properties(sheetId,title)",
+    });
+    const existingSheets = current.data.sheets ?? [];
+    const tempTitle = `_reset_${Date.now()}`;
+
+    // اول یه تب موقت خالی اضافه می‌کنیم، بعد همه‌ی تب‌های قبلی رو حذف
+    // می‌کنیم — این ترتیب لازمه چون گوگل‌شیت نمی‌ذاره آخرین تب حذف بشه.
+    const addResult = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          { addSheet: { properties: { title: tempTitle } } },
+          ...existingSheets
+            .filter((s) => s.properties?.sheetId != null)
+            .map((s) => ({ deleteSheet: { sheetId: s.properties!.sheetId! } })),
+        ],
+      },
+    });
+
+    const newSheetId = addResult.data.replies?.[0]?.addSheet?.properties?.sheetId;
+    if (newSheetId != null) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: { sheetId: newSheetId, title: "Sheet1" },
+                fields: "title",
+              },
+            },
+          ],
+        },
+      });
+    }
+
+    // شیت آزادشده باید همون لحظه، قبل از برگشتن به Pool، کامل تب‌بندی بشه —
+    // نه موقع assign به بات بعدی. اگه اینجا نسازیمشون، بات بعدی که این شیت رو
+    // می‌گیره یه شیت خالیِ فقط-Sheet1 تحویل می‌گیره و اولین درخواستی که یه تب
+    // (مثل «panels») رو می‌خونه با خطای «تب پیدا نشد» گوگل‌شیت می‌ترکه.
+    await ensureAllTenantTabs(spreadsheetId);
+  } catch (err) {
+    logger.error({ err, spreadsheetId }, "resetSpreadsheet error");
+    throw err;
+  }
+}
+
+// ─── Tenant-tab provisioning ────────────────────────────────────────────────
+
+/**
+ * هر تبی که یک بخش از سایت یا بات به‌عنوان یک entity-tab می‌خواند/می‌نویسد.
+ * وقتی شیتی تازه (خالی، فقط با «Sheet1») به بات جدیدی می‌رسد — چه از Pool، چه
+ * با پیست دستی ID توسط سوپرادمین — این تب‌ها هنوز رویش نیستند، و اولین
+ * درخواستی که یکی از آن‌ها را می‌خواند (مثلاً پنل‌ها) روی خطای «تب پیدا نشد»ِ
+ * گوگل‌شیت می‌ترکد چون `readTabRows` مستقیم از یک range با نام تب ناموجود
+ * می‌خواند.
+ *
+ * این لیست باید با تمام ثابت‌های `*_TAB` پخش‌شده در routes/*.ts و lib/*.ts
+ * همگام بماند: panelOps.ts (panels, custom_commands), botConfig.ts
+ * (bot_settings), botAdmins.ts (admins), botForms.ts (forms),
+ * botLanguage.ts (text_keys, text_values), botObjects.ts (object_schemas),
+ * botOrders.ts (payments), botRelations.ts (relation_definitions,
+ * relation_links), botSupportTickets.ts (tickets, ticket_messages),
+ * botUsers.ts (users), botWorkflows.ts (workflows, workflow_runs),
+ * discountStore.ts (discounts, discount_redemptions).
+ */
+export const ALL_TENANT_TABS: readonly string[] = [
+  "bot_settings",
+  "panels",
+  "custom_commands",
+  "admins",
+  "forms",
+  "text_keys",
+  "text_values",
+  "object_schemas",
+  "payments",
+  "relation_definitions",
+  "relation_links",
+  "tickets",
+  "ticket_messages",
+  "users",
+  "workflows",
+  "workflow_runs",
+  "discounts",
+  "discount_redemptions",
+];
+
+/**
+ * هر تبی از `titles` که هنوز روی شیت نیست را می‌سازد — همه با هم در یک
+ * batchUpdate (نه یکی‌یکی مثل `addTab`، که برای این تعداد تب کند و پرخطا
+ * می‌شود)، بعد هدر `[key, value]` هرکدام را می‌نویسد. برای تب‌های موجود کاری
+ * نمی‌کند، پس صدا زدنش همیشه امن است (idempotent).
+ */
+export async function ensureTabsExist(spreadsheetId: string, titles: readonly string[]): Promise<void> {
+  const existing = await listTabs(spreadsheetId);
+  const missing = titles.filter((t) => !existing.includes(t));
+  if (missing.length === 0) return;
+
+  const sheets = getSheetsClient();
+  try {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: missing.map((title) => ({ addSheet: { properties: { title } } })),
+      },
+    });
+  } catch (err) {
+    logger.error({ err, spreadsheetId, missing }, "ensureTabsExist: batch addSheet failed");
+    throw err;
+  }
+
+  // هدرها را جدا می‌نویسیم (values.update بچ نمی‌گیرد) — خطای هدر یک تب نباید
+  // جلوی ساخته‌شدن/هدرگیریِ بقیه را بگیرد، تب بی‌هدر هم به مراتب بهتر از
+  // تبِ اصلاً‌ناموجود است.
+  for (const title of missing) {
+    try {
+      await writeSheet(spreadsheetId, `${quoteTab(title)}!A1`, [["key", "value"]]);
+    } catch (err) {
+      logger.error({ err, spreadsheetId, title }, "ensureTabsExist: header write failed");
+    }
+  }
+}
+
+/** میان‌بر: همه‌ی تب‌های ثابت شناخته‌شده‌ی تننت را می‌سازد (`ALL_TENANT_TABS`). */
+export async function ensureAllTenantTabs(spreadsheetId: string): Promise<void> {
+  await ensureTabsExist(spreadsheetId, ALL_TENANT_TABS);
+}
+
 /** Read sheet as array of objects using first row as headers */
 export async function readSheetAsObjects(
   spreadsheetId: string,
