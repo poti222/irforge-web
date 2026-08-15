@@ -31,8 +31,9 @@ export function BotStatsPanel({ botId, status }: { botId: string; status: string
     ? [
         {
           label: fa ? "کاربران فعال امروز" : "Active users today",
-          // TODO: backend field — no per-user activity data exists yet, so this
-          // shows a dash rather than a made-up figure.
+          // از `last_seen` تب کاربرانِ شیت تننت، به وقت **تهران** حساب می‌شود
+          // (api-server/src/lib/botStats.ts). خط تیره فقط وقتی می‌ماند که بات
+          // هنوز شیتی نگرفته باشد.
           value: stats.activeUsersToday == null ? "—" : nf(stats.activeUsersToday),
           icon: UserCheck,
         },
@@ -94,7 +95,7 @@ export function BotStatsPanel({ botId, status }: { botId: string; status: string
           {series.length === 0 ? (
             // Explicit empty state rather than hiding the card: the chart is
             // part of the spec, and silently omitting it would read as a bug.
-            // TODO: backend field — activeUsersPerDay is not returned yet.
+            // خالی‌بودن حالا یعنی واقعاً کاربر فعالی در ۷ روز اخیر نبوده.
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
               {tw.noDataYet}
             </div>

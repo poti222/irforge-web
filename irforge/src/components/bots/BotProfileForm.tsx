@@ -16,6 +16,14 @@ interface TelegramProfile {
   name: string | null;
   description: string | null;
   shortDescription: string | null;
+  /**
+   * URL پروکسیِ عکس فعلی بات (`/api/bots/:id/avatar?v=…`) یا null.
+   *
+   * سرور عمداً file_id خام نمی‌دهد: تبدیل file_id به URL قابل دانلود نیازمند
+   * توکن خودِ بات است و آن URL توکن را داخل خودش دارد، پس هرگز نباید به
+   * مرورگر برسد.
+   */
+  photoUrl: string | null;
 }
 
 const SHORT_DESC_MAX = 120;
@@ -53,7 +61,16 @@ export function BotProfileForm({ bot }: { bot: Bot }) {
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [removingPhoto, setRemovingPhoto] = useState(false);
+  /**
+   * عکس نمایش‌داده‌شده. مقدار اولیه‌اش از پاسخ سرور می‌آید (قبلاً همیشه null
+   * بود و برای همین عکس بات هیچ‌وقت لود نمی‌شد)؛ بعد از آپلود موقتاً با
+   * data-URL محلی پر می‌شود تا کاربر فوراً نتیجه را ببیند، و بعد با URL
+   * قطعیِ سرور جایگزین می‌شود.
+   */
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (loaded) setPhotoPreview(loaded.photoUrl);
+  }, [loaded]);
 
   async function handleSave() {
     setSaving(true);
@@ -93,13 +110,20 @@ export function BotProfileForm({ bot }: { bot: Bot }) {
       setPhotoPreview(dataUrl);
       setUploadingPhoto(true);
       try {
-        await customFetch(`/api/bots/${bot.id}/telegram-profile/photo`, {
-          method: "POST",
-          body: JSON.stringify({ photo: dataUrl }),
-        });
+        const saved = await customFetch<{ photoUrl: string | null }>(
+          `/api/bots/${bot.id}/telegram-profile/photo`,
+          { method: "POST", body: JSON.stringify({ photo: dataUrl }) }
+        );
+        // پیش‌نمایش محلی با نسخه‌ی واقعیِ روی تلگرام جایگزین می‌شود — اگر
+        // تلگرام تصویر را برش داده باشد، کاربر همان چیزی را می‌بیند که واقعاً
+        // روی پروفایل بات نشسته، نه فایلی که خودش انتخاب کرد.
+        if (saved.photoUrl) setPhotoPreview(saved.photoUrl);
+        queryClient.invalidateQueries({ queryKey: profileQueryKey });
         toast({ title: fa ? "عکس پروفایل تغییر کرد" : "Profile photo updated" });
       } catch (err: any) {
-        setPhotoPreview(null);
+        // برگشت به عکس قبلی، نه به خالی: یک آپلود ناموفق نباید باعث شود کاربر
+        // فکر کند عکس فعلی بات هم پاک شده.
+        setPhotoPreview(loaded?.photoUrl ?? null);
         toast({
           variant: "destructive",
           title: fa ? "خطا در آپلود عکس" : "Failed to upload photo",
@@ -117,6 +141,7 @@ export function BotProfileForm({ bot }: { bot: Bot }) {
     try {
       await customFetch(`/api/bots/${bot.id}/telegram-profile/photo`, { method: "DELETE" });
       setPhotoPreview(null);
+      queryClient.invalidateQueries({ queryKey: profileQueryKey });
       toast({ title: fa ? "عکس پروفایل حذف شد" : "Profile photo removed" });
     } catch (err: any) {
       toast({

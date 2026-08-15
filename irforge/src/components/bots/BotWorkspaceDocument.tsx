@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
+import { useGetBotStats, getGetBotStatsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/hooks/use-language";
@@ -215,6 +216,13 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
 
   const nf = (n: number | undefined) => (n ?? 0).toLocaleString(fa ? "fa-IR" : "en-US");
 
+  // آمار کاربران فقط برای کارت‌های نمای کلی لازم است؛ در بقیه‌ی سکشن‌ها خوانده
+  // نمی‌شود تا هر بار باز کردن «پنل‌ها» یک خواندن اضافه از شیت نزند. سرور
+  // خودش ۶۰ ثانیه کش می‌کند (lib/botStats.ts).
+  const { data: stats } = useGetBotStats(bot.id, {
+    query: { queryKey: getGetBotStatsQueryKey(bot.id), enabled: section === "overview" },
+  });
+
   const anim = reduce
     ? {}
     : {
@@ -293,17 +301,18 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewTotalUsers}</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold">{nf(bot.userCount)}</div></CardContent>
+                    {/* شمارش کاربران از endpoint آمار می‌آید، نه از `bot.userCount`:
+                        آن ستون در Postgres است و هیچ‌وقت به‌روز نمی‌شد. تا رسیدن
+                        پاسخ، همان عدد قدیمی نشان داده می‌شود تا کارت نپرد. */}
+                    <CardContent><div className="text-2xl font-bold">{nf(stats?.users ?? bot.userCount)}</div></CardContent>
                   </Card>
                   <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewActiveToday}</CardTitle></CardHeader>
                     <CardContent>
-                      {/* No invented number: the field is a TODO on the API, so
-                          until it arrives this says so instead of guessing. */}
-                      {bot.activeUsersToday == null ? (
+                      {stats?.activeUsersToday == null ? (
                         <div className="text-sm text-muted-foreground">{t.noDataYet}</div>
                       ) : (
-                        <div className="text-2xl font-bold">{nf(bot.activeUsersToday)}</div>
+                        <div className="text-2xl font-bold">{nf(stats.activeUsersToday)}</div>
                       )}
                     </CardContent>
                   </Card>

@@ -157,9 +157,9 @@ export interface Bot {
   messageCount?: number;
   /**
    * Users who sent at least one message to this bot today.
-   * TODO: backend field — there is no per-user activity table yet, so the API
-   * does not return this. The UI renders a placeholder while it is undefined
-   * rather than inventing a number.
+   * Not returned on the Bot object itself — it costs a tenant-sheet read, so
+   * it lives on GET /bots/:botId/stats instead (see lib/botStats.ts). Kept
+   * optional here for older clients.
    */
   activeUsersToday?: number;
   // ─── Group 2 fields ────────────────────────────────────────────
@@ -223,13 +223,12 @@ export interface BotStats {
   uptime: number;
   messagesPerDay?: BotStatsMessagesPerDayItem[];
   /**
-   * Distinct users who messaged the bot on each of the last 7 days.
-   * TODO: backend field — /bots/:id/stats does not return this yet (it has no
-   * per-user activity data to derive it from). The chart renders an explicit
-   * "no data" state while it is undefined.
+   * Users seen on each of the last 7 days, keyed by the Tehran calendar date.
+   * Derived from `last_seen` on the tenant sheet's `users` tab; undefined only
+   * when the bot has no sheet assigned yet.
    */
   activeUsersPerDay?: BotStatsMessagesPerDayItem[];
-  /** Distinct users who messaged the bot today. TODO: backend field */
+  /** Users seen today (Tehran calendar day). Undefined when the bot has no sheet. */
   activeUsersToday?: number;
 }
 

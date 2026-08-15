@@ -79,6 +79,15 @@ async function compressImage(file: File): Promise<string> {
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close?.();
 
+  // اول WebP: هم از JPEG هم‌کیفیت کوچک‌تر است و هم — برخلاف JPEG — شفافیت را
+  // نگه می‌دارد، پس همان مسیر PNG شفاف را هم پوشش می‌دهد. مرورگری که WebP
+  // انکود نمی‌کند بی‌سروصدا PNG برمی‌گرداند، و همان چک `startsWith` جلویش را
+  // می‌گیرد تا به مسیرهای قدیمی برسیم.
+  for (const quality of [0.85, 0.75, 0.65]) {
+    const out = canvas.toDataURL("image/webp", quality);
+    if (out.startsWith("data:image/webp") && dataUrlBytes(out) <= MAX_IMAGE_BYTES) return out;
+  }
+
   const isPng = file.type === "image/png";
   if (isPng) {
     const out = canvas.toDataURL("image/png");

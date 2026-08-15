@@ -11,6 +11,7 @@ import { Wallet as WalletIcon, CreditCard, Landmark, Bitcoin, Upload, Loader2, X
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
+import { toWebpDataUrl } from "@/lib/image";
 
 type WalletTx = {
   id: string; type: string; amount: number; status: string;
@@ -130,13 +131,14 @@ export default function Wallet() {
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  // فیش واریزی به WebP تبدیل می‌شود: همین data-URL عیناً در دیتابیس ذخیره و
+  // بعداً به ادمین سرو می‌شود، پس هر بایتی که اینجا کم شود هم در حجم دیتابیس
+  // و هم در زمان بارگذاری صفحه‌ی تأییدها صرفه‌جویی است.
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) { toast({ variant: "destructive", title: fa ? "فقط تصویر" : "Image only" }); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => setReceiptPreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
+    setReceiptPreview(await toWebpDataUrl(file));
   }
 
   async function deposit(method: "card" | "usdt") {

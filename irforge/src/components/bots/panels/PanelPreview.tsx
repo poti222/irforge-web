@@ -5,6 +5,7 @@
  * ترتیب حدسی؛ پس چیزی که در پیش‌نمایش می‌بینی همان چیزی است که ذخیره می‌شود و
  * بات می‌کشد (`handlers/user.py` دکمه‌ها را بر اساس `row` گروه می‌کند).
  */
+import { useState } from "react";
 import { Bot, Image as ImageIcon, Film, Music, FileText, Images } from "lucide-react";
 import { useT } from "@/hooks/use-translation";
 import type { PanelButton } from "@/lib/panel-buttons";
@@ -23,11 +24,41 @@ const STYLE_CLASS: Record<string, string> = {
   primary: "border-primary/50 text-primary",
 };
 
+/**
+ * یک مدیا در پیش‌نمایش. چون روی شیت فقط `file_id` هست و نوعش معلوم نیست،
+ * اول تصویر امتحان می‌شود و اگر لود نشد به پخش‌کننده‌ی صوت سوییچ می‌کند —
+ * همان روشی که MediaList استفاده می‌کند.
+ */
+function MediaThumb({ botId, fileId }: { botId: string; fileId: string }) {
+  const [isAudio, setIsAudio] = useState(false);
+  const src = `/api/bots/${botId}/media/${encodeURIComponent(fileId)}`;
+
+  if (isAudio) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
+        <Music className="size-4 shrink-0 text-muted-foreground" />
+        <audio src={src} controls preload="metadata" className="h-8 min-w-0 flex-1" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      className="max-h-44 w-full rounded-md border object-cover"
+      onError={() => setIsAudio(true)}
+    />
+  );
+}
+
 export function PanelPreview({
   title,
   content,
   type,
-  mediaCount,
+  media,
+  botId,
   rows,
   watermark,
   hasParent,
@@ -35,13 +66,16 @@ export function PanelPreview({
   title: string;
   content: string;
   type: string;
-  mediaCount: number;
+  /** file_idهای مدیا — برای رندر واقعی، نه فقط شمردن. */
+  media: string[];
+  botId: string;
   rows: PanelButton[][];
   watermark?: string;
   hasParent: boolean;
 }) {
   const t = useT("botPanels");
   const MediaIcon = MEDIA_ICON[type];
+  const mediaCount = media.length;
 
   return (
     <div className="rounded-lg border bg-muted/30 p-3">
@@ -51,14 +85,21 @@ export function PanelPreview({
           <Bot className="size-4" />
         </div>
         <div className="min-w-0 flex-1 space-y-2 rounded-lg rounded-ss-none border bg-card p-3 shadow-sm">
-          {MediaIcon && (
+          {/* مدیا واقعاً رندر می‌شود، نه به‌شکل «۲ فایل»: کاربر باید همان چیزی
+              را ببیند که در پیام تلگرام ظاهر می‌شود. تصویر و صوت از پروکسیِ
+              سرور می‌آیند (توکن بات هرگز به مرورگر نمی‌رسد). */}
+          {MediaIcon && mediaCount === 0 && (
             <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/50 p-3 text-xs text-muted-foreground">
               <MediaIcon className="size-4 shrink-0" />
-              <span>
-                {mediaCount > 0
-                  ? t.previewMediaCount.replace("{n}", String(mediaCount))
-                  : t.previewMediaMissing}
-              </span>
+              <span>{t.previewMediaMissing}</span>
+            </div>
+          )}
+
+          {mediaCount > 0 && (
+            <div className={mediaCount > 1 ? "grid grid-cols-2 gap-1" : ""}>
+              {media.map((fileId) => (
+                <MediaThumb key={fileId} botId={botId} fileId={fileId} />
+              ))}
             </div>
           )}
 

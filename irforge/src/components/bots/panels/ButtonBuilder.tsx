@@ -20,7 +20,7 @@ import { useT } from "@/hooks/use-translation";
 import {
   addButton, addRow, emptyButton, moveButtonHorizontally, moveButtonVertically,
   moveRow, overfullRows, removeButton, removeRow, updateButton,
-  MAX_BUTTONS_PER_ROW, type PanelButton,
+  MAX_BUTTONS_PER_ROW, canAddToRow, type PanelButton,
 } from "@/lib/panel-buttons";
 import { buttonActionLabel, buttonStyleLabel } from "./labels";
 import type { Panel, PanelCatalog } from "./api";
@@ -258,12 +258,20 @@ export function ButtonBuilder({
             ))}
           </div>
 
-          <Button
-            variant="outline" size="sm" className="mt-3"
-            onClick={() => onChange(addButton(rows, rowIndex, emptyButton()))}
-          >
-            <Plus className="me-1.5 size-3.5" /> {t.addButtonToRow}
-          </Button>
+          {/* ردیف پر: به‌جای اجازه‌دادن و بعد رد شدن ذخیره سمت سرور، همین‌جا
+              جلویش گرفته می‌شود و راه درست پیشنهاد می‌شود. */}
+          {canAddToRow(rows, rowIndex) ? (
+            <Button
+              variant="outline" size="sm" className="mt-3"
+              onClick={() => onChange(addButton(rows, rowIndex, emptyButton()))}
+            >
+              <Plus className="me-1.5 size-3.5" /> {t.addButtonToRow}
+            </Button>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">
+              {t.rowAtLimit.replace("{max}", String(MAX_BUTTONS_PER_ROW))}
+            </p>
+          )}
         </div>
       ))}
 

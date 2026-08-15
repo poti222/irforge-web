@@ -448,6 +448,31 @@ export function buttonsToRows(buttons: PanelButton[]): PanelButton[][] {
   return rows;
 }
 
+/**
+ * حداکثر دکمه در یک ردیفِ کیبورد اینلاین.
+ *
+ * تلگرام سقف سختی اعلام نکرده، ولی از حدود ۵ دکمه به بعد برچسب‌ها روی
+ * موبایل بریده می‌شوند و ردیف عملاً ناخوانا می‌شود — چیزی که کاربر فقط بعد
+ * از انتشار پنل می‌فهمد. آینه‌ی این ثابت در
+ * `irforge/src/lib/panel-buttons.ts` است و هر دو باید با هم عوض شوند.
+ */
+export const MAX_BUTTONS_PER_ROW = 4;
+
+/**
+ * ردیفی که از سقف رد شده را پیدا می‌کند (شماره‌ی ردیف، ۱-پایه، برای پیام خطا).
+ * روی خروجیِ نرمال‌شده کار می‌کند، چون `row` تنها بعد از نرمال‌سازی معتبر است.
+ */
+export function findOverfullRow(buttons: PanelButton[]): { row: number; count: number } | null {
+  const counts = new Map<number, number>();
+  for (const b of normalizeButtonLayout(buttons)) {
+    counts.set(b.row, (counts.get(b.row) ?? 0) + 1);
+  }
+  for (const [row, count] of counts) {
+    if (count > MAX_BUTTONS_PER_ROW) return { row: row + 1, count };
+  }
+  return null;
+}
+
 /** ردیف‌های UI → لیست تختِ نرمال‌شده (برای ذخیره). */
 export function rowsToButtons(rows: PanelButton[][]): PanelButton[] {
   const flat: PanelButton[] = [];

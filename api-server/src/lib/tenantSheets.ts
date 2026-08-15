@@ -20,6 +20,7 @@ import {
   addTab,
   quoteTab,
   ensureAllTenantTabs,
+  isMissingTabError,
 } from "./sheets.js";
 
 export { listTabs, addTab, ensureAllTenantTabs };
@@ -47,12 +48,34 @@ export function serializeValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/** Read every key/value row of a tab as decoded objects (header skipped). */
+/**
+ * Read every key/value row of a tab as decoded objects (header skipped).
+ *
+ * **یک تبِ ناموجود = یک تبِ خالی.** این تنها فرقِ رفتاری با قبل است و ریشه‌ی
+ * مشترک چند باگ گزارش‌شده بود: فرم‌ها، آبجکت‌ها، ریلیشن‌ها و کامندهای سفارشی
+ * همگی با «خطای نامشخص سرور» بالا نمی‌آمدند، چون شیتِ آن تننت هنوز تبِ
+ * مربوطه را نداشت و Sheets API روی range ناموجود ۴۰۰ می‌دهد.
+ *
+ * چرا «خالی» و نه «تب را همین‌جا بساز»؟ چون خواندن نباید بنویسد: یک GET
+ * ساده نباید ساختار شیتِ کاربر را عوض کند، و مسیر نوشتن (`upsertRow` →
+ * `ensureHeader`) از قبل تب را موقع اولین ذخیره می‌سازد. پس سکشن خالی بالا
+ * می‌آید، کاربر اولین رکوردش را می‌سازد، و تب همان‌جا ساخته می‌شود.
+ *
+ * `ensureAllTenantTabs` هم هنوز سر جایش است و تب‌ها را موقع تخصیص شیت
+ * می‌سازد؛ این‌یکی توری‌ست برای شیت‌هایی که قبل از آن ساخته شده‌اند و برای
+ * تب‌های پویا مثل `obj_<slug>` که در آن لیست نیستند.
+ */
 export async function readTabRows(
   spreadsheetId: string,
   tab: string
 ): Promise<TenantRow[]> {
-  const rows = await readSheet(spreadsheetId, `${quoteTab(tab)}!A:B`);
+  let rows: string[][];
+  try {
+    rows = await readSheet(spreadsheetId, `${quoteTab(tab)}!A:B`);
+  } catch (err) {
+    if (isMissingTabError(err)) return [];
+    throw err;
+  }
   const out: TenantRow[] = [];
   for (let i = 1; i < rows.length; i++) {
     const key = rows[i]?.[0];
@@ -65,7 +88,15 @@ export async function readTabRows(
 
 /** 1-based row number of a key in column A, or -1. */
 async function findRow(spreadsheetId: string, tab: string, key: string): Promise<number> {
-  const rows = await readSheet(spreadsheetId, `${quoteTab(tab)}!A:A`);
+  let rows: string[][];
+  try {
+    rows = await readSheet(spreadsheetId, `${quoteTab(tab)}!A:A`);
+  } catch (err) {
+    // تبِ ناموجود یعنی کلید هم آنجا نیست. صداکننده (`upsertRow`) از قبل
+    // `ensureHeader` را زده، ولی `rowExists` مستقیم هم صدا زده می‌شود.
+    if (isMissingTabError(err)) return -1;
+    throw err;
+  }
   for (let i = 1; i < rows.length; i++) {
     if (rows[i]?.[0] === key) return i + 1;
   }
@@ -118,7 +149,13 @@ export async function upsertRow(
  * had the identical bug.
  */
 export async function deleteRow(spreadsheetId: string, tab: string, key: string): Promise<boolean> {
-  const rows = await readSheet(spreadsheetId, `${quoteTab(tab)}!A:B`);
+  let rows: string[][];
+  try {
+    rows = await readSheet(spreadsheetId, `${quoteTab(tab)}!A:B`);
+  } catch (err) {
+    if (isMissingTabError(err)) return false; // تبی نیست، پس چیزی برای حذف نیست
+    throw err;
+  }
   if (rows.length <= 1) return false;
   const kept = rows.filter((r, i) => i === 0 || r[0] !== key);
   if (kept.length === rows.length) return false; // key not found

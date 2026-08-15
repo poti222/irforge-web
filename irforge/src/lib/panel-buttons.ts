@@ -31,8 +31,19 @@ export type PanelButton = {
   icon_custom_emoji_id?: string;
 };
 
-/** حداکثر دکمه در یک ردیف — همان سقفی که سرور enforce می‌کند. */
-export const MAX_BUTTONS_PER_ROW = 8;
+/**
+ * حداکثر دکمه در یک ردیف — همان سقفی که سرور enforce می‌کند
+ * (`api-server/src/lib/botTypes.ts`). هر دو باید با هم عوض شوند.
+ *
+ * از حدود ۵ دکمه به بعد، تلگرام برچسب‌ها را روی موبایل می‌بُرد و ردیف عملاً
+ * ناخوانا می‌شود — چیزی که کاربر فقط بعد از انتشار پنل می‌فهمید.
+ */
+export const MAX_BUTTONS_PER_ROW = 4;
+
+/** آیا می‌شود به این ردیف دکمه‌ی دیگری اضافه کرد؟ */
+export function canAddToRow(rows: PanelButton[][], rowIndex: number): boolean {
+  return (rows[rowIndex]?.length ?? 0) < MAX_BUTTONS_PER_ROW;
+}
 
 export function emptyButton(partial: Partial<PanelButton> = {}): PanelButton {
   return {
@@ -114,7 +125,13 @@ export function moveRow(rows: PanelButton[][], from: number, to: number): PanelB
   return next;
 }
 
+/**
+ * دکمه را به ردیف اضافه می‌کند. ردیفِ پر بی‌صدا نادیده گرفته می‌شود (no-op) —
+ * UI دکمه‌ی افزودن را از قبل غیرفعال کرده، ولی این تضمین می‌کند حتی یک مسیر
+ * فراموش‌شده هم نتواند ردیفی بسازد که سرور بعداً ذخیره‌اش را رد می‌کند.
+ */
 export function addButton(rows: PanelButton[][], rowIndex: number, button: PanelButton): PanelButton[][] {
+  if (!canAddToRow(rows, rowIndex)) return rows;
   return rows.map((row, i) => (i === rowIndex ? [...row, button] : row));
 }
 
@@ -172,6 +189,10 @@ export function moveButtonVertically(
     next = [...next, []];
     targetIndex = next.length - 1;
   }
+
+  // ردیف مقصدِ پر، دکمه را نمی‌پذیرد — وگرنه جابه‌جایی عمودی راهی می‌شد برای
+  // ساختن ردیفی که ذخیره‌اش سمت سرور رد می‌شود.
+  if (next[targetIndex].length >= MAX_BUTTONS_PER_ROW) return rows;
 
   next[targetIndex] = [...next[targetIndex], button];
   return next.filter((row) => row.length > 0);

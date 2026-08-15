@@ -470,7 +470,8 @@ export function PanelEditor({
             title={title}
             content={content}
             type={type}
-            mediaCount={media.length}
+            media={media}
+            botId={botId}
             rows={rows}
             watermark={watermark}
             hasParent={Boolean(panel.parent_id)}

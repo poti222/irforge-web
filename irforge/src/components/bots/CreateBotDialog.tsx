@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
+import { toWebpDataUrl } from "@/lib/image";
 
 // ─── نوع کاربر پروفایل (با فیلدهای تلگرام) ─────────────────────────────────
 
@@ -134,7 +135,7 @@ export function CreateBotDialog({ open, onOpenChange, onSuccess }: CreateBotDial
   }
 
   // آپلود فیش
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -146,9 +147,9 @@ export function CreateBotDialog({ open, onOpenChange, onSuccess }: CreateBotDial
       return;
     }
     setReceiptFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setReceiptPreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
+    // همان data-URL که پیش‌نمایش می‌شود، بعداً به سرور هم می‌رود — پس تبدیل به
+    // WebP همین‌جا انجام می‌شود، نه دو بار.
+    setReceiptPreview(await toWebpDataUrl(file));
   }
 
   // ارسال فرم
@@ -168,13 +169,10 @@ export function CreateBotDialog({ open, onOpenChange, onSuccess }: CreateBotDial
 
     setSubmitting(true);
     try {
-      // آپلود فیش (به صورت base64 برای MVP — بعداً به S3 وصل میشه)
-      const receiptBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => resolve(ev.target?.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(receiptFile);
-      });
+      // فیش به صورت data-URL می‌رود (MVP — بعداً به S3 وصل میشه). همان نسخه‌ی
+      // WebP ای که برای پیش‌نمایش ساخته شد استفاده می‌شود؛ خواندن دوباره‌ی فایل
+      // خام یعنی فرستادن یک JPEG چندمگابایتی به‌جای معادل فشرده‌اش.
+      const receiptBase64 = receiptPreview ?? (await toWebpDataUrl(receiptFile));
 
       // ارسال به API
       // نکته: بعد از migration گروه ۲، endpoint /api/bots آپدیت میشه تا

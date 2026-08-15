@@ -55,6 +55,7 @@ import { renameSpreadsheet, sheetIsAccessible, resetSpreadsheet, ensureAllTenant
 import { readTabRows } from "../lib/tenantSheets.js";
 import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
 import { createNotification, formatTomanFa } from "../lib/notify";
+import { botUserStats, type BotUserStats } from "../lib/botStats";
 
 const router = Router();
 
@@ -2181,7 +2182,26 @@ router.get("/bots/:botId/stats", requireBotOwnership, async (req: any, res) => {
       date.setDate(date.getDate() - (6 - i));
       return { date: date.toISOString().split("T")[0], count: i === 6 ? totalMessages - basePerDay * 6 : basePerDay };
     });
-    res.json({ botId: bot.id, messages: bot.messageCount, users: bot.userCount, commands: commands.length, plugins: plugins.length, uptime: bot.status === "active" ? 99.5 : 0, messagesPerDay });
+
+    // کاربران و فعالان امروز از تب `users` شیت تننت — همان جایی که خودِ بات
+    // می‌نویسد. `bots.user_count` در Postgres عملاً هیچ‌وقت به‌روز نمی‌شد، پس
+    // فقط به‌عنوان fallback می‌ماند برای باتی که هنوز شیت ندارد.
+    let userStats: BotUserStats | null = null;
+    if (bot.sheetId) {
+      userStats = await botUserStats(bot.sheetId);
+    }
+
+    res.json({
+      botId: bot.id,
+      messages: bot.messageCount,
+      users: userStats ? userStats.users : bot.userCount,
+      activeUsersToday: userStats ? userStats.activeUsersToday : undefined,
+      activeUsersPerDay: userStats ? userStats.activeUsersPerDay : undefined,
+      commands: commands.length,
+      plugins: plugins.length,
+      uptime: bot.status === "active" ? 99.5 : 0,
+      messagesPerDay,
+    });
   } catch (err) { logger.error({ err }, "Get bot stats error"); res.status(500).json({ error: "Internal server error" }); }
 });
 
@@ -2232,18 +2252,62 @@ router.get("/bots/:botId/avatar", async (req, res) => {
 // bots.name/description — see bot-profile-feature-prompt.md for why these
 // are kept separate and read live from Telegram instead of a DB column) ────
 
+/**
+ * تصویر پروفایل به کلاینت به شکل **URL پروکسی** داده می‌شود، نه file_id.
+ *
+ * تا امروز این endpoint هیچ چیزی درباره‌ی عکس برنمی‌گرداند، و کامپوننت
+ * `BotProfileForm` هم `photoPreview` را فقط بعد از یک آپلود موفق پر می‌کرد —
+ * برای همین با هر بار باز کردن صفحه، جای عکس خالی بود حتی وقتی بات واقعاً
+ * عکس داشت.
+ *
+ * `?v=` یک امضای کوتاه از خود file_id است: تا وقتی عکس عوض نشده مرورگر از
+ * کشش استفاده می‌کند، و لحظه‌ای که عوض شد URL هم عوض می‌شود.
+ */
+function botPhotoUrl(botId: string, avatarFileId: string | null | undefined): string | null {
+  if (!avatarFileId) return null;
+  const version = crypto.createHash("sha1").update(avatarFileId).digest("hex").slice(0, 12);
+  return `/api/bots/${botId}/avatar?v=${version}`;
+}
+
+/**
+ * هویت بات را از تلگرام تازه می‌کند و در دیتابیس می‌نشاند.
+ *
+ * `bots.avatarFileId` تنها منبعی است که پروکسیِ `/avatar` از آن می‌خواند، پس
+ * اگر مالک بات عکس را از خودِ تلگرام عوض کند، بدون این هماهنگ‌سازی سایت تا
+ * ابد عکس قدیمی (یا هیچ عکسی) نشان می‌داد. غیرقطعی است: شکستش فقط یعنی
+ * عکس این‌بار به‌روز نشد.
+ */
+async function syncBotAvatar(botId: string, token: string, current: string | null): Promise<string | null> {
+  try {
+    const identity = await fetchBotIdentity(token);
+    if (!identity.avatarFileId) return current;
+    if (identity.avatarFileId !== current) {
+      await db
+        .update(botsTable)
+        .set({ avatarFileId: identity.avatarFileId, avatar: `/api/bots/${botId}/avatar` })
+        .where(eq(botsTable.id, botId));
+    }
+    return identity.avatarFileId;
+  } catch (err) {
+    logger.debug({ err, botId }, "syncBotAvatar failed (non-fatal)");
+    return current;
+  }
+}
+
 router.get("/bots/:botId/telegram-profile", requireBotOwnership, async (req: any, res) => {
   try {
     const token = decryptToken(req.bot.token);
-    const [nameRes, descRes, shortDescRes] = await Promise.all([
+    const [nameRes, descRes, shortDescRes, avatarFileId] = await Promise.all([
       tgApi<{ name: string }>(token, "getMyName"),
       tgApi<{ description: string }>(token, "getMyDescription"),
       tgApi<{ short_description: string }>(token, "getMyShortDescription"),
+      syncBotAvatar(req.bot.id, token, req.bot.avatarFileId ?? null),
     ]);
     res.json({
       name: nameRes.ok ? nameRes.result?.name ?? null : null,
       description: descRes.ok ? descRes.result?.description ?? null : null,
       shortDescription: shortDescRes.ok ? shortDescRes.result?.short_description ?? null : null,
+      photoUrl: botPhotoUrl(req.bot.id, avatarFileId),
     });
   } catch (err) {
     logger.error({ err }, "Get telegram profile error");
@@ -2325,7 +2389,12 @@ router.post("/bots/:botId/telegram-profile/photo", requireBotOwnership, async (r
       res.status(400).json({ error: result.description ?? "setMyProfilePhoto failed" });
       return;
     }
-    res.json({ ok: true });
+
+    // تلگرام file_id عکس تازه را در پاسخ setMyProfilePhoto نمی‌دهد، پس باید
+    // دوباره از خودش بپرسیم. بدون این، پروکسیِ `/avatar` تا اولین ری‌فرش
+    // بعدی همچنان عکس قبلی را می‌داد.
+    const avatarFileId = await syncBotAvatar(req.bot.id, token, req.bot.avatarFileId ?? null);
+    res.json({ ok: true, photoUrl: botPhotoUrl(req.bot.id, avatarFileId) });
   } catch (err) {
     logger.error({ err }, "Set telegram profile photo error");
     res.status(500).json({ error: "Internal server error" });
@@ -2340,7 +2409,15 @@ router.delete("/bots/:botId/telegram-profile/photo", requireBotOwnership, async 
       res.status(400).json({ error: result.description ?? "removeMyProfilePhoto failed" });
       return;
     }
-    res.json({ ok: true });
+
+    // پاک‌کردن file_id ذخیره‌شده، وگرنه پروکسیِ `/avatar` عکسی را سرو می‌کرد
+    // که دیگر روی پروفایل بات نیست.
+    await db
+      .update(botsTable)
+      .set({ avatarFileId: null, avatar: null })
+      .where(eq(botsTable.id, req.bot.id));
+
+    res.json({ ok: true, photoUrl: null });
   } catch (err) {
     logger.error({ err }, "Remove telegram profile photo error");
     res.status(500).json({ error: "Internal server error" });

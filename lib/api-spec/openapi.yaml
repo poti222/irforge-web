@@ -1043,6 +1043,23 @@ components:
                 type: string
               count:
                 type: integer
+        activeUsersPerDay:
+          description: >-
+            Users seen on each of the last 7 days, keyed by the Tehran calendar
+            date. Derived from `last_seen` on the tenant sheet's `users` tab.
+            Absent when the bot has no sheet assigned yet.
+          type: array
+          items:
+            type: object
+            required: [date, count]
+            properties:
+              date:
+                type: string
+              count:
+                type: integer
+        activeUsersToday:
+          description: Users seen today, on the Tehran calendar day.
+          type: integer
 
     BotCommand:
       type: object

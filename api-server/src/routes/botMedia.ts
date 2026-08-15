@@ -33,13 +33,26 @@ const router = Router();
  */
 const MAX_UPLOAD_BYTES = 7 * 1024 * 1024;
 
-const ALLOWED_PREFIXES = ["image/", "video/", "audio/", "application/"];
+/**
+ * فقط **تصویر و صوت**.
+ *
+ * ویدیو عمداً بیرون است: یک پنل ویدیویی روی موبایلِ کاربر نهایی چند ده مگابایت
+ * دانلود می‌کند و تجربه‌ی «منوی بات» را خراب می‌کند؛ همین‌طور فایل عمومی
+ * (`application/*`)، که پنل را به یک اشتراک‌گذار فایل تبدیل می‌کرد. این تصمیم
+ * محصولی است و باید **هر دو طرف** اعمال شود — کلاینت `accept` می‌گذارد، ولی
+ * تنها چیزی که واقعاً جلویش را می‌گیرد همین لیست است.
+ */
+const ALLOWED_PREFIXES = ["image/", "audio/"];
 
 /** نوع تلگرامیِ متناسب با mime — تعیین می‌کند کدام متد و کدام کلید پاسخ. */
 function telegramTarget(mimeType: string): { method: string; field: string; resultKey: string } {
   if (mimeType.startsWith("image/") && mimeType !== "image/gif")
     return { method: "sendPhoto", field: "photo", resultKey: "photo" };
-  if (mimeType.startsWith("video/")) return { method: "sendVideo", field: "video", resultKey: "video" };
+  // صوت به‌عنوان **voice** فرستاده می‌شود نه audio: پنل‌های بات پیام صوتی
+  // می‌خواهند (همان حباب موج‌دار)، نه یک ترک موزیک با کاور و عنوان. تلگرام
+  // برای voice فقط OGG/Opus را قبول می‌کند، پس بقیه‌ی فرمت‌ها audio می‌مانند.
+  if (mimeType === "audio/ogg" || mimeType === "audio/opus")
+    return { method: "sendVoice", field: "voice", resultKey: "voice" };
   if (mimeType.startsWith("audio/")) return { method: "sendAudio", field: "audio", resultKey: "audio" };
   return { method: "sendDocument", field: "document", resultKey: "document" };
 }
@@ -93,7 +106,11 @@ router.post("/bots/:botId/media", requireAuth, async (req: any, res) => {
 
     const [, mimeType, base64] = match;
     if (!ALLOWED_PREFIXES.some((p) => mimeType.startsWith(p)))
-      throw new BotConfigError(400, `نوع فایل «${mimeType}» پشتیبانی نمی‌شود.`);
+      throw new BotConfigError(
+        400,
+        `نوع فایل «${mimeType}» پشتیبانی نمی‌شود. مدیای پنل فقط می‌تواند تصویر یا فایل صوتی باشد.`,
+        "unsupported_type"
+      );
 
     const buffer = Buffer.from(base64, "base64");
     if (buffer.length === 0) throw new BotConfigError(400, "فایل خالی است.");
@@ -140,7 +157,12 @@ router.post("/bots/:botId/media", requireAuth, async (req: any, res) => {
     const fileId = Array.isArray(raw) ? raw[raw.length - 1]?.file_id : raw?.file_id;
     if (!fileId) throw new BotConfigError(502, "تلگرام فایل را ذخیره کرد ولی شناسه‌ای برنگرداند.");
 
-    res.status(201).json({ fileId, type: resultKey });
+    // مدت صوت را خودِ تلگرام برمی‌گرداند (ثانیه). گرفتنش از اینجا از خواندن
+    // دستیِ متادیتا در مرورگر دقیق‌تر است، چون این همان عددی است که کاربر
+    // نهایی زیر پیام صوتی می‌بیند.
+    const duration = Array.isArray(raw) ? null : typeof raw?.duration === "number" ? raw.duration : null;
+
+    res.status(201).json({ fileId, type: resultKey, duration, mimeType });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to upload media");
   }

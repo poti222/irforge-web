@@ -146,6 +146,27 @@ export function getSheetId(name: string): string {
 
 // ─── Core operations ────────────────────────────────────────────────────────
 
+/**
+ * آیا این خطا یعنی «تبِ خواسته‌شده روی این اسپردشیت وجود ندارد»؟
+ *
+ * وقتی range به تبی اشاره کند که ساخته نشده، Sheets API یک **۴۰۰** با پیام
+ * `Unable to parse range: 'forms'!A:B` برمی‌گرداند — نه ۴۰۴. از بیرون این با
+ * «درخواستت بدشکل بود» فرق ندارد، برای همین تا امروز به‌عنوان یک خطای
+ * غیرمنتظره بالا می‌رفت و کل سکشن سایت را با «خطای نامشخص سرور» می‌ترکاند
+ * (فرم‌ها، آبجکت‌ها، ریلیشن‌ها — همه یک ریشه داشتند).
+ *
+ * تشخیص عمداً هم روی کد وضعیت و هم روی متن انجام می‌شود: یک ۴۰۰ـِ واقعی
+ * (مثلاً range بدشکل به دلیل باگ خودمان) نباید بی‌صدا به «تب خالی» ترجمه شود.
+ */
+export function isMissingTabError(err: unknown): boolean {
+  const anyErr = err as { code?: number; status?: number; message?: string } | null;
+  if (!anyErr) return false;
+  const status = anyErr.code ?? anyErr.status;
+  if (status !== 400) return false;
+  const message = String(anyErr.message ?? "");
+  return message.includes("Unable to parse range");
+}
+
 /** Read all rows from a sheet. Returns string[][] */
 export async function readSheet(
   spreadsheetId: string,
@@ -156,6 +177,13 @@ export async function readSheet(
     const res = await sheets.spreadsheets.values.get({ spreadsheetId, range });
     return (res.data.values as string[][]) ?? [];
   } catch (err) {
+    // تبِ ناموجود یک خطا نیست، یک «هنوز چیزی ننوشته‌ایم» است — و در سطح
+    // خودِ readSheet هم لاگِ error نمی‌خواهد، وگرنه لاگ پر می‌شود از چیزی
+    // که صداکننده‌اش (readTabRows) قرار است عادی مدیریتش کند.
+    if (isMissingTabError(err)) {
+      logger.debug({ spreadsheetId, range }, "readSheet: tab does not exist");
+      throw err;
+    }
     logger.error({ err, spreadsheetId, range }, "readSheet error");
     throw err;
   }

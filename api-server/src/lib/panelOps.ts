@@ -22,11 +22,14 @@ import {
   removeEntity,
   readSettings,
   patchSettings,
+  BotConfigError,
 } from "./botConfig.js";
 import {
   normalizeButtonLayout,
   disabledButton,
+  findOverfullRow,
   nowIso,
+  MAX_BUTTONS_PER_ROW,
   type Panel,
   type PanelButton,
 } from "./botTypes.js";
@@ -193,9 +196,24 @@ export async function findReferences(
 // ─── نوشتن ──────────────────────────────────────────────────────────────────
 
 async function savePanel(spreadsheetId: string, panel: Panel): Promise<void> {
+  const buttons = normalizeButtonLayout(panel.buttons ?? []);
+
+  // سقف دکمه در هر ردیف اینجا هم چک می‌شود، نه فقط در UI: هر چهار مسیر
+  // نوشتن پنل (ساخت، ویرایش، ویرایش دکمه‌ها، جابه‌جایی) از همین تابع رد
+  // می‌شوند، پس یک چک اینجا معادل چهار چک در route هاست — و صدازدن مستقیم
+  // API هم نمی‌تواند دورش بزند.
+  const overfull = findOverfullRow(buttons);
+  if (overfull) {
+    throw new BotConfigError(
+      400,
+      `ردیف ${overfull.row} پنل «${panel.title || panel.id}» ${overfull.count} دکمه دارد؛ حداکثر مجاز ${MAX_BUTTONS_PER_ROW} دکمه در هر ردیف است. دکمه‌های اضافه را به یک ردیف جدید ببرید.`,
+      "row_too_full",
+    );
+  }
+
   await putEntity(spreadsheetId, PANELS_TAB, panel.id, {
     ...panel,
-    buttons: normalizeButtonLayout(panel.buttons ?? []),
+    buttons,
     updated_at: nowIso(),
   });
 }
