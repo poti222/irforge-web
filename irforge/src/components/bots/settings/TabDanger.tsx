@@ -50,6 +50,7 @@ export function TabDanger({ bot }: { bot: Bot }) {
   const [showCode, setShowCode] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [adminCode, setAdminCode] = useState(bot.adminCode ?? null);
+  const [customCode, setCustomCode] = useState("");
 
   const currentSheetId = (bot as { sheetId?: string | null }).sheetId ?? null;
   const [sheetId, setSheetId] = useState(currentSheetId ?? "");
@@ -93,14 +94,20 @@ export function TabDanger({ bot }: { bot: Bot }) {
     );
   }
 
-  async function regenerateAdminCode() {
+  /**
+   * همان endpoint هم کد تصادفی می‌سازد و هم کد دلخواه را می‌پذیرد — تفاوتشان
+   * فقط فرستادن یا نفرستادن `adminCode` در بدنه است.
+   */
+  async function setAdminCodeTo(next: string | null) {
     setRegenerating(true);
     try {
       const res = await customFetch<{ adminCode: string }>(`/api/bots/${bot.id}/regenerate-admin-code`, {
         method: "POST",
+        body: JSON.stringify(next ? { adminCode: next } : {}),
       });
       setAdminCode(res.adminCode);
       setShowCode(true);
+      setCustomCode("");
       queryClient.invalidateQueries({ queryKey: getGetBotQueryKey(bot.id) });
       toast({ title: t.adminCodeGenerated, description: t.adminCodeSentTelegram });
     } catch (err: any) {
@@ -109,6 +116,9 @@ export function TabDanger({ bot }: { bot: Bot }) {
       setRegenerating(false);
     }
   }
+
+  const regenerateAdminCode = () => setAdminCodeTo(null);
+  const applyCustomCode = () => setAdminCodeTo(customCode.trim());
 
   async function saveSheet() {
     const id = sheetId.trim();
@@ -176,6 +186,40 @@ export function TabDanger({ bot }: { bot: Bot }) {
             {regenerating ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <RefreshCw className="me-2 h-4 w-4" />}
             {t.adminCodeRegenerate}
           </Button>
+
+          {/*
+            کد دلخواه. کد تصادفی امن‌تر است ولی هیچ‌کس یادش نمی‌ماند، و کدی که
+            یادت نمی‌ماند یعنی هر بار باید در تلگرام دنبال پیامش بگردی.
+          */}
+          <div className="space-y-1.5 border-t pt-3">
+            <Label htmlFor="danger-custom-code">{t.adminCodeCustomLabel}</Label>
+            <p className="text-xs text-muted-foreground">{t.adminCodeCustomHint}</p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="danger-custom-code"
+                dir="ltr"
+                className="font-mono"
+                autoComplete="off"
+                value={customCode}
+                minLength={6}
+                maxLength={64}
+                placeholder={t.adminCodeCustomPlaceholder}
+                onChange={(e) => setCustomCode(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && customCode.trim().length >= 6) applyCustomCode();
+                }}
+              />
+              <Button
+                variant="outline"
+                className="shrink-0"
+                disabled={customCode.trim().length < 6 || regenerating}
+                onClick={() => applyCustomCode()}
+              >
+                {regenerating ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <KeyRound className="me-2 h-4 w-4" />}
+                {t.adminCodeCustomApply}
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

@@ -14,6 +14,18 @@ export type Draft<T> = {
   set: <K extends keyof T>(key: K, next: T[K]) => void;
   replace: (next: T) => void;
   reset: () => void;
+  /**
+   * «ذخیره موفق شد» — بعد از هر ذخیره‌ی موفق صدا زده شود.
+   *
+   * بدون این، پیش‌نویس بعد از ذخیره **همیشه dirty می‌ماند**: افکتِ همگام‌سازی
+   * عمداً وقتی کاربر تغییری داده جلوی خودش را می‌گیرد تا refetchهای پس‌زمینه
+   * تایپ نیمه‌کاره را پاک نکنند — ولی همان شرط، پاسخِ خودِ ذخیره را هم بلوکه
+   * می‌کرد. و چون سرور مقدارها را نرمال‌سازی می‌کند (یوزرنیم trim می‌شود،
+   * `updated_at` عوض می‌شود، بولی‌های خرابِ شیت درست می‌شوند)، مقایسه‌ی
+   * بعدی هم مساوی درنمی‌آمد. نتیجه: نوار «تغییرات ذخیره‌نشده» می‌ماند و
+   * موقع خروج از صفحه هشدار می‌داد — با اینکه همه‌چیز ذخیره شده بود.
+   */
+  markSaved: () => void;
   dirty: boolean;
 };
 
@@ -23,6 +35,8 @@ export function useDraft<T extends Record<string, unknown>>(
 ): Draft<T> {
   const [value, setValue] = useState<T | undefined>(source);
   const dirtyRef = useRef(false);
+  /** یک‌بارمصرف: «داده‌ی بعدیِ سرور را بپذیر، حتی اگر پیش‌نویس dirty باشد». */
+  const acceptNextRef = useRef(false);
 
   /**
    * امضای **محتوایی** منبع، نه هویتش.
@@ -50,11 +64,25 @@ export function useDraft<T extends Record<string, unknown>>(
   // کاربر را می‌کشت.
   useEffect(() => {
     if (!source) return;
-    if (value === undefined || !dirtyRef.current) setValue(source);
+    if (value === undefined || !dirtyRef.current || acceptNextRef.current) {
+      setValue(source);
+      acceptNextRef.current = false;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceKey]);
 
   useUnsavedGuard(guardKey, dirty);
+
+  /**
+   * پیش‌نویس فوراً به `source` فعلی برمی‌گردد تا نوار همان لحظه پاک شود، و
+   * پرچم باز می‌ماند تا پاسخِ سرور (که چند میلی‌ثانیه بعد با invalidate
+   * می‌رسد و ممکن است نرمال‌سازی‌شده باشد) هم پذیرفته شود.
+   */
+  const markSaved = useCallback(() => {
+    acceptNextRef.current = true;
+    setValue(source);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceKey]);
 
   const set = useCallback(<K extends keyof T>(key: K, next: T[K]) => {
     setValue((prev) => (prev ? { ...prev, [key]: next } : prev));
@@ -67,5 +95,5 @@ export function useDraft<T extends Record<string, unknown>>(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const reset = useCallback(() => setValue(source), [sourceKey]);
 
-  return { value: (value ?? source ?? ({} as T)) as T, set, replace, reset, dirty };
+  return { value: (value ?? source ?? ({} as T)) as T, set, replace, reset, markSaved, dirty };
 }

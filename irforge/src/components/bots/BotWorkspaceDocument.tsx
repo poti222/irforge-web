@@ -197,7 +197,7 @@ function findSection(key: string | null): SectionMeta | undefined {
  * پلاگین‌دار پنهان می‌مانند تا با آمدن پاسخ ناگهان ظاهر شوند، نه اینکه اول
  * ظاهر شوند و بعد بپرند.
  */
-function useEnabledPlugins(botId: string): Set<string> | undefined {
+export function useEnabledPlugins(botId: string): Set<string> | undefined {
   const { data } = useQuery({
     queryKey: ["bot-plugins", botId],
     queryFn: () =>

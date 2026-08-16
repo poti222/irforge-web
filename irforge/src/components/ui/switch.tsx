@@ -15,9 +15,24 @@ const Switch = React.forwardRef<
     {...props}
     ref={ref}
   >
+    {/*
+      جابه‌جایی دستگیره باید **جهت‌آگاه** باشد.
+
+      `translate-x-4` یک ترنسفورم فیزیکی است و همیشه به راست می‌برد، مهم نیست
+      `dir` چه باشد. در حالت راست‌به‌چپ، شروعِ ریل سمت راست است و رادیکس
+      دستگیره را همان‌جا می‌گذارد؛ بعد این ترنسفورم بازهم به راست هلش می‌داد و
+      دستگیره **از ریل بیرون می‌زد** — همان دایره‌ی تیره‌ای که کنار سوئیچ نارنجی
+      دیده می‌شد و کل سوئیچ را خراب نشان می‌داد.
+
+      دو واریانت جدا (نه یکی روی دیگری) تا هیچ‌وقت به ترتیب قوانین CSS تکیه
+      نکنیم؛ `dir` همیشه صریح ست می‌شود (`use-language.ts`)، پس هر دو حالت
+      پوشش داده شده‌اند.
+    */}
     <SwitchPrimitives.Thumb
       className={cn(
-        "pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0"
+        "pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform",
+        "data-[state=unchecked]:translate-x-0",
+        "ltr:data-[state=checked]:translate-x-4 rtl:data-[state=checked]:-translate-x-4"
       )}
     />
   </SwitchPrimitives.Root>

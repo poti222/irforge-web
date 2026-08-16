@@ -97,7 +97,10 @@ export function TabGeneral({ bot, data }: { bot: Bot; data: SettingsEnvelope }) 
 
   function saveSheetSide() {
     patch.mutate(draft.value as Partial<BotSettings>, {
-      onSuccess: () => toast({ title: t.saved, description: data.cacheBust ? t.propagationFast : t.propagationSlow }),
+      onSuccess: () => {
+        draft.markSaved();
+        toast({ title: t.saved, description: data.cacheBust ? t.propagationFast : t.propagationSlow });
+      },
     });
   }
 

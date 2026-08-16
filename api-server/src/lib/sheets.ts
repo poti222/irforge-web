@@ -202,6 +202,31 @@ export async function readSheet(
   }
 }
 
+/**
+ * چرا `RAW` و نه `USER_ENTERED` — ریشه‌ی چند باگ گزارش‌شده.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `USER_ENTERED` یعنی «این را طوری تفسیر کن که انگار کاربر در سلول تایپش
+ * کرده». قرارداد شیت تننت اما این است که هر سلول **دقیقاً** خروجی
+ * `JSON.stringify(value)` باشد و طرف مقابل با `JSON.parse` بخواندش. این دو
+ * با هم نمی‌سازند:
+ *
+ *   - `JSON.stringify(false)` = `false` → گوگل آن را یک سلول **بولی** واقعی
+ *     می‌کند. موقع خواندن `FALSE` برمی‌گردد، `JSON.parse("FALSE")` می‌شکند و
+ *     مقدار به‌صورت رشته‌ی `"FALSE"` می‌ماند. در پایتون `bool("FALSE")` برابر
+ *     `True` است — یعنی هر تنظیم بولی که از سایت خاموش شود، **در بات روشن
+ *     می‌ماند**. پیام خوش‌آمدی که خاموش نمی‌شد دقیقاً همین بود.
+ *   - همان رشته‌ی `"TRUE"` بعداً از سایت هم خوانده می‌شود و ولیدیشن با
+ *     «مقدار watermark_enabled باید true یا false باشد» ذخیره را رد می‌کند —
+ *     بدون اینکه کاربر اصلاً آن فیلد را لمس کرده باشد.
+ *   - و سلولی که با `=` شروع شود به یک **فرمول** تبدیل می‌شد؛ یعنی متنی که
+ *     کاربر در پیام بات نوشته، در شیت اجرا می‌شد.
+ *
+ * `RAW` سلول را همان‌طور که فرستاده شده می‌نویسد — همان کاری که خودِ بات با
+ * gspread می‌کند (پیش‌فرضش `RAW` است). این تنها حالتی است که رفت‌وبرگشتِ
+ * JSON را سالم نگه می‌دارد.
+ */
+const VALUE_INPUT_OPTION = "RAW";
+
 /** Overwrite a range with new values */
 export async function writeSheet(
   spreadsheetId: string,
@@ -213,7 +238,7 @@ export async function writeSheet(
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range,
-      valueInputOption: "USER_ENTERED",
+      valueInputOption: VALUE_INPUT_OPTION,
       requestBody: { values },
     });
   } catch (err) {
@@ -233,7 +258,7 @@ export async function appendSheet(
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range,
-      valueInputOption: "USER_ENTERED",
+      valueInputOption: VALUE_INPUT_OPTION,
       insertDataOption: "INSERT_ROWS",
       requestBody: { values },
     });

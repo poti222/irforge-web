@@ -118,7 +118,7 @@ export function TabAntiFlood({ botId, data }: { botId: string; data: SettingsEnv
         <SettingsSaveBar
           dirty={draft.dirty && !invalid}
           saving={save.isPending}
-          onSave={() => save.mutate(af, { onSuccess: () => toast({ title: t.saved }) })}
+          onSave={() => save.mutate(af, { onSuccess: () => { draft.markSaved(); toast({ title: t.saved }); } })}
           onRevert={draft.reset}
         />
       </CardContent>

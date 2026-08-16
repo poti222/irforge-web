@@ -33,12 +33,33 @@ export type TenantRow = {
   raw: boolean;
 };
 
+/**
+ * ترمیمِ سلول‌هایی که نوشتنِ قبلی خرابشان کرده.
+ *
+ * تا پیش از این، سایت با `USER_ENTERED` می‌نوشت و گوگل `false` را به یک سلول
+ * بولی واقعی تبدیل می‌کرد؛ همان سلول موقع خواندن `FALSE` برمی‌گردد که JSON
+ * معتبر نیست. نوشتن حالا `RAW` است و دیگر چنین سلولی ساخته نمی‌شود، ولی
+ * شیت‌هایی که از قبل خراب شده‌اند همچنان همین را برمی‌گردانند — و تا وقتی
+ * کسی آن کلید را دوباره ذخیره نکند، خراب می‌مانند.
+ *
+ * پس فقط همین دو مقدار (که در JSON معتبر هرگز به این شکل ظاهر نمی‌شوند)
+ * به بولی ترجمه می‌شوند. عمداً محدود است: `1` یا `yes` یا رشته‌ی خالی دست
+ * نمی‌خورند، چون آن‌ها می‌توانند داده‌ی واقعی کاربر باشند.
+ */
+function healSheetsBoolean(cell: string): boolean | null {
+  if (cell === "TRUE") return true;
+  if (cell === "FALSE") return false;
+  return null;
+}
+
 /** Parse a value cell the way the bot does: JSON first, raw string on failure. */
 function parseCell(cell: string | undefined): { value: unknown; raw: boolean } {
   if (cell == null || cell === "") return { value: "", raw: true };
   try {
     return { value: JSON.parse(cell), raw: false };
   } catch {
+    const healed = healSheetsBoolean(cell);
+    if (healed !== null) return { value: healed, raw: false };
     return { value: cell, raw: true };
   }
 }
@@ -163,3 +184,6 @@ export async function deleteRow(spreadsheetId: string, tab: string, key: string)
   await clearSheet(spreadsheetId, `${quoteTab(tab)}!A${kept.length + 1}:B`);
   return true;
 }
+
+/** فقط برای تست. */
+export const __testables = { parseCell, healSheetsBoolean };

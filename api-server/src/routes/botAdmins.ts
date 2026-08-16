@@ -48,14 +48,26 @@ function bad(message: string, code?: string): BotConfigError {
  * قطعی نمی‌داند، پس اینجا hardcode نمی‌شوند؛ هر گروهی که روی نقش‌های موجود
  * دیده شود به خروجی اضافه می‌گردد.
  */
+/**
+ * ⚠️ هر گروه باید permission ای که `utils/access_control.py` برای اکشن
+ * متناظرش می‌خواهد را هم داشته باشد.
+ *
+ * گیت واقعیِ ساخت پنل در بات `check_action("manage_panels")` است که
+ * `panels.manage` می‌خواهد — ولی این گروه فقط view/create/edit/delete
+ * می‌داد. نتیجه‌اش دقیقاً همان چیزی بود که گزارش شد: ادمینی که فقط دسترسی
+ * «پنل‌ها» گرفته بود، تنها بخشی که برایش باز نمی‌شد همان پنل‌ها بود.
+ * `panels.*` هم در لیستش نبود که wildcard نجاتش دهد.
+ */
 const CORE_PERMISSION_GROUPS: Record<string, string[]> = {
   all: ["*"],
-  panels: ["panels.view", "panels.create", "panels.edit", "panels.delete"],
-  users: ["users.view", "users.ban"],
-  forms: ["forms.view", "forms.create"],
-  settings: ["settings.view", "settings.edit"],
+  panels: ["panels.view", "panels.create", "panels.edit", "panels.delete", "panels.manage"],
+  users: ["users.view", "users.ban", "users.edit"],
+  forms: ["forms.view", "forms.create", "forms.manage"],
+  settings: ["settings.view", "settings.edit", "settings.manage"],
   broadcast: ["users.broadcast"],
   stats: ["analytics.view"],
+  admins: ["admins.manage"],
+  backup: ["backup.export", "backup.restore"],
 };
 
 type StoredAdmin = {

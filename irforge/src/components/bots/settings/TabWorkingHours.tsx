@@ -148,7 +148,7 @@ export function TabWorkingHours({ botId, data }: { botId: string; data: Settings
         <SettingsSaveBar
           dirty={draft.dirty}
           saving={save.isPending}
-          onSave={() => save.mutate(wh, { onSuccess: () => toast({ title: t.saved }) })}
+          onSave={() => save.mutate(wh, { onSuccess: () => { draft.markSaved(); toast({ title: t.saved }); } })}
           onRevert={draft.reset}
         />
       </CardContent>

@@ -27,6 +27,7 @@ import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
 import { confirmDiscardUnsaved } from "@/lib/unsaved-changes";
 import { useBotSettings } from "@/components/bots/settings/api";
+import { TabReplyKeyboard } from "@/components/bots/settings/TabReplyKeyboard";
 import { PanelTree } from "./PanelTree";
 import { PanelEditor } from "./PanelEditor";
 import { CreatePanelDialog } from "./CreatePanelDialog";
@@ -373,6 +374,20 @@ export function PanelsSection({ bot }: { bot: Bot }) {
           </table>
         </div>
       )}
+
+      {/*
+        کیبورد پایین از تب تنظیمات به اینجا منتقل شد.
+
+        دلیلش این است که این دو، دو **دامنه‌ی** یک چیزند و کنار هم تصمیم‌گیری
+        درباره‌شان آسان‌تر است:
+
+          - دکمه‌ی داخل یک پنل → فقط در همان پنل دیده می‌شود.
+          - دکمه‌ی کیبورد پایین → در همه‌ی بخش‌ها می‌ماند، چون به هیچ پیامی
+            وصل نیست و زیر کادر تایپ کاربر می‌نشیند.
+
+        هر دو هم رنگ می‌پذیرند (سبز/قرمز/آبی) — همان `style` که Bot API دارد.
+      */}
+      {settings.data && <TabReplyKeyboard bot={bot} data={settings.data} />}
 
       <CreatePanelDialog
         botId={bot.id}

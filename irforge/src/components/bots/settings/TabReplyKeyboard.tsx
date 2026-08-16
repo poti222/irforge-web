@@ -32,9 +32,35 @@ import { usePatchBotSettings, type BotSettings, type SettingsEnvelope } from "./
 const MAX_ROWS = 10;
 const MAX_PER_ROW = 4;
 
+/**
+ * یک خانه‌ی کیبورد. روی شیت، دکمه‌ی بی‌رنگ یک **رشته‌ی ساده** ذخیره می‌شود
+ * (شکل اصلی) و فقط دکمه‌ی رنگی آبجکت می‌شود. اینجا در حافظه همیشه آبجکت است
+ * تا کد ویرایشگر دو حالت نداشته باشد؛ تبدیل در `pick`/`save` انجام می‌شود.
+ */
+type Cell = { text: string; style: string };
+
+/** رنگ‌های Bot API: سبز/قرمز/آبی. خالی = رنگ پیش‌فرض کلاینت. */
+const STYLES = ["", "success", "danger", "primary"] as const;
+
+/** رنگ نمونه‌ی پیش‌نمایش — تقریبی از آنچه تلگرام نشان می‌دهد. */
+const STYLE_SWATCH: Record<string, string> = {
+  "": "bg-background",
+  success: "bg-emerald-600 text-white",
+  danger: "bg-rose-600 text-white",
+  primary: "bg-sky-600 text-white",
+};
+
+function toCell(raw: unknown): Cell {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const o = raw as { text?: unknown; style?: unknown };
+    return { text: String(o.text ?? ""), style: String(o.style ?? "") };
+  }
+  return { text: String(raw ?? ""), style: "" };
+}
+
 type KeyboardDraft = {
   enabled: boolean;
-  rows: string[][];
+  rows: Cell[][];
   resize: boolean;
   one_time: boolean;
   placeholder: string;
@@ -47,7 +73,7 @@ function pick(settings: BotSettings): KeyboardDraft {
     // ندارد. اینجا به یک سوئیچ ترجمه می‌شود تا کاربر برای خاموش‌کردن مجبور
     // نباشد همه‌ی دکمه‌هایش را پاک کند.
     enabled: Boolean(kb && kb.rows?.length),
-    rows: kb?.rows?.length ? kb.rows.map((r) => [...r]) : [[""]],
+    rows: kb?.rows?.length ? kb.rows.map((r) => r.map(toCell)) : [[toCell("")]],
     resize: kb?.resize ?? true,
     one_time: kb?.one_time ?? false,
     placeholder: kb?.placeholder ?? "",
@@ -62,15 +88,19 @@ export function TabReplyKeyboard({ bot, data }: { bot: Bot; data: SettingsEnvelo
 
   const rows = draft.value.rows;
 
-  function setRows(next: string[][]) {
+  function setRows(next: Cell[][]) {
     draft.set("rows", next);
   }
-  function setCell(rowIndex: number, colIndex: number, value: string) {
-    setRows(rows.map((r, i) => (i === rowIndex ? r.map((c, j) => (j === colIndex ? value : c)) : r)));
+  function setCell(rowIndex: number, colIndex: number, patchCell: Partial<Cell>) {
+    setRows(
+      rows.map((r, i) =>
+        i === rowIndex ? r.map((c, j) => (j === colIndex ? { ...c, ...patchCell } : c)) : r
+      )
+    );
   }
   function addCell(rowIndex: number) {
     if ((rows[rowIndex]?.length ?? 0) >= MAX_PER_ROW) return;
-    setRows(rows.map((r, i) => (i === rowIndex ? [...r, ""] : r)));
+    setRows(rows.map((r, i) => (i === rowIndex ? [...r, toCell("")] : r)));
   }
   function removeCell(rowIndex: number, colIndex: number) {
     const next = rows
@@ -78,7 +108,7 @@ export function TabReplyKeyboard({ bot, data }: { bot: Bot; data: SettingsEnvelo
       // ردیفی که آخرین دکمه‌اش رفت، خودش هم می‌رود — یک ردیف خالی روی کیبورد
       // واقعی اصلاً وجود ندارد.
       .filter((r) => r.length > 0);
-    setRows(next.length > 0 ? next : [[""]]);
+    setRows(next.length > 0 ? next : [[toCell("")]]);
   }
   function moveRow(from: number, delta: -1 | 1) {
     const to = from + delta;
@@ -89,7 +119,16 @@ export function TabReplyKeyboard({ bot, data }: { bot: Bot; data: SettingsEnvelo
   }
 
   function save() {
-    const cleaned = rows.map((r) => r.map((c) => c.trim()).filter(Boolean)).filter((r) => r.length > 0);
+    // دکمه‌ی بی‌رنگ به همان رشته‌ی ساده برمی‌گردد — تا کیبوردهای موجود
+    // بی‌دلیل به شکل سنگین‌تر بازنویسی نشوند.
+    const cleaned = rows
+      .map((r) =>
+        r
+          .map((c) => ({ text: c.text.trim(), style: c.style }))
+          .filter((c) => c.text)
+          .map((c) => (c.style ? c : c.text))
+      )
+      .filter((r) => r.length > 0);
     patch.mutate(
       {
         reply_keyboard: draft.value.enabled && cleaned.length > 0
@@ -101,7 +140,12 @@ export function TabReplyKeyboard({ bot, data }: { bot: Bot; data: SettingsEnvelo
             }
           : null,
       } as unknown as Partial<BotSettings>,
-      { onSuccess: () => toast({ title: t.saved, description: data.cacheBust ? t.propagationFast : t.propagationSlow }) }
+      {
+        onSuccess: () => {
+          draft.markSaved();
+          toast({ title: t.saved, description: data.cacheBust ? t.propagationFast : t.propagationSlow });
+        },
+      }
     );
   }
 
@@ -165,11 +209,33 @@ export function TabReplyKeyboard({ bot, data }: { bot: Bot; data: SettingsEnvelo
                       {row.map((cell, colIndex) => (
                         <div key={colIndex} className="flex min-w-40 flex-1 items-center gap-1">
                           <Input
-                            value={cell}
+                            value={cell.text}
                             maxLength={64}
                             placeholder={t.replyKeyboardButtonPlaceholder}
-                            onChange={(e) => setCell(rowIndex, colIndex, e.target.value)}
+                            onChange={(e) => setCell(rowIndex, colIndex, { text: e.target.value })}
                           />
+                          {/*
+                            انتخاب رنگ به‌صورت سه نمونه‌ی رنگی، نه یک dropdown:
+                            انتخاب «سبز» با دیدن سبز سریع‌تر است تا با خواندن
+                            کلمه‌ی «success».
+                          */}
+                          <div className="flex shrink-0 gap-0.5">
+                            {STYLES.map((style) => (
+                              <button
+                                key={style || "default"}
+                                type="button"
+                                aria-label={t[`replyKeyboardStyle_${style || "default"}` as keyof typeof t] as string}
+                                aria-pressed={cell.style === style}
+                                title={t[`replyKeyboardStyle_${style || "default"}` as keyof typeof t] as string}
+                                onClick={() => setCell(rowIndex, colIndex, { style })}
+                                className={`size-6 rounded-full border transition ${STYLE_SWATCH[style]} ${
+                                  cell.style === style
+                                    ? "ring-2 ring-foreground ring-offset-1 ring-offset-background"
+                                    : "opacity-70 hover:opacity-100"
+                                }`}
+                              />
+                            ))}
+                          </div>
                           <Button
                             variant="ghost" size="icon" className="size-8 shrink-0"
                             aria-label={t.replyKeyboardRemoveButton}
@@ -195,7 +261,7 @@ export function TabReplyKeyboard({ bot, data }: { bot: Bot; data: SettingsEnvelo
               </div>
 
               {rows.length < MAX_ROWS && (
-                <Button variant="outline" onClick={() => setRows([...rows, [""]])}>
+                <Button variant="outline" onClick={() => setRows([...rows, [toCell("")]])}>
                   <Plus className="me-1.5 size-4" /> {t.replyKeyboardAddRow}
                 </Button>
               )}
@@ -231,14 +297,16 @@ export function TabReplyKeyboard({ bot, data }: { bot: Bot; data: SettingsEnvelo
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="mb-2 text-xs font-medium text-muted-foreground">{t.replyKeyboardPreview}</p>
                 <div className="space-y-1">
-                  {rows.filter((r) => r.some((c) => c.trim())).map((row, i) => (
+                  {rows.filter((r) => r.some((c) => c.text.trim())).map((row, i) => (
                     <div key={i} className="flex gap-1">
-                      {row.filter((c) => c.trim()).map((cell, j) => (
+                      {row.filter((c) => c.text.trim()).map((cell, j) => (
                         <span
                           key={j}
-                          className="min-w-0 flex-1 truncate rounded-md bg-background px-2 py-2 text-center text-xs shadow-sm"
+                          className={`min-w-0 flex-1 truncate rounded-md px-2 py-2 text-center text-xs shadow-sm ${
+                            STYLE_SWATCH[cell.style] ?? STYLE_SWATCH[""]
+                          }`}
                         >
-                          {cell}
+                          {cell.text}
                         </span>
                       ))}
                     </div>

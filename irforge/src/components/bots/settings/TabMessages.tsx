@@ -20,6 +20,7 @@ import { useT } from "@/hooks/use-translation";
 import { SettingsSaveBar, SettingsError, CachePropagationNotice } from "./SettingsSaveBar";
 import { useDraft } from "./useDraft";
 import { usePatchBotSettings, type BotSettings, type SettingsEnvelope } from "./api";
+import { useEnabledPlugins } from "../BotWorkspaceDocument";
 
 const TELEGRAM_TEXT_LIMIT = 4000;
 
@@ -39,6 +40,22 @@ const MESSAGE_FIELDS = [
 ] as const;
 
 type MessageField = (typeof MESSAGE_FIELDS)[number];
+
+/**
+ * پیام‌هایی که فقط وقتی معنی دارند که پلاگین کیف پول روی این بات فعال باشد.
+ *
+ * این سه تا را بات فقط در مسیر تأیید/رد/پیگیری **سفارش** می‌فرستد
+ * (`plugins/wallet`). باتی که اصلاً فروش ندارد، سه فیلد متنی می‌دید که هرگز
+ * جایی استفاده نمی‌شدند — همان چیزی که باید پنهان می‌شد.
+ *
+ * پنهان‌کردنشان هیچ داده‌ای را پاک نمی‌کند: مقدارشان روی شیت می‌ماند و با
+ * روشن‌شدن پلاگین دوباره ظاهر می‌شوند.
+ */
+const WALLET_ONLY_FIELDS = new Set<MessageField>([
+  "order_confirm_msg",
+  "order_reject_msg",
+  "order_track_msg",
+]);
 
 /** placeholderهایی که بات موقع ارسال جایگزین می‌کند. */
 const PLACEHOLDERS: Partial<Record<MessageField, string[]>> = {
@@ -140,7 +157,15 @@ export function TabMessages({ botId, data }: { botId: string; data: SettingsEnve
   const draft = useDraft<MessagesDraft>(`settings:messages:${botId}`, pick(data.settings));
   const patch = usePatchBotSettings(botId);
 
-  const overLimit = MESSAGE_FIELDS.filter((f) => (draft.value[f] ?? "").length > TELEGRAM_TEXT_LIMIT);
+  // موقع لود `undefined` است — تا آمدن پاسخ، فیلدهای سفارش پنهان می‌مانند تا
+  // ظاهر و ناپدید نشوند.
+  const enabledPlugins = useEnabledPlugins(botId);
+  const walletOn = enabledPlugins?.has("wallet") ?? false;
+  const visibleFields = MESSAGE_FIELDS.filter((f) => walletOn || !WALLET_ONLY_FIELDS.has(f));
+
+  // فقط فیلدهای دیده‌شده اعتبارسنجی می‌شوند: پیام سفارشِ پنهان و طولانی نباید
+  // ذخیره‌ی بقیه را قفل کند.
+  const overLimit = visibleFields.filter((f) => (draft.value[f] ?? "").length > TELEGRAM_TEXT_LIMIT);
 
   function save() {
     if (overLimit.length > 0) {
@@ -148,7 +173,10 @@ export function TabMessages({ botId, data }: { botId: string; data: SettingsEnve
       return;
     }
     patch.mutate(draft.value as Partial<BotSettings>, {
-      onSuccess: () => toast({ title: t.saved, description: data.cacheBust ? t.propagationFast : t.propagationSlow }),
+      onSuccess: () => {
+        draft.markSaved();
+        toast({ title: t.saved, description: data.cacheBust ? t.propagationFast : t.propagationSlow });
+      },
     });
   }
 
@@ -157,12 +185,12 @@ export function TabMessages({ botId, data }: { botId: string; data: SettingsEnve
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           {t.messagesTitle}
-          <Badge variant="secondary">{MESSAGE_FIELDS.length}</Badge>
+          <Badge variant="secondary">{visibleFields.length}</Badge>
         </CardTitle>
         <CardDescription>{t.messagesDesc}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        {MESSAGE_FIELDS.map((field) => (
+        {visibleFields.map((field) => (
           <div key={field} className="space-y-2">
             {field === "welcome_msg" && (
               <div className="flex items-center justify-between gap-3 rounded-md border p-3">

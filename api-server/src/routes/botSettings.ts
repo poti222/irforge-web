@@ -76,6 +76,13 @@ const MESSAGE_FIELDS = new Set<string>(SETTINGS_MESSAGE_FIELDS);
 const REPLY_KB_MAX_ROWS = 10;
 const REPLY_KB_MAX_PER_ROW = 4;
 
+/**
+ * رنگ‌هایی که Bot API برای دکمه می‌شناسد — همان سه‌تایی که
+ * `aiogram.enums.ButtonStyle` دارد. رشته‌ی خالی یعنی «رنگ پیش‌فرض کلاینت».
+ * عمداً با `BUTTON_STYLES` پنل‌ها یکی است تا دو جای UI یک زبان داشته باشند.
+ */
+const REPLY_KB_STYLES = ["primary", "success", "danger"] as const;
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 /**
@@ -95,12 +102,31 @@ function validateReplyKeyboard(value: unknown): Record<string, unknown> | null {
   if (rawRows.length > REPLY_KB_MAX_ROWS)
     throw bad(`کیبورد پایین حداکثر می‌تواند ${REPLY_KB_MAX_ROWS} ردیف داشته باشد.`, "too_many_rows");
 
-  const rows: string[][] = [];
+  /**
+   * هر خانه یا رشته‌ی ساده است یا `{text, style}`.
+   *
+   * دکمه‌ی بی‌رنگ همان رشته‌ی ساده ذخیره می‌شود، نه `{"text": "...",
+   * "style": ""}` — تا کیبوردهای موجود بایت‌به‌بایت همان بمانند و شکل روی
+   * شیت بی‌دلیل سنگین‌تر نشود.
+   */
+  const rows: Array<Array<string | { text: string; style: string }>> = [];
   for (const rawRow of rawRows) {
     if (!Array.isArray(rawRow)) continue;
     const cells = rawRow
-      .map((cell) => String(cell ?? "").trim().slice(0, 64))
-      .filter(Boolean);
+      .map((cell) => {
+        const isObject = cell && typeof cell === "object" && !Array.isArray(cell);
+        const source = (isObject ? cell : { text: cell, style: "" }) as {
+          text?: unknown;
+          style?: unknown;
+        };
+        const text = String(source.text ?? "").trim().slice(0, 64);
+        if (!text) return null;
+        const style = String(source.style ?? "").trim();
+        if (style && !(REPLY_KB_STYLES as readonly string[]).includes(style))
+          throw bad(`رنگ «${style}» برای دکمه‌ی کیبورد پایین معتبر نیست.`, "bad_button_style");
+        return style ? { text, style } : text;
+      })
+      .filter((cell): cell is string | { text: string; style: string } => cell !== null);
     if (cells.length > REPLY_KB_MAX_PER_ROW)
       throw bad(
         `هر ردیف کیبورد پایین حداکثر ${REPLY_KB_MAX_PER_ROW} دکمه می‌تواند داشته باشد.`,

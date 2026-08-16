@@ -33,7 +33,7 @@ import {
   walletsTable,
   walletTransactionsTable,
 } from "@workspace/db";
-import { eq, and, or, exists, sql, desc, inArray } from "drizzle-orm";
+import { eq, ne, and, or, exists, sql, desc, inArray } from "drizzle-orm";
 import { reserveDiscount, DiscountCodeError, type DiscountReservation } from "../lib/discountStore";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
@@ -2267,6 +2267,44 @@ router.patch("/bots/:botId/status", requireAuth, async (req: any, res) => {
 // code overwrites the stored one and is re-sent through the same Telegram
 // channel used at approval, so the old code stops working immediately.
 
+/**
+ * کد دلخواه — همان چیزی که کاربر تایپ می‌کند، نه یک هگز تصادفی.
+ *
+ * کد ادمین دو کار می‌کند: رمز ورود به پنل بات (`admin_password` روی رجیستری)
+ * و کلیدی که با آن می‌شود مدیریت بات را به کسی سپرد (`POST /bots/claim`).
+ * پس ضعیف‌بودنش واقعاً هزینه دارد و این قیدها حداقلی‌اند:
+ *
+ *   - **۶ تا ۶۴ کاراکتر.** کوتاه‌تر از ۶ در عمل حدس‌زدنی است.
+ *   - **بدون فاصله.** کد در تلگرام کپی/پیست می‌شود و فاصله‌ی ابتدا و انتها
+ *     بی‌صدا گم می‌شود؛ فاصله‌ی وسط هم موقع تایپ دستی خطاساز است.
+ *   - **بدون کاراکتر کنترلی.**
+ *
+ * حروف فارسی و هر کاراکتر چاپی دیگری مجاز است — قید بی‌دلیل نمی‌گذاریم.
+ */
+function normalizeCustomAdminCode(raw: unknown): string {
+  const code = String(raw ?? "").trim();
+  if (code.length < 6 || code.length > 64) {
+    throw new Error("کد ادمین باید بین ۶ تا ۶۴ کاراکتر باشد.");
+  }
+  if (/\s/.test(code)) {
+    throw new Error("کد ادمین نباید فاصله داشته باشد.");
+  }
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f\x7f]/.test(code)) {
+    throw new Error("کد ادمین شامل کاراکتر غیرمجاز است.");
+  }
+  return code;
+}
+
+/**
+ * کد ادمین را عوض می‌کند.
+ *
+ * بدون بدنه → یک کد تصادفی (رفتار قبلی، دست‌نخورده).
+ * با `adminCode` در بدنه → دقیقاً همان کدی که کاربر خواسته.
+ *
+ * در هر دو حالت کد تازه باید به **رجیستری** هم برود، وگرنه پنل بات همچنان
+ * رمز قدیمی را قبول می‌کند و کاربر فکر می‌کند تغییر اعمال نشده.
+ */
 router.post("/bots/:botId/regenerate-admin-code", requireBotOwnership, async (req: any, res) => {
   try {
     const bot = req.bot;
@@ -2275,7 +2313,33 @@ router.post("/bots/:botId/regenerate-admin-code", requireBotOwnership, async (re
       return;
     }
 
-    const adminCode = generateAdminCode();
+    let adminCode: string;
+    if (req.body?.adminCode !== undefined && req.body?.adminCode !== null && req.body?.adminCode !== "") {
+      try {
+        adminCode = normalizeCustomAdminCode(req.body.adminCode);
+      } catch (err: any) {
+        res.status(400).json({ error: err.message, code: "invalid_admin_code" });
+        return;
+      }
+      // دو بات با یک کد یعنی `POST /bots/claim` نمی‌تواند بفهمد کدام را
+      // باز کند. اولی که پیدا شود برنده است — یعنی کاربر ممکن بود ناخواسته
+      // به بات کس دیگری دسترسی بدهد.
+      const [clash] = await db
+        .select({ id: botsTable.id })
+        .from(botsTable)
+        .where(and(eq(botsTable.adminCode, adminCode), ne(botsTable.id, bot.id)))
+        .limit(1);
+      if (clash) {
+        res.status(409).json({
+          error: "این کد قبلاً برای بات دیگری استفاده شده. کد دیگری انتخاب کنید.",
+          code: "admin_code_taken",
+        });
+        return;
+      }
+    } else {
+      adminCode = generateAdminCode();
+    }
+
     const [updated] = await db
       .update(botsTable)
       .set({ adminCode })
@@ -2288,17 +2352,64 @@ router.post("/bots/:botId/regenerate-admin-code", requireBotOwnership, async (re
       .where(eq(usersTable.id, bot.userId))
       .limit(1);
 
-    if (owner?.telegramId) {
-      await sendTelegramMessage(
-        decryptToken(updated.token),
-        owner.telegramId,
-        `🔑 <b>کد ادمین جدید</b>\n\n` +
-          `🤖 ${updated.name}\n` +
-          `کد جدید: <code>${adminCode}</code>\n\n` +
-          `کد قبلی دیگر معتبر نیست.`
-      );
+    /**
+     * کد تازه باید به رجیستری هم برود.
+     *
+     * ⚠️ این قبلاً اینجا نبود: کد فقط در Postgres سایت عوض می‌شد، ولی رمزی
+     * که پنل ادمین **خودِ بات** می‌پذیرد از `admin_password` رجیستری می‌آید
+     * (`services/tenant_watcher.py`). یعنی کاربر کد را عوض می‌کرد، پیام
+     * «کد جدید» را می‌گرفت، و بات همچنان فقط کد قبلی را قبول می‌کرد.
+     */
+    /**
+     * ⚠️ همه‌چیز بعد از این نقطه در try خودش است.
+     *
+     * کد **از قبل** در دیتابیس عوض شده. اگر همگام‌سازی رجیستری یا پیام تلگرام
+     * throw کند و درخواست ۵۰۰ بدهد، کاربر می‌بیند «خطا» و دوباره تلاش می‌کند —
+     * در حالی که کد قبلاً عوض شده و کد قدیمی دیگر کار نمی‌کند. بدترین ترکیب
+     * ممکن. (در تست محلی همین اتفاق افتاد: توکنِ غیرقابل‌رمزگشایی کل درخواست
+     * را ۵۰۰ کرد، با اینکه کد با موفقیت ذخیره شده بود.)
+     */
+    let botToken: string | null = null;
+    try {
+      botToken = decryptToken(updated.token);
+    } catch (err) {
+      logger.error({ err, botId: updated.id }, "regenerate-admin-code: token decrypt failed");
     }
 
+    if (botToken && updated.sheetId) {
+      try {
+        syncTenantUpsert({
+          bot_token: botToken,
+          bot_name: updated.name,
+          bot_username: updated.username,
+          owner_user_id: updated.userId,
+          owner_telegram_id: owner?.telegramId ?? null,
+          sheet_id: updated.sheetId,
+          admin_password: adminCode,
+          status: updated.status,
+          created_at: updated.createdAt,
+        });
+      } catch (err) {
+        logger.error({ err, botId: updated.id }, "regenerate-admin-code: registry sync failed");
+      }
+    }
+
+    if (botToken && owner?.telegramId) {
+      try {
+        await sendTelegramMessage(
+          botToken,
+          owner.telegramId,
+          `🔑 <b>کد ادمین جدید</b>\n\n` +
+            `🤖 ${updated.name}\n` +
+            `کد جدید: <code>${adminCode}</code>\n\n` +
+            `کد قبلی دیگر معتبر نیست.`
+        );
+      } catch (err) {
+        logger.error({ err, botId: updated.id }, "regenerate-admin-code: telegram notice failed");
+      }
+    }
+
+    // کد در پاسخ برمی‌گردد، پس حتی اگر پیام تلگرام نرسید کاربر آن را می‌بیند.
     res.json({ success: true, adminCode });
   } catch (err) {
     logger.error({ err }, "Regenerate admin code error");

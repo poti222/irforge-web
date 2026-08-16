@@ -28,7 +28,6 @@ import { TabGeneral } from "./TabGeneral";
 import { TabMessages } from "./TabMessages";
 import { TabDanger } from "./TabDanger";
 import { TabForceJoin } from "./TabForceJoin";
-import { TabReplyKeyboard } from "./TabReplyKeyboard";
 import { TabWorkingHours } from "./TabWorkingHours";
 import { TabAntiFlood } from "./TabAntiFlood";
 import { TabBackup } from "./TabBackup";
@@ -38,7 +37,6 @@ type TabKey =
   | "general"
   | "messages"
   | "forceJoin"
-  | "replyKeyboard"
   | "workingHours"
   | "antiFlood"
   | "backup"
@@ -48,7 +46,6 @@ const TABS: { key: TabKey; labelKey: keyof LocaleShape["botSettings"]; icon: typ
   { key: "general", labelKey: "tabGeneral", icon: SlidersHorizontal },
   { key: "messages", labelKey: "tabMessages", icon: MessageSquare },
   { key: "forceJoin", labelKey: "tabForceJoin", icon: Users2 },
-  { key: "replyKeyboard", labelKey: "tabReplyKeyboard", icon: Keyboard },
   { key: "workingHours", labelKey: "tabWorkingHours", icon: Clock },
   { key: "antiFlood", labelKey: "tabAntiFlood", icon: Gauge },
   { key: "backup", labelKey: "tabBackup", icon: Archive },
@@ -126,7 +123,6 @@ export function BotSettingsSection({ bot }: { bot: Bot }) {
       {tab === "general" && <TabGeneral bot={bot} data={data} />}
       {tab === "messages" && <TabMessages botId={bot.id} data={data} />}
       {tab === "forceJoin" && <TabForceJoin botId={bot.id} data={data} />}
-      {tab === "replyKeyboard" && <TabReplyKeyboard bot={bot} data={data} />}
       {tab === "workingHours" && <TabWorkingHours botId={bot.id} data={data} />}
       {tab === "antiFlood" && <TabAntiFlood botId={bot.id} data={data} />}
       {tab === "backup" && <TabBackup bot={bot} />}

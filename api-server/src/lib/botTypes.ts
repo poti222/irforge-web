@@ -312,8 +312,17 @@ export const TELEGRAM_TEXT_LIMIT = 4000;
  * می‌فهمد و هندلر کامندهای سفارشیِ موجود می‌گیردش — برای همین این قابلیت
  * هیچ منطق dispatch تازه‌ای در بات لازم نداشت.
  */
+/**
+ * یک خانه‌ی کیبورد پایین.
+ *
+ * رشته‌ی ساده = دکمه‌ی بی‌رنگ (شکل اصلی، هنوز کاملاً معتبر). آبجکت وقتی
+ * می‌آید که رنگ ست شده باشد — `handlers/user.py::_reply_keyboard` هر دو را
+ * می‌خواند.
+ */
+export type ReplyKeyboardCell = string | { text: string; style: string };
+
 export type ReplyKeyboard = {
-  rows: string[][];
+  rows: ReplyKeyboardCell[][];
   resize: boolean;
   one_time: boolean;
   placeholder: string;

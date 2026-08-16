@@ -12,13 +12,18 @@ router.get("/dashboard/stats", requireAuth, async (req: any, res) => {
   try {
     const bots = await db.select().from(botsTable).where(eq(botsTable.userId, req.userId));
     const activeBots = bots.filter(b => b.status === "active").length;
-    const totalUsers = bots.reduce((acc, b) => acc + b.userCount, 0);
+    // ⚠️ `bots.user_count` در Postgres مرده است — هیچ‌جای این استک نوشته
+    // نمی‌شود. عدد واقعی از تب `users` هر شیت می‌آید (همان منبعی که صفحه‌ی
+    // بات‌ها استفاده می‌کند). این جمعِ Postgres فقط وقتی می‌ماند که هیچ شیتی
+    // خوانده نشد، تا داشبورد به‌جای عدد، صفر نشان ندهد.
+    const fallbackUsers = bots.reduce((acc, b) => acc + b.userCount, 0);
     // ⚠️ `bots.message_count` هیچ‌جای این استک نوشته نمی‌شود — نه بات، نه
     // سایت — پس همیشه صفر است. به‌جایش «کاربران فعال امروز» از داده‌ی واقعیِ
     // شیت می‌آید (lib/dashboardStats.ts). این کلید فقط برای کلاینت‌های قدیمی
     // در پاسخ می‌ماند.
     const totalMessages = bots.reduce((acc, b) => acc + b.messageCount, 0);
     const extras = await dashboardExtras(req.userId, bots);
+    const totalUsers = extras.totalUsers ?? fallbackUsers;
 
     // P5: real period-over-period deltas instead of the previous constant
     // fake values. There are no historical snapshots of userCount/messageCount,
@@ -47,7 +52,14 @@ router.get("/dashboard/stats", requireAuth, async (req: any, res) => {
       // نمایش داده شود. قبلاً همیشه صفرِ هاردکد بود.
       totalRevenue: extras.revenue,
       botsChange: pctChange(bots.length, priorBots.length),
-      usersChange: pctChange(totalUsers, priorUsers),
+      // `null` یعنی «قابل محاسبه نیست»، نه صفر.
+      //
+      // درصد رشد کاربران از مقایسه‌ی «همه‌ی بات‌ها» با «بات‌های قدیمی‌تر از ۳۰
+      // روز» می‌آمد، ولی هر دو طرفِ آن از `bots.user_count` خوانده می‌شدند —
+      // ستونی که همیشه صفر است. یعنی مخرج همیشه صفر بود و کارت برای هر
+      // کاربری «۱۰۰٪+» نشان می‌داد. عدد کل حالا زنده است ولی تاریخچه‌ای وجود
+      // ندارد که با آن مقایسه شود، پس چیزی ادعا نمی‌کنیم.
+      usersChange: extras.totalUsers === null ? pctChange(totalUsers, priorUsers) : null,
       messagesChange: pctChange(totalMessages, priorMessages),
     });
   } catch (err) {

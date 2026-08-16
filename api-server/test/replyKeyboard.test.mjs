@@ -72,3 +72,52 @@ test("ساختار نامعتبر رد می‌شود", () => {
   // `rows` غیرآرایه یعنی هیچ ردیفی — نه خطا، چون ممکن است از یک نسخه‌ی قدیمی بیاید.
   assert.equal(validateReplyKeyboard({ rows: "nope" }), null);
 });
+
+// ─── رنگ دکمه (Bot API `style`) ──────────────────────────────────────────────
+//
+// تلگرام سه رنگ می‌شناسد: success (سبز)، danger (قرمز)، primary (آبی).
+// قرارداد ذخیره‌سازی عمداً دو شکلی است — رشته‌ی ساده برای دکمه‌ی بی‌رنگ،
+// آبجکت فقط وقتی رنگ ست شده — و `handlers/user.py::_reply_keyboard` هر دو را
+// می‌خواند. اگر این تنزل نبود، هر کیبورد موجود بی‌دلیل بازنویسی می‌شد.
+
+test("دکمه‌ی رنگی به شکل آبجکت ذخیره می‌شود", () => {
+  const out = validateReplyKeyboard({
+    rows: [[{ text: "🚀 خرید سرویس", style: "success" }]],
+  });
+  assert.deepEqual(out.rows, [[{ text: "🚀 خرید سرویس", style: "success" }]]);
+});
+
+test("رنگ و بی‌رنگ در یک ردیف کنار هم درست ذخیره می‌شوند", () => {
+  const out = validateReplyKeyboard({
+    rows: [[{ text: "خرید", style: "success" }, "راهنما", { text: "لغو", style: "danger" }]],
+  });
+  assert.deepEqual(out.rows, [
+    [{ text: "خرید", style: "success" }, "راهنما", { text: "لغو", style: "danger" }],
+  ]);
+});
+
+test("آبجکتِ بی‌رنگ به رشته‌ی ساده تنزل می‌کند", () => {
+  const out = validateReplyKeyboard({ rows: [[{ text: "سلام", style: "" }]] });
+  assert.deepEqual(out.rows, [["سلام"]]);
+});
+
+test("رنگ نامعتبر رد می‌شود، نه اینکه بی‌صدا ذخیره شود", () => {
+  // بات رنگ ناشناخته را نادیده می‌گیرد، پس کاربر فکر می‌کرد ذخیره شده و
+  // فقط کار نمی‌کند. رد کردن صریح، این سردرگمی را حذف می‌کند.
+  assert.throws(
+    () => validateReplyKeyboard({ rows: [[{ text: "x", style: "purple" }]] }),
+    /معتبر نیست/,
+  );
+});
+
+test("هر سه رنگ رسمی پذیرفته می‌شوند", () => {
+  for (const style of ["success", "danger", "primary"]) {
+    const out = validateReplyKeyboard({ rows: [[{ text: "b", style }]] });
+    assert.deepEqual(out.rows, [[{ text: "b", style }]]);
+  }
+});
+
+test("آبجکت بی‌متن هم مثل رشته‌ی خالی دور ریخته می‌شود", () => {
+  assert.equal(validateReplyKeyboard({ rows: [[{ text: "  ", style: "success" }]] }), null);
+  assert.equal(validateReplyKeyboard({ rows: [[{ style: "danger" }]] }), null);
+});

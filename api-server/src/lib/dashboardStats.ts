@@ -32,6 +32,17 @@ type Cached = { at: number; value: DashboardExtras };
 const cache = new Map<string, Cached>();
 
 export type DashboardExtras = {
+  /**
+   * مجموع کاربران همه‌ی بات‌ها، از تب `users` هر شیت.
+   *
+   * `null` یعنی هیچ باتی خوانده نشد (بات فعالی نبود، یا خواندن شکست خورد) —
+   * در آن حالت صداکننده به عدد Postgres برمی‌گردد به‌جای اینکه صفر نشان دهد.
+   *
+   * چرا لازم شد: داشبورد `bots.user_count` را جمع می‌زد، ستونی که هیچ‌جای
+   * این استک نوشته نمی‌شود. صفحه‌ی بات‌ها مدت‌هاست عدد زنده را نشان می‌دهد
+   * (`routes/bots.ts`)، ولی داشبورد جا مانده بود و همیشه صفر بود.
+   */
+  totalUsers: number | null;
   /** مجموع کاربرانی که امروز (به وقت تهران) با باتی از این کاربر کار کرده‌اند. */
   activeUsersToday: number;
   /**
@@ -73,20 +84,22 @@ export async function dashboardExtras(
   const cached = cache.get(userId);
   if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
 
-  const value: DashboardExtras = { activeUsersToday: 0, revenue: null };
+  const value: DashboardExtras = { totalUsers: null, activeUsersToday: 0, revenue: null };
 
   try {
-    // فقط باتِ فعالِ دارای شیت. باتِ خاموش کاربر فعال ندارد و خواندنش فقط
-    // سهمیه می‌سوزاند.
-    const targets = bots
-      .filter((b) => b.sheetId && b.status === "active")
-      .slice(0, MAX_BOTS);
+    // «کاربران فعال امروز» فقط برای باتِ روشن معنی دارد، ولی **کل کاربران**
+    // برای بات خاموش هم واقعی است — کاربرانش که پاک نشده‌اند. پس شمارش کل
+    // روی همه‌ی باتِ دارای شیت انجام می‌شود، نه فقط فعال‌ها.
+    const targets = bots.filter((b) => b.sheetId).slice(0, MAX_BOTS);
 
     for (const bot of targets) {
       const sheetId = bot.sheetId as string;
+      const active = bot.status === "active";
 
       const stats = await botUserStats(sheetId);
-      value.activeUsersToday += stats.activeUsersToday;
+      value.totalUsers = (value.totalUsers ?? 0) + stats.users;
+      if (active) value.activeUsersToday += stats.activeUsersToday;
+      if (!active) continue;
 
       // درآمد فقط برای باتی که واقعاً فروش دارد.
       if (await isPluginEnabled(sheetId, "wallet")) {
