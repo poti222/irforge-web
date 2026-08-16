@@ -15,7 +15,7 @@
 import { useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import type { Bot } from "@workspace/api-client-react";
-import { Loader2, SlidersHorizontal, MessageSquare, CreditCard, ShieldAlert, Users2, Clock, Gauge, Archive, Keyboard } from "lucide-react";
+import { Loader2, SlidersHorizontal, MessageSquare, ShieldAlert, Users2, Clock, Gauge, Archive, Keyboard } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -26,7 +26,6 @@ import { hasUnsavedChanges } from "@/lib/unsaved-changes";
 import { useBotSettings, apiErrorCode, apiErrorMessage } from "./api";
 import { TabGeneral } from "./TabGeneral";
 import { TabMessages } from "./TabMessages";
-import { TabPayment } from "./TabPayment";
 import { TabDanger } from "./TabDanger";
 import { TabForceJoin } from "./TabForceJoin";
 import { TabReplyKeyboard } from "./TabReplyKeyboard";
@@ -42,7 +41,6 @@ type TabKey =
   | "replyKeyboard"
   | "workingHours"
   | "antiFlood"
-  | "payment"
   | "backup"
   | "danger";
 
@@ -53,7 +51,6 @@ const TABS: { key: TabKey; labelKey: keyof LocaleShape["botSettings"]; icon: typ
   { key: "replyKeyboard", labelKey: "tabReplyKeyboard", icon: Keyboard },
   { key: "workingHours", labelKey: "tabWorkingHours", icon: Clock },
   { key: "antiFlood", labelKey: "tabAntiFlood", icon: Gauge },
-  { key: "payment", labelKey: "tabPayment", icon: CreditCard },
   { key: "backup", labelKey: "tabBackup", icon: Archive },
   { key: "danger", labelKey: "tabDanger", icon: ShieldAlert },
 ];
@@ -132,7 +129,6 @@ export function BotSettingsSection({ bot }: { bot: Bot }) {
       {tab === "replyKeyboard" && <TabReplyKeyboard bot={bot} data={data} />}
       {tab === "workingHours" && <TabWorkingHours botId={bot.id} data={data} />}
       {tab === "antiFlood" && <TabAntiFlood botId={bot.id} data={data} />}
-      {tab === "payment" && <TabPayment botId={bot.id} data={data} />}
       {tab === "backup" && <TabBackup bot={bot} />}
       {tab === "danger" && <TabDanger bot={bot} />}
 

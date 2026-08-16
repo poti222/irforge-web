@@ -36,6 +36,12 @@ const BOT_LANGUAGES = ["fa", "en", "tr", "ar", "ru"] as const;
 type GeneralDraft = {
   language: string;
   currency: string;
+  /**
+   * یوزرنیم پشتیبانی. قبلاً در تب «پرداخت» بود؛ وقتی آن تب به سکشن
+   * پرداخت‌ها (پشت گیت پلاگین کیف پول) منتقل شد، این همراهش نیامد — باتی
+   * بدون فروش هم به راه تماس با پشتیبانی نیاز دارد.
+   */
+  support_username: string;
   watermark: string;
   watermark_enabled: boolean;
   maintenance: boolean;
@@ -46,6 +52,7 @@ function pick(settings: BotSettings): GeneralDraft {
   return {
     language: settings.language,
     currency: settings.currency,
+    support_username: settings.support_username,
     watermark: settings.watermark,
     watermark_enabled: settings.watermark_enabled,
     maintenance: settings.maintenance,
@@ -136,6 +143,17 @@ export function TabGeneral({ bot, data }: { bot: Bot; data: SettingsEnvelope }) 
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="gen-support">{t.supportUsername}</Label>
+              <Input
+                id="gen-support"
+                dir="ltr"
+                placeholder="@support"
+                value={draft.value.support_username}
+                onChange={(e) => draft.set("support_username", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">{t.supportUsernameHint}</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="gen-currency">{t.currency}</Label>

@@ -10,9 +10,12 @@
  * توسط این اندپوینت یا پایتون تولید می‌کند.
  */
 import { Router } from "express";
+import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { promisify } from "node:util";
+import { db, activityTable } from "@workspace/db";
 import { requireAuth } from "./auth.js";
+import { logger } from "../lib/logger.js";
 import { listTabs } from "../lib/tenantSheets.js";
 import {
   resolveBotSheet,
@@ -123,6 +126,46 @@ export async function readZip(buf: Buffer): Promise<Array<{ name: string; data: 
   }
   if (out.length === 0) throw new BotConfigError(400, "هیچ فایلی داخل این ZIP پیدا نشد.", "empty_zip");
   return out;
+}
+
+/**
+ * تب‌ها و کلیدهایی که بازیابی هرگز نباید بنویسدشان — دفاع در عمق.
+ *
+ * **امروز هیچ‌کدامشان روی شیت تننت نیستند** و این عمدی است: پلن، سقف کاربر،
+ * نقش و مالکیت همگی در Postgres سایت زندگی می‌کنند (`plans.ts`, `botsTable`)
+ * و `resolveBotSheet` آن‌ها را از همان‌جا می‌خواند — نه از شیت. پس یک فایل
+ * بک‌آپ نه می‌تواند شاملشان باشد و نه با بازیابی چیزی را ارتقا دهد.
+ *
+ * پس چرا این لیست؟ چون آن تضمین از **شکلِ فعلی داده** می‌آید، نه از یک قید
+ * اجراشده. اگر روزی کسی یک فیلد حساس را به یکی از تب‌های شیت اضافه کند،
+ * بازیابی بی‌سروصدا تبدیل می‌شود به راهی برای بازنویسی‌اش — و هیچ تستی هم
+ * نمی‌افتد. این لیست همان روز را می‌گیرد.
+ *
+ * ⚠️ `__plugin_states__` عمداً **در لیست نیست**: وضعیت پلاگین‌ها بخش
+ * قانونی‌ای از پیکربندی بات است و بک‌آپ باید بتواند برشان گرداند. مجوز خرید
+ * هم به آن گره نخورده (`routes/botPlugins.ts`)، پس بازیابی‌اش دسترسی تازه‌ای
+ * نمی‌دهد.
+ */
+const FORBIDDEN_TABS = new Set(["plans", "user_plans", "subscriptions", "users_roles", "billing"]);
+const FORBIDDEN_KEYS = new Set([
+  "plan",
+  "plan_id",
+  "subscription",
+  "subscription_status",
+  "tier",
+  "max_users",
+  "max_bots",
+  "max_plugins",
+  "is_trial",
+  "trial_expires_at",
+  "payment_status",
+  "owner_id",
+  "user_id",
+]);
+
+/** کلیدهای ممنوعِ موجود در یک تب. خالی یعنی چیزی برای نگرانی نیست. */
+function forbiddenKeysIn(rows: Record<string, unknown>): string[] {
+  return Object.keys(rows).filter((k) => FORBIDDEN_KEYS.has(k.toLowerCase()));
 }
 
 /**
@@ -243,7 +286,26 @@ router.post("/bots/:botId/restore", requireAuth, async (req: any, res) => {
         skipped.push(file.name);
         continue;
       }
-      entries.push({ tab, rows: parsed as Record<string, unknown> });
+      const rows = parsed as Record<string, unknown>;
+
+      // تبِ ممنوع اصلاً وارد نمی‌شود، و **بی‌صدا رد نمی‌شود**: کاربر باید
+      // بداند چرا بخشی از بک‌آپش برنگشت.
+      if (FORBIDDEN_TABS.has(tab.toLowerCase()))
+        throw new BotConfigError(
+          400,
+          `تب «${tab}» در این فایل هست ولی بازیابی آن مجاز نیست — این داده مال پلتفرم است، نه بات.`,
+          "forbidden_tab",
+        );
+
+      const bad = forbiddenKeysIn(rows);
+      if (bad.length > 0)
+        throw new BotConfigError(
+          400,
+          `تب «${tab}» شامل کلیدهای محافظت‌شده است (${bad.join("، ")}) که بازیابی‌شان مجاز نیست.`,
+          "forbidden_key",
+        );
+
+      entries.push({ tab, rows });
     }
 
     if (entries.length === 0)
@@ -273,10 +335,33 @@ router.post("/bots/:botId/restore", requireAuth, async (req: any, res) => {
     // دیتای قبل از بازیابی را سرو می‌کند.
     await bustTabs(spreadsheetId, entries.map((e) => e.tab));
 
+    // ممیزی: بازیابی برگشت‌ناپذیرترین عملیات این پنل است و باید ردی از خود
+    // بگذارد — چه کسی، کدام بات، چه زمانی، با چه حالتی و چند تب.
+    try {
+      await db.insert(activityTable).values({
+        id: crypto.randomUUID(),
+        userId: req.userId,
+        type: "bot_restored",
+        title: "Backup restored",
+        description: `Restored ${entries.length} tab(s), ${written} row(s), mode=${mode}`,
+        botName,
+      });
+    } catch (err) {
+      // شکست ثبت ممیزی نباید بازیابیِ موفق را به خطا تبدیل کند.
+      logger.warn({ err, botId: req.params.botId }, "restore audit log failed (ignored)");
+    }
+    logger.info(
+      { userId: req.userId, botId: req.params.botId, mode, tabs: entries.length, written },
+      "bot backup restored",
+    );
+
     res.json({ preview: false, mode, plan, skipped, written, tabs: entries.length });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to restore backup");
   }
 });
+
+/** فقط برای تست — قیدهای امنیتیِ مسیر بازیابی. */
+export const __testables = { FORBIDDEN_TABS, FORBIDDEN_KEYS, forbiddenKeysIn };
 
 export default router;

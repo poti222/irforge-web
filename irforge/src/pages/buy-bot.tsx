@@ -31,6 +31,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { formatToman } from "@/lib/format";
 import { BOT_TIERS, CUSTOM_MAX_RAM_GB } from "@/lib/bot-tiers";
 import { TrialDialog } from "@/components/bots/TrialDialog";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 
 /**
  * Buy Bot is now the single place plans live.
@@ -41,6 +42,7 @@ import { TrialDialog } from "@/components/bots/TrialDialog";
  * /plans route is gone.
  */
 export default function BuyBot() {
+  usePrivatePageTitle(useT("pageTitles").buyBot);
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const t = useT("buyBot");

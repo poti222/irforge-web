@@ -9,6 +9,8 @@ import { Receipt, ExternalLink, Bot, Wallet } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
 import { ReceiptLightbox } from "@/components/ui/receipt-lightbox";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
+import { useT } from "@/hooks/use-translation";
 
 type Payment = {
   id: string; botId: string | null; botName: string | null; amount: number | null;
@@ -35,6 +37,7 @@ const WALLET_LABEL: Record<string, { fa: string; en: string }> = {
 };
 
 export default function Invoices() {
+  usePrivatePageTitle(useT("pageTitles").invoices);
   const { lang } = useLanguage();
   const fa = lang === "fa";
 

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles, ImageIcon } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 
 /** یک ردیف لیست — بدنه‌ی عکس‌ها را حمل نمی‌کند، فقط تعدادشان را. */
 type UpdateListItem = {
@@ -23,6 +24,7 @@ type UpdateListItem = {
  * این صفحه همیشه در دسترس است.
  */
 export default function Updates() {
+  usePrivatePageTitle(useT("pageTitles").updates);
   const { lang } = useLanguage();
   const t = useT("updates");
 

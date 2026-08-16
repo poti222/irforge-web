@@ -924,9 +924,21 @@ components:
         totalUsers:
           type: integer
         totalMessages:
+          description: >-
+            Kept for older clients only. `bots.message_count` is never written
+            by anything in this stack, so this is always 0. The dashboard shows
+            `activeUsersToday` instead.
           type: integer
         totalRevenue:
+          description: >-
+            Sum of verified orders across the user's wallet-enabled bots. Null
+            when no bot has the wallet plugin enabled, so the card is hidden
+            rather than showing a permanent zero.
           type: number
+          nullable: true
+        activeUsersToday:
+          description: Users seen today (Tehran day) across the user's active bots.
+          type: integer
         botsChange:
           type: number
         usersChange:

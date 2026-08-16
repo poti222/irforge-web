@@ -6,8 +6,10 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 
 export default function Bots() {
+  usePrivatePageTitle(useT("pageTitles").bots);
   const { lang } = useLanguage();
   const t = useT("bots");
   const { data: bots, isLoading } = useListBots();

@@ -29,6 +29,8 @@ import {
   SETTINGS_TAB,
 } from "../lib/botConfig.js";
 import { cacheBustEnabled } from "../lib/botCacheBust.js";
+import { resolveTelegramChat } from "../lib/telegramResolve.js";
+import { logger } from "../lib/logger.js";
 import {
   BOT_LANGUAGES,
   TELEGRAM_TEXT_LIMIT,
@@ -156,8 +158,11 @@ function asTime(value: unknown, field: string): string {
  * همان دو شکلی که `getChatMember` بات قبول می‌کند.
  */
 function normalizeChannel(raw: unknown): string {
-  const s = asString(raw, "channel").trim();
+  // کاربر معمولاً لینک کانال را کپی می‌کند، نه یوزرنیم خام — پذیرفتنش ارزان
+  // است و جلوی یک خطای بی‌دلیل را می‌گیرد.
+  let s = asString(raw, "channel").trim().replace(/^https?:\/\/t\.me\//i, "@").replace(/^t\.me\//i, "@");
   if (!s) throw bad("نام کانال خالی است.");
+  if (/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(s)) s = `@${s}`;
   if (s.startsWith("@")) {
     const handle = s.slice(1);
     if (!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(handle))
@@ -326,20 +331,59 @@ router.post("/bots/:botId/settings/channels", requireAuth, async (req: any, res)
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
     await assertSheetsAuthoritative(SETTINGS_TAB);
 
-    const channel = normalizeChannel(req.body?.channel);
+    const input = normalizeChannel(req.body?.channel);
     const settings = await readSettings(spreadsheetId);
     const current = settings.force_join_channels;
+    if (current.length >= 20) throw bad("حداکثر ۲۰ کانال می‌توانید اضافه کنید.");
 
-    // مقایسه‌ی case-insensitive برای یوزرنیم‌ها — تلگرام هم همین‌طور رفتار می‌کند.
-    if (current.some((c) => c.toLowerCase() === channel.toLowerCase()))
+    /**
+     * یوزرنیم به **آی‌دی عددی** تبدیل و همان ذخیره می‌شود.
+     *
+     * چرا مهم است: یوزرنیم کانال قابل تغییر است. بات عضویت را با
+     * `get_chat_member(ch, uid)` چک می‌کند و اگر `ch` یک یوزرنیمِ منقضی باشد،
+     * تلگرام «chat not found» می‌دهد — و بات آن را «کاربر عضو نیست» تفسیر
+     * می‌کند (`handlers/user.py:194`). یعنی **همه‌ی کاربران برای همیشه پشت
+     * درِ عضویت اجباری قفل می‌شوند** و هیچ خطایی هم جایی ثبت نمی‌شود.
+     * آی‌دی عددی هیچ‌وقت عوض نمی‌شود.
+     *
+     * اگر تلگرام در دسترس نبود، همان ورودی کاربر ذخیره می‌شود — قبلاً هم
+     * همین بود و کار می‌کرد؛ نباید افزودن کانال به‌خاطر یک خطای موقت شبکه
+     * شکست بخورد.
+     */
+    let stored = input;
+    let resolved: Awaited<ReturnType<typeof resolveTelegramChat>> | null = null;
+    try {
+      resolved = await resolveTelegramChat(req.params.botId, input);
+      stored = resolved.chatId;
+    } catch (err) {
+      // ۴۰۹ یعنی تلگرام کانال را به بات نشان نداد — این را باید به کاربر گفت،
+      // چون همان کانال بعداً هم کار نخواهد کرد.
+      if (err instanceof BotConfigError && err.status === 409) throw err;
+      logger.debug({ err, input }, "channel resolve failed; storing raw input");
+    }
+
+    // مقایسه هم روی مقدار ذخیره‌شده و هم روی ورودی خام: کانالی که قبلاً با
+    // یوزرنیم ثبت شده نباید حالا با آی‌دی عددی دوباره اضافه شود.
+    const known = new Set(current.map((c) => c.toLowerCase()));
+    if (known.has(stored.toLowerCase()) || known.has(input.toLowerCase()))
       throw new BotConfigError(409, "این کانال از قبل در لیست هست.", "duplicate_channel");
-    if (current.length >= 20)
-      throw bad("حداکثر ۲۰ کانال می‌توانید اضافه کنید.");
 
     const updated = await patchSettings(spreadsheetId, {
-      force_join_channels: [...current, channel],
+      force_join_channels: [...current, stored],
     });
-    res.status(201).json({ channels: updated.force_join_channels });
+    res.status(201).json({
+      channels: updated.force_join_channels,
+      // UI بلافاصله می‌گوید چه کانالی اضافه شد و آیا بات آنجا ادمین هست —
+      // بدون این، کاربر باید حدس بزند که `-1001234567890` کدام کانال بود.
+      resolved: resolved
+        ? {
+            chatId: resolved.chatId,
+            title: resolved.title,
+            username: resolved.username,
+            botIsAdmin: resolved.botIsAdmin,
+          }
+        : null,
+    });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to add force-join channel");
   }

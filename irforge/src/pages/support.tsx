@@ -24,6 +24,8 @@ import {
   EDUCATION_CHANNEL_URL,
   EDUCATION_CHANNEL_HANDLE,
 } from "@/config/support";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
+import { useT } from "@/hooks/use-translation";
 
 /** A small "@handle + copy" chip. */
 function HandleChip({ username }: { username: string }) {
@@ -63,6 +65,7 @@ const fadeUp = {
 };
 
 export default function Support() {
+  usePrivatePageTitle(useT("pageTitles").support);
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { aiBotUsername, ownerUsername, ownerLabel } = SUPPORT_CONTACTS;

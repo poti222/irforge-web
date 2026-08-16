@@ -27,8 +27,10 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 
 export default function Marketplace() {
+  usePrivatePageTitle(useT("pageTitles").marketplace);
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { toast } = useToast();

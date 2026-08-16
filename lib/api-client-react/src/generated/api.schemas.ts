@@ -96,8 +96,21 @@ export interface DashboardStats {
   totalBots: number;
   activeBots: number;
   totalUsers: number;
+  /**
+   * Kept for older clients only. `bots.message_count` is never written by
+   * anything in this stack, so it is always 0 — the dashboard shows
+   * `activeUsersToday` instead.
+   */
   totalMessages: number;
-  totalRevenue: number;
+  /**
+   * Sum of verified orders across the user's wallet-enabled bots.
+   * `null` when no bot has the wallet plugin on — the card is hidden then,
+   * rather than showing a permanent zero.
+   * @nullable
+   */
+  totalRevenue: number | null;
+  /** Users seen today (Tehran day) across the user's active bots. */
+  activeUsersToday?: number;
   botsChange: number;
   usersChange: number;
   messagesChange: number;

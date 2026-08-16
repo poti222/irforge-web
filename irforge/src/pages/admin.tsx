@@ -20,6 +20,8 @@ import { UpdatesManager, ADMIN_UPDATES_KEY } from "@/components/admin/UpdatesMan
 import { PendingRegistrations, PENDING_REGISTRATIONS_KEY } from "@/components/admin/PendingRegistrations";
 import { DiscountsManager } from "@/components/admin/DiscountsManager";
 import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, Percent, Sparkles, UserPlus } from "lucide-react";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
+import { useT } from "@/hooks/use-translation";
 
 // Each tab's query keys, so the refresh control invalidates exactly what the
 // active tab renders. The tab components export their own keys where they have
@@ -37,6 +39,7 @@ const TAB_KEYS: Record<string, QueryKey[]> = {
 };
 
 export default function Admin() {
+  usePrivatePageTitle(useT("pageTitles").admin);
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { user } = useAuth();

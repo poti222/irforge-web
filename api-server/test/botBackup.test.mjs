@@ -115,3 +115,28 @@ test("tabNameFromEntry جلوی zip-slip و فایل غیر-JSON را می‌گ�
 test("ZIP خالی یا خراب پیام روشن می‌دهد، نه crash", async () => {
   await assert.rejects(() => backup.readZip(Buffer.from("not a zip at all")), /پیدا نشد/);
 });
+
+test("بازیابی، تب و کلید محافظت‌شده را با پیام روشن رد می‌کند", async () => {
+  const { __testables } = await import("../src/routes/botBackup.ts");
+  const { FORBIDDEN_TABS, forbiddenKeysIn } = __testables;
+
+  // امروز هیچ‌کدام از این‌ها روی شیت تننت نیستند — داده‌ی پلن در Postgres
+  // است. این لیست برای روزی است که کسی یکی‌شان را به شیت اضافه کند و
+  // بازیابی بی‌سروصدا تبدیل شود به راهی برای بازنویسی‌اش.
+  assert.ok(FORBIDDEN_TABS.has("plans"));
+  assert.ok(FORBIDDEN_TABS.has("user_plans"));
+  assert.ok(FORBIDDEN_TABS.has("subscriptions"));
+
+  assert.deepEqual(forbiddenKeysIn({ welcome_msg: "x", panels: [] }), [], "تب عادی نباید گیر کند");
+  assert.deepEqual(forbiddenKeysIn({ plan: "pro" }), ["plan"]);
+  assert.deepEqual(forbiddenKeysIn({ MAX_USERS: 999 }), ["MAX_USERS"], "تشخیص باید case-insensitive باشد");
+  assert.deepEqual(forbiddenKeysIn({ trial_expires_at: "2030-01-01" }), ["trial_expires_at"]);
+});
+
+test("__plugin_states__ عمداً قابل بازیابی است", () => {
+  // وضعیت پلاگین بخش قانونی پیکربندی بات است و بک‌آپ باید برش گرداند؛
+  // مجوز خرید هم به آن گره نخورده، پس بازیابی‌اش دسترسی تازه‌ای نمی‌دهد.
+  return import("../src/routes/botBackup.ts").then(({ __testables }) => {
+    assert.deepEqual(__testables.forbiddenKeysIn({ __plugin_states__: { wallet: true } }), []);
+  });
+});

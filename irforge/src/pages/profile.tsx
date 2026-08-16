@@ -16,6 +16,8 @@ import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { useTelegramWebApp } from "@/hooks/use-telegram-webapp";
 import { TelegramNotifyToggle } from "@/components/profile/TelegramNotifyToggle";
 import { Send, Info, Loader2, Save, KeyRound, LogOut, ShieldCheck} from "lucide-react";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
+import { useT } from "@/hooks/use-translation";
 
 type ProfileUser = {
   id: string;
@@ -33,6 +35,7 @@ type ProfileUser = {
 const TELEGRAM_BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined;
 
 export default function Profile() {
+  usePrivatePageTitle(useT("pageTitles").profile);
   const { user, refreshUser, logout } = useAuth();
   const { toast } = useToast();
   const { lang } = useLanguage();
@@ -437,8 +440,8 @@ export default function Profile() {
             <CardTitle className="flex items-center gap-2"><KeyRound className="size-4" /> {fa ? "کد مدیر کل" : "Super Admin Code"}</CardTitle>
             <CardDescription>
               {fa
-                ? "اگر کد مدیر کل (SUPER_ADMIN_CODE) پلتفرم را دارید، اینجا وارد کنید تا به بخش‌های مدیر کل — از جمله «پرداخت‌های در انتظار تأیید» و «استخر شیت‌ها» — دسترسی پیدا کنید."
-                : "If you have the platform's Super Admin Code, enter it here to unlock the super-admin sections — including pending payment approvals and the sheet pool."}
+                ? "اگر کد مدیر کلِ پلتفرم (SUPER_ADMIN_CODE) را دارید، اینجا وارد کنید تا به بخش‌های مدیر کل — از جمله «پرداخت‌های در انتظار تأیید» و «استخر شیت‌ها» — دسترسی پیدا کنید. ⚠️ این با «کد ادمین بات» فرق دارد: آن کد در نمای کلی هر بات است و فقط پنل ادمین همان بات را در تلگرام فعال می‌کند. کد ادمین بات را اینجا وارد نکنید."
+                : "If you have the platform's Super Admin Code, enter it here to unlock the super-admin sections — including pending payment approvals and the sheet pool. ⚠️ This is not a bot's Admin Code: that one lives on each bot's Overview and only activates that bot's admin panel in Telegram. Don't enter a bot admin code here."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

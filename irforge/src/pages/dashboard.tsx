@@ -19,6 +19,7 @@ import { formatToman } from "@/lib/format";
 import { useT } from "@/hooks/use-translation";
 import { TrialWarningDialog } from "@/components/dashboard/trial-warning-dialog";
 import { UpdateDialog } from "@/components/updates/UpdateDialog";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 
 // P7: map each activity type to a distinct icon (sane default for unknowns).
 const ACTIVITY_ICONS: Record<ActivityItemType, LucideIcon> = {
@@ -61,6 +62,7 @@ const ANNOUNCEMENT_STYLES: Record<string, string> = {
 };
 
 export default function Dashboard() {
+  usePrivatePageTitle(useT("pageTitles").dashboard);
   const { lang } = useLanguage();
   const t = useT("dashboard");
   const reduce = useReducedMotion();
@@ -81,10 +83,24 @@ export default function Dashboard() {
         { label: t.totalBots, value: (stats.totalBots ?? 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US"), icon: Bot, change: stats.botsChange },
         { label: t.activeBots, value: (stats.activeBots ?? 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US"), icon: Activity, change: undefined },
         { label: t.totalUsers, value: (stats.totalUsers ?? 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US"), icon: Users, change: stats.usersChange },
-        { label: t.messagesProcessed, value: (stats.totalMessages ?? 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US"), icon: MessageSquare, change: stats.messagesChange },
-        { label: t.revenue, value: formatToman(stats.totalRevenue ?? 0, lang), icon: Wallet, change: undefined },
+        // «پیام‌های پردازش‌شده» حذف شد: منبعش (`bots.message_count`) هیچ‌جای
+        // استک نوشته نمی‌شد و کارت برای همه همیشه صفر بود. جایش عددی نشسته
+        // که واقعاً از شیت می‌آید.
+        { label: t.activeUsersToday, value: (stats.activeUsersToday ?? 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US"), icon: MessageSquare, change: undefined },
       ]
     : [];
+
+  // کارت درآمد فقط وقتی می‌آید که دست‌کم یک بات پلاگین کیف پول داشته باشد؛
+  // سرور در غیر این صورت `null` می‌دهد. باتی که فروش ندارد نباید کارتی ببیند
+  // که همیشه صفر است.
+  if (stats && stats.totalRevenue != null) {
+    statCards.push({
+      label: t.revenue,
+      value: formatToman(stats.totalRevenue, lang),
+      icon: Wallet,
+      change: undefined,
+    });
+  }
 
   return (
     <div className="space-y-6">

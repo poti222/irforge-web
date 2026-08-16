@@ -7,8 +7,10 @@ import { useT } from "@/hooks/use-translation";
 import { useNotifications } from "@/hooks/use-notifications";
 import { severityIcon } from "@/lib/notification-severity";
 import { isRtlLang } from "@/lib/i18n";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 
 export default function Notifications() {
+  usePrivatePageTitle(useT("pageTitles").notifications);
   const { lang } = useLanguage();
   const t = useT("notifications");
   const { notifications, unreadCount, isLoading, markAllRead } = useNotifications();

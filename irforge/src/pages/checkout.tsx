@@ -20,6 +20,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
+import { useT } from "@/hooks/use-translation";
 
 const REQUIRED_BOT_FIELDS: (keyof Pick<CartBot, "phone" | "telegramId" | "name" | "token" | "description">)[] = [
   "phone", "telegramId", "name", "token", "description",
@@ -52,6 +54,7 @@ function discountReasonText(reason: string | undefined, fa: boolean): string {
 }
 
 export default function Checkout() {
+  usePrivatePageTitle(useT("pageTitles").checkout);
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { toast } = useToast();

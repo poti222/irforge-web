@@ -3,6 +3,7 @@ import { Router } from "express";
 import { db, botsTable, usersTable, activityTable } from "@workspace/db";
 import { eq, desc, count } from "drizzle-orm";
 import { requireAuth } from "./auth";
+import { dashboardExtras } from "../lib/dashboardStats";
 
 const router = Router();
 
@@ -12,7 +13,12 @@ router.get("/dashboard/stats", requireAuth, async (req: any, res) => {
     const bots = await db.select().from(botsTable).where(eq(botsTable.userId, req.userId));
     const activeBots = bots.filter(b => b.status === "active").length;
     const totalUsers = bots.reduce((acc, b) => acc + b.userCount, 0);
+    // ⚠️ `bots.message_count` هیچ‌جای این استک نوشته نمی‌شود — نه بات، نه
+    // سایت — پس همیشه صفر است. به‌جایش «کاربران فعال امروز» از داده‌ی واقعیِ
+    // شیت می‌آید (lib/dashboardStats.ts). این کلید فقط برای کلاینت‌های قدیمی
+    // در پاسخ می‌ماند.
     const totalMessages = bots.reduce((acc, b) => acc + b.messageCount, 0);
+    const extras = await dashboardExtras(req.userId, bots);
 
     // P5: real period-over-period deltas instead of the previous constant
     // fake values. There are no historical snapshots of userCount/messageCount,
@@ -36,7 +42,10 @@ router.get("/dashboard/stats", requireAuth, async (req: any, res) => {
       activeBots,
       totalUsers,
       totalMessages,
-      totalRevenue: 0,
+      activeUsersToday: extras.activeUsersToday,
+      // `null` یعنی هیچ باتی پلاگین کیف پول ندارد → کارت درآمد اصلاً نباید
+      // نمایش داده شود. قبلاً همیشه صفرِ هاردکد بود.
+      totalRevenue: extras.revenue,
       botsChange: pctChange(bots.length, priorBots.length),
       usersChange: pctChange(totalUsers, priorUsers),
       messagesChange: pctChange(totalMessages, priorMessages),

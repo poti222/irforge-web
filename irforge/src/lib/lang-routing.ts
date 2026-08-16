@@ -217,6 +217,12 @@ export const PRIVATE_ROUTES = [
   "/language",
   "/database",
   "/profile",
+  // `/buy-bot` و `/checkout` هر دو `ProtectedRoute` هستند ولی در این لیست
+  // نبودند و هیچ پیشوندی هم پوششان نمی‌داد — یعنی یک مسیر احرازهویت‌شده که
+  // خزنده‌ها اجازه‌ی خزیدنش را داشتند. تنها چیزی که پیدایشان نکرد، همین بود
+  // که کسی لیست را با مسیرهای واقعی App.tsx مقایسه نکرده بود.
+  "/buy-bot",
+  "/checkout",
   "/admin",
   "/admin/users",
   "/login",

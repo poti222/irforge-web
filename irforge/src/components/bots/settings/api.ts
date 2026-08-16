@@ -107,7 +107,11 @@ export function useAddForceJoinChannel(botId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (channel: string) =>
-      customFetch<{ channels: string[] }>(`/api/bots/${botId}/settings/channels`, {
+      customFetch<{
+        channels: string[];
+        /** کانالِ حل‌شده — `null` وقتی تلگرام در دسترس نبوده و ورودی خام ذخیره شده. */
+        resolved: { chatId: string; title: string; username: string; botIsAdmin: boolean } | null;
+      }>(`/api/bots/${botId}/settings/channels`, {
         method: "POST",
         body: JSON.stringify({ channel }),
       }),

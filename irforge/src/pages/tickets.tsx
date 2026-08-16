@@ -21,6 +21,8 @@ import { LifeBuoy, Plus, Send, Loader2, CheckCircle2, ArrowLeft, Trash2 } from "
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
+import { useT } from "@/hooks/use-translation";
 
 type TicketListItem = {
   id: string; subject: string; status: string; createdAt: string; updatedAt: string;
@@ -45,6 +47,7 @@ const STATUS_FILTERS: { value: StatusFilter; fa: string; en: string }[] = [
 ];
 
 export default function Tickets() {
+  usePrivatePageTitle(useT("pageTitles").tickets);
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { toast } = useToast();

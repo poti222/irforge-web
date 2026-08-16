@@ -147,6 +147,19 @@ export function getSheetId(name: string): string {
 // ─── Core operations ────────────────────────────────────────────────────────
 
 /**
+ * آیا این خطا یعنی «کردنشیال گوگل روی این سرور تنظیم نشده»؟
+ *
+ * محتمل‌ترین خطای پیکربندیِ کل این سامانه است، و تا امروز به‌شکل یک ۵۰۰ با
+ * پیام «خطای غیرمنتظره روی سرور» بیرون می‌آمد — یعنی اپراتور هیچ سرنخی
+ * نداشت که فقط یک متغیر محیطی جا افتاده. `getAuth()` این را با یک `Error`
+ * ساده throw می‌کند، پس تنها راه تشخیصش متن پیام است.
+ */
+export function isSheetsNotConfiguredError(err: unknown): boolean {
+  const message = String((err as { message?: string } | null)?.message ?? "");
+  return message.includes("Google Sheets not configured") || message.includes("GOOGLE_CREDENTIALS_JSON");
+}
+
+/**
  * آیا این خطا یعنی «تبِ خواسته‌شده روی این اسپردشیت وجود ندارد»؟
  *
  * وقتی range به تبی اشاره کند که ساخته نشده، Sheets API یک **۴۰۰** با پیام

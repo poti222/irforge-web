@@ -14,6 +14,7 @@ import {
   Users,
   ShieldCheck,
   ShoppingCart,
+  CreditCard,
   Ticket,
   Megaphone,
   LifeBuoy,
@@ -42,12 +43,14 @@ import { AdminsSection } from "@/components/bots/admins/AdminsSection";
 import { UsersSection } from "@/components/bots/users/UsersSection";
 import { BroadcastSection } from "@/components/bots/broadcast/BroadcastSection";
 import { OrdersSection } from "@/components/bots/orders/OrdersSection";
+import { PaymentsSection } from "@/components/bots/payments/PaymentsSection";
 import { ObjectsSection } from "@/components/bots/advanced/ObjectsSection";
 import { RelationsSection } from "@/components/bots/advanced/RelationsSection";
 import { WorkflowsSection } from "@/components/bots/advanced/WorkflowsSection";
 import { LanguageSection } from "@/components/bots/language/LanguageSection";
 import { TicketsSection } from "@/components/bots/tickets/TicketsSection";
 import { BotHealthCard } from "@/components/bots/BotHealthCard";
+import { BotAdminCodeCard } from "@/components/bots/BotAdminCodeCard";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
 import type { LocaleShape } from "@/hooks/use-translation";
@@ -62,6 +65,7 @@ type SectionKey =
   | "users"
   | "admins"
   | "orders"
+  | "payments"
   | "discounts"
   | "broadcast"
   | "tickets"
@@ -133,6 +137,9 @@ const SECTION_GROUPS: SectionGroup[] = [
     labelKey: "groupSales",
     items: [
       { key: "orders", icon: ShoppingCart, labelKey: "sectionOrders", requiresPlugin: "wallet" },
+      // پرداخت‌ها از تنظیمات عمومی به اینجا منتقل شد: به همان دنیایی تعلق
+      // دارد که سفارش‌ها، و پشت همان گیت است.
+      { key: "payments", icon: CreditCard, labelKey: "sectionPayments", requiresPlugin: "wallet" },
       // Deliberately still locked, and the only one left. "Discounts" means two
       // different things here: the platform's own discount codes (routes/
       // discounts.ts, site Postgres) and the bot's `discount` plugin with its
@@ -336,6 +343,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
                 {/* فاز ۲۴ — سلامت بات: شکست‌های بی‌صدا را قبل از اینکه کاربرِ
                     بات به آن‌ها بخورد نشان می‌دهد. */}
                 <BotHealthCard bot={bot} />
+                <BotAdminCodeCard bot={bot} />
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <Card>
@@ -372,6 +380,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "users" && <UsersSection bot={bot} />}
             {section === "broadcast" && <BroadcastSection bot={bot} />}
             {section === "orders" && <OrdersSection bot={bot} />}
+            {section === "payments" && <PaymentsSection bot={bot} />}
             {section === "objects" && <ObjectsSection bot={bot} />}
             {section === "relations" && <RelationsSection bot={bot} />}
             {section === "workflows" && <WorkflowsSection bot={bot} />}

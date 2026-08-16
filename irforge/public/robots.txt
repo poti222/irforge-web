@@ -44,6 +44,10 @@ Disallow: /database
 Disallow: /*/database
 Disallow: /profile
 Disallow: /*/profile
+Disallow: /buy-bot
+Disallow: /*/buy-bot
+Disallow: /checkout
+Disallow: /*/checkout
 Disallow: /admin
 Disallow: /*/admin
 Disallow: /admin/users

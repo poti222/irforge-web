@@ -18,25 +18,9 @@ import { useT } from "@/hooks/use-translation";
 import { SettingsSaveBar, SettingsError, CachePropagationNotice } from "./SettingsSaveBar";
 import { useDraft } from "./useDraft";
 import { useSaveWorkingHours, type WorkingHours, type SettingsEnvelope } from "./api";
-
-/** `Date.getDay()` (۰=یکشنبه) → قرارداد بات (۰=دوشنبه). */
-export function jsDayToBotDay(jsDay: number): number {
-  return (jsDay + 6) % 7;
-}
-
-/** ساعت فعلی ایران (UTC+3:30) بدون وابستگی به تنظیمات محلی مرورگر. */
-function tehranNow(): { day: number; minutes: number; label: string } {
-  const now = new Date();
-  const tehranMs = now.getTime() + (3 * 60 + 30) * 60_000 + now.getTimezoneOffset() * 60_000;
-  const tehran = new Date(tehranMs);
-  const hh = String(tehran.getHours()).padStart(2, "0");
-  const mm = String(tehran.getMinutes()).padStart(2, "0");
-  return {
-    day: jsDayToBotDay(tehran.getDay()),
-    minutes: tehran.getHours() * 60 + tehran.getMinutes(),
-    label: `${hh}:${mm}`,
-  };
-}
+// ساعت ایران از یک ماژول مشترک می‌آید، نه با حساب دستیِ آفست — دلیلش آنجا
+// نوشته شده (باگی که برای هر کاربرِ خارج از تهران ساعت را غلط نشان می‌داد).
+import { tehranNow } from "@/lib/tehran-time";
 
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);

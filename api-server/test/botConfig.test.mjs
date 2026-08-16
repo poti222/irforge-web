@@ -266,3 +266,30 @@ test("normalizeButtonLayout هیچ فیلد اضافه‌ای را دور نمی
   ]);
   assert.equal(withStyle[0].style, "success", "style باید حفظ شود (در models.Button نیست ولی روی دیسک هست)");
 });
+
+test("نبودِ کردنشیال گوگل، ۵۰۳ با پیام روشن می‌دهد نه ۵۰۰ مبهم", async () => {
+  const sheets = await import("../src/lib/sheets.ts");
+
+  // این دقیقاً همان `Error` ای است که `getAuth()` می‌سازد.
+  const real = new Error(
+    "Google Sheets not configured. Set GOOGLE_CREDENTIALS_JSON (preferred), or GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_KEY (legacy)."
+  );
+  assert.equal(sheets.isSheetsNotConfiguredError(real), true);
+  assert.equal(sheets.isSheetsNotConfiguredError(new Error("GOOGLE_CREDENTIALS_JSON is missing client_email or private_key.")), true);
+
+  // و نباید هر خطای دیگری را بی‌جهت به «تنظیم نشده» ترجمه کند.
+  assert.equal(sheets.isSheetsNotConfiguredError(new Error("Unable to parse range: 'forms'!A:B")), false);
+  assert.equal(sheets.isSheetsNotConfiguredError(new Error("boom")), false);
+  assert.equal(sheets.isSheetsNotConfiguredError(null), false);
+
+  // خروجی واقعی روی یک res جعلی — این چیزی است که کاربر می‌بیند.
+  const seen = {};
+  const res = {
+    status(code) { seen.code = code; return this; },
+    json(body) { seen.body = body; return this; },
+  };
+  botConfig.sendBotConfigError(res, real, "Failed to read bot settings");
+  assert.equal(seen.code, 503, "۵۰۳ چون سرویس در دسترس نیست، نه اینکه درخواست بد بوده");
+  assert.equal(seen.body.code, "sheets_not_configured");
+  assert.match(seen.body.error, /GOOGLE_CREDENTIALS_JSON/);
+});

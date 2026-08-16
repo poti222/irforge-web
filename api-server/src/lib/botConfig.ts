@@ -22,6 +22,7 @@ import { db, botsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "./logger.js";
 import { readTabRows, upsertRow, deleteRow, listTabs } from "./tenantSheets.js";
+import { isSheetsNotConfiguredError } from "./sheets.js";
 import { bustTabCache, bustTabsCache } from "./botCacheBust.js";
 import {
   defaultBotSettings,
@@ -63,6 +64,20 @@ export function sendBotConfigError(res: any, err: any, fallback: string): void {
     res.status(err.status).json({ error: err.error });
     return;
   }
+  // نبودِ کردنشیال گوگل، محتمل‌ترین خطای پیکربندی این سامانه است و تا امروز
+  // به‌شکل «خطای غیرمنتظره» بیرون می‌آمد — اپراتور هیچ سرنخی نداشت که فقط یک
+  // متغیر محیطی جا افتاده. ۵۰۳ چون سرویس در دسترس نیست، نه اینکه درخواست بد
+  // بوده.
+  if (isSheetsNotConfiguredError(err)) {
+    logger.error({ err }, "Google Sheets credentials are not configured");
+    res.status(503).json({
+      error:
+        "اتصال به Google Sheets روی سرور تنظیم نشده است (GOOGLE_CREDENTIALS_JSON). تا وقتی این متغیر محیطی پر نشود، هیچ داده‌ای از شیت بات خوانده یا نوشته نمی‌شود.",
+      code: "sheets_not_configured",
+    });
+    return;
+  }
+
   logger.error({ err }, fallback);
   res.status(500).json({ error: "خطای غیرمنتظره روی سرور. لطفاً دوباره تلاش کنید." });
 }

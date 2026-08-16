@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
 import { toWebpDataUrl } from "@/lib/image";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
+import { useT } from "@/hooks/use-translation";
 
 type WalletTx = {
   id: string; type: string; amount: number; status: string;
@@ -87,6 +89,7 @@ function NotConfigured({ fa }: { fa: boolean }) {
 }
 
 export default function Wallet() {
+  usePrivatePageTitle(useT("pageTitles").wallet);
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { toast } = useToast();

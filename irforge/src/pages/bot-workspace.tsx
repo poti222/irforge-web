@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
 import { BotWorkspaceDocument } from "@/components/bots/BotWorkspaceDocument";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 
 // The bot process only reconciles against the registry sheet every ~20s
 // (services/tenant_status_watcher.py on mainbot), so a start/stop click
@@ -23,6 +24,7 @@ import { BotWorkspaceDocument } from "@/components/bots/BotWorkspaceDocument";
 const STATUS_PROPAGATION_SECONDS = 20;
 
 export default function BotWorkspace() {
+  usePrivatePageTitle(useT("pageTitles").botWorkspace);
   const { botId } = useParams<{ botId: string }>();
   const t = useT("botWorkspace");
   const { toast } = useToast();

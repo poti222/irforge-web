@@ -50,9 +50,16 @@ export function TabForceJoin({ botId, data }: { botId: string; data: SettingsEnv
     const value = newChannel.trim();
     if (!value) return;
     add.mutate(value, {
-      onSuccess: () => {
+      onSuccess: (result) => {
         setNewChannel("");
-        toast({ title: t.channelAdded });
+        toast({
+          title: t.channelAdded,
+          description: result?.resolved
+            ? result.resolved.botIsAdmin
+              ? t.channelResolved.replace("{name}", result.resolved.title)
+              : t.channelResolvedNotAdmin.replace("{name}", result.resolved.title)
+            : undefined,
+        });
       },
       onError: (err: any) =>
         toast({ variant: "destructive", title: t.errorGeneric, description: apiErrorMessage(err, t.errorGeneric) }),
@@ -102,6 +109,14 @@ export function TabForceJoin({ botId, data }: { botId: string; data: SettingsEnv
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">{t.channelFormatHint}</p>
+
+          {/* بدون ادمین‌بودن بات، `getChatMember` جواب نمی‌دهد و بات هر کاربر
+              را «عضو نیست» می‌بیند — یعنی همه پشت در می‌مانند. این هشدار باید
+              قبل از افزودن دیده شود، نه بعد از شکایت کاربرها. */}
+          <p className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs">
+            <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+            <span>{t.botMustBeAdminHint}</span>
+          </p>
 
           {channels.length === 0 ? (
             <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">

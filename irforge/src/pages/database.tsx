@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 
 type Target = { target: string; label: string; kind: string; sheetId: string };
 type Row = { key: string; value: unknown; raw: boolean };
@@ -59,6 +60,7 @@ function preview(value: unknown, raw: boolean): string {
 }
 
 export default function DatabasePage() {
+  usePrivatePageTitle(useT("pageTitles").database);
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const tr = useT("database");
