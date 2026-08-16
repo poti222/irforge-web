@@ -3,7 +3,7 @@ import { requireCompleteProfile } from "../lib/profile";
 import { blockWhileImpersonating } from "../middleware/impersonation";
 import { Router } from "express";
 import { db, walletsTable, walletTransactionsTable, usersTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, gte, desc, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { createNotification, formatTomanFa } from "../lib/notify";
@@ -149,14 +149,18 @@ router.post("/wallet/spend", requireAuth, blockWhileImpersonating, async (req: a
   try {
     const amt = Number(req.body?.amount);
     if (!amt || amt <= 0) { res.status(400).json({ error: "A positive amount is required" }); return; }
-    const wallet = await ensureWallet(req.userId);
-    if (!wallet || wallet.balance < amt) {
+    await ensureWallet(req.userId);
+    // کسر مشروط در یک دستور — همان دلیلِ `deductWallet` در `routes/bots.ts`:
+    // «بخوان، چک کن، بنویس» اجازه می‌داد دو خرجِ هم‌زمان هر دو رد شوند و
+    // موجودی منفی یا یکی از کسرها گم شود.
+    const [updated] = await db.update(walletsTable)
+      .set({ balance: sql`${walletsTable.balance} - ${Math.round(amt)}` })
+      .where(and(eq(walletsTable.userId, req.userId), gte(walletsTable.balance, Math.round(amt))))
+      .returning();
+    if (!updated) {
       res.status(400).json({ error: "Insufficient wallet balance", code: "insufficient" });
       return;
     }
-    const [updated] = await db.update(walletsTable)
-      .set({ balance: wallet.balance - Math.round(amt) })
-      .where(eq(walletsTable.userId, req.userId)).returning();
     const [tx] = await db.insert(walletTransactionsTable).values({
       id: crypto.randomUUID(), userId: req.userId, type: "spend", amount: Math.round(amt),
       status: "approved", reviewNote: req.body?.note ?? null,
@@ -191,18 +195,34 @@ router.get("/admin/wallet-deposits", requireSuperAdmin, async (req: any, res) =>
 // POST /api/admin/wallet-deposits/:txId/approve — credit the balance
 router.post("/admin/wallet-deposits/:txId/approve", requireSuperAdmin, async (req: any, res) => {
   try {
-    const [tx] = await db.select().from(walletTransactionsTable)
+    const [exists] = await db.select({ id: walletTransactionsTable.id })
+      .from(walletTransactionsTable)
       .where(eq(walletTransactionsTable.id, req.params.txId)).limit(1);
-    if (!tx) { res.status(404).json({ error: "Transaction not found" }); return; }
-    if (tx.status !== "pending") { res.status(400).json({ error: "Already reviewed" }); return; }
+    if (!exists) { res.status(404).json({ error: "Transaction not found" }); return; }
 
-    await db.update(walletTransactionsTable)
+    /**
+     * گذارِ وضعیت **اتمیک** است، نه «بخوان، چک کن، بنویس».
+     *
+     * قبلاً وضعیت خوانده می‌شد، با `pending` مقایسه می‌شد، و بعد آپدیت
+     * می‌شد. دو تأییدِ هم‌زمان (دو تب، یا دوبار کلیک روی دکمه) هر دو
+     * `pending` می‌خواندند، هر دو رد می‌شدند، و کیف پول **دو بار** شارژ
+     * می‌شد. با گذاشتن شرط در خودِ `WHERE`، دیتابیس داور می‌شود و فقط یکی
+     * ردیف برمی‌گرداند.
+     */
+    const [tx] = await db.update(walletTransactionsTable)
       .set({ status: "approved", reviewedBy: req.userId, reviewNote: req.body?.reviewNote ?? null })
-      .where(eq(walletTransactionsTable.id, tx.id));
+      .where(and(
+        eq(walletTransactionsTable.id, req.params.txId),
+        eq(walletTransactionsTable.status, "pending"),
+      ))
+      .returning();
+    if (!tx) { res.status(400).json({ error: "Already reviewed" }); return; }
 
-    const wallet = await ensureWallet(tx.userId);
+    await ensureWallet(tx.userId);
+    // افزایش در خودِ SQL، نه `موجودیِ خوانده‌شده + مبلغ`: آن شکل، خرجی که
+    // بین خواندن و نوشتن انجام شده باشد را پاک می‌کرد (lost update).
     const [updated] = await db.update(walletsTable)
-      .set({ balance: (wallet?.balance ?? 0) + tx.amount })
+      .set({ balance: sql`${walletsTable.balance} + ${tx.amount}` })
       .where(eq(walletsTable.userId, tx.userId)).returning();
 
     await createNotification({

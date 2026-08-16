@@ -33,7 +33,7 @@ import {
   walletsTable,
   walletTransactionsTable,
 } from "@workspace/db";
-import { eq, ne, and, or, exists, sql, desc, inArray } from "drizzle-orm";
+import { eq, ne, gte, and, or, exists, sql, desc, inArray } from "drizzle-orm";
 import { reserveDiscount, DiscountCodeError, type DiscountReservation } from "../lib/discountStore";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
@@ -367,9 +367,25 @@ async function backfillBotIdentityIfStale<T extends { id: string; token: string;
 async function deductWallet(userId: string, amount: number, note: string, executor: any = db): Promise<boolean> {
   const amt = Math.round(Number(amount) || 0);
   if (amt <= 0) return true;
-  const [wallet] = await executor.select().from(walletsTable).where(eq(walletsTable.userId, userId)).limit(1);
-  if (!wallet || wallet.balance < amt) return false;
-  await executor.update(walletsTable).set({ balance: wallet.balance - amt }).where(eq(walletsTable.userId, userId));
+
+  /**
+   * کسر **مشروط**، در یک دستور.
+   *
+   * قبلاً موجودی خوانده می‌شد، با مبلغ مقایسه می‌شد، و بعد
+   * `موجودیِ خوانده‌شده − مبلغ` نوشته می‌شد. دو خریدِ هم‌زمان هر دو همان
+   * موجودی را می‌خواندند، هر دو از چک رد می‌شدند، و کاربر با موجودی ۱۰ هزار
+   * دو بات ۱۰ هزاری می‌خرید — یا یکی از کسرها کلاً گم می‌شد.
+   *
+   * حالا شرط داخل `WHERE` است: اگر موجودی کافی نباشد هیچ ردیفی برنمی‌گردد
+   * و همان‌جا `false` می‌دهیم. دیتابیس داور است، نه فاصله‌ی بین دو کوئری.
+   */
+  const updated = await executor
+    .update(walletsTable)
+    .set({ balance: sql`${walletsTable.balance} - ${amt}` })
+    .where(and(eq(walletsTable.userId, userId), gte(walletsTable.balance, amt)))
+    .returning();
+  if (updated.length === 0) return false;
+
   await executor.insert(walletTransactionsTable).values({
     id: crypto.randomUUID(), userId, type: "spend", amount: amt, status: "approved", reviewNote: note,
   });

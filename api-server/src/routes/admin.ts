@@ -1,6 +1,9 @@
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, usersTable, botsTable, announcementsTable, userPlansTable, plansTable, pendingRegistrationsTable } from "@workspace/db";
+import {
+  db, usersTable, botsTable, announcementsTable, userPlansTable, plansTable,
+  pendingRegistrationsTable, paymentsTable, walletTransactionsTable,
+} from "@workspace/db";
 import { eq, and, gte, sql, desc, count, lt } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAdmin, requireAuth } from "./auth";
@@ -66,20 +69,33 @@ router.patch("/admin/users/:userId", requireAdmin, async (req: any, res) => {
       return;
     }
     const { role, status, plan } = req.body;
+
+    const [requester, target] = await Promise.all([
+      db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, req.userId)).limit(1),
+      db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, req.params.userId)).limit(1),
+    ]);
+    const requesterIsSuper = requester[0]?.role === "super_admin";
+
     // FIX [X3]: requireAdmin lets both `admin` and `super_admin` through, but
     // granting the `super_admin` role must be reserved for existing super_admins.
     // Otherwise a plain admin could self-escalate the platform via any account,
     // bypassing the env-secret-gated /auth/super-admin-code flow.
-    if (role === "super_admin") {
-      const [requester] = await db
-        .select({ role: usersTable.role })
-        .from(usersTable)
-        .where(eq(usersTable.id, req.userId))
-        .limit(1);
-      if (!requester || requester.role !== "super_admin") {
-        res.status(403).json({ error: "Only a super admin can grant the super_admin role" });
-        return;
-      }
+    if (role === "super_admin" && !requesterIsSuper) {
+      res.status(403).json({ error: "Only a super admin can grant the super_admin role" });
+      return;
+    }
+
+    /**
+     * و نیمه‌ی دوم که جا افتاده بود: **هدف** هم مهم است، نه فقط نقش تازه.
+     *
+     * گارد بالا فقط جلوی «ارتقا به سوپرادمین» را می‌گرفت. ولی یک ادمین عادی
+     * می‌توانست حساب یک سوپرادمین را بردارد و نقشش را `user` کند یا
+     * وضعیتش را `banned` — یعنی بدون اینکه خودش ارتقا بگیرد، همه‌ی
+     * سوپرادمین‌ها را خنثی کند و عملاً کنترل پلتفرم را بگیرد.
+     */
+    if (target[0]?.role === "super_admin" && !requesterIsSuper) {
+      res.status(403).json({ error: "Only a super admin can modify a super admin account" });
+      return;
     }
     const update: Record<string, any> = {};
     if (role !== undefined) update.role = role;
@@ -120,6 +136,25 @@ router.delete("/admin/users/:userId", requireAdmin, async (req: any, res) => {
       res.status(400).json({ error: "Admin cannot delete their own account" });
       return;
     }
+
+    const [requester, target] = await Promise.all([
+      db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, req.userId)).limit(1),
+      db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, req.params.userId)).limit(1),
+    ]);
+
+    // بدون این، حذف یک شناسه‌ی ناموجود هم ۲۰۴ می‌داد و موفق به‌نظر می‌رسید.
+    if (!target[0]) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    // همان شکافِ PATCH، اینجا شدیدتر: یک ادمین عادی می‌توانست حساب سوپرادمین
+    // را کاملاً **حذف** کند.
+    if (target[0].role === "super_admin" && requester[0]?.role !== "super_admin") {
+      res.status(403).json({ error: "Only a super admin can delete a super admin account" });
+      return;
+    }
+
     await db.delete(usersTable).where(eq(usersTable.id, req.params.userId));
     syncUserDelete(req.params.userId);
     res.status(204).end();
@@ -137,43 +172,109 @@ router.get("/admin/stats", requireAdmin, async (req: any, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const newUsersToday = users.filter(u => u.createdAt >= today).length;
-    const totalMessages = bots.reduce((acc, b) => acc + b.messageCount, 0);
 
-    const planBreakdown = ["free", "starter", "pro", "enterprise"].map(plan => ({
-      plan,
-      count: users.filter(u => u.plan === plan).length,
-    }));
+    /**
+     * درآمد — از **حرکت واقعی پول**، نه از اشتراک‌های ثبت‌شده.
+     *
+     * قبلاً `totalRevenue` جمعِ `userPlans × plans.price` بود. دو ایراد داشت،
+     * و هر دو باعث می‌شدند فروش بات اصلاً دیده نشود:
+     *
+     *   ۱. **فروش بات را نمی‌شمرد.** بات یا با فیش کارت‌به‌کارت خریده می‌شود
+     *      (ردیف `payments`) یا از موجودی کیف پول (`wallet_transactions` با
+     *      `type='spend'`). هیچ‌کدام به `user_plans` ربطی ندارند.
+     *   ۲. **پولی را می‌شمرد که هرگز گرفته نشده.** `POST /plans/subscribe`
+     *      هیچ کسری از کیف پول انجام نمی‌دهد و هیچ رکورد پرداختی نمی‌سازد —
+     *      فقط پلن کاربر را ست می‌کند. پس قیمتِ پلن یک عدد اسمی بود، نه
+     *      درآمد.
+     *
+     * حالا فقط دو منبعی شمرده می‌شوند که واقعاً پول جابه‌جا کرده‌اند، و با هم
+     * دوباره‌شماری ندارند: فیش تأییدشده، و خرجِ تأییدشده از کیف پول.
+     * (شارژ کیف پول عمداً شمرده نمی‌شود — پولی که هنوز خرج نشده فروش نیست، و
+     * با خرجش دوباره شمرده می‌شد.)
+     */
+    const [approvedPayments, walletSpends] = await Promise.all([
+      db
+        .select({ amount: paymentsTable.amount, botId: paymentsTable.botId, createdAt: paymentsTable.createdAt })
+        .from(paymentsTable)
+        .where(eq(paymentsTable.status, "approved")),
+      db
+        .select({ amount: walletTransactionsTable.amount, note: walletTransactionsTable.reviewNote, createdAt: walletTransactionsTable.createdAt })
+        .from(walletTransactionsTable)
+        .where(and(eq(walletTransactionsTable.type, "spend"), eq(walletTransactionsTable.status, "approved"))),
+    ]);
 
-    // FIX [Important]: calculate real revenue from userPlans joined with plans
-    const userPlans = await db
-      .select({ price: plansTable.price, createdAt: userPlansTable.createdAt })
-      .from(userPlansTable)
-      .innerJoin(plansTable, eq(userPlansTable.planId, plansTable.id))
-      .where(eq(userPlansTable.status, "active"));
+    /** هر درآمد، با تاریخ و دسته‌اش — تا هم جمع کل و هم تفکیک از یک منبع بیاید. */
+    const earnings: Array<{ amount: number; at: Date; kind: "bot" | "plugin" | "other" }> = [
+      // فیشِ دارای `bot_id` یعنی خرید بات؛ بدون آن، یک پرداخت عمومی است.
+      ...approvedPayments.map(p => ({
+        amount: p.amount ?? 0,
+        at: p.createdAt,
+        kind: (p.botId ? "bot" : "other") as "bot" | "other",
+      })),
+      // یادداشتِ خرج را همان جایی می‌نویسد که پول کم می‌شود
+      // (`routes/bots.ts::deductWallet`): «Bot purchase: …» یا «Plugin: …».
+      ...walletSpends.map(s => ({
+        amount: s.amount ?? 0,
+        at: s.createdAt,
+        kind: (s.note?.startsWith("Bot purchase:")
+          ? "bot"
+          : s.note?.startsWith("Plugin:")
+            ? "plugin"
+            : "other") as "bot" | "plugin" | "other",
+      })),
+    ];
 
-    const totalRevenue = userPlans.reduce((acc, up) => acc + (up.price ?? 0), 0);
+    const sum = (rows: Array<{ amount: number }>) => rows.reduce((acc, r) => acc + r.amount, 0);
+    const totalRevenue = sum(earnings);
+    const revenueBreakdown = {
+      bots: sum(earnings.filter(e => e.kind === "bot")),
+      plugins: sum(earnings.filter(e => e.kind === "plugin")),
+      other: sum(earnings.filter(e => e.kind === "other")),
+    };
 
-    // Real revenue grouped by month (last 6 months)
     const now = new Date();
     const revenueByMonth = Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() - (5 - i) + 1, 1);
-      const monthRevenue = userPlans
-        .filter(up => up.createdAt >= d && up.createdAt < nextMonth)
-        .reduce((acc, up) => acc + (up.price ?? 0), 0);
+      const from = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      const to = new Date(now.getFullYear(), now.getMonth() - (5 - i) + 1, 1);
       return {
-        month: d.toLocaleString("default", { month: "short" }),
-        revenue: monthRevenue,
+        month: from.toLocaleString("default", { month: "short" }),
+        revenue: sum(earnings.filter(e => e.at >= from && e.at < to)),
       };
     });
+
+    /**
+     * توزیع پلن‌ها — از جدول `plans`، نه از یک فهرست ثابت.
+     *
+     * قبلاً روی `["free","starter","pro","enterprise"]` حلقه می‌زد و با
+     * `users.plan` مقایسه می‌کرد. دو ایراد: پلنی که سوپرادمین تازه می‌سازد
+     * هیچ‌وقت ظاهر نمی‌شد، و `users.plan` **شناسه‌ی** پلن را نگه می‌دارد
+     * (`routes/plans.ts` آن را `planId` ست می‌کند) نه نامش — پس آن چهار
+     * اسم تقریباً همیشه صفر بودند.
+     *
+     * شمارش از `user_plans` می‌آید که رکورد واقعی اشتراک است، و نام از خودِ
+     * `plans` — پس هر پلن تازه‌ای خودبه‌خود اینجا می‌آید.
+     */
+    const [allPlans, activeUserPlans] = await Promise.all([
+      db.select({ id: plansTable.id, name: plansTable.name, price: plansTable.price }).from(plansTable),
+      db.select({ planId: userPlansTable.planId }).from(userPlansTable).where(eq(userPlansTable.status, "active")),
+    ]);
+
+    const perPlan = new Map<string, number>();
+    for (const up of activeUserPlans) {
+      if (up.planId) perPlan.set(up.planId, (perPlan.get(up.planId) ?? 0) + 1);
+    }
+
+    const planBreakdown = allPlans
+      .map(p => ({ planId: p.id, plan: p.name, price: p.price ?? 0, count: perPlan.get(p.id) ?? 0 }))
+      .sort((a, b) => b.count - a.count || a.plan.localeCompare(b.plan));
 
     res.json({
       totalUsers: users.length,
       totalBots: bots.length,
       totalRevenue,
+      revenueBreakdown,
       activeUsers: users.filter(u => u.status === "active").length,
       newUsersToday,
-      totalMessages,
       revenueByMonth,
       planBreakdown,
     });

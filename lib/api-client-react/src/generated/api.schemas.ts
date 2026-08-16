@@ -525,17 +525,25 @@ export type AdminStatsRevenueByMonthItem = {
 };
 
 export type AdminStatsPlanBreakdownItem = {
+  planId?: string;
   plan: string;
+  price?: number;
   count: number;
+};
+
+export type AdminStatsRevenueBreakdown = {
+  bots: number;
+  plugins: number;
+  other: number;
 };
 
 export interface AdminStats {
   totalUsers: number;
   totalBots: number;
   totalRevenue: number;
+  revenueBreakdown?: AdminStatsRevenueBreakdown;
   activeUsers: number;
   newUsersToday: number;
-  totalMessages: number;
   revenueByMonth?: AdminStatsRevenueByMonthItem[];
   planBreakdown?: AdminStatsPlanBreakdownItem[];
 }

@@ -206,7 +206,7 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location === "/admin/users"} tooltip={nav.manageUsers}>
+                  <SidebarMenuButton asChild isActive={location.startsWith("/admin/users")} tooltip={nav.manageUsers}>
                     <Link href="/admin/users" data-testid="nav-admin-users" onClick={closeMobileMenu}>
                       <Users />
                       <span>{nav.manageUsers}</span>
@@ -225,14 +225,14 @@ export function AppSidebar() {
             </div>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.startsWith("/admin/users")} tooltip={nav.manageUsers}>
-                    <Link href="/admin/users" data-testid="nav-admin-users-super" onClick={closeMobileMenu}>
-                      <Users />
-                      <span>{nav.manageUsers}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {/*
+                  «مدیریت کاربران» عمداً اینجا **نیست**.
+
+                  گروه بالا شرطش `admin || super_admin` است، پس سوپرادمین هر دو
+                  گروه را می‌گیرد و همین ردیف دو بار — با دو لینک یکسان به
+                  `/admin/users` — رندر می‌شد. برای سوپرادمین دو «مدیریت
+                  کاربران» پشت‌سرهم در سایدبار دیده می‌شد.
+                */}
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={location === "/admin/pending-payments"} tooltip={nav.pendingPayments}>
                     <Link href="/admin/pending-payments" data-testid="nav-pending-payments" onClick={closeMobileMenu}>

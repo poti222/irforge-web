@@ -1,9 +1,9 @@
 import { logger } from "../lib/logger";
 import { Router } from "express";
 import { db, plansTable, userPlansTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import crypto from "crypto";
-import { requireAuth, requireAdmin } from "./auth";
+import { requireAuth, requireAdmin, requireSuperAdmin } from "./auth";
 import { syncOrderUpsert } from "../lib/sheetsSync";
 
 const router = Router();
@@ -148,7 +148,7 @@ router.get("/admin/plans", requireAdmin, async (req: any, res) => {
 });
 
 // POST /api/admin/plans — create
-router.post("/admin/plans", requireAdmin, async (req: any, res) => {
+router.post("/admin/plans", requireSuperAdmin, async (req: any, res) => {
   try {
     const { id, name, price, interval, features, maxBots, maxPlugins, maxUsers, ramGb, cpuCores, popular } = req.body;
     if (!name || price === undefined || price === null) {
@@ -180,7 +180,7 @@ router.post("/admin/plans", requireAdmin, async (req: any, res) => {
 });
 
 // PATCH /api/admin/plans/:planId — edit price/name/features/etc.
-router.patch("/admin/plans/:planId", requireAdmin, async (req: any, res) => {
+router.patch("/admin/plans/:planId", requireSuperAdmin, async (req: any, res) => {
   try {
     const update: Record<string, any> = {};
     const { name, price, interval, features, maxBots, maxPlugins, maxUsers, ramGb, cpuCores, popular } = req.body;
@@ -212,8 +212,41 @@ router.patch("/admin/plans/:planId", requireAdmin, async (req: any, res) => {
 });
 
 // DELETE /api/admin/plans/:planId
-router.delete("/admin/plans/:planId", requireAdmin, async (req: any, res) => {
+router.delete("/admin/plans/:planId", requireSuperAdmin, async (req: any, res) => {
   try {
+    const [plan] = await db
+      .select({ id: plansTable.id })
+      .from(plansTable)
+      .where(eq(plansTable.id, req.params.planId))
+      .limit(1);
+    // بدون این، حذفِ یک شناسه‌ی اشتباه هم ۲۰۴ می‌داد و به‌نظر می‌رسید موفق بوده.
+    if (!plan) {
+      res.status(404).json({ error: "Plan not found" });
+      return;
+    }
+
+    /**
+     * پلنی که مشترک فعال دارد حذف نمی‌شود.
+     *
+     * قبلاً بی‌قید حذف می‌شد و ردیف‌های `user_plans` به یک پلنِ ناموجود اشاره
+     * می‌کردند: کاربر همچنان «مشترک» بود ولی هیچ‌جا دیده نمی‌شد — نه در توزیع
+     * پلن‌ها، نه در صورتحساب — و `users.plan` هم یک شناسه‌ی مرده می‌ماند.
+     * خطای روشن خیلی بهتر از داده‌ی بی‌صاحب است.
+     */
+    const [{ subscribers }] = await db
+      .select({ subscribers: count() })
+      .from(userPlansTable)
+      .where(and(eq(userPlansTable.planId, req.params.planId), eq(userPlansTable.status, "active")));
+
+    if (subscribers > 0) {
+      res.status(409).json({
+        error: `این پلن ${subscribers} مشترک فعال دارد و حذف نمی‌شود. اول مشترک‌ها را به پلن دیگری منتقل کنید.`,
+        code: "plan_in_use",
+        subscribers,
+      });
+      return;
+    }
+
     await db.delete(plansTable).where(eq(plansTable.id, req.params.planId));
     res.status(204).end();
   } catch (err) {

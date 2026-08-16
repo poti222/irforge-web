@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { customFetch, getListPlansQueryKey } from "@workspace/api-client-react";
+import { customFetch, getListPlansQueryKey, getAdminGetStatsQueryKey } from "@workspace/api-client-react";
 import type { Plan } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,10 @@ export function PlansManager() {
     queryClient.invalidateQueries({ queryKey: ADMIN_PLANS_KEY });
     // keep the public /plans page in sync
     queryClient.invalidateQueries({ queryKey: getListPlansQueryKey() });
+    // و «توزیع پلن‌ها» در نمای کلی، که یک ردیف به‌ازای هر پلن می‌سازد —
+    // بدون این، پلنِ تازه‌ساخته تا رفرش دستی آنجا ظاهر نمی‌شد و به‌نظر
+    // می‌رسید ثبت نشده.
+    queryClient.invalidateQueries({ queryKey: getAdminGetStatsQueryKey() });
   };
 
   function openCreate() { setForm(EMPTY); setDialogOpen(true); }

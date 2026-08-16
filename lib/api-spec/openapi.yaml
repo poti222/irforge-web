@@ -1374,19 +1374,34 @@ components:
 
     AdminStats:
       type: object
-      required: [totalUsers, totalBots, totalRevenue, activeUsers, newUsersToday, totalMessages]
+      # `totalMessages` حذف شد: منبعش `bots.message_count` بود که هیچ‌جای این
+      # استک نوشته نمی‌شود، پس همیشه صفر بود.
+      required: [totalUsers, totalBots, totalRevenue, activeUsers, newUsersToday]
       properties:
         totalUsers:
           type: integer
         totalBots:
           type: integer
         totalRevenue:
+          description: >-
+            مجموع پولی که واقعاً دریافت شده — فیش‌های تأییدشده و خرج‌های
+            تأییدشده از کیف پول. اشتراک‌ها شمرده نمی‌شوند چون
+            POST /plans/subscribe هیچ پرداختی نمی‌گیرد.
           type: number
+        revenueBreakdown:
+          description: همان `totalRevenue`، تفکیک‌شده بر اساس آنچه فروخته شده.
+          type: object
+          required: [bots, plugins, other]
+          properties:
+            bots:
+              type: number
+            plugins:
+              type: number
+            other:
+              type: number
         activeUsers:
           type: integer
         newUsersToday:
-          type: integer
-        totalMessages:
           type: integer
         revenueByMonth:
           type: array
@@ -1399,13 +1414,20 @@ components:
               revenue:
                 type: number
         planBreakdown:
+          description: >-
+            یک ردیف به‌ازای هر پلنِ تعریف‌شده در جدول `plans` — نه یک فهرست
+            ثابت — پس هر پلن تازه‌ای خودبه‌خود اینجا می‌آید.
           type: array
           items:
             type: object
             required: [plan, count]
             properties:
+              planId:
+                type: string
               plan:
                 type: string
+              price:
+                type: number
               count:
                 type: integer
 
