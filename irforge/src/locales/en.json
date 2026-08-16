@@ -1120,7 +1120,7 @@
     "replyKeyboardTitle": "Chat bottom keyboard",
     "replyKeyboardDesc": "A persistent menu below the message box. Unlike inline buttons, which are attached to one message, this stays within reach.",
     "replyKeyboardEnabled": "Show the bottom keyboard",
-    "replyKeyboardEnabledHint": "Shown to the user after /start.",
+    "replyKeyboardEnabledHint": "Shown to the user after /start. If you've turned the welcome message off in the General tab, the keyboard won't show either — it rides on that message.",
     "replyKeyboardCommandHint": "A bottom-keyboard button only sends its own text. To make a button actually do something, set its text to a command — for example /shop — so your custom commands pick it up.",
     "replyKeyboardRow": "Row {n}",
     "replyKeyboardAddRow": "Add row",
