@@ -34,6 +34,7 @@ import {
   BotConfigError,
 } from "../lib/botConfig.js";
 import { BOT_LANGUAGES } from "../lib/botTypes.js";
+import { translateTo, translateAvailable, translateProvider, TranslateError } from "../lib/translate.js";
 
 const router = Router();
 const KEYS_TAB = "text_keys";
@@ -59,6 +60,9 @@ router.get("/bots/:botId/language", requireAuth, async (req: any, res) => {
       coreLanguages: CORE_LANGUAGES,
       // بقیه‌ی کدها قابل ذخیره‌اند ولی بدون پلاگین، متن انگلیسی سرو می‌شود.
       otherLanguages: BOT_LANGUAGES.filter((l) => !(CORE_LANGUAGES as readonly string[]).includes(l)),
+      // اگر سرویس ترجمه تنظیم نشده، UI اصلاً دکمه‌اش را نشان نمی‌دهد —
+      // بهتر از دکمه‌ای که همیشه خطا می‌دهد.
+      translateAvailable: translateAvailable(),
       fallbackLanguage: FALLBACK_LANG,
     });
   } catch (err) {
@@ -179,6 +183,43 @@ router.delete("/bots/:botId/language/strings/:key", requireAuth, async (req: any
     res.json({ reset: removed, key: req.params.key, lang });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to reset bot string");
+  }
+});
+
+/**
+ * POST /bots/:botId/language/translate — ترجمه‌ی خودکار یک رشته.
+ *
+ * **ذخیره نمی‌کند**، فقط ترجمه را برمی‌گرداند: کاربر باید قبل از ثبت،
+ * نتیجه را ببیند و بتواند اصلاحش کند. ترجمه‌ی ماشینی روی متن رابط کاربری
+ * — که اغلب کوتاه و بی‌بافت است — به‌قدر کافی خطا می‌کند که ذخیره‌ی مستقیم
+ * یعنی گذاشتن متن غلط جلوی کاربر نهایی بدون اینکه کسی دیده باشدش.
+ */
+router.post("/bots/:botId/language/translate", requireAuth, async (req: any, res) => {
+  try {
+    // دسترسی به بات هنوز چک می‌شود، هرچند این روت چیزی روی شیت نمی‌نویسد —
+    // وگرنه هر کاربر لاگین‌شده‌ای می‌توانست از سهمیه‌ی ترجمه‌ی ما استفاده کند.
+    await resolveBotSheet(req.userId, req.params.botId);
+
+    const text = String(req.body?.text ?? "");
+    const sourceLang = String(req.body?.sourceLang ?? "").toLowerCase();
+    if (!(BOT_LANGUAGES as readonly string[]).includes(sourceLang))
+      throw new BotConfigError(400, `زبان مبدأ «${sourceLang}» پشتیبانی نمی‌شود.`, "bad_language");
+
+    const requested = Array.isArray(req.body?.targetLangs) ? req.body.targetLangs : [];
+    const targetLangs = requested
+      .map((l: unknown) => String(l ?? "").toLowerCase())
+      .filter((l: string) => (BOT_LANGUAGES as readonly string[]).includes(l));
+    if (targetLangs.length === 0)
+      throw new BotConfigError(400, "هیچ زبان مقصد معتبری داده نشده است.", "no_targets");
+
+    const results = await translateTo(text, sourceLang, targetLangs);
+    res.json({ results, provider: translateProvider() });
+  } catch (err) {
+    if (err instanceof TranslateError) {
+      res.status(err.status).json({ error: err.message, code: err.code ?? null });
+      return;
+    }
+    sendBotConfigError(res, err, "Failed to translate");
   }
 });
 

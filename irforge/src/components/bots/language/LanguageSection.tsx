@@ -11,7 +11,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
-import { Loader2, Search, RotateCcw, Save, Info } from "lucide-react";
+import { Loader2, Search, RotateCcw, Save, Info, Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,8 @@ type LanguageInfo = {
   coreLanguages: string[];
   otherLanguages: string[];
   fallbackLanguage: string;
+  /** آیا سرویس ترجمه روی سرور تنظیم شده؟ اگر نه، دکمه اصلاً نشان داده نمی‌شود. */
+  translateAvailable?: boolean;
 };
 
 type StringRow = { key: string; category: string; value: string; fallback: string };
@@ -83,6 +85,38 @@ export function LanguageSection({ bot }: { bot: Bot }) {
     },
     onError: (err: any) =>
       toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
+  });
+
+  /**
+   * ترجمه‌ی خودکار یک رشته به زبانِ در حال ویرایش.
+   *
+   * نتیجه **در پیش‌نویس می‌نشیند، نه روی شیت**: ترجمه‌ی ماشینی روی متن کوتاهِ
+   * رابط کاربری به‌قدر کافی خطا می‌کند که ذخیره‌ی مستقیم یعنی گذاشتن متن غلط
+   * جلوی کاربر نهایی بدون اینکه کسی دیده باشدش. کاربر می‌بیند، لازم شد اصلاح
+   * می‌کند، بعد خودش ذخیره می‌زند.
+   */
+  const [translatingKey, setTranslatingKey] = useState<string | null>(null);
+  const translate = useMutation({
+    mutationFn: ({ key, text }: { key: string; text: string }) =>
+      customFetch<{ results: Array<{ lang: string; text: string | null; error: string | null }> }>(
+        `/api/bots/${bot.id}/language/translate`,
+        {
+          method: "POST",
+          body: JSON.stringify({ text, sourceLang: info?.fallbackLanguage ?? "en", targetLangs: [lang] }),
+        }
+      ).then((r) => ({ ...r, key })),
+    onSuccess: (result) => {
+      const hit = result.results[0];
+      if (hit?.text) {
+        setDrafts((p) => ({ ...p, [result.key]: hit.text as string }));
+        toast({ title: t.translated, description: t.translatedHint });
+      } else {
+        toast({ variant: "destructive", title: t.translateFailed, description: hit?.error ?? undefined });
+      }
+    },
+    onError: (err: any) =>
+      toast({ variant: "destructive", title: t.translateFailed, description: errMessage(err, t.errorGeneric) }),
+    onSettled: () => setTranslatingKey(null),
   });
 
   const saveString = useMutation({
@@ -225,6 +259,24 @@ export function LanguageSection({ bot }: { bot: Bot }) {
                             >
                               <Save className="size-4" />
                             </Button>
+                            {/* منبع ترجمه، متن fallback است (همان چیزی که در
+                                ستون کناری دیده می‌شود) نه مقدار خالیِ فعلی. */}
+                            {info?.translateAvailable && lang !== info.fallbackLanguage && (
+                              <Button
+                                variant="ghost" size="icon" aria-label={t.translateString}
+                                disabled={!row.fallback || translate.isPending}
+                                onClick={() => {
+                                  setTranslatingKey(row.key);
+                                  translate.mutate({ key: row.key, text: row.fallback });
+                                }}
+                              >
+                                {translatingKey === row.key ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                  <Languages className="size-4" />
+                                )}
+                              </Button>
+                            )}
                             <Button
                               variant="ghost" size="icon" aria-label={t.resetString}
                               disabled={!row.value || resetString.isPending}

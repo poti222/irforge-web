@@ -24,10 +24,25 @@ export function useDraft<T extends Record<string, unknown>>(
   const [value, setValue] = useState<T | undefined>(source);
   const dirtyRef = useRef(false);
 
+  /**
+   * امضای **محتوایی** منبع، نه هویتش.
+   *
+   * همه‌ی صداکننده‌ها `source` را با یک `pick(data.settings)` درجا می‌سازند،
+   * یعنی هر رندر یک آبجکت تازه با محتوای یکسان. اگر افکتِ همگام‌سازی به
+   * هویت آبجکت وابسته باشد، هر رندر یک‌بار اجرا می‌شود و `setValue` با یک
+   * آبجکت تازه دوباره رندر می‌سازد — حلقه‌ی بی‌پایانِ رندر، که در عمل به شکل
+   * «سوئیچ‌ها همدیگر را خراب می‌کنند» دیده می‌شود، چون هر تغییر state وسط
+   * همین حلقه گم می‌شود.
+   *
+   * با کلیدِ سریال‌شده، افکت فقط وقتی اجرا می‌شود که سرور **واقعاً** چیز
+   * دیگری برگردانده باشد.
+   */
+  const sourceKey = source ? JSON.stringify(source) : "";
+
   const dirty = useMemo(() => {
     if (!source || !value) return false;
-    return JSON.stringify(source) !== JSON.stringify(value);
-  }, [source, value]);
+    return sourceKey !== JSON.stringify(value);
+  }, [sourceKey, source, value]);
   dirtyRef.current = dirty;
 
   // داده‌ی تازه از سرور فقط وقتی پیش‌نویس را جابه‌جا می‌کند که کاربر چیزی
@@ -37,7 +52,7 @@ export function useDraft<T extends Record<string, unknown>>(
     if (!source) return;
     if (value === undefined || !dirtyRef.current) setValue(source);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source]);
+  }, [sourceKey]);
 
   useUnsavedGuard(guardKey, dirty);
 
@@ -46,7 +61,11 @@ export function useDraft<T extends Record<string, unknown>>(
   }, []);
 
   const replace = useCallback((next: T) => setValue(next), []);
-  const reset = useCallback(() => setValue(source), [source]);
+  // `reset` هم به امضای محتوایی گره می‌خورد، نه هویت — وگرنه هر رندر یک
+  // تابع تازه می‌ساخت و هر مصرف‌کننده‌ای که در وابستگی‌هایش بگذاردش دوباره
+  // اجرا می‌شد.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const reset = useCallback(() => setValue(source), [sourceKey]);
 
   return { value: (value ?? source ?? ({} as T)) as T, set, replace, reset, dirty };
 }

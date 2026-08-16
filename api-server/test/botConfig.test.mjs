@@ -100,6 +100,36 @@ test("patchSettings کلیدهای لمس‌نشده را حفظ می‌کند (
   assert.equal(sheet.calls.delete.length, 0, "patchSettings هرگز نباید سطری حذف کند");
 });
 
+test("واترمارک و حالت تعمیر روی هم اثر نمی‌گذارند", async () => {
+  // گزارش کاربر: «روشن‌کردن یکی، دیگری را خراب می‌کند». سمت سرور چنین چیزی
+  // ممکن نیست — نوشتن کلیدبه‌کلید است — و این تست همان را قفل می‌کند تا اگر
+  // روزی کسی `patchSettings` را به بازنویسی کل تب برگرداند، همین‌جا بیفتد.
+  // ریشه‌ی واقعی سمت کلاینت بود (`useDraft`، هویت ناپایدارِ منبع).
+  const sheet = fakeSheet({
+    bot_settings: {
+      watermark: "پاورقی من",
+      watermark_enabled: true,
+      maintenance: false,
+      maintenance_msg: "بعداً بیا",
+    },
+  });
+  install(sheet);
+
+  // فقط حالت تعمیر را روشن کن.
+  await botConfig.patchSettings("SHEET1", { maintenance: true });
+
+  const rows = sheet.tabs.get("bot_settings");
+  assert.equal(rows.get("maintenance"), true);
+  assert.equal(rows.get("watermark_enabled"), true, "واترمارک نباید خاموش شود");
+  assert.equal(rows.get("watermark"), "پاورقی من", "متن واترمارک نباید پاک شود");
+
+  // حالا فقط واترمارک را خاموش کن.
+  await botConfig.patchSettings("SHEET1", { watermark_enabled: false });
+  assert.equal(rows.get("watermark_enabled"), false);
+  assert.equal(rows.get("maintenance"), true, "حالت تعمیر نباید برگردد");
+  assert.equal(rows.get("maintenance_msg"), "بعداً بیا");
+});
+
 test("readSettings پیش‌فرض‌های models.py را پر می‌کند و شکل کامل می‌دهد", async () => {
   const sheet = fakeSheet({ bot_settings: { welcome_msg: "سلام" } });
   install(sheet);

@@ -254,6 +254,15 @@ export type BotSettings = {
   watermark: string;
   watermark_enabled: boolean;
   maintenance: boolean;
+  /**
+   * کیبورد پایینِ چت. **در `models.py` بات وجود ندارد** — کلیدی است که سایت
+   * اضافه کرده و بات آن را از دیکشنری خام می‌خواند
+   * (`handlers/user.py::_reply_keyboard`)، نه از دیتاکلاس؛ پس نبودنش در
+   * `BotSettings` پایتون هیچ مشکلی نمی‌سازد.
+   *
+   * `null` یعنی کیبوردی نمایش داده نشود.
+   */
+  reply_keyboard: ReplyKeyboard | null;
   force_join_channels: string[];
   force_join_message: string;
   working_hours: WorkingHours;
@@ -295,6 +304,20 @@ export const MESSAGE_PLACEHOLDERS: Record<string, readonly string[]> = {
 
 /** سقف طول پیام تلگرام. */
 export const TELEGRAM_TEXT_LIMIT = 4000;
+
+/**
+ * کیبورد پایین (ReplyKeyboard) — همان شکلی که بات از شیت می‌خواند.
+ *
+ * دکمه‌ها متنِ خودشان را می‌فرستند؛ متنی که با `/` شروع شود را تلگرام کامند
+ * می‌فهمد و هندلر کامندهای سفارشیِ موجود می‌گیردش — برای همین این قابلیت
+ * هیچ منطق dispatch تازه‌ای در بات لازم نداشت.
+ */
+export type ReplyKeyboard = {
+  rows: string[][];
+  resize: boolean;
+  one_time: boolean;
+  placeholder: string;
+};
 
 /** زبان‌هایی که بات پشتیبانی می‌کند (`utils/i18n.py`). */
 export const BOT_LANGUAGES = ["fa", "en", "tr", "ar", "ru"] as const;
@@ -343,6 +366,7 @@ export function defaultBotSettings(): BotSettings {
     watermark: "",
     watermark_enabled: false,
     maintenance: false,
+    reply_keyboard: null,
     force_join_channels: [],
     force_join_message: "برای استفاده از ربات ابتدا در کانال‌های زیر عضو شوید:",
     working_hours: defaultWorkingHours(),

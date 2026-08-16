@@ -39,6 +39,18 @@ export type BotSettings = {
   watermark: string;
   watermark_enabled: boolean;
   maintenance: boolean;
+  /**
+   * کیبورد پایین چت. `null` یعنی کیبوردی نمایش داده نمی‌شود.
+   *
+   * این کلید در `models.py` بات وجود ندارد — سایت اضافه‌اش کرده و بات آن را
+   * از دیکشنری خام می‌خواند (`handlers/user.py::_reply_keyboard`).
+   */
+  reply_keyboard: {
+    rows: string[][];
+    resize: boolean;
+    one_time: boolean;
+    placeholder: string;
+  } | null;
   force_join_channels: string[];
   force_join_message: string;
   working_hours: WorkingHours;

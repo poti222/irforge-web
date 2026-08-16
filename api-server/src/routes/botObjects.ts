@@ -28,6 +28,7 @@ import {
   sendBotConfigError,
   BotConfigError,
 } from "../lib/botConfig.js";
+import { logger } from "../lib/logger.js";
 import { nowIso, newUuid } from "../lib/botTypes.js";
 
 const router = Router();
@@ -69,6 +70,43 @@ function bad(message: string, code?: string): BotConfigError {
 /** نام تب رکوردها — عیناً `_object_sheet_name` بات (خط ۱۰۶). */
 export function recordTab(slug: string): string {
   return `obj_${slug}`;
+}
+
+const RELATION_DEFS_TAB = "relation_definitions";
+const RELATION_LINKS_TAB = "relation_links";
+
+/**
+ * لینک‌هایی که شرط را برآورده می‌کنند حذف می‌کند و تعدادشان را برمی‌گرداند.
+ *
+ * چرا لازم است: حذف یک رکورد یا یک آبجکت، لینک‌هایی را که به آن اشاره
+ * می‌کردند جا می‌گذاشت. آن لینک‌ها به هیچ‌چیز اشاره نمی‌کنند ولی در سکشن
+ * روابط شمرده و نشان داده می‌شوند — یک شکست بی‌صدای تمام‌عیار.
+ *
+ * **هرگز throw نمی‌کند**: تب لینک‌ها ممکن است اصلاً وجود نداشته باشد، و
+ * شکستِ پاک‌سازی نباید خودِ حذف را — که موفق شده — به خطا تبدیل کند.
+ */
+async function removeLinksOf(
+  spreadsheetId: string,
+  matches: (link: { id: string; relation_def_id?: string; source_record_id?: string; target_record_id?: string }) => boolean,
+): Promise<number> {
+  try {
+    const rows = await listEntity<{
+      relation_def_id?: string;
+      source_record_id?: string;
+      target_record_id?: string;
+    }>(spreadsheetId, RELATION_LINKS_TAB);
+
+    let removed = 0;
+    for (const row of rows) {
+      if (!row.value || typeof row.value !== "object") continue;
+      if (!matches({ id: row.key, ...row.value })) continue;
+      if (await removeEntity(spreadsheetId, RELATION_LINKS_TAB, row.key)) removed += 1;
+    }
+    return removed;
+  } catch (err) {
+    logger.warn({ err, spreadsheetId }, "removeLinksOf failed (ignored)");
+    return 0;
+  }
 }
 
 /** همان `_validate_slug`: فقط a-z0-9_ و حداکثر ۳۰ کاراکتر. */
@@ -246,19 +284,27 @@ router.delete("/bots/:botId/objects/:objectId", requireAuth, async (req: any, re
 
     const schema = await requireSchema(spreadsheetId, req.params.objectId);
 
-    // رابطه‌های تعریف‌شده روی این آبجکت (فاز ۱۹) قبل از حذف باید دیده شوند.
+    // رابطه‌های تعریف‌شده روی این آبجکت قبل از حذف باید دیده شوند.
+    //
+    // ⚠️ این چک تا امروز **هیچ‌وقت کار نمی‌کرد**: روی `from_object`/`to_object`
+    // فیلتر می‌شد، در حالی که `botRelations.ts` این فیلدها را
+    // `source_object_id`/`target_object_id` می‌نویسد (همان واگرایی‌ای که در
+    // هدر همان فایل هشدار داده شده). نتیجه: فیلتر همیشه خالی برمی‌گشت، هشدار
+    // هرگز نشان داده نمی‌شد، و آبجکت بی‌صدا حذف می‌شد در حالی که روابطی به آن
+    // اشاره می‌کردند.
     let relations: Array<{ id: string; name: string }> = [];
     try {
-      const rows = await listEntity<{ name?: string; from_object?: string; to_object?: string }>(
-        spreadsheetId,
-        "relation_definitions"
-      );
+      const rows = await listEntity<{
+        name?: string;
+        source_object_id?: string;
+        target_object_id?: string;
+      }>(spreadsheetId, RELATION_DEFS_TAB);
       relations = rows
         .filter(
           (r) =>
             r.value &&
             typeof r.value === "object" &&
-            (r.value.from_object === schema.id || r.value.to_object === schema.id)
+            (r.value.source_object_id === schema.id || r.value.target_object_id === schema.id)
         )
         .map((r) => ({ id: r.key, name: r.value.name ?? r.key }));
     } catch {
@@ -268,15 +314,33 @@ router.delete("/bots/:botId/objects/:objectId", requireAuth, async (req: any, re
     if (relations.length > 0 && req.query.force !== "true")
       throw new BotConfigError(
         409,
-        `این آبجکت در ${relations.length} رابطه استفاده شده است. اول آن روابط را حذف کنید یا با تأیید صریح ادامه دهید.`,
+        `این آبجکت در ${relations.length} رابطه استفاده شده است (${relations
+          .map((r) => `«${r.name}»`)
+          .join("، ")}). اول آن روابط را حذف کنید یا با تأیید صریح ادامه دهید.`,
         "object_in_relations"
       );
 
     await removeEntity(spreadsheetId, SCHEMAS_TAB, schema.id);
+
+    // با تأیید صریح، رابطه‌هایی که به این آبجکت اشاره می‌کردند هم می‌روند —
+    // به‌همراه لینک‌هایشان. رابطه‌ای که یک سرش وجود ندارد هرگز کار نمی‌کند و
+    // فقط سکشن روابط را با ردیف‌های شکسته پر می‌کند.
+    let removedRelations = 0;
+    let removedLinks = 0;
+    for (const relation of relations) {
+      removedLinks += await removeLinksOf(spreadsheetId, (link) => link.relation_def_id === relation.id);
+      if (await removeEntity(spreadsheetId, RELATION_DEFS_TAB, relation.id)) removedRelations += 1;
+    }
+
     // تب رکوردها عمداً حذف نمی‌شود: پاک‌کردن یک worksheet کامل از یک عملیات
     // حذفِ schema برگشت‌ناپذیرتر از چیزی است که کاربر انتظار دارد. schema رفته،
     // داده‌ی خام سر جایش می‌ماند و از منوی دیتابیس قابل بازیابی است.
-    res.json({ deleted: schema.id, recordTabKept: recordTab(schema.slug) });
+    res.json({
+      deleted: schema.id,
+      recordTabKept: recordTab(schema.slug),
+      removedRelations,
+      removedLinks,
+    });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to delete object");
   }
@@ -396,7 +460,16 @@ router.delete("/bots/:botId/objects/:objectId/records/:recordId", requireAuth, a
 
     const removed = await removeEntity(spreadsheetId, recordTab(schema.slug), req.params.recordId);
     if (!removed) throw new BotConfigError(404, "این رکورد پیدا نشد.", "record_not_found");
-    res.json({ deleted: req.params.recordId });
+
+    // لینک‌های رابطه‌ای که به این رکورد اشاره می‌کردند هم می‌روند. بدون این،
+    // سکشن روابط لینک‌هایی را نشان می‌داد که یک سرشان دیگر وجود ندارد.
+    const removedLinks = await removeLinksOf(
+      spreadsheetId,
+      (link) =>
+        link.source_record_id === req.params.recordId || link.target_record_id === req.params.recordId,
+    );
+
+    res.json({ deleted: req.params.recordId, removedLinks });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to delete record");
   }

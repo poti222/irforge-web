@@ -15,7 +15,7 @@
 import { useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import type { Bot } from "@workspace/api-client-react";
-import { Loader2, SlidersHorizontal, MessageSquare, CreditCard, ShieldAlert, Users2, Clock, Gauge, Archive } from "lucide-react";
+import { Loader2, SlidersHorizontal, MessageSquare, CreditCard, ShieldAlert, Users2, Clock, Gauge, Archive, Keyboard } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -29,6 +29,7 @@ import { TabMessages } from "./TabMessages";
 import { TabPayment } from "./TabPayment";
 import { TabDanger } from "./TabDanger";
 import { TabForceJoin } from "./TabForceJoin";
+import { TabReplyKeyboard } from "./TabReplyKeyboard";
 import { TabWorkingHours } from "./TabWorkingHours";
 import { TabAntiFlood } from "./TabAntiFlood";
 import { TabBackup } from "./TabBackup";
@@ -38,6 +39,7 @@ type TabKey =
   | "general"
   | "messages"
   | "forceJoin"
+  | "replyKeyboard"
   | "workingHours"
   | "antiFlood"
   | "payment"
@@ -48,6 +50,7 @@ const TABS: { key: TabKey; labelKey: keyof LocaleShape["botSettings"]; icon: typ
   { key: "general", labelKey: "tabGeneral", icon: SlidersHorizontal },
   { key: "messages", labelKey: "tabMessages", icon: MessageSquare },
   { key: "forceJoin", labelKey: "tabForceJoin", icon: Users2 },
+  { key: "replyKeyboard", labelKey: "tabReplyKeyboard", icon: Keyboard },
   { key: "workingHours", labelKey: "tabWorkingHours", icon: Clock },
   { key: "antiFlood", labelKey: "tabAntiFlood", icon: Gauge },
   { key: "payment", labelKey: "tabPayment", icon: CreditCard },
@@ -126,6 +129,7 @@ export function BotSettingsSection({ bot }: { bot: Bot }) {
       {tab === "general" && <TabGeneral bot={bot} data={data} />}
       {tab === "messages" && <TabMessages botId={bot.id} data={data} />}
       {tab === "forceJoin" && <TabForceJoin botId={bot.id} data={data} />}
+      {tab === "replyKeyboard" && <TabReplyKeyboard bot={bot} data={data} />}
       {tab === "workingHours" && <TabWorkingHours botId={bot.id} data={data} />}
       {tab === "antiFlood" && <TabAntiFlood botId={bot.id} data={data} />}
       {tab === "payment" && <TabPayment botId={bot.id} data={data} />}

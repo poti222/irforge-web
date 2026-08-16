@@ -60,12 +60,64 @@ const PATCHABLE_FIELDS = [
   "support_username",
   "currency",
   "payment_info",
+  "reply_keyboard",
 ] as const;
 
 const BOOLEAN_FIELDS = new Set(["watermark_enabled", "maintenance", "welcome_enabled"]);
 const MESSAGE_FIELDS = new Set<string>(SETTINGS_MESSAGE_FIELDS);
 
+/**
+ * سقف‌های کیبورد پایین. تلگرام عدد رسمی اعلام نکرده، ولی همان‌طور که برای
+ * کیبورد اینلاین، از حدود ۴ دکمه در ردیف به بعد برچسب‌ها روی موبایل بریده
+ * می‌شوند — و کیبوردی با ۲۰ ردیف نصف صفحه‌ی کاربر را می‌خورد.
+ */
+const REPLY_KB_MAX_ROWS = 10;
+const REPLY_KB_MAX_PER_ROW = 4;
+
 // ─── helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * کیبورد پایین (ReplyKeyboard). شکل ذخیره‌شده همان چیزی است که
+ * `handlers/user.py::_reply_keyboard` در بات می‌خواند.
+ *
+ * ردیف خالی و دکمه‌ی بی‌متن **دور ریخته می‌شوند** نه اینکه خطا بدهند: کاربری
+ * که یک ردیف اضافه کرده و پرش نکرده، نباید ذخیره‌اش رد شود.
+ */
+function validateReplyKeyboard(value: unknown): Record<string, unknown> | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "object" || Array.isArray(value))
+    throw bad("ساختار کیبورد پایین معتبر نیست.");
+
+  const raw = value as Record<string, unknown>;
+  const rawRows = Array.isArray(raw.rows) ? raw.rows : [];
+  if (rawRows.length > REPLY_KB_MAX_ROWS)
+    throw bad(`کیبورد پایین حداکثر می‌تواند ${REPLY_KB_MAX_ROWS} ردیف داشته باشد.`, "too_many_rows");
+
+  const rows: string[][] = [];
+  for (const rawRow of rawRows) {
+    if (!Array.isArray(rawRow)) continue;
+    const cells = rawRow
+      .map((cell) => String(cell ?? "").trim().slice(0, 64))
+      .filter(Boolean);
+    if (cells.length > REPLY_KB_MAX_PER_ROW)
+      throw bad(
+        `هر ردیف کیبورد پایین حداکثر ${REPLY_KB_MAX_PER_ROW} دکمه می‌تواند داشته باشد.`,
+        "row_too_full",
+      );
+    if (cells.length > 0) rows.push(cells);
+  }
+
+  // کیبورد بدون هیچ دکمه‌ای یعنی «کیبورد نداشته باش» — همان `null`، تا بات
+  // به‌جای یک کیبورد خالی، هیچ کیبوردی نفرستد.
+  if (rows.length === 0) return null;
+
+  return {
+    rows,
+    resize: raw.resize === undefined ? true : Boolean(raw.resize),
+    one_time: Boolean(raw.one_time),
+    placeholder: String(raw.placeholder ?? "").trim().slice(0, 64),
+  };
+}
 
 function bad(message: string, code?: string): BotConfigError {
   return new BotConfigError(400, message, code);
@@ -237,6 +289,10 @@ router.patch("/bots/:botId/settings", requireAuth, async (req: any, res) => {
         patch.currency = cur;
         continue;
       }
+      if (field === "reply_keyboard") {
+        patch.reply_keyboard = validateReplyKeyboard(value);
+        continue;
+      }
     }
 
     if (Object.keys(patch).length === 0) {
@@ -398,5 +454,8 @@ router.put("/bots/:botId/settings/anti-flood", requireAuth, async (req: any, res
     sendBotConfigError(res, err, "Failed to save anti-flood settings");
   }
 });
+
+/** فقط برای تست — اعتبارسنج‌هایی که قرارداد بین سایت و بات را نگه می‌دارند. */
+export const __testables = { validateReplyKeyboard };
 
 export default router;
