@@ -29,7 +29,7 @@ import { db, botsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "./auth.js";
 import { decryptToken } from "../lib/tokenCrypto.js";
-import { tgApi } from "../lib/telegram.js";
+import { tgApi, downloadTelegramFile } from "../lib/telegram.js";
 import { botQueueAvailable, enqueueJob, listJobs } from "../lib/botQueue.js";
 import {
   resolveBotSheet,
@@ -147,14 +147,22 @@ router.post("/bots/:botId/broadcast", requireAuth, async (req: any, res) => {
     let mediaType = String(req.body?.mediaType ?? "").trim();
     /** `entities` تلگرام — فقط از مسیر «ارسال با بات» می‌آید. */
     let entities: unknown = null;
+    /** file_id متعلق به **بات پلتفرم** — باید دانلود و دوباره آپلود شود. */
+    let capturedFileId = "";
 
     // ── محتوای ضبط‌شده از تلگرام («ارسال با بات») ─────────────────────────
     //
-    // پیامی که کاربر به بات پلتفرم داده در چتی است که بات تننت اصلاً عضوش
-    // نیست، پس `copy_message` مستقیم بینشان کار نمی‌کند. ولی `file_id`
-    // تلگرام را هر باتی می‌تواند برای ارسال استفاده کند و `entities` فرمت
-    // متن را مو‌به‌مو نگه می‌دارد — پس همان محتوا با توکن بات تننت بازتولید
-    // می‌شود و از آن به بعد مسیر عادی است.
+    // پیامی که کاربر به بات پلتفرم داده در چتی است که بات تننت عضوش نیست،
+    // پس `copy_message` مستقیم بینشان کار نمی‌کند.
+    //
+    // ⚠️ و **file_id هم قابل انتقال بین دو بات نیست** — مستندات Bot API
+    // صریح می‌گوید file_id برای هر بات یکتاست. فرستادنش با توکن بات دیگر
+    // خطای `wrong file identifier/HTTP URL specified` می‌دهد. (این دقیقاً
+    // همان باگی بود که در عمل دیده شد.)
+    //
+    // پس تنها راه درست: بایت‌ها با توکن **بات پلتفرم** دانلود و با توکن
+    // **بات تننت** دوباره آپلود می‌شوند. متن و `entities` هم عیناً منتقل
+    // می‌شوند تا فرمت حفظ شود.
     const sessionId = String(req.body?.uploadSessionId ?? "").trim();
     if (sessionId) {
       const session = await getSession(sessionId, req.userId);
@@ -166,12 +174,16 @@ router.post("/bots/:botId/broadcast", requireAuth, async (req: any, res) => {
           "session_not_filled"
         );
       text = session.content ?? "";
-      mediaFileId = session.fileId ?? "";
       mediaType = session.mediaType === "text" ? "" : (session.mediaType ?? "");
       entities = session.entities ?? null;
+      capturedFileId = session.fileId ?? "";
+      // `mediaFileId` عمداً ست نمی‌شود: آن مسیر یعنی «این file_id مال همین
+      // بات است». فایلِ ضبط‌شده مال بات پلتفرم است و باید دوباره آپلود شود.
+      mediaFileId = "";
     }
 
-    if (!text.trim() && !mediaFileId) throw new BotConfigError(400, "پیام همگانی نمی‌تواند خالی باشد.");
+    if (!text.trim() && !mediaFileId && !capturedFileId)
+      throw new BotConfigError(400, "پیام همگانی نمی‌تواند خالی باشد.");
     if (text.length > TELEGRAM_TEXT_LIMIT)
       throw new BotConfigError(400, `طول پیام از ${TELEGRAM_TEXT_LIMIT} کاراکتر بیشتر است (سقف تلگرام).`);
 
@@ -193,7 +205,39 @@ router.post("/bots/:botId/broadcast", requireAuth, async (req: any, res) => {
     // گام ۱ — ساخت پیام مبدأ. `copy_message` بات از روی همین کپی می‌گیرد، پس
     // آنچه ادمین در این چت می‌بیند دقیقاً همان چیزی است که کاربران می‌گیرند.
     let sent: { ok: boolean; description?: string; result?: { message_id: number } };
-    if (mediaFileId) {
+    if (capturedFileId) {
+      // بایت‌ها را از بات پلتفرم بگیر و با توکن بات تننت دوباره آپلود کن.
+      const platformToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+      if (!platformToken)
+        throw new BotConfigError(
+          503,
+          "بات پلتفرم روی این سرور تنظیم نشده، پس محتوای ضبط‌شده قابل ارسال نیست.",
+          "no_platform_token"
+        );
+
+      const file = await downloadTelegramFile(platformToken, capturedFileId);
+      if (!file)
+        throw new BotConfigError(
+          409,
+          "فایلی که در تلگرام فرستادید دیگر در دسترس نیست. یک‌بار دیگر «ارسال با بات» را بزنید.",
+          "captured_file_gone"
+        );
+
+      const { method, field } = MEDIA_METHODS[mediaType] ?? MEDIA_METHODS.photo;
+      const form = new FormData();
+      form.set("chat_id", chatId);
+      form.set(field, new Blob([file.buffer], { type: file.contentType }), file.fileName);
+      if (text) {
+        form.set("caption", text);
+        if (entities) form.set("caption_entities", JSON.stringify(entities));
+      }
+
+      const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+        method: "POST",
+        body: form,
+      });
+      sent = (await response.json()) as typeof sent;
+    } else if (mediaFileId) {
       const { method, field } = MEDIA_METHODS[mediaType] ?? MEDIA_METHODS.photo;
       sent = await tgApi(token, method, {
         chat_id: chatId,

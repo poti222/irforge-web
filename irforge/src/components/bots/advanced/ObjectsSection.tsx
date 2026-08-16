@@ -347,7 +347,7 @@ export function ObjectsSection({ bot }: { bot: Bot }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t.objectsDesc}</p>
+        <p className="w-full text-sm text-muted-foreground sm:w-auto sm:min-w-0 sm:flex-1">{t.objectsDesc}</p>
         <Button onClick={() => { setCreateError(null); setCreateOpen(true); }}>
           <Plus className="me-1.5 size-4" /> {t.newObject}
         </Button>

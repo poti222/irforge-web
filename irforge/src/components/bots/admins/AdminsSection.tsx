@@ -74,6 +74,26 @@ export function AdminsSection({ bot }: { bot: Bot }) {
     qc.invalidateQueries({ queryKey: ["bot-roles", botId] });
   };
 
+  const [addOpen, setAddOpen] = useState(false);
+
+  /**
+   * کاربران خودِ بات، برای انتخابگر افزودن ادمین.
+   *
+   * فقط وقتی دیالوگ باز است خوانده می‌شود: این یک خواندن از گوگل‌شیت است و
+   * نباید با هر بار باز کردن سکشن ادمین‌ها هزینه بدهد.
+   */
+  const { data: botUsersPage } = useQuery({
+    queryKey: ["bot-users", botId, "admin-picker"],
+    queryFn: () =>
+      customFetch<{ users: Array<{ user_id: string; username: string; first_name: string; last_name: string }> }>(
+        `/api/bots/${botId}/bot-users?limit=200`
+      ),
+    enabled: addOpen,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const botUsers = botUsersPage?.users ?? [];
+
   const addAdmin = useMutation({
     mutationFn: (body: { identifier: string; role_id: string | null; is_super_admin: boolean }) =>
       customFetch<{ admin: BotAdmin }>(`/api/bots/${botId}/bot-admins`, {
@@ -113,7 +133,6 @@ export function AdminsSection({ bot }: { bot: Bot }) {
   });
 
   const [tab, setTab] = useState<"admins" | "roles">("admins");
-  const [addOpen, setAddOpen] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [addErrorCode, setAddErrorCode] = useState<string | null>(null);
   const [newAdminRole, setNewAdminRole] = useState<string>("__none__");
@@ -170,7 +189,7 @@ export function AdminsSection({ bot }: { bot: Bot }) {
       {tab === "admins" && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t.adminsDesc}</p>
+            <p className="w-full text-sm text-muted-foreground sm:w-auto sm:min-w-0 sm:flex-1">{t.adminsDesc}</p>
             <Button onClick={() => { setIdentifier(""); setNewAdminRole("__none__"); setNewAdminSuper(false); setAddError(null); setAddOpen(true); }}>
               <UserPlus className="me-1.5 size-4" /> {t.addAdminCta}
             </Button>
@@ -264,7 +283,7 @@ export function AdminsSection({ bot }: { bot: Bot }) {
       {tab === "roles" && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t.rolesDesc}</p>
+            <p className="w-full text-sm text-muted-foreground sm:w-auto sm:min-w-0 sm:flex-1">{t.rolesDesc}</p>
             <Button onClick={() => setRoleDialog({ id: null, name: "", permissions: [] })}>
               <Plus className="me-1.5 size-4" /> {t.addRoleCta}
             </Button>
@@ -325,6 +344,29 @@ export function AdminsSection({ bot }: { bot: Bot }) {
                 onChange={(e) => { setIdentifier(e.target.value); setAddError(null); setAddErrorCode(null); }}
               />
               <p className="text-xs text-muted-foreground">{t.fieldIdentifierHint}</p>
+
+              {/* انتخاب از کاربران خودِ بات — این‌ها از قبل بات را استارت
+                  کرده‌اند، پس آی‌دی عددی‌شان معلوم است و هیچ‌وقت به محدودیت
+                  «کاربر باید اول بات را استارت کند» نمی‌خورند. */}
+              {botUsers.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <Label className="text-xs text-muted-foreground">{t.pickFromUsers}</Label>
+                  <Select
+                    value=""
+                    onValueChange={(v) => { setIdentifier(v); setAddError(null); setAddErrorCode(null); }}
+                  >
+                    <SelectTrigger><SelectValue placeholder={t.pickFromUsersPlaceholder} /></SelectTrigger>
+                    <SelectContent>
+                      {botUsers.map((u) => (
+                        <SelectItem key={u.user_id} value={u.user_id}>
+                          {[u.first_name, u.last_name].filter(Boolean).join(" ") || u.user_id}
+                          {u.username ? ` (@${u.username})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="admin-role">{t.fieldRole}</Label>

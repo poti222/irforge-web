@@ -18,8 +18,8 @@
  *      باید ۴۰۹ بدهیم، نه اینکه کاربر فکر کند ذخیره شد.
  */
 import pg from "pg";
-import { db, botsTable, usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { db, botsTable, usersTable, botManagersTable } from "@workspace/db";
+import { eq, and, or, exists, sql } from "drizzle-orm";
 import { logger } from "./logger.js";
 import { readTabRows, upsertRow, deleteRow, listTabs } from "./tenantSheets.js";
 import { isSheetsNotConfiguredError } from "./sheets.js";
@@ -124,9 +124,27 @@ async function getRole(userId: string): Promise<string> {
 export async function resolveBotSheet(userId: string, botId: string): Promise<ResolvedBotSheet> {
   const role = await getRole(userId);
   const isSuperAdmin = role === "super_admin";
+
+  // مالک، یا سوپرادمین، یا کسی که مالک با کد ادمین دسترسی مدیریت داده
+  // (`bot_managers`). دسترسی واگذارشده فقط همین پنل مدیریت را باز می‌کند؛
+  // عملیات مالکیتی (حذف بات، ساخت کد تازه) از `requireBotOwnership` رد
+  // می‌شوند که عمداً دست‌نخورده مانده و همچنان فقط مالک را می‌پذیرد.
   const where = isSuperAdmin
     ? eq(botsTable.id, botId)
-    : and(eq(botsTable.id, botId), eq(botsTable.userId, userId));
+    : and(
+        eq(botsTable.id, botId),
+        or(
+          eq(botsTable.userId, userId),
+          exists(
+            db
+              .select({ one: sql`1` })
+              .from(botManagersTable)
+              .where(
+                and(eq(botManagersTable.botId, botId), eq(botManagersTable.userId, userId)),
+              ),
+          ),
+        ),
+      );
   const [bot] = await db
     .select({ id: botsTable.id, name: botsTable.name, sheetId: botsTable.sheetId })
     .from(botsTable)

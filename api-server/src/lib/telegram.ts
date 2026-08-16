@@ -130,6 +130,47 @@ export async function getTelegramFilePath(botToken: string, fileId: string): Pro
   return data.result?.file_path ?? null;
 }
 
+/**
+ * محتوای یک فایل تلگرام را با توکن **همان باتی** که file_id مال اوست دانلود
+ * می‌کند.
+ *
+ * ⚠️ **چرا این لازم است و نمی‌شود file_id را دست‌به‌دست کرد:** مستندات Bot API
+ * صریح می‌گوید `file_id` برای هر بات **یکتاست و قابل انتقال بین بات‌ها
+ * نیست**. اگر بات B بخواهد با file_id ای که بات A گرفته چیزی بفرستد، تلگرام
+ * `Bad Request: wrong file identifier/HTTP URL specified` می‌دهد.
+ *
+ * پس تنها راه بردنِ یک فایل از یک بات به بات دیگر، **دانلود بایت‌ها و آپلود
+ * دوباره** است — همان کاری که این تابع نیمه‌ی اولش را انجام می‌دهد.
+ *
+ * `null` یعنی فایل در دسترس نیست (منقضی، حذف‌شده، یا توکن اشتباه) — هرگز
+ * throw نمی‌کند.
+ */
+export async function downloadTelegramFile(
+  botToken: string,
+  fileId: string
+): Promise<{ buffer: Buffer; contentType: string; fileName: string } | null> {
+  try {
+    const filePath = await getTelegramFilePath(botToken, fileId);
+    if (!filePath) return null;
+
+    const res = await fetch(`https://api.telegram.org/file/bot${botToken}/${filePath}`);
+    if (!res.ok) {
+      logger.warn({ status: res.status }, "downloadTelegramFile: file fetch failed");
+      return null;
+    }
+    return {
+      buffer: Buffer.from(await res.arrayBuffer()),
+      contentType: res.headers.get("content-type") || "application/octet-stream",
+      // نام فایل از مسیر تلگرام می‌آید؛ پسوندش را نگه می‌داریم چون تلگرام
+      // موقع آپلود دوباره به آن نگاه می‌کند.
+      fileName: filePath.split("/").pop() || "file",
+    };
+  } catch (err) {
+    logger.warn({ err }, "downloadTelegramFile failed");
+    return null;
+  }
+}
+
 // ─── Phase 7: bot identity (username + avatar) ─────────────────────────────
 
 /**

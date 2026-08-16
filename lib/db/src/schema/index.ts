@@ -27,3 +27,5 @@ export * from "./auth";
 export * from "./platformSettings";
 // «با بات بفرست» — جلسه‌ی کوتاه‌عمر ضبط محتوا از داخل تلگرام
 export * from "./uploadSessions";
+// دسترسی مدیریتِ واگذارشده به یک بات (با کد ادمین)
+export * from "./botManagers";

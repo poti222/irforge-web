@@ -83,9 +83,16 @@ async function validateTarget(spreadsheetId: string, value: unknown): Promise<st
     return target;
   }
   if (target.startsWith("url:")) {
-    const url = target.slice(4);
-    if (!/^https:\/\/\S+$/i.test(url)) throw bad("آدرس مقصد باید با https:// شروع شود.");
-    return target;
+    // فاصله‌ها حذف می‌شوند: کاربر معمولاً آدرس را پیست می‌کند و یک فاصله‌ی
+    // ابتدایی/انتهایی یا وسطیِ ناشی از کیبورد موبایل، تنها دلیل رد شدن بود.
+    const url = target.slice(4).replace(/\s+/g, "");
+    if (!url) throw bad("آدرس مقصد خالی است.");
+    if (!/^https:\/\/\S+$/i.test(url))
+      throw bad(
+        `آدرس مقصد باید با https:// شروع شود. چیزی که فرستادید: «${target.slice(4)}»`,
+        "bad_url"
+      );
+    return `url:${url}`;
   }
   // targetهای built-in و پلاگینی: شکلشان چک می‌شود، ولی لیست پلاگین‌های فعال
   // سمت سایت قطعی نیست، پس یک شناسه‌ی ناشناخته رد نمی‌شود.

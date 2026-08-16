@@ -372,6 +372,10 @@ export function WorkflowsSection({ bot }: { bot: Bot }) {
         </Button>
       </div>
 
+      {/* توضیح ساده: بدون آن، «Workflows» برای کسی که با این مفهوم آشنا نیست
+          فقط یک تب خالی است. */}
+      <p className="w-full text-sm text-muted-foreground">{t.workflowsDesc}</p>
+
       {tab === "list" ? (
         data.workflows.length === 0 ? (
           <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">{t.noWorkflows}</p>

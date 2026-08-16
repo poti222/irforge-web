@@ -40,8 +40,14 @@ const router = Router();
 const KEYS_TAB = "text_keys";
 const VALUES_TAB = "text_values";
 
-/** زبان‌هایی که هسته‌ی بات خودش ثبت می‌کند — `i18n.LANGUAGES`. */
-const CORE_LANGUAGES = ["fa", "en"] as const;
+/**
+ * زبان‌هایی که هسته‌ی بات می‌شناسد — آینه‌ی `i18n.LANGUAGES`.
+ *
+ * قبلاً فقط `fa`/`en` بود و بات هر انتخاب دیگری را بی‌صدا به فارسی
+ * برمی‌گرداند. حالا هر پنج زبان در بات ثبت شده‌اند و زنجیره‌ی fallback
+ * (زبان انتخابی → انگلیسی → خود کلید) رشته‌های ترجمه‌نشده را پوشش می‌دهد.
+ */
+const CORE_LANGUAGES = ["fa", "en", "ar", "tr", "ru"] as const;
 const FALLBACK_LANG = "en";
 
 type TextKeyRow = { key: string; category?: string };

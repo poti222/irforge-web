@@ -543,6 +543,18 @@ CREATE TABLE IF NOT EXISTS platform_settings (
   updated_by TEXT
 );
 
+-- ─── BOT_MANAGERS (دسترسی واگذارشده با کد ادمین) ────────────────────────────
+-- ببینید lib/db/src/schema/botManagers.ts. یک ردیف = یک کاربر که با وارد
+-- کردن کد ادمینِ یک بات، اجازه‌ی مدیریتش را گرفته. قابل ابطال توسط مالک.
+CREATE TABLE IF NOT EXISTS bot_managers (
+  id TEXT PRIMARY KEY,
+  bot_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  granted_via TEXT NOT NULL DEFAULT 'admin_code',
+  granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS bot_managers_bot_user_uniq ON bot_managers(bot_id, user_id);
+
 -- ─── BOT_UPLOAD_SESSIONS («با بات بفرست») ───────────────────────────────────
 -- جلسه‌ی کوتاه‌عمری که کاربر محتوا را از داخل تلگرام به سایت می‌دهد.
 -- ببینید lib/db/src/schema/uploadSessions.ts.
@@ -567,6 +579,18 @@ CREATE INDEX IF NOT EXISTS bot_upload_sessions_chat_idx ON bot_upload_sessions(c
 -- اعلان‌های سایت علاوه بر زنگوله، در بات پلتفرم هم فرستاده می‌شوند؛ این ستون
 -- سوئیچ خاموش‌کردنش برای هر کاربر است (پیش‌فرض روشن).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_telegram BOOLEAN NOT NULL DEFAULT true;
+
+-- ─── backfill: عکس پروفایل تلگرامِ ثبت‌نام‌های با شماره ─────────────────────
+-- مسیر ثبت‌نام دومرحله‌ای فقط ستون telegram_photo_file_id را ست می‌کرد و
+-- telegram_photo_url و avatar را نه — ولی رابط کاربری از دومی‌ها می‌خواند،
+-- پس عکس پروفایل هیچ‌وقت لود نمی‌شد. مسیر ثبت‌نام اصلاح شد؛ این برای
+-- حساب‌هایی است که قبلاً ساخته شده‌اند.
+UPDATE users
+   SET telegram_photo_url = '/api/users/' || id || '/telegram-photo',
+       avatar = COALESCE(avatar, '/api/users/' || id || '/telegram-photo')
+ WHERE telegram_photo_file_id IS NOT NULL
+   AND telegram_photo_file_id <> ''
+   AND (telegram_photo_url IS NULL OR telegram_photo_url = '');
 `;
 
 

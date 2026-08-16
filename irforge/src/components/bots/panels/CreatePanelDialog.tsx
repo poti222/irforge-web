@@ -6,6 +6,7 @@
  * زندگی می‌کنند، عقب‌وجلو رفتن آزاد است و تا لحظه‌ی «ساخت» چیزی به سرور نمی‌رود.
  */
 import { useState } from "react";
+import { MediaList } from "./MediaList";
 import { Loader2, ChevronRight, ChevronLeft } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -46,18 +47,21 @@ export function CreatePanelDialog({
 
   const [step, setStep] = useState<Step>("title");
   const [title, setTitle] = useState("");
-  const [type, setType] = useState("text");
+  /**
+   * نوع پنل از روی مدیا **استنتاج** می‌شود، نه انتخاب کاربر (فاز ۱ مرحله‌ی
+   * انتخاب نوع را حذف کرد). بدون مدیا متن است، یک فایل عکس، چند فایل کاروسل.
+   * سرور خودش هم موقع ذخیره همین را اعتبارسنجی می‌کند.
+   */
   const [content, setContent] = useState("");
-  const [mediaFileId, setMediaFileId] = useState("");
+  const [mediaIds, setMediaIds] = useState<string[]>([]);
   const [parentId, setParentId] = useState<string>("");
   const [fieldError, setFieldError] = useState<string | null>(null);
 
   function reset() {
     setStep("title");
     setTitle("");
-    setType("text");
     setContent("");
-    setMediaFileId("");
+    setMediaIds([]);
     setParentId("");
     setFieldError(null);
   }
@@ -88,9 +92,12 @@ export function CreatePanelDialog({
     create.mutate(
       {
         title: title.trim(),
-        type,
+        type: mediaIds.length > 1 ? "carousel" : mediaIds.length === 1 ? "photo" : "text",
         content,
-        media_file_id: mediaFileId.trim(),
+        media_file_id: mediaIds[0] ?? "",
+        // کاروسل همه‌ی فایل‌ها را در `settings.carousel_ids` نگه می‌دارد —
+        // همان شکلی که خودِ بات می‌خواند.
+        ...(mediaIds.length > 1 ? { settings: { carousel_ids: mediaIds } } : {}),
         parent_id: parentId || null,
       },
       {
@@ -146,14 +153,19 @@ export function CreatePanelDialog({
                 <Label htmlFor="cp-content">{t.fieldContent}</Label>
                 <Textarea id="cp-content" rows={4} value={content} onChange={(e) => setContent(e.target.value)} />
               </div>
-              {/* PHASE 1: مرحله‌ی انتخاب نوع حذف شد؛ `type` دیگر با انتخاب کاربر
-                  تعیین نمی‌شود. این بلوک فقط جای‌نگه‌دار است — در فاز ۲ با
-                  `MediaList` واقعی جایگزین می‌شود و `type` هم آن‌جا خودکار
-                  محاسبه خواهد شد. */}
+              {/* آپلود واقعی — جای‌نگه‌دارِ «file_id را دستی وارد کن» که از فاز
+                  ۱ اینجا مانده بود. `MediaList` خودش فایل را با توکن همین بات
+                  آپلود می‌کند و file_id را برمی‌گرداند؛ ورودی دستی هم پشت
+                  بخش «پیشرفته»ی خودش هست، برای وقتی آپلود روی این بات کار
+                  نکند. */}
               <div className="space-y-1.5">
-                <Label htmlFor="cp-media">{t.fieldMediaFileId}</Label>
-                <Input id="cp-media" dir="ltr" className="font-mono text-sm" value={mediaFileId} onChange={(e) => setMediaFileId(e.target.value)} />
-                <p className="text-xs text-muted-foreground">{t.fieldMediaHint}</p>
+                <Label>{t.fieldMedia}</Label>
+                <MediaList
+                  botId={botId}
+                  fileIds={mediaIds}
+                  multiple
+                  onChange={setMediaIds}
+                />
               </div>
             </div>
           )}

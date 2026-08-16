@@ -154,7 +154,11 @@ const SECTION_GROUPS: SectionGroup[] = [
     labelKey: "groupComms",
     items: [
       { key: "broadcast", icon: Megaphone, labelKey: "sectionBroadcast" },
-      { key: "tickets", icon: LifeBuoy, labelKey: "sectionTickets" },
+      // تیکت‌های داخل بات امروز یک قابلیت **هسته**‌اند (`support_router` بدون
+      // شرط در main.py رجیستر می‌شود) و پلاگین تیکتی وجود ندارد. ولی تا وقتی
+      // آن پلاگین ساخته نشده، این سکشن نباید دیده شود — با ساخته‌شدنش، فقط
+      // کافی است `id` پلاگین به کاتالوگ اضافه شود و این خط خودش کار می‌کند.
+      { key: "tickets", icon: LifeBuoy, labelKey: "sectionTickets", requiresPlugin: "ticket" },
     ],
   },
   {

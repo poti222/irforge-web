@@ -15,6 +15,7 @@ import { TelegramLoginButton, type TelegramWidgetUser } from "@/components/teleg
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { useTelegramWebApp } from "@/hooks/use-telegram-webapp";
 import { TelegramNotifyToggle } from "@/components/profile/TelegramNotifyToggle";
+import { ClaimBotCard } from "@/components/profile/ClaimBotCard";
 import { Send, Info, Loader2, Save, KeyRound, LogOut, ShieldCheck} from "lucide-react";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
@@ -433,6 +434,11 @@ export default function Profile() {
           </div>
         </CardContent>
       </Card>
+
+      {/* کد ادمین یک بات — عمداً **بالای** کارت «کد مدیر کل» می‌نشیند، چون
+          این چیزی است که کاربر عادی واقعاً لازمش دارد؛ کد مدیر کل مال
+          پلتفرم است و برای تقریباً همه بی‌ربط. */}
+      <ClaimBotCard />
 
       {u.role !== "super_admin" && (
         <Card>

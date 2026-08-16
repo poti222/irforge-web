@@ -203,7 +203,7 @@ export function RelationsSection({ bot }: { bot: Bot }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t.relationsDesc}</p>
+        <p className="w-full text-sm text-muted-foreground sm:w-auto sm:min-w-0 sm:flex-1">{t.relationsDesc}</p>
         <Button
           disabled={data.objects.length < 1}
           title={data.objects.length < 1 ? t.needObjectsFirst : undefined}

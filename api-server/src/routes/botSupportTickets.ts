@@ -32,6 +32,7 @@ import {
   sendBotConfigError,
   BotConfigError,
 } from "../lib/botConfig.js";
+import { requirePluginEnabled } from "../lib/pluginGate.js";
 import { nowIso } from "../lib/botTypes.js";
 
 const router = Router();
@@ -87,6 +88,8 @@ async function botToken(botId: string): Promise<string | null> {
 router.get("/bots/:botId/support-tickets", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    // پشت پلاگین تیکت — گیت سمت سرور، چون پنهان‌کردن تب چیزی را محافظت نمی‌کند.
+    await requirePluginEnabled(spreadsheetId, "ticket");
     const rows = await readTabSafe<Ticket>(spreadsheetId, TICKETS_TAB);
     const messages = await readTabSafe<TicketMessage>(spreadsheetId, MESSAGES_TAB);
 
@@ -128,6 +131,8 @@ router.get("/bots/:botId/support-tickets", requireAuth, async (req: any, res) =>
 router.get("/bots/:botId/support-tickets/:ticketId", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    // پشت پلاگین تیکت — گیت سمت سرور، چون پنهان‌کردن تب چیزی را محافظت نمی‌کند.
+    await requirePluginEnabled(spreadsheetId, "ticket");
     const ticket = await getEntity<Ticket>(spreadsheetId, TICKETS_TAB, req.params.ticketId);
     if (!ticket) throw new BotConfigError(404, "این تیکت پیدا نشد.", "ticket_not_found");
 
@@ -153,6 +158,8 @@ router.get("/bots/:botId/support-tickets/:ticketId", requireAuth, async (req: an
 router.post("/bots/:botId/support-tickets/:ticketId/reply", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    // پشت پلاگین تیکت — گیت سمت سرور، چون پنهان‌کردن تب چیزی را محافظت نمی‌کند.
+    await requirePluginEnabled(spreadsheetId, "ticket");
     await assertSheetsAuthoritative(MESSAGES_TAB);
 
     const ticket = await getEntity<Ticket>(spreadsheetId, TICKETS_TAB, req.params.ticketId);
@@ -211,6 +218,8 @@ router.post("/bots/:botId/support-tickets/:ticketId/reply", requireAuth, async (
 router.patch("/bots/:botId/support-tickets/:ticketId", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    // پشت پلاگین تیکت — گیت سمت سرور، چون پنهان‌کردن تب چیزی را محافظت نمی‌کند.
+    await requirePluginEnabled(spreadsheetId, "ticket");
     await assertSheetsAuthoritative(TICKETS_TAB);
 
     const ticket = await getEntity<Ticket>(spreadsheetId, TICKETS_TAB, req.params.ticketId);

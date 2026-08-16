@@ -33,6 +33,9 @@ const DEFAULT_ENABLED: Record<string, boolean> = {
   discount: false,
   referral: false,
   wallet: false,
+  // هنوز در بات ساخته نشده. تا وقتی در `__plugin_states__` ظاهر نشود،
+  // سکشن تیکت‌ها پنهان می‌ماند.
+  ticket: false,
 };
 
 /** نام قابل نمایش، برای پیام خطا. */
@@ -41,6 +44,7 @@ const PLUGIN_LABEL: Record<string, string> = {
   discount: "کد تخفیف",
   referral: "سیستم رفرال",
   wallet: "کیف پول",
+  ticket: "تیکت",
 };
 
 /**

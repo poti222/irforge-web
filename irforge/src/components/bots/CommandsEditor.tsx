@@ -62,6 +62,27 @@ function errCode(err: any): string | null {
  */
 type TargetKind = "builtin" | "panel" | "form" | "url";
 
+/**
+ * ورودی کاربر را به یک URL قابل قبول تبدیل می‌کند.
+ *
+ * سه چیزی که در عمل باعث رد شدن می‌شدند:
+ *  - **فاصله.** فیلد از قبل با `https://` پر می‌شد و کاربر بعدش تایپ می‌کرد؛
+ *    کیبورد موبایل یک فاصله می‌گذاشت و نتیجه `https:// example.com` می‌شد که
+ *    اعتبارسنجی ردش می‌کرد، با پیامی که نمی‌گفت مشکل کجاست.
+ *  - **دامنه‌ی خالی.** کاربر `example.com` می‌نوشت و انتظار داشت کار کند.
+ *  - **`http://`** که تلگرام و سرور هر دو رد می‌کنند.
+ *
+ * پس همه‌ی فاصله‌ها حذف، دامنه‌ی بدون پروتکل با `https://` کامل، و `http://`
+ * به `https://` ارتقا داده می‌شود.
+ */
+export function normalizeUrl(raw: string): string {
+  const compact = raw.replace(/\s+/g, "");
+  if (!compact) return "";
+  if (/^https:\/\//i.test(compact)) return compact;
+  if (/^http:\/\//i.test(compact)) return compact.replace(/^http:\/\//i, "https://");
+  return `https://${compact.replace(/^\/+/, "")}`;
+}
+
 function kindOf(target: string): TargetKind | "" {
   if (!target) return "";
   if (target.startsWith("panel:")) return "panel";
@@ -90,7 +111,9 @@ function TargetPicker({
     setPendingKind(next);
     // عوض‌کردن نوع، مقدار قبلی را بی‌معنا می‌کند — نگه‌داشتنش یعنی ذخیره‌ی یک
     // `panel:<id>` وقتی کاربر «فرم» را انتخاب کرده.
-    onChange(next === "url" ? "url:https://" : "");
+    // عمداً بدون پیش‌پرکردنِ `https://`: همان پیش‌پرکردن بود که کاربر را
+    // وامی‌داشت بعد از آن تایپ کند و یک فاصله وسطش بگذارد.
+    onChange("");
   }
 
   return (
@@ -147,13 +170,24 @@ function TargetPicker({
       )}
 
       {kind === "url" && (
-        <Input
-          dir="ltr"
-          placeholder="https://"
-          value={value.startsWith("url:") ? value.slice(4) : ""}
-          onChange={(e) => onChange(`url:${e.target.value}`)}
-          aria-invalid={!/^https:\/\/\S+$/i.test(value.slice(4)) || undefined}
-        />
+        <>
+          <Input
+            dir="ltr"
+            placeholder="example.com"
+            value={value.startsWith("url:") ? value.slice(4) : ""}
+            // نرمال‌سازی هنگام خروج از فیلد، نه هر کیبورد-استروک: وگرنه اولین
+            // حرفی که کاربر تایپ می‌کند بلافاصله به `https://a` تبدیل می‌شود
+            // و ادامه‌ی تایپ را به‌هم می‌ریزد.
+            onChange={(e) => onChange(`url:${e.target.value}`)}
+            onBlur={(e) => onChange(`url:${normalizeUrl(e.target.value)}`)}
+            aria-invalid={
+              value.slice(4).trim() !== "" && !/^https:\/\/\S+$/i.test(normalizeUrl(value.slice(4)))
+                ? true
+                : undefined
+            }
+          />
+          <p className="text-xs text-muted-foreground">{t.urlHint}</p>
+        </>
       )}
     </div>
   );
@@ -275,7 +309,7 @@ export function CommandsEditor({ botId }: { botId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t.sectionDesc}</p>
+        <p className="w-full text-sm text-muted-foreground sm:w-auto sm:min-w-0 sm:flex-1">{t.sectionDesc}</p>
         <Button variant="outline" onClick={() => migrate.mutate()} disabled={migrate.isPending}>
           {migrate.isPending ? <Loader2 className="me-1.5 size-4 animate-spin" /> : <ArrowLeftRight className="me-1.5 size-4" />}
           {t.migrateCta}
@@ -429,7 +463,14 @@ export function CommandsEditor({ botId }: { botId: string }) {
             <Button
               disabled={create.isPending}
               onClick={() =>
-                create.mutate(draft, {
+                create.mutate(
+                  {
+                    ...draft,
+                    target: draft.target?.startsWith("url:")
+                      ? `url:${normalizeUrl(draft.target.slice(4))}`
+                      : draft.target,
+                  },
+                  {
                   onSuccess: () => {
                     toast({ title: t.commandCreated });
                     setCreateOpen(false);

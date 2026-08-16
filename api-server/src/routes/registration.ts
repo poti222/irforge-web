@@ -490,6 +490,17 @@ router.post("/auth/register/complete", async (req, res) => {
           telegramFirstName: row.telegramFirstName,
           telegramLastName: row.telegramLastName,
           telegramPhotoFileId: row.telegramPhotoFileId,
+          // ⚠️ فقط `file_id` کافی نیست. رابط کاربری از `telegramPhotoUrl` /
+          // `avatar` می‌خواند، نه از file_id — و مسیر ثبت‌نام با شماره این دو
+          // را ست نمی‌کرد، برای همین عکس پروفایل تلگرام هیچ‌وقت لود نمی‌شد
+          // (کاربر یک آواتار خالی می‌دید). این همان URL پروکسی است که مسیر
+          // «اتصال با ربات» هم می‌سازد (`routes/telegramWebhook.ts`).
+          ...(row.telegramPhotoFileId
+            ? {
+                telegramPhotoUrl: `/api/users/${userId}/telegram-photo`,
+                avatar: `/api/users/${userId}/telegram-photo`,
+              }
+            : {}),
         })
         .returning();
 

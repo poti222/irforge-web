@@ -25,6 +25,7 @@ import {
   commandsTable,
   installedPluginsTable,
   activityTable,
+  botManagersTable,
   marketplaceItemsTable,
   paymentsTable,
   sheetPoolTable,
@@ -32,7 +33,7 @@ import {
   walletsTable,
   walletTransactionsTable,
 } from "@workspace/db";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, or, exists, sql, desc, inArray } from "drizzle-orm";
 import { reserveDiscount, DiscountCodeError, type DiscountReservation } from "../lib/discountStore";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
@@ -516,10 +517,28 @@ router.get("/bots", requireAuth, async (req: any, res) => {
       .limit(1);
     await reconcileBotsFromRegistry(req.userId, user?.telegramId ?? null);
 
+    // بات‌های خودِ کاربر، به‌علاوه‌ی باتی که با کد ادمین به او واگذار شده
+    // (`bot_managers`) — وگرنه کاربر کد را وارد می‌کرد و هیچ‌جا باتی
+    // نمی‌دید.
     const bots = await db
       .select()
       .from(botsTable)
-      .where(eq(botsTable.userId, req.userId));
+      .where(
+        or(
+          eq(botsTable.userId, req.userId),
+          exists(
+            db
+              .select({ one: sql`1` })
+              .from(botManagersTable)
+              .where(
+                and(
+                  eq(botManagersTable.botId, botsTable.id),
+                  eq(botManagersTable.userId, req.userId),
+                ),
+              ),
+          ),
+        ),
+      );
     const withIdentity = await Promise.all(bots.map(backfillBotIdentityIfStale));
     const evaluated = await Promise.all(
       withIdentity.map((b) => (b.isTrial ? evaluateBotTrial(b) : b))
@@ -1318,6 +1337,130 @@ router.post("/bots/activate-admin-code", requireAuth, async (req: any, res) => {
     res.json({ success: true, bot: formatBot(updatedBot) });
   } catch (err) {
     logger.error({ err }, "Activate admin code error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/bots/claim — با کد ادمینِ یک بات، دسترسی مدیریتش را بگیر.
+ *
+ * این متفاوت از `activate-admin-code` بالاست: آن یکی کدِ **بات خودت** را
+ * مصرف می‌کند تا فعالش کند. این یکی واگذاری است — مالک کد را به کسی می‌دهد
+ * و او می‌تواند بات را از سایت مدیریت کند.
+ *
+ * قیدها (همه عمدی):
+ *  - دسترسی **ثبت** می‌شود (`bot_managers`)، پس مالک می‌بیند و می‌تواند ابطال
+ *    کند. یک کد لو‌رفته تا ابد معتبر نمی‌ماند.
+ *  - فقط باتی که پرداختش تأیید شده — کد یک بات نیمه‌ساخته چیزی باز نمی‌کند.
+ *  - مالک نمی‌تواند بات خودش را claim کند (بی‌معناست).
+ *  - این دسترسی هیچ عملیات مالکیتی نمی‌دهد: حذف بات، ساخت کد تازه و تغییر
+ *    مالکیت همچنان پشت `requireBotOwnership` هستند.
+ */
+router.post("/bots/claim", requireAuth, blockWhileImpersonating, async (req: any, res) => {
+  try {
+    const code = String(req.body?.adminCode ?? "").trim().toUpperCase();
+    if (!code) {
+      res.status(400).json({ error: "کد ادمین را وارد کنید.", code: "code_required" });
+      return;
+    }
+
+    const [bot] = await db
+      .select({ id: botsTable.id, name: botsTable.name, userId: botsTable.userId })
+      .from(botsTable)
+      .where(and(eq(botsTable.adminCode, code), eq(botsTable.paymentStatus, "approved")))
+      .limit(1);
+
+    // پیام یکسان برای «کد وجود ندارد» و «بات تأیید نشده»: وگرنه این اندپوینت
+    // به ابزار حدس‌زدن کد تبدیل می‌شود.
+    if (!bot) {
+      res.status(404).json({ error: "کد ادمین معتبر نیست.", code: "invalid_admin_code" });
+      return;
+    }
+
+    if (bot.userId === req.userId) {
+      res.status(409).json({
+        error: "این بات از قبل مال شماست؛ نیازی به وارد کردن کد نیست.",
+        code: "already_owner",
+      });
+      return;
+    }
+
+    await db
+      .insert(botManagersTable)
+      .values({ id: crypto.randomUUID(), botId: bot.id, userId: req.userId, grantedVia: "admin_code" })
+      // وارد کردن دوباره‌ی همان کد نباید خطا بدهد — همان دسترسی قبلی است.
+      .onConflictDoNothing();
+
+    logger.info({ userId: req.userId, botId: bot.id }, "bot management claimed with admin code");
+
+    // مالک باید بداند چه کسی به باتش دسترسی گرفت.
+    await createNotification({
+      userId: bot.userId,
+      botId: bot.id,
+      type: "bot_manager_added",
+      severity: "warning",
+      title: "دسترسی مدیریت به بات شما داده شد",
+      message: `یک کاربر با کد ادمینِ بات «${bot.name}» دسترسی مدیریت گرفت. اگر کار شما نبود، از تنظیمات بات کد را عوض کنید و دسترسی را لغو کنید.`,
+    });
+
+    res.status(201).json({ botId: bot.id, botName: bot.name });
+  } catch (err) {
+    logger.error({ err }, "Claim bot error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/** مدیرانی که مالک به آن‌ها دسترسی داده. فقط مالک می‌بیند. */
+router.get("/bots/:botId/managers", requireBotOwnership, async (req: any, res) => {
+  try {
+    const rows = await db
+      .select({
+        id: botManagersTable.id,
+        userId: botManagersTable.userId,
+        grantedAt: botManagersTable.grantedAt,
+        name: usersTable.name,
+        email: usersTable.email,
+      })
+      .from(botManagersTable)
+      .leftJoin(usersTable, eq(usersTable.id, botManagersTable.userId))
+      .where(eq(botManagersTable.botId, req.params.botId));
+
+    res.json({
+      managers: rows.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        name: r.name ?? null,
+        email: r.email ?? null,
+        grantedAt: r.grantedAt.toISOString(),
+      })),
+    });
+  } catch (err) {
+    logger.error({ err }, "List bot managers error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/** ابطال دسترسی. فقط مالک. */
+router.delete("/bots/:botId/managers/:managerId", requireBotOwnership, async (req: any, res) => {
+  try {
+    const removed = await db
+      .delete(botManagersTable)
+      .where(
+        and(
+          eq(botManagersTable.id, req.params.managerId),
+          eq(botManagersTable.botId, req.params.botId),
+        ),
+      )
+      .returning({ id: botManagersTable.id });
+
+    if (removed.length === 0) {
+      res.status(404).json({ error: "این دسترسی پیدا نشد." });
+      return;
+    }
+    logger.info({ botId: req.params.botId, managerId: req.params.managerId }, "bot manager revoked");
+    res.json({ revoked: req.params.managerId });
+  } catch (err) {
+    logger.error({ err }, "Revoke bot manager error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
