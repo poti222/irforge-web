@@ -995,7 +995,11 @@ router.post("/bots/wallet-purchase", requireAuth, blockWhileImpersonating, requi
             id: crypto.randomUUID(),
             botId: bot.id,
             marketplaceItemId: marketplaceItemIdFor(pluginId),
-            name: manifest?.name_fa || manifest?.name || pluginId,
+            // انگلیسی، همان چیزی که `marketplace_items.name` دارد. فارسی در
+            // `name_fa` است و انتخاب زبان کار UI است. اسم فارسی اینجا یعنی
+            // تطبیق اسمیِ `pluginIdOf` (fallback ردیف‌های قدیمی) هیچ‌وقت
+            // نمی‌گرفت.
+            name: manifest?.name || pluginId,
             version: manifest?.version || "1.0.0",
             enabled: true,
           });

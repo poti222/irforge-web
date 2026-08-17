@@ -76,15 +76,41 @@ export function useMoveLicence() {
   });
 }
 
-/** خرید/نصب یک پلاگین روی یک باتِ انتخاب‌شده، با پرداخت از کیف پول. */
+/**
+ * خرید/نصب یک پلاگین روی یک باتِ انتخاب‌شده، با پرداخت از کیف پول.
+ *
+ * بعد از خرید، پلاگین را روی همان بات هم **روشن** می‌کند. «خریده‌شده» و «روشن»
+ * دو چیز جدا هستند (اولی در Postgres سایت، دومی در `__plugin_states__` شیت
+ * تننت) و کسی که همین حالا پول داده انتظار ندارد پلاگینش خاموش باشد.
+ *
+ * این مرحله best-effort است و شکستش خرید را خراب نمی‌کند: بات مقصد ممکن است
+ * هنوز شیت نداشته باشد. در آن حالت سوییچِ همان کارت سر جایش است و کاربر خودش
+ * روشنش می‌کند.
+ */
 export function useBuyPluginForBot() {
   const invalidate = useInvalidateLicences();
   return useMutation({
-    mutationFn: ({ botId, marketplaceItemId }: { botId: string; marketplaceItemId: string }) =>
-      customFetch(`/api/bots/${botId}/plugins`, {
+    mutationFn: async ({ botId, marketplaceItemId, pluginId }: {
+      botId: string;
+      marketplaceItemId: string;
+      pluginId?: string;
+    }) => {
+      const bought = await customFetch(`/api/bots/${botId}/plugins`, {
         method: "POST",
         body: JSON.stringify({ marketplaceItemId, payFromWallet: true }),
-      }),
+      });
+      if (pluginId) {
+        try {
+          await customFetch(`/api/bots/${botId}/plugins/${pluginId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ enabled: true }),
+          });
+        } catch {
+          // شیت ندارد یا در دسترس نیست — خرید ثبت شده و سوییچ دستی باقی است.
+        }
+      }
+      return bought;
+    },
     onSuccess: invalidate,
   });
 }

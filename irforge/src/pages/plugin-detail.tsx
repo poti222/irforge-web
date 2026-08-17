@@ -242,7 +242,7 @@ export default function PluginDetail() {
                       disabled={!botId || buy.isPending}
                       onClick={() =>
                         buy.mutate(
-                          { botId, marketplaceItemId: plugin.marketplaceItemId },
+                          { botId, marketplaceItemId: plugin.marketplaceItemId, pluginId: plugin.id },
                           {
                             onSuccess: () => {
                               toast({ title: plugin.isFree ? t.installed : t.purchaseDone });
