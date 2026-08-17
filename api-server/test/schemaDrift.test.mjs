@@ -1,0 +1,110 @@
+/**
+ * test/schemaDrift.test.mjs — اسکیمای Drizzle و migrate.mjs باید یکی بمانند.
+ *
+ * چرا این تست وجود دارد
+ * ─────────────────────
+ * جدول `marketplace_items` در `migrate.mjs` با یک مجموعه‌ستون ساخته می‌شد و در
+ * `lib/db/src/schema/marketplace.ts` با یک مجموعه‌ی دیگر اعلام شده بود. شش ستونی
+ * که اسکیما اعلام می‌کرد (`is_free`, `author`, `install_count`, `tags`, `icon`,
+ * `featured`) هرگز در دیتابیس ساخته نشده بودند.
+ *
+ * هیچ‌کس متوجه نشد چون هیچ‌چیز روی آن جدول نمی‌نوشت. و چون Drizzle در SELECT هم
+ * نام همه‌ی ستون‌ها را صریح می‌آورد، `GET /marketplace/items` عملاً **خطا**
+ * می‌داد نه «لیست خالی». تنها چیزی که آشکارش کرد، اضافه‌شدن sync پلاگین‌ها بود —
+ * یعنی این drift می‌توانست ماه‌ها بی‌صدا بماند.
+ *
+ * این تست فایل‌محور است (نه دیتابیس‌محور) تا مثل بقیه‌ی تست‌های این پروژه بدون
+ * Postgres واقعی اجرا شود: ستون‌های اعلام‌شده در اسکیما را از سورس درمی‌آورد و
+ * چک می‌کند `migrate.mjs` تضمینشان کرده باشد.
+ *
+ * اجرا: pnpm --filter @workspace/api-server run test
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+
+const schemaDir = new URL("../../lib/db/src/schema/", import.meta.url);
+const migratePath = new URL("../../migrate.mjs", import.meta.url);
+const migrateSql = fs.readFileSync(migratePath, "utf8");
+
+/** ستون‌هایی که migrate.mjs برای یک جدول تضمین می‌کند (CREATE + ALTER). */
+function migratedColumns(table) {
+  const columns = new Set();
+
+  // بدنه‌ی CREATE TABLE
+  const created = migrateSql.match(
+    new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\s*\\(([^;]*)\\)\\s*;`, "i"),
+  );
+  if (created) {
+    for (const line of created[1].split("\n")) {
+      const match = line.match(/^\s*([a-z_]+)\s+(TEXT|REAL|INTEGER|BIGINT|BOOLEAN|TIMESTAMPTZ|JSONB|SERIAL)/i);
+      if (match) columns.add(match[1]);
+    }
+  }
+
+  // هر ALTER … ADD COLUMN روی همین جدول
+  const alterPattern = new RegExp(
+    `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ([a-z_]+)`, "gi",
+  );
+  for (const match of migrateSql.matchAll(alterPattern)) columns.add(match[1]);
+
+  return columns;
+}
+
+/** ستون‌هایی که یک جدولِ Drizzle اعلام می‌کند. */
+function schemaColumns(file, tableConst) {
+  const source = fs.readFileSync(new URL(file, schemaDir), "utf8");
+  const start = source.indexOf(`export const ${tableConst}`);
+  assert.ok(start >= 0, `${tableConst} در ${file} پیدا نشد`);
+
+  // تا اولین `export const` بعدی، یعنی فقط همین جدول.
+  const rest = source.slice(start + 10);
+  const end = rest.indexOf("export const");
+  const block = end >= 0 ? rest.slice(0, end) : rest;
+
+  // الگو: fieldName: type("column_name" …)
+  const columns = new Set();
+  for (const match of block.matchAll(/^\s+\w+:\s*\w+\(\s*"([a-z_]+)"/gm)) {
+    columns.add(match[1]);
+  }
+  return columns;
+}
+
+/**
+ * جدول‌هایی که این تست پوشش می‌دهد.
+ *
+ * عمداً محدود به جدول‌هایی است که کد این فاز رویشان می‌نویسد. بردن این تست روی
+ * *همه‌ی* جدول‌ها احتمالاً drift های قدیمیِ دیگری را هم بیرون می‌آورد — که خبر
+ * خوبی است، ولی دامنه‌ی این تغییر نیست و نباید سوییت را با چیزی که این فاز
+ * نشکسته قرمز کند.
+ */
+const COVERED = [
+  { file: "marketplace.ts", table: "marketplace_items", constName: "marketplaceItemsTable" },
+  { file: "marketplace.ts", table: "installed_plugins", constName: "installedPluginsTable" },
+];
+
+for (const { file, table, constName } of COVERED) {
+  test(`هر ستونِ ${constName} در migrate.mjs تضمین شده`, () => {
+    const declared = schemaColumns(file, constName);
+    const migrated = migratedColumns(table);
+
+    assert.ok(declared.size > 0, `هیچ ستونی از ${constName} استخراج نشد`);
+    assert.ok(migrated.size > 0, `جدول ${table} در migrate.mjs پیدا نشد`);
+
+    const missing = [...declared].filter((column) => !migrated.has(column));
+    assert.deepEqual(
+      missing, [],
+      `این ستون‌ها در اسکیما هستند ولی migrate.mjs نمی‌سازدشان: ${missing.join(", ")}. ` +
+      `یک INSERT/SELECT روی ${table} در پروداکشن خطا می‌دهد.`,
+    );
+  });
+}
+
+test("ستون‌هایی که این باگ را ساختند، مشخصاً پوشش داده شده‌اند", () => {
+  // نگهبانِ صریح برای همان شش ستون، تا اگر روزی حلقه‌ی بالا عوض/ساده شد،
+  // این مورد خاص بی‌محافظ نماند.
+  const migrated = migratedColumns("marketplace_items");
+  for (const column of ["is_free", "author", "install_count", "tags", "icon", "featured"]) {
+    assert.ok(migrated.has(column), `ستون ${column} باید در migrate.mjs باشد`);
+  }
+});
