@@ -1840,7 +1840,12 @@
     "free": "Free",
     "install": "Add",
     "installed": "Plugin added",
-    "catalogUnpublished": "This list comes from a built-in fallback: the bot has not published its plugin catalogue yet, so newer plugins may be missing. It fills in once the bot starts."
+    "catalogUnpublished": "This list comes from a built-in fallback: the bot has not published its plugin catalogue yet, so newer plugins may be missing. It fills in once the bot starts.",
+    "sectionAfterEnable": "Once you switch it on, you manage it in the “{section}” section.",
+    "sectionActiveNow": "Active — manage it in the “{section}” section.",
+    "addToCart": "Add to cart",
+    "addedToCart": "Added to cart",
+    "goToSection": "Open section"
   },
   "botAdvanced": {
     "loading": "Loading…",

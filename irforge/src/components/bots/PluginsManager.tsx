@@ -19,10 +19,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Blocks, Loader2, PlusCircle, Info } from "lucide-react";
+import { Blocks, Loader2, PlusCircle, Info, ArrowLeft, ArrowRight, ShoppingCart } from "lucide-react";
+import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { useT } from "@/hooks/use-translation";
+import { useT, type LocaleShape } from "@/hooks/use-translation";
+import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
+import { useCart } from "@/contexts/CartContext";
 
 type BotPlugin = {
   id: string;
@@ -37,6 +40,31 @@ type BotPlugin = {
   purchased: boolean;
   purchasedAt: string | null;
   marketplaceItemId: string | null;
+  price: number;
+  isFree: boolean;
+  /** سکشنی از workspace که این پلاگین بازش می‌کند (از مانیفست خودِ بات). */
+  webSection: string | null;
+};
+
+/**
+ * کلید سکشن (که از مانیفست بات می‌آید) → کلید ترجمه‌ی نامش در `botWorkspace`.
+ *
+ * سکشن‌های workspace اسم ترجمه‌شده دارند و مانیفست فقط یک کلید خام
+ * (`web_section`) می‌دهد. این نقشه همان دو را به هم می‌رساند تا کارت پلاگین
+ * بتواند بگوید «بعد از روشن‌کردن، در بخش «رزرو نوبت» پیدایش می‌کنی» به‌جای
+ * اینکه یک کلید انگلیسی خام نشان دهد.
+ */
+const SECTION_LABEL_KEYS: Record<string, keyof LocaleShape["botWorkspace"]> = {
+  tickets: "sectionTickets",
+  loyalty: "sectionLoyalty",
+  booking: "sectionBooking",
+  subscriptions: "sectionSubscriptions",
+  giveaways: "sectionGiveaways",
+  surveys: "sectionSurveys",
+  drip: "sectionDrip",
+  crm: "sectionCrm",
+  orders: "sectionOrders",
+  payments: "sectionPayments",
 };
 
 function errMessage(err: any, fallback: string): string {
@@ -48,8 +76,13 @@ function errCode(err: any): string | null {
 
 export function PluginsManager({ botId }: { botId: string }) {
   const t = useT("botPlugins");
+  const tw = useT("botWorkspace");
+  const { lang } = useLanguage();
+  const fa = lang === "fa";
+  const ArrowIcon = fa ? ArrowLeft : ArrowRight;
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { addPlugin } = useCart();
 
   const pluginsKey = ["bot-plugins", botId] as const;
   const { data, isLoading, error } = useQuery({
@@ -75,6 +108,25 @@ export function PluginsManager({ botId }: { botId: string }) {
     onError: (err: any) =>
       toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
   });
+
+  /** نام ترجمه‌شده‌ی سکشنی که این پلاگین بازش می‌کند (یا null). */
+  function sectionLabel(webSection: string | null): string | null {
+    if (!webSection) return null;
+    const key = SECTION_LABEL_KEYS[webSection];
+    return key ? (tw[key] as string) : null;
+  }
+
+  function buy(plugin: BotPlugin) {
+    if (!plugin.marketplaceItemId) return;
+    addPlugin({
+      marketplaceItemId: plugin.marketplaceItemId,
+      botId,
+      botName: "",
+      name: plugin.name_fa || plugin.name,
+      price: plugin.price,
+    });
+    toast({ title: t.addedToCart, description: plugin.name_fa || plugin.name });
+  }
 
   if (isLoading) {
     return (
@@ -113,20 +165,58 @@ export function PluginsManager({ botId }: { botId: string }) {
                 </CardTitle>
                 <CardDescription>{plugin.description}</CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-wrap items-center gap-2 text-xs">
-                <Badge variant="outline" dir="ltr">v{plugin.version}</Badge>
-                {plugin.purchased ? (
-                  <Badge variant="secondary">{t.purchased}</Badge>
-                ) : (
-                  <Badge variant="outline">{t.notPurchased}</Badge>
+              <CardContent className="space-y-3 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" dir="ltr">v{plugin.version}</Badge>
+                  <Badge variant={plugin.isFree ? "secondary" : "default"}>
+                    {plugin.isFree ? t.free : formatToman(plugin.price, lang)}
+                  </Badge>
+                  {plugin.purchased ? (
+                    <Badge variant="secondary">{t.purchased}</Badge>
+                  ) : (
+                    <Badge variant="outline">{t.notPurchased}</Badge>
+                  )}
+                </div>
+
+                {/* «این پلاگین کجا ظاهر می‌شود» — سؤالی که تا امروز هیچ‌جا
+                    جوابش نبود: کاربر پلاگین را می‌خرید و نمی‌دانست بعدش کجا
+                    را باید نگاه کند. */}
+                {sectionLabel(plugin.webSection) && (
+                  <p className="flex items-start gap-1.5 rounded-md bg-muted/60 px-2.5 py-2 text-muted-foreground">
+                    <Info className="mt-0.5 size-3.5 shrink-0" />
+                    <span>
+                      {plugin.enabled
+                        ? t.sectionActiveNow.replace("{section}", sectionLabel(plugin.webSection)!)
+                        : t.sectionAfterEnable.replace("{section}", sectionLabel(plugin.webSection)!)}
+                    </span>
+                  </p>
                 )}
+
                 {/* «تعیین‌نشده» با «غیرفعال» یکی نیست: بات در این حالت از
                     default_enabled مانیفست استفاده می‌کند. */}
                 {!plugin.explicit && (
-                  <span className="text-muted-foreground">
+                  <p className="text-muted-foreground">
                     {t.usingDefault.replace("{state}", plugin.default_enabled ? t.enabled : t.disabled)}
-                  </span>
+                  </p>
                 )}
+
+                <div className="flex flex-wrap gap-2">
+                  {/* پلاگینِ نخریده و غیررایگان: به سبد خرید. رایگان‌ها دکمه
+                      نمی‌خواهند — سوییچ بالا کافی است. */}
+                  {!plugin.purchased && !plugin.isFree && (
+                    <Button size="sm" variant="secondary" onClick={() => buy(plugin)}>
+                      <ShoppingCart className="size-3.5" /> {t.addToCart}
+                    </Button>
+                  )}
+                  {/* روشن و دارای سکشن: میان‌بر به همان‌جا. */}
+                  {plugin.enabled && plugin.webSection && SECTION_LABEL_KEYS[plugin.webSection] && (
+                    <Button size="sm" variant="ghost" asChild>
+                      <Link href={`/bots/${botId}?section=${plugin.webSection}`}>
+                        {t.goToSection} <ArrowIcon className="size-3.5" />
+                      </Link>
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}

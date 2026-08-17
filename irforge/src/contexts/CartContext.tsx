@@ -9,6 +9,21 @@ export type CartPlugin = {
   name: string;
   price: number;
 };
+/**
+ * مشخصات ساخت — همراه آیتم سبد می‌رود و در checkout به سرور فرستاده می‌شود.
+ *
+ * `price` روی آیتم فقط برای نمایش در سبد است. مبلغی که واقعاً از کیف پول کم
+ * می‌شود را سرور از همین spec دوباره حساب می‌کند
+ * (`api-server/src/lib/pluginPricing.ts:resolvePurchasePrice`)، چون یک قیمتِ
+ * فرستاده‌شده از کلاینت قابل دست‌کاری است.
+ */
+export type CartBuildSpec = {
+  tierId: string;
+  ramGb?: number;
+  cpuCores?: number;
+  pluginIds: string[];
+};
+
 export type CartBot = {
   key: string;
   kind: "bot";
@@ -22,6 +37,8 @@ export type CartBot = {
   /** Set when the bot was added via the /buy-bot tier flow (silver/gold/diamond/custom). */
   tierId?: string;
   tierName?: string;
+  /** Resources and plugins chosen in the builder; the server re-prices from this. */
+  buildSpec?: CartBuildSpec;
 };
 export type CartItem = CartPlugin | CartBot;
 

@@ -29,6 +29,8 @@ import { eq } from "drizzle-orm";
 import { requireAuth } from "./auth.js";
 import { logger } from "../lib/logger.js";
 import { getPluginCatalog } from "../lib/pluginCatalog.js";
+import { marketplaceItemIdFor, ensurePluginItemsSynced } from "../lib/marketplaceSync.js";
+import { pluginPrice } from "../lib/pluginPricing.js";
 import {
   resolveBotSheet,
   getEntity,
@@ -58,16 +60,32 @@ router.get("/bots/:botId/plugins", requireAuth, async (req: any, res) => {
       getPluginCatalog(),
     ]);
 
+    // تا آیتم‌های مارکت‌پلیس ساخته نشده باشند، دکمه‌ی خرید روی کارت پلاگین به
+    // یک آیتم ناموجود اشاره می‌کرد و ۴۰۴ می‌گرفت.
+    await ensurePluginItemsSynced();
+
     const purchased = await db
       .select()
       .from(installedPluginsTable)
       .where(eq(installedPluginsTable.botId, req.params.botId));
+
+    // پیوند خرید↔پلاگین از روی `marketplace_item_id` (که `plugin-<id>` است)
+    // برقرار می‌شود، نه از روی اسم. تطبیق اسمی — که قبلاً تنها راه بود — با
+    // اولین تغییرِ نمایشیِ نام یک پلاگین، خریدِ ثبت‌شده را بی‌صاحب می‌کرد.
+    const purchasedByItemId = new Map(purchased.map((p) => [p.marketplaceItemId, p]));
+    // …ولی ردیف‌های قدیمی که پیش از این تغییر ثبت شده‌اند item_id درستی ندارند،
+    // پس تطبیق اسمی به‌عنوان fallback می‌ماند تا خریدِ گذشته گم نشود.
     const purchasedByName = new Map(purchased.map((p) => [p.name.toLowerCase(), p]));
 
     const plugins = catalog.plugins.map((manifest) => {
       const explicit = manifest.id in states;
+      const itemId = marketplaceItemIdFor(manifest.id);
       const bought =
-        purchasedByName.get(manifest.id) ?? purchasedByName.get(manifest.name.toLowerCase()) ?? null;
+        purchasedByItemId.get(itemId) ??
+        purchasedByName.get(manifest.id) ??
+        purchasedByName.get(manifest.name.toLowerCase()) ??
+        null;
+      const price = pluginPrice(manifest.id);
       return {
         ...manifest,
         /** آنچه بات واقعاً می‌بیند. */
@@ -76,7 +94,15 @@ router.get("/bots/:botId/plugins", requireAuth, async (req: any, res) => {
         explicit,
         purchased: Boolean(bought),
         purchasedAt: bought ? bought.installedAt.toISOString() : null,
-        marketplaceItemId: bought?.marketplaceItemId ?? null,
+        /** همیشه پر است (نه فقط وقتی خریده شده) تا دکمه‌ی خرید بداند چه بخرد. */
+        marketplaceItemId: itemId,
+        price,
+        isFree: price <= 0,
+        /**
+         * سکشنی از workspace که این پلاگین بازش می‌کند — از خودِ مانیفست.
+         * کارت پلاگین با همین می‌گوید «بعد از روشن‌کردن، در بخش … پیدایش می‌کنی».
+         */
+        webSection: manifest.web_section ?? null,
       };
     });
 

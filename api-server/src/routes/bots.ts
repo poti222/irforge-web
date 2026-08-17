@@ -57,6 +57,10 @@ import { readTabRows } from "../lib/tenantSheets.js";
 import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
 import { createNotification, formatTomanFa } from "../lib/notify";
 import { botUserStats, type BotUserStats } from "../lib/botStats";
+// قیمت خرید از سرور حساب می‌شود، نه از بدنه‌ی درخواست — نگاه کن lib/pluginPricing.ts
+import { resolvePurchasePrice } from "../lib/pluginPricing.js";
+import { getPluginCatalog } from "../lib/pluginCatalog.js";
+import { marketplaceItemIdFor } from "../lib/marketplaceSync.js";
 
 const router = Router();
 
@@ -845,7 +849,7 @@ router.get("/payments/me", requireAuth, async (req: any, res) => {
 
 router.post("/bots/wallet-purchase", requireAuth, blockWhileImpersonating, requireCompleteProfile(), async (req: any, res) => {
   try {
-    const { name, token, description, amount, phone, telegramId, discountCode } = req.body;
+    const { name, token, description, phone, telegramId, discountCode } = req.body;
     if (!name || !token) {
       res.status(400).json({ error: "Name and token are required" });
       return;
@@ -865,14 +869,28 @@ router.post("/bots/wallet-purchase", requireAuth, blockWhileImpersonating, requi
       return;
     }
 
-    // Base price is still whatever the checkout flow sends (unchanged, pre-existing
-    // behaviour — out of Phase 11's scope). What Phase 11 changes is that a discount
-    // code is never trusted as a client-supplied final amount: it's re-validated and
-    // the payable figure is recomputed from `price` here. The code itself lives in
-    // Google Sheets (not Postgres), so it's reserved before the wallet transaction
-    // and only actually spent (usedCount incremented + audit row written) after that
-    // transaction commits — see the two-phase flow documented above applyDiscountCode.
-    const price = Number(amount) || 0;
+    // A discount code is never trusted as a client-supplied final amount: it's
+    // re-validated and the payable figure is recomputed from `price` here. The code
+    // itself lives in Google Sheets (not Postgres), so it's reserved before the
+    // wallet transaction and only actually spent (usedCount incremented + audit row
+    // written) after that transaction commits — see the two-phase flow documented
+    // above applyDiscountCode.
+    //
+    // The base price is no longer taken from the request either. `amount` used to be
+    // whatever checkout sent, which was tolerable for a fixed package but not once a
+    // custom build's price depends on RAM, CPU cores and a list of paid plugins —
+    // that made a full bot purchasable for zero. `resolvePurchasePrice` recomputes it
+    // from the build spec against the server's own price table; a request with no
+    // spec still falls back to `amount`, so pre-existing callers are unaffected.
+    const knownPluginIds = (await getPluginCatalog()).plugins.map((plugin) => plugin.id);
+    const resolved = resolvePurchasePrice(req.body ?? {}, knownPluginIds);
+    const price = resolved.total;
+    if (resolved.source !== "client-amount") {
+      logger.info(
+        { source: resolved.source, total: price, plugins: resolved.pluginIds },
+        "wallet-purchase: price computed server-side",
+      );
+    }
     let finalAmount = price;
     let discountAmount = 0;
     let appliedCodeId: string | null = null;
@@ -961,6 +979,34 @@ router.post("/bots/wallet-purchase", requireAuth, blockWhileImpersonating, requi
       id: crypto.randomUUID(), userId: req.userId, type: "bot_created",
       title: "Bot purchased", description: `Bot "${name}" purchased from wallet`, botName: name,
     });
+
+    // Plugins picked in the builder were already paid for inside `price` above, so
+    // they are recorded as installed here rather than charged again. Enabling them on
+    // the bot itself is deliberately NOT done here: that lives in `__plugin_states__`
+    // on the tenant sheet, the bot may not even have a sheet yet, and "bought" and
+    // "switched on" are two different things (see routes/botPlugins.ts). The plugins
+    // section shows them as purchased with the switch ready.
+    if (resolved.pluginIds.length > 0) {
+      try {
+        const catalog = await getPluginCatalog();
+        for (const pluginId of resolved.pluginIds) {
+          const manifest = catalog.plugins.find((plugin) => plugin.id === pluginId);
+          await db.insert(installedPluginsTable).values({
+            id: crypto.randomUUID(),
+            botId: bot.id,
+            marketplaceItemId: marketplaceItemIdFor(pluginId),
+            name: manifest?.name_fa || manifest?.name || pluginId,
+            version: manifest?.version || "1.0.0",
+            enabled: true,
+          });
+        }
+      } catch (err) {
+        // The money is already captured and the bot exists; failing the whole
+        // request now would be worse than a purchase record we can repair.
+        logger.error({ err, botId: bot.id, plugins: resolved.pluginIds },
+          "wallet-purchase: recording purchased plugins failed");
+      }
+    }
 
     if (user.telegramId) {
       await sendTelegramMessage(

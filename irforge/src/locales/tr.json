@@ -1840,7 +1840,12 @@
     "free": "Ücretsiz",
     "install": "Ekle",
     "installed": "Eklenti eklendi",
-    "catalogUnpublished": "Bu liste yerleşik bir yedekten geliyor: bot eklenti kataloğunu henüz yayınlamadı, bu yüzden yeni eklentiler eksik olabilir. Bot başlayınca tamamlanır."
+    "catalogUnpublished": "Bu liste yerleşik bir yedekten geliyor: bot eklenti kataloğunu henüz yayınlamadı, bu yüzden yeni eklentiler eksik olabilir. Bot başlayınca tamamlanır.",
+    "sectionAfterEnable": "Açtıktan sonra “{section}” bölümünden yönetirsin.",
+    "sectionActiveNow": "Etkin — “{section}” bölümünden yönet.",
+    "addToCart": "Sepete ekle",
+    "addedToCart": "Sepete eklendi",
+    "goToSection": "Bölüme git"
   },
   "botAdvanced": {
     "loading": "Yükleniyor…",

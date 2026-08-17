@@ -178,7 +178,11 @@ export default function Checkout() {
               name: item.name,
               token: item.token,
               description: item.description,
+              // `amount` مسیر قدیمی است و برای آیتم‌هایی می‌ماند که spec ندارند.
+              // وقتی `buildSpec` هست، سرور مبلغ را خودش از آن حساب می‌کند و به
+              // این عدد اعتنا نمی‌کند — نگاه کن lib/pluginPricing.ts.
               amount: item.price,
+              buildSpec: item.buildSpec ?? null,
               phone: item.phone,
               telegramId: item.telegramId,
               discountCode: discountCodeToSend,

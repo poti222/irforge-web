@@ -9,6 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import {
   Check, ArrowLeft, ArrowRight, ShoppingCart, Settings2, Lock, Cpu, MemoryStick,
+  Blocks, Loader2,
 } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +22,7 @@ import {
   CUSTOM_MAX_RAM_GB,
   CUSTOM_MAX_CPU_CORES,
 } from "@/lib/bot-tiers";
+import { usePluginPricing, quoteCustom } from "@/hooks/use-plugin-pricing";
 
 export default function BuyBotDetail() {
   const { lang } = useLanguage();
@@ -44,6 +46,18 @@ export default function BuyBotDetail() {
   const [customRam, setCustomRam] = useState(2);
   const [customCpu, setCustomCpu] = useState(2);
 
+  // پلاگین‌های انتخابی — هم روی پکیج سفارشی و هم روی پکیج آماده.
+  const [selectedPlugins, setSelectedPlugins] = useState<Set<string>>(new Set());
+
+  const { data: pricing, isLoading: pricingLoading } = usePluginPricing();
+  const availablePlugins = pricing?.plugins ?? [];
+  const chosenPlugins = availablePlugins.filter((plugin) => selectedPlugins.has(plugin.id));
+  const pluginsTotal = chosenPlugins.reduce((sum, plugin) => sum + plugin.price, 0);
+
+  // سفارشی: پایه + منابع + پلاگین‌ها. آماده: قیمت ثابت پکیج + پلاگین‌ها.
+  const customQuote = quoteCustom(pricing?.customBuild, customRam, customCpu, chosenPlugins);
+  const packagePrice = isCustom ? customQuote.total : (tier?.price ?? 0) + pluginsTotal;
+
   const BackArrow = fa ? ArrowRight : ArrowLeft;
   const NextArrow = fa ? ArrowLeft : ArrowRight;
 
@@ -56,6 +70,14 @@ export default function BuyBotDetail() {
         </Button>
       </div>
     );
+  }
+
+  function togglePlugin(id: string) {
+    setSelectedPlugins((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   }
 
   function toggleModule(id: string) {
@@ -73,9 +95,17 @@ export default function BuyBotDetail() {
       description: "",
       phone: "",
       telegramId: "",
-      price: isCustom ? 0 : (tier?.price ?? 0),
+      // این عدد فقط برای نمایش در سبد است؛ مبلغی که واقعاً کم می‌شود را سرور
+      // از همین `buildSpec` دوباره حساب می‌کند (lib/pluginPricing.ts).
+      price: packagePrice,
       tierId: isCustom ? "custom" : tier?.id,
       tierName: isCustom ? (fa ? "سفارشی" : "Custom") : (fa ? tier?.name.fa : tier?.name.en),
+      buildSpec: {
+        tierId: isCustom ? "custom" : (tier?.id ?? ""),
+        ramGb: isCustom ? customRam : undefined,
+        cpuCores: isCustom ? customCpu : undefined,
+        pluginIds: [...selectedPlugins],
+      },
     });
     toast({
       title: fa ? "به سبد خرید اضافه شد" : "Added to cart",
@@ -212,13 +242,66 @@ export default function BuyBotDetail() {
                     </label>
                   ))}
                 </div>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  {fa
-                    ? "قیمت‌گذاری پکیج سفارشی به‌زودی اضافه می‌شود؛ فعلاً می‌توانی درخواستت را با تیم پشتیبانی هماهنگ کنی."
-                    : "Custom pricing is coming soon; for now, coordinate your request with support."}
-                </p>
               </div>
             )}
+
+            {/* ── پلاگین‌ها ────────────────────────────────────────────────
+                روی هر دو حالت (سفارشی و پکیج آماده) نشان داده می‌شود: پلاگین
+                یک افزودنی است، نه چیزی که فقط سفارشی‌ها بتوانند بگیرند. */}
+            <Separator />
+            <div>
+              <p className="mb-1 flex items-center gap-2 text-sm font-medium">
+                <Blocks className="size-4 text-primary" />
+                {fa ? "پلاگین‌ها" : "Plugins"}
+              </p>
+              <p className="mb-3 text-xs text-muted-foreground">
+                {fa
+                  ? "هر پلاگینی که انتخاب کنی به قیمت اضافه می‌شود و روی همین بات نصب می‌شود. بعداً هم می‌توانی از بخش پلاگین‌های همان بات اضافه کنی."
+                  : "Each plugin you pick is added to the price and installed on this bot. You can also add them later from the bot's Plugins section."}
+              </p>
+
+              {pricingLoading ? (
+                <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" />
+                  {fa ? "در حال بارگذاری پلاگین‌ها…" : "Loading plugins…"}
+                </div>
+              ) : availablePlugins.length === 0 ? (
+                <p className="rounded-md border border-dashed p-4 text-xs text-muted-foreground">
+                  {fa
+                    ? "فهرست پلاگین‌ها در دسترس نیست. می‌توانی بات را بخری و پلاگین‌ها را بعداً اضافه کنی."
+                    : "The plugin list isn't available. You can buy the bot and add plugins later."}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {availablePlugins.map((plugin) => {
+                    const checked = selectedPlugins.has(plugin.id);
+                    return (
+                      <label
+                        key={plugin.id}
+                        className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm transition-colors ${checked ? "border-primary bg-primary/5" : "hover:border-primary"}`}
+                      >
+                        <Checkbox
+                          className="mt-0.5"
+                          checked={checked}
+                          onCheckedChange={() => togglePlugin(plugin.id)}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="font-medium">{plugin.name}</span>
+                          {plugin.description && (
+                            <span className="mt-0.5 block text-xs text-muted-foreground">
+                              {plugin.description}
+                            </span>
+                          )}
+                        </span>
+                        <Badge variant={plugin.price > 0 ? "secondary" : "outline"} className="shrink-0">
+                          {plugin.price > 0 ? formatToman(plugin.price, lang) : (fa ? "رایگان" : "Free")}
+                        </Badge>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -238,9 +321,68 @@ export default function BuyBotDetail() {
 
             <Separator />
 
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{fa ? "قیمت پکیج" : "Package price"}</span>
-              <span className="font-semibold">{isCustom ? (fa ? "بعداً مشخص می‌شود" : "TBD") : formatToman(tier!.price, lang)}</span>
+            {/* صورت‌حساب زنده — با هر تیک و هر حرکت اسلایدر عوض می‌شود. */}
+            <div className="space-y-2 text-sm">
+              {isCustom ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{fa ? "پایه" : "Base"}</span>
+                    <span>{formatToman(customQuote.base, lang)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {fa ? "منابع" : "Resources"}
+                      <span className="ms-1 text-xs" dir="ltr">
+                        ({customRam}GB / {customCpu} {fa ? "هسته" : "cores"})
+                      </span>
+                    </span>
+                    <span>
+                      {customQuote.resources > 0
+                        ? formatToman(customQuote.resources, lang)
+                        : (fa ? "در قیمت پایه" : "Included")}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">{fa ? "قیمت پکیج" : "Package price"}</span>
+                  <span>{formatToman(tier!.price, lang)}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">
+                  {fa ? "پلاگین‌ها" : "Plugins"}
+                  {chosenPlugins.length > 0 && (
+                    <span className="ms-1 text-xs">({chosenPlugins.length})</span>
+                  )}
+                </span>
+                <span>
+                  {pluginsTotal > 0
+                    ? formatToman(pluginsTotal, lang)
+                    : (fa ? "انتخاب نشده" : "None selected")}
+                </span>
+              </div>
+
+              {/* فهرست ریز پلاگین‌های انتخابی، تا کاربر ببیند پول برای چه می‌دهد. */}
+              {chosenPlugins.length > 0 && (
+                <ul className="space-y-1 border-s ps-3 text-xs text-muted-foreground">
+                  {chosenPlugins.map((plugin) => (
+                    <li key={plugin.id} className="flex items-center justify-between gap-2">
+                      <span className="truncate">{plugin.name}</span>
+                      <span className="shrink-0">
+                        {plugin.price > 0 ? formatToman(plugin.price, lang) : (fa ? "رایگان" : "Free")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <Separator />
+              <div className="flex items-baseline justify-between">
+                <span className="font-medium">{fa ? "مجموع" : "Total"}</span>
+                <span className="text-xl font-extrabold">{formatToman(packagePrice, lang)}</span>
+              </div>
             </div>
 
             <GlowButton className="w-full" wrapperClassName="w-full" onClick={handleAddToCart}>

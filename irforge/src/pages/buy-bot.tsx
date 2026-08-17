@@ -31,6 +31,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { formatToman } from "@/lib/format";
 import { BOT_TIERS, CUSTOM_MAX_RAM_GB } from "@/lib/bot-tiers";
 import { TrialDialog } from "@/components/bots/TrialDialog";
+import { usePluginPricing } from "@/hooks/use-plugin-pricing";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 
 /**
@@ -53,6 +54,9 @@ export default function BuyBot() {
   const [trialOpen, setTrialOpen] = useState(false);
   const hasUsedTrial = Boolean(user?.hasUsedTrial);
 
+  // قیمت پایه‌ی بات سفارشی از سرور می‌آید (همان جدولی که موقع پرداخت هم
+  // استفاده می‌شود)، پس کارت زیر عدد واقعی نشان می‌دهد نه یک وعده.
+  const { data: pricing } = usePluginPricing();
   const { data: plans, isLoading: plansLoading } = useListPlans();
   const { data: currentPlan } = useGetCurrentPlan();
   const subscribe = useSubscribeToPlan();
@@ -181,11 +185,26 @@ export default function BuyBot() {
               {fa ? "امکانات بات را خودت انتخاب کن" : "Choose your bot's features yourself"}
             </p>
           </CardHeader>
+          {pricing?.customBuild && (
+            <div className="px-6 pb-1">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xs text-muted-foreground">{fa ? "از" : "from"}</span>
+                <span className="text-2xl font-extrabold">
+                  {formatToman(pricing.customBuild.basePrice, lang)}
+                </span>
+              </div>
+            </div>
+          )}
           <CardContent className="flex-1 space-y-2">
             <p className="text-sm text-muted-foreground">
               {fa
                 ? "بعضی بخش‌ها همیشه فعال‌اند (اجباری) و بقیه را خودت روشن/خاموش می‌کنی."
                 : "Some parts are always on (required); you toggle the rest."}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {fa
+                ? "قیمت با رم، پردازنده و پلاگین‌هایی که انتخاب می‌کنی حساب می‌شود."
+                : "The price is calculated from the RAM, CPU and plugins you pick."}
             </p>
             <p className="text-sm text-muted-foreground">
               {t.customResourcesHint.replace("8", String(CUSTOM_MAX_RAM_GB))}
