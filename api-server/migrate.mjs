@@ -221,8 +221,10 @@ ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS version TEXT NOT NULL DEF
 --
 -- Nothing surfaced it because nothing ever wrote to this table — the marketplace
 -- was empty, so no INSERT ever failed. And Drizzle names every column explicitly
--- in its SELECT too, which means `GET /marketplace/items` was erroring rather
+-- in its SELECT too, which means GET /marketplace/items was erroring rather
 -- than returning an empty list. Adding the plugin sync is what finally exposed it.
+--
+-- NOTE: this whole SQL block is a JS template literal, so no backticks below.
 --
 -- Additive only: the three legacy columns stay (dropping them would break any
 -- reader still expecting them, and they cost nothing).
@@ -233,7 +235,7 @@ ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFA
 ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT FALSE;
 
--- `downloads` was the old name for `install_count`. Copy it across once, only
+-- "downloads" was the old name for "install_count". Copy it across once, only
 -- where the new column is still at its default, so a real install count isn't
 -- lost and re-running this never overwrites a newer value. Guarded because the
 -- legacy column is absent on databases created after the schema changed.

@@ -29,6 +29,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 
 const schemaDir = new URL("../../lib/db/src/schema/", import.meta.url);
 
@@ -120,6 +121,36 @@ for (const { file, table, constName } of COVERED) {
     );
   });
 }
+
+test("فایل مایگریشن از نظر جاوااسکریپت معتبر است", () => {
+  /**
+   * این تست به این دلیل وجود دارد که تست‌های بالا فایل را فقط **متن** می‌بینند
+   * و هرگز اجرا/parse نمی‌کنند — پس یک فایلِ نحواً خراب هم از نظرشان سبز بود.
+   *
+   * و همین اتفاق افتاد: کل SQL داخل یک template literal جاوااسکریپت است
+   * (`const SQL = \`…\``)، و یک backtick در کامنتِ SQL رشته را وسط راه
+   * می‌بندد. دیپلوی با `SyntaxError: Unexpected identifier 'GET'` رد شد، در
+   * حالی که همه‌ی تست‌ها پاس بودند.
+   *
+   * `node --check` همان کاری است که موقع استارت اتفاق می‌افتد، پس ارزان‌ترین و
+   * قطعی‌ترین محافظ است.
+   */
+  execFileSync(process.execPath, ["--check", migratePath.pathname], { stdio: "pipe" });
+});
+
+test("کامنت‌های SQL داخل template literal، backtick ندارند", () => {
+  // پیام خطای واضح‌تر از خروجی خام node --check، تا اگر کسی دوباره backtick
+  // گذاشت بداند چرا.
+  const sqlBlock = migrateSql.slice(
+    migrateSql.indexOf("const SQL = "),
+    migrateSql.indexOf("\n`;"),
+  );
+  const body = sqlBlock.slice(sqlBlock.indexOf("\n"));
+  assert.ok(
+    !body.includes("`"),
+    "یک backtick داخل بلوک SQL هست و template literal را می‌بندد — از \" یا ' استفاده کنید",
+  );
+});
 
 test("مسیر مایگریشنِ تست، همانی است که start.sh اجرا می‌کند", () => {
   // نگهبانِ همان اشتباه: اصلاح به فایل ریشه رفت و تست سبز بود، در حالی که
