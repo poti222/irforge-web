@@ -316,7 +316,14 @@
     "openInTelegram": "Open in Telegram",
     "qrHint": "Scan this code to open the bot",
     "noTelegramIdentity": "This bot's Telegram identity isn't available yet — check back after it finishes syncing.",
-    "languageSectionNotice": "Bot language settings will move here soon."
+    "languageSectionNotice": "Bot language settings will move here soon.",
+    "sectionLoyalty": "Loyalty club",
+    "sectionBooking": "Booking",
+    "sectionSubscriptions": "Subscriptions",
+    "sectionGiveaways": "Giveaways",
+    "sectionSurveys": "Surveys",
+    "sectionDrip": "Drip messages",
+    "sectionCrm": "CRM"
   },
   "marketplace": {
     "walletBalance": "Wallet balance"
@@ -1832,7 +1839,8 @@
     "marketplaceDesc": "Buy or add plugins to your account.",
     "free": "Free",
     "install": "Add",
-    "installed": "Plugin added"
+    "installed": "Plugin added",
+    "catalogUnpublished": "This list comes from a built-in fallback: the bot has not published its plugin catalogue yet, so newer plugins may be missing. It fills in once the bot starts."
   },
   "botAdvanced": {
     "loading": "Loading…",
@@ -2019,5 +2027,26 @@
     "infraCacheSlow": "Changes reach the bot within about a minute",
     "infraQueueOn": "broadcast queue connected",
     "infraQueueOff": "broadcast queue not configured"
+  },
+  "botPluginData": {
+    "loading": "Loading…",
+    "errorGeneric": "Something went wrong. Please try again.",
+    "empty": "Nothing here yet. Use “Add” to create the first record.",
+    "emptyReadOnly": "No records yet. The bot fills this in as it runs.",
+    "pluginOff": "This plugin is not enabled on this bot. Turn it on from the “Plugins” section.",
+    "readOnly": "Read only",
+    "actions": "Actions",
+    "add": "Add",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "addTitle": "New record",
+    "editTitle": "Edit record",
+    "deleteTitle": "Delete this record?",
+    "deleteWarning": "This cannot be undone. The bot will stop using this record immediately.",
+    "saved": "Saved.",
+    "created": "Created.",
+    "deleted": "Deleted."
   }
 }

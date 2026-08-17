@@ -316,7 +316,14 @@
     "openInTelegram": "Telegram'da aç",
     "qrHint": "Botu açmak için bu kodu tarayın",
     "noTelegramIdentity": "Bu botun Telegram kimliği henüz hazır değil — birazdan tekrar kontrol edin.",
-    "languageSectionNotice": "Bot dili ayarları yakında buraya taşınacak."
+    "languageSectionNotice": "Bot dili ayarları yakında buraya taşınacak.",
+    "sectionLoyalty": "Sadakat kulübü",
+    "sectionBooking": "Randevu",
+    "sectionSubscriptions": "Abonelikler",
+    "sectionGiveaways": "Çekilişler",
+    "sectionSurveys": "Anketler",
+    "sectionDrip": "Zamanlı mesajlar",
+    "sectionCrm": "CRM"
   },
   "marketplace": {
     "walletBalance": "Cüzdan bakiyesi"
@@ -1832,7 +1839,8 @@
     "marketplaceDesc": "Hesabınıza eklenti satın alın veya ekleyin.",
     "free": "Ücretsiz",
     "install": "Ekle",
-    "installed": "Eklenti eklendi"
+    "installed": "Eklenti eklendi",
+    "catalogUnpublished": "Bu liste yerleşik bir yedekten geliyor: bot eklenti kataloğunu henüz yayınlamadı, bu yüzden yeni eklentiler eksik olabilir. Bot başlayınca tamamlanır."
   },
   "botAdvanced": {
     "loading": "Yükleniyor…",
@@ -2019,5 +2027,26 @@
     "infraCacheSlow": "Değişiklikler yaklaşık bir dakikada bota ulaşır",
     "infraQueueOn": "toplu mesaj kuyruğu bağlı",
     "infraQueueOff": "toplu mesaj kuyruğu yapılandırılmamış"
+  },
+  "botPluginData": {
+    "loading": "Yükleniyor…",
+    "errorGeneric": "Bir hata oluştu. Lütfen tekrar deneyin.",
+    "empty": "Henüz bir şey yok. İlk kaydı oluşturmak için “Ekle”yi kullanın.",
+    "emptyReadOnly": "Henüz kayıt yok. Bot çalışırken burayı doldurur.",
+    "pluginOff": "Bu eklenti bu botta etkin değil. “Eklentiler” bölümünden açın.",
+    "readOnly": "Salt okunur",
+    "actions": "İşlemler",
+    "add": "Ekle",
+    "edit": "Düzenle",
+    "delete": "Sil",
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "addTitle": "Yeni kayıt",
+    "editTitle": "Kaydı düzenle",
+    "deleteTitle": "Bu kayıt silinsin mi?",
+    "deleteWarning": "Bu geri alınamaz. Bot bu kaydı hemen kullanmayı bırakır.",
+    "saved": "Kaydedildi.",
+    "created": "Oluşturuldu.",
+    "deleted": "Silindi."
   }
 }

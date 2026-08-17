@@ -41,6 +41,9 @@ import botUsersRouter from "./botUsers.js";
 import botBroadcastRouter from "./botBroadcast.js";
 import botOrdersRouter from "./botOrders.js";
 import botPluginsRouter from "./botPlugins.js";
+// داده‌ی پلاگین‌های تازه (باشگاه، رزرو، اشتراک، قرعه‌کشی، نظرسنجی، دریپ، CRM)
+// روی یک لایه‌ی CRUD عمومی — نگاه کن lib/pluginCollections.ts
+import botPluginDataRouter from "./botPluginData.js";
 import botObjectsRouter from "./botObjects.js";
 import botRelationsRouter from "./botRelations.js";
 import botWorkflowsRouter from "./botWorkflows.js";
@@ -88,6 +91,7 @@ router.use(botUsersRouter);
 router.use(botBroadcastRouter);
 router.use(botOrdersRouter);
 router.use(botPluginsRouter);
+router.use(botPluginDataRouter);
 router.use(botObjectsRouter);
 router.use(botRelationsRouter);
 router.use(botWorkflowsRouter);

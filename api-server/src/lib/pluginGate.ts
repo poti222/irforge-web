@@ -2,7 +2,8 @@
  * lib/pluginGate.ts — «این قابلیت پشت کدام پلاگین است؟»
  * ─────────────────────────────────────────────────────────────────────────────
  * بعضی سکشن‌های workspace فقط وقتی معنی دارند که پلاگین مربوطه‌شان روی آن بات
- * فعال باشد — سفارش‌ها و پرداخت‌ها پشت پلاگین **کیف پول**اند. تا امروز هیچ
+ * فعال باشد — سفارش‌ها و پرداخت‌ها پشت پلاگین **کیف پول**اند، تیکت‌ها پشت
+ * پلاگین **تیکت**، نوبت‌ها پشت **رزرو نوبت** و همین‌طور بقیه. تا امروز هیچ
  * گیتی وجود نداشت: سکشن سفارش‌ها برای هر باتی نشان داده می‌شد، حتی باتی که
  * اصلاً فروش ندارد، و یک تب همیشه‌خالی به کاربر نشان می‌داد.
  *
@@ -14,38 +15,18 @@
  *
  * **گیت سمت سرور، نه فقط UI.** پنهان‌کردن یک تب هیچ چیزی را محافظت نمی‌کند؛
  * روت‌ها مستقیم قابل صدا زدن‌اند.
+ *
+ * پیش‌فرضِ «وضعیت ثبت‌نشده» و نام نمایشی هر پلاگین دیگر اینجا کپی نمی‌شوند —
+ * از کاتالوگ منتشرشده‌ی خودِ بات می‌آیند (`lib/pluginCatalog.ts`). قبلاً دو
+ * نقشه‌ی دستی (`DEFAULT_ENABLED` و `PLUGIN_LABEL`) اینجا بودند که با هر
+ * پلاگین جدید باید دستی به‌روز می‌شدند و نمی‌شدند.
  */
 import { getEntity, BotConfigError } from "./botConfig.js";
+import { getPluginManifest } from "./pluginCatalog.js";
 import { logger } from "./logger.js";
 
 const SETTINGS_TAB = "bot_settings";
 const PLUGIN_STATES_KEY = "__plugin_states__";
-
-/**
- * پیش‌فرضِ هر پلاگین وقتی هیچ وضعیت صریحی ثبت نشده.
- *
- * آینه‌ی `default_enabled` مانیفست‌ها (همان لیستی که در `routes/botPlugins.ts`
- * نگهداری می‌شود). «ثبت‌نشده» با «خاموش» یکی نیست — بات هم همین‌طور رفتار
- * می‌کند — ولی امروز پیش‌فرض همه‌شان `false` است.
- */
-const DEFAULT_ENABLED: Record<string, boolean> = {
-  catalog: false,
-  discount: false,
-  referral: false,
-  wallet: false,
-  // هنوز در بات ساخته نشده. تا وقتی در `__plugin_states__` ظاهر نشود،
-  // سکشن تیکت‌ها پنهان می‌ماند.
-  ticket: false,
-};
-
-/** نام قابل نمایش، برای پیام خطا. */
-const PLUGIN_LABEL: Record<string, string> = {
-  catalog: "فروشگاه / کاتالوگ",
-  discount: "کد تخفیف",
-  referral: "سیستم رفرال",
-  wallet: "کیف پول",
-  ticket: "تیکت",
-};
 
 /**
  * آیا این پلاگین روی این بات فعال است؟
@@ -53,9 +34,19 @@ const PLUGIN_LABEL: Record<string, string> = {
  * **هرگز throw نمی‌کند.** اگر شیت خوانده نشد، پیش‌فرض مانیفست برمی‌گردد؛ یک
  * خطای موقتی گوگل‌شیت نباید به‌شکل «پلاگین شما خاموش است» به کاربر نشان داده
  * شود.
+ *
+ * ⚠️ «ثبت‌نشده» با «خاموش» یکی نیست: اگر یک plugin_id در `__plugin_states__`
+ * نباشد، بات از `default_enabled` مانیفست استفاده می‌کند
+ * (`utils/plugin_manager.py:is_enabled`)، نه از `false`. همین‌جا هم همان.
  */
 export async function isPluginEnabled(spreadsheetId: string, pluginId: string): Promise<boolean> {
-  const fallback = DEFAULT_ENABLED[pluginId] ?? false;
+  let fallback = false;
+  try {
+    fallback = (await getPluginManifest(pluginId))?.default_enabled ?? false;
+  } catch (err) {
+    logger.debug({ err, pluginId }, "pluginGate: خواندن کاتالوگ شکست خورد؛ پیش‌فرض false");
+  }
+
   try {
     const raw = await getEntity<Record<string, unknown>>(spreadsheetId, SETTINGS_TAB, PLUGIN_STATES_KEY);
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return fallback;
@@ -75,9 +66,18 @@ export async function isPluginEnabled(spreadsheetId: string, pluginId: string): 
  */
 export async function requirePluginEnabled(spreadsheetId: string, pluginId: string): Promise<void> {
   if (await isPluginEnabled(spreadsheetId, pluginId)) return;
+
+  let label = pluginId;
+  try {
+    const manifest = await getPluginManifest(pluginId);
+    label = manifest?.name_fa || manifest?.name || pluginId;
+  } catch {
+    // نام نمایشی نداریم — با id پیام می‌دهیم، بهتر از throw کردن روی مسیر خطا.
+  }
+
   throw new BotConfigError(
     403,
-    `این بخش به پلاگین «${PLUGIN_LABEL[pluginId] ?? pluginId}» نیاز دارد که روی این بات فعال نیست. از سکشن «پلاگین‌ها» روشنش کنید.`,
+    `این بخش به پلاگین «${label}» نیاز دارد که روی این بات فعال نیست. از سکشن «پلاگین‌ها» روشنش کنید.`,
     "plugin_disabled",
   );
 }

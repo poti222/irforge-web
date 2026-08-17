@@ -16,12 +16,19 @@
  * ⚠️ `is_enabled` بات: اگر یک plugin_id در `__plugin_states__` نباشد، از
  * `default_enabled` مانیفست استفاده می‌کند (خط ۱۵۸) — نه `false`. پس «وضعیت
  * تعیین‌نشده» با «غیرفعال» یکی نیست و کاتالوگ زیر همین را منعکس می‌کند.
+ *
+ * **کاتالوگ دیگر اینجا دستی نگه داشته نمی‌شود.** قبلاً یک آرایه‌ی
+ * `PLUGIN_CATALOG` در همین فایل بود، با این کامنت: «سایت نمی‌تواند پایتون را
+ * import کند، پس این لیست دستی نگه داشته می‌شود؛ هر پلاگین جدید در بات باید
+ * اینجا هم اضافه شود.» و طبیعتاً نمی‌شد. حالا از `lib/pluginCatalog.ts` می‌آید
+ * که کاتالوگ منتشرشده‌ی خودِ بات را می‌خواند.
  */
 import { Router } from "express";
 import { db, installedPluginsTable, botsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "./auth.js";
 import { logger } from "../lib/logger.js";
+import { getPluginCatalog } from "../lib/pluginCatalog.js";
 import {
   resolveBotSheet,
   getEntity,
@@ -35,51 +42,6 @@ const router = Router();
 const SETTINGS_TAB = "bot_settings";
 const PLUGIN_STATES_KEY = "__plugin_states__";
 
-/**
- * کاتالوگ پلاگین‌های هسته — آینه‌ی `PLUGIN_MANIFEST` داخل فایل `plugin.py` هر
- * پوشه‌ی `mainbot/plugins/…`. سایت نمی‌تواند پایتون را import کند، پس این
- * لیست دستی نگه داشته می‌شود؛ هر پلاگین جدید در بات باید اینجا هم اضافه شود.
- * `default_enabled` مو‌به‌مو از همان مانیفست‌ها آمده.
- */
-const PLUGIN_CATALOG = [
-  {
-    id: "catalog",
-    name: "Catalog",
-    name_fa: "فروشگاه / کاتالوگ",
-    description: "فروش محصول یا خدمت با دسته‌بندی، قیمت‌گذاری، گزینه‌ها و فرایند خرید کامل.",
-    version: "0.6.0",
-    default_enabled: false,
-    required_sheets: ["catalog_categories", "catalog_items", "catalog_item_options", "catalog_fulfillments"],
-  },
-  {
-    id: "discount",
-    name: "Discount",
-    name_fa: "کد تخفیف",
-    description: "کدهای تخفیف و کوپن برای سفارش‌ها.",
-    version: "1.0.0",
-    default_enabled: false,
-    required_sheets: ["discounts"],
-  },
-  {
-    id: "referral",
-    name: "Referral",
-    name_fa: "سیستم رفرال",
-    description: "لینک دعوت با ردیابی و پاداش.",
-    version: "1.0.0",
-    default_enabled: false,
-    required_sheets: ["referrals"],
-  },
-  {
-    id: "wallet",
-    name: "Wallet",
-    name_fa: "کیف پول",
-    description: "کیف پول هر کاربر با تاریخچه‌ی تراکنش، شارژ/برداشت دستی و اتصال به سفارش‌ها.",
-    version: "1.3.0",
-    default_enabled: false,
-    required_sheets: ["wallets"],
-  },
-] as const;
-
 async function readStates(spreadsheetId: string): Promise<Record<string, boolean>> {
   const raw = await getEntity<Record<string, unknown>>(spreadsheetId, SETTINGS_TAB, PLUGIN_STATES_KEY);
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -91,7 +53,10 @@ async function readStates(spreadsheetId: string): Promise<Record<string, boolean
 router.get("/bots/:botId/plugins", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    const states = await readStates(spreadsheetId);
+    const [states, catalog] = await Promise.all([
+      readStates(spreadsheetId),
+      getPluginCatalog(),
+    ]);
 
     const purchased = await db
       .select()
@@ -99,7 +64,7 @@ router.get("/bots/:botId/plugins", requireAuth, async (req: any, res) => {
       .where(eq(installedPluginsTable.botId, req.params.botId));
     const purchasedByName = new Map(purchased.map((p) => [p.name.toLowerCase(), p]));
 
-    const plugins = PLUGIN_CATALOG.map((manifest) => {
+    const plugins = catalog.plugins.map((manifest) => {
       const explicit = manifest.id in states;
       const bought =
         purchasedByName.get(manifest.id) ?? purchasedByName.get(manifest.name.toLowerCase()) ?? null;
@@ -116,11 +81,21 @@ router.get("/bots/:botId/plugins", requireAuth, async (req: any, res) => {
     });
 
     // کلیدهایی که در `__plugin_states__` هستند ولی در کاتالوگ نیستند: یا پلاگین
-    // جدیدی در بات اضافه شده و اینجا هنوز نه، یا یک کلید دستی. نمایش داده
-    // می‌شوند تا بی‌صدا گم نشوند.
-    const unknown = Object.keys(states).filter((id) => !PLUGIN_CATALOG.some((p) => p.id === id));
+    // جدیدی در بات اضافه شده و کاتالوگ منتشرشده هنوز به‌روز نشده، یا یک کلید
+    // دستی. نمایش داده می‌شوند تا بی‌صدا گم نشوند.
+    const unknown = Object.keys(states).filter((id) => !catalog.plugins.some((p) => p.id === id));
 
-    res.json({ plugins, unknown, states });
+    res.json({
+      plugins,
+      unknown,
+      states,
+      /**
+       * false یعنی کاتالوگ از بات خوانده نشد و فهرست پایه استفاده شده — پس
+       * ممکن است ناقص باشد. UI این را می‌گوید به‌جای اینکه یک فهرست ناقص را
+       * قطعی جا بزند.
+       */
+      catalogPublished: catalog.published,
+    });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to list plugins");
   }
@@ -137,7 +112,8 @@ router.patch("/bots/:botId/plugins/:pluginId", requireAuth, async (req: any, res
     await assertSheetsAuthoritative(SETTINGS_TAB);
 
     const pluginId = String(req.params.pluginId);
-    const known = PLUGIN_CATALOG.some((p) => p.id === pluginId);
+    const catalog = await getPluginCatalog();
+    const known = catalog.plugins.some((p) => p.id === pluginId);
     const states = await readStates(spreadsheetId);
     // یک کلید ناشناخته فقط وقتی پذیرفته می‌شود که از قبل روی شیت باشد — یعنی
     // خود بات ساخته‌اش. وگرنه کلاینت می‌توانست هر کلیدی را آنجا بکارد.
@@ -146,6 +122,27 @@ router.patch("/bots/:botId/plugins/:pluginId", requireAuth, async (req: any, res
 
     if (typeof req.body?.enabled !== "boolean")
       throw new BotConfigError(400, "مقدار `enabled` باید true یا false باشد.");
+
+    // وابستگی‌های اعلام‌شده‌ی مانیفست: بات هم موقع enable همین را چک می‌کند
+    // (`plugin_runtime.missing_dependencies`) و در آن حالت **بی‌صدا** رد
+    // می‌کند — یعنی سوییچ سایت روشن می‌شد و بات نادیده می‌گرفت.
+    if (req.body.enabled) {
+      const manifest = catalog.plugins.find((p) => p.id === pluginId);
+      const missing = (manifest?.dependencies ?? []).filter((dep) => {
+        const depManifest = catalog.plugins.find((p) => p.id === dep);
+        return !(dep in states ? states[dep] : (depManifest?.default_enabled ?? false));
+      });
+      if (missing.length > 0) {
+        const names = missing
+          .map((dep) => catalog.plugins.find((p) => p.id === dep)?.name_fa ?? dep)
+          .join("، ");
+        throw new BotConfigError(
+          409,
+          `این پلاگین به «${names}» نیاز دارد. اول آن را روشن کنید.`,
+          "missing_dependencies",
+        );
+      }
+    }
 
     const next = { ...states, [pluginId]: req.body.enabled };
     await putEntity(spreadsheetId, SETTINGS_TAB, PLUGIN_STATES_KEY, next);

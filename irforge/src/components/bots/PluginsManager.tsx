@@ -55,7 +55,9 @@ export function PluginsManager({ botId }: { botId: string }) {
   const { data, isLoading, error } = useQuery({
     queryKey: pluginsKey,
     queryFn: () =>
-      customFetch<{ plugins: BotPlugin[]; unknown: string[] }>(`/api/bots/${botId}/plugins`),
+      customFetch<{ plugins: BotPlugin[]; unknown: string[]; catalogPublished: boolean }>(
+        `/api/bots/${botId}/plugins`,
+      ),
   });
 
   const { data: marketplaceItems, isLoading: marketplaceLoading } = useListMarketplaceItems({
@@ -129,6 +131,15 @@ export function PluginsManager({ botId }: { botId: string }) {
             </Card>
           ))}
         </div>
+
+        {/* فهرست پایه ≠ فهرست کامل. بی این هشدار، کاربر فکر می‌کرد پلاگین‌های
+            تازه‌ی باتش وجود ندارند. */}
+        {data.catalogPublished === false && (
+          <p className="mt-3 flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+            <Info className="mt-0.5 size-3.5 shrink-0" />
+            <span>{t.catalogUnpublished}</span>
+          </p>
+        )}
 
         {data.unknown.length > 0 && (
           <p className="mt-3 flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">

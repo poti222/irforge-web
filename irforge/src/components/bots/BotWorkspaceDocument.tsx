@@ -21,6 +21,13 @@ import {
   Boxes,
   Share2,
   Workflow,
+  Star,
+  CalendarClock,
+  BadgeCheck,
+  Gift,
+  ClipboardList,
+  Send,
+  Contact,
   type LucideIcon,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
@@ -49,6 +56,8 @@ import { RelationsSection } from "@/components/bots/advanced/RelationsSection";
 import { WorkflowsSection } from "@/components/bots/advanced/WorkflowsSection";
 import { LanguageSection } from "@/components/bots/language/LanguageSection";
 import { TicketsSection } from "@/components/bots/tickets/TicketsSection";
+// سکشن عمومیِ پلاگین‌های تازه — جدول‌هایش از اسکیمای سرور ساخته می‌شوند.
+import { PluginSection } from "@/components/bots/plugins/PluginSection";
 import { BotHealthCard } from "@/components/bots/BotHealthCard";
 import { BotAdminCodeCard } from "@/components/bots/BotAdminCodeCard";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
@@ -73,6 +82,13 @@ type SectionKey =
   | "relations"
   | "workflows"
   | "plugins"
+  | "loyalty"
+  | "booking"
+  | "subscriptions"
+  | "giveaways"
+  | "surveys"
+  | "drip"
+  | "crm"
   | "language"
   | "settings";
 
@@ -147,6 +163,11 @@ const SECTION_GROUPS: SectionGroup[] = [
       // which one it represents would repeat exactly the B13/B14 mistake, and
       // no migration phase covers it — see docs/BOT_ADMIN_ON_WEB.md.
       { key: "discounts", icon: Ticket, labelKey: "sectionDiscounts", locked: true },
+      // پلاگین‌های تازه‌ی فروش‌محور. هرکدام فقط وقتی رندر می‌شوند که پلاگینشان
+      // روی این بات روشن باشد — گیت واقعی سمت سرور است (`lib/pluginGate.ts`).
+      { key: "subscriptions", icon: BadgeCheck, labelKey: "sectionSubscriptions", requiresPlugin: "subscription" },
+      { key: "loyalty", icon: Star, labelKey: "sectionLoyalty", requiresPlugin: "loyalty" },
+      { key: "booking", icon: CalendarClock, labelKey: "sectionBooking", requiresPlugin: "booking" },
     ],
   },
   {
@@ -159,6 +180,10 @@ const SECTION_GROUPS: SectionGroup[] = [
       // آن پلاگین ساخته نشده، این سکشن نباید دیده شود — با ساخته‌شدنش، فقط
       // کافی است `id` پلاگین به کاتالوگ اضافه شود و این خط خودش کار می‌کند.
       { key: "tickets", icon: LifeBuoy, labelKey: "sectionTickets", requiresPlugin: "ticket" },
+      { key: "drip", icon: Send, labelKey: "sectionDrip", requiresPlugin: "drip" },
+      { key: "giveaways", icon: Gift, labelKey: "sectionGiveaways", requiresPlugin: "giveaway" },
+      { key: "surveys", icon: ClipboardList, labelKey: "sectionSurveys", requiresPlugin: "survey" },
+      { key: "crm", icon: Contact, labelKey: "sectionCrm", requiresPlugin: "crm" },
     ],
   },
   {
@@ -390,6 +415,13 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "workflows" && <WorkflowsSection bot={bot} />}
             {section === "language" && <LanguageSection bot={bot} />}
             {section === "tickets" && <TicketsSection bot={bot} />}
+            {section === "loyalty" && <PluginSection bot={bot} plugin="loyalty" />}
+            {section === "booking" && <PluginSection bot={bot} plugin="booking" />}
+            {section === "subscriptions" && <PluginSection bot={bot} plugin="subscription" />}
+            {section === "giveaways" && <PluginSection bot={bot} plugin="giveaway" />}
+            {section === "surveys" && <PluginSection bot={bot} plugin="survey" />}
+            {section === "drip" && <PluginSection bot={bot} plugin="drip" />}
+            {section === "crm" && <PluginSection bot={bot} plugin="crm" />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}
