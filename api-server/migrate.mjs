@@ -214,6 +214,40 @@ CREATE TABLE IF NOT EXISTS marketplace_items (
 );
 ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS version TEXT NOT NULL DEFAULT '1.0.0';
 
+-- The CREATE TABLE above and the Drizzle schema (lib/db/src/schema/marketplace.ts)
+-- had drifted apart: the schema declares is_free/author/install_count/tags/icon/
+-- featured, none of which were ever created here, while this table has author_id/
+-- downloads/status, which the schema does not know about.
+--
+-- Nothing surfaced it because nothing ever wrote to this table — the marketplace
+-- was empty, so no INSERT ever failed. And Drizzle names every column explicitly
+-- in its SELECT too, which means `GET /marketplace/items` was erroring rather
+-- than returning an empty list. Adding the plugin sync is what finally exposed it.
+--
+-- Additive only: the three legacy columns stay (dropping them would break any
+-- reader still expecting them, and they cost nothing).
+ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS is_free BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS author TEXT NOT NULL DEFAULT 'IrForge';
+ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS install_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS icon TEXT;
+ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- `downloads` was the old name for `install_count`. Copy it across once, only
+-- where the new column is still at its default, so a real install count isn't
+-- lost and re-running this never overwrites a newer value. Guarded because the
+-- legacy column is absent on databases created after the schema changed.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'marketplace_items' AND column_name = 'downloads'
+  ) THEN
+    UPDATE marketplace_items SET install_count = downloads
+    WHERE install_count = 0 AND downloads > 0;
+  END IF;
+END $$;
+
 -- ─── INSTALLED_PLUGINS ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS installed_plugins (
   id TEXT PRIMARY KEY,

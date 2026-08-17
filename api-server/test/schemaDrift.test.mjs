@@ -15,7 +15,14 @@
  *
  * این تست فایل‌محور است (نه دیتابیس‌محور) تا مثل بقیه‌ی تست‌های این پروژه بدون
  * Postgres واقعی اجرا شود: ستون‌های اعلام‌شده در اسکیما را از سورس درمی‌آورد و
- * چک می‌کند `migrate.mjs` تضمینشان کرده باشد.
+ * چک می‌کند مایگریشن تضمینشان کرده باشد.
+ *
+ * ⚠️ **دو فایل `migrate.mjs` وجود دارد** و این تله‌ای است که یک بار افتادم:
+ * `api-server/migrate.mjs` آن است که `start.sh` اجرا می‌کند، و `migrate.mjs`
+ * در ریشه یک نسخه‌ی کهنه‌ی بی‌استفاده است. اصلاح اول من به فایل ریشه رفت،
+ * دیپلوی شد، `[migrate] Done.` چاپ شد و ستون همچنان وجود نداشت. پس مسیر
+ * مایگریشن اینجا **از خودِ start.sh استخراج می‌شود**، نه هاردکد — تا این تست
+ * هرگز فایل اشتباهی را تأیید نکند.
  *
  * اجرا: pnpm --filter @workspace/api-server run test
  */
@@ -24,7 +31,21 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const schemaDir = new URL("../../lib/db/src/schema/", import.meta.url);
-const migratePath = new URL("../../migrate.mjs", import.meta.url);
+
+/**
+ * مسیر مایگریشنی که واقعاً در پروداکشن اجرا می‌شود — از `start.sh` خوانده
+ * می‌شود تا اگر روزی عوض شد، این تست هم با آن جابه‌جا شود.
+ */
+function resolveMigratePath() {
+  const startSh = fs.readFileSync(new URL("../../start.sh", import.meta.url), "utf8");
+  const match = startSh.match(/node\s+\S*?([\w./-]*migrate\.mjs)/);
+  assert.ok(match, "در start.sh دستور اجرای migrate.mjs پیدا نشد");
+  // مسیر داخل کانتینر (/app/api-server/migrate.mjs) → مسیر معادل در ریپو.
+  const inRepo = match[1].replace(/^\/app\//, "");
+  return new URL(`../../${inRepo}`, import.meta.url);
+}
+
+const migratePath = resolveMigratePath();
 const migrateSql = fs.readFileSync(migratePath, "utf8");
 
 /** ستون‌هایی که migrate.mjs برای یک جدول تضمین می‌کند (CREATE + ALTER). */
@@ -99,6 +120,15 @@ for (const { file, table, constName } of COVERED) {
     );
   });
 }
+
+test("مسیر مایگریشنِ تست، همانی است که start.sh اجرا می‌کند", () => {
+  // نگهبانِ همان اشتباه: اصلاح به فایل ریشه رفت و تست سبز بود، در حالی که
+  // پروداکشن فایل دیگری را اجرا می‌کرد.
+  assert.match(
+    migratePath.pathname, /api-server\/migrate\.mjs$/,
+    "تست باید همان فایلی را بخواند که start.sh اجرا می‌کند",
+  );
+});
 
 test("ستون‌هایی که این باگ را ساختند، مشخصاً پوشش داده شده‌اند", () => {
   // نگهبانِ صریح برای همان شش ستون، تا اگر روزی حلقه‌ی بالا عوض/ساده شد،
