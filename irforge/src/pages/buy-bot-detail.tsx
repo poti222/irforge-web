@@ -15,6 +15,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
+import { pluginName, pluginDescription } from "@/lib/plugin-text";
 import { useT } from "@/hooks/use-translation";
 import {
   getBotTier,
@@ -36,6 +37,20 @@ export default function BuyBotDetail() {
   const tier = !isCustom ? getBotTier(tierId) : undefined;
 
   const tb = useT("buyBot");
+  // متن پکیج‌ها و ماژول‌ها از ترجمه‌ها، نه از `bot-tiers.ts` که فقط fa/en داشت.
+  const tt = useT("botTiers");
+
+  /** متن ترجمه‌شده‌ی همین پکیج (قیمت و منابع همچنان از `BOT_TIERS`). */
+  const tierText =
+    tier?.id === "silver" ? tt.silver
+    : tier?.id === "gold" ? tt.gold
+    : tier?.id === "diamond" ? tt.diamond
+    : null;
+
+  /** برچسب ترجمه‌شده‌ی یک ماژولِ پکیج سفارشی. */
+  function moduleLabel(id: string): string {
+    return (tt.modules as Record<string, string>)[id] ?? id;
+  }
 
   // Custom package: purely visual checklist for now (no pricing/logic wired up).
   const [customSelected, setCustomSelected] = useState<Set<string>>(
@@ -64,9 +79,9 @@ export default function BuyBotDetail() {
   if (!isCustom && !tier) {
     return (
       <div className="mx-auto max-w-lg space-y-4 py-16 text-center">
-        <p className="text-muted-foreground">{fa ? "این پکیج پیدا نشد." : "Package not found."}</p>
+        <p className="text-muted-foreground">{tb.notFound}</p>
         <Button asChild variant="outline">
-          <Link href="/buy-bot">{fa ? "بازگشت به خرید بات" : "Back to Buy Bot"}</Link>
+          <Link href="/buy-bot">{tb.backToBuyBot}</Link>
         </Button>
       </div>
     );
@@ -99,7 +114,7 @@ export default function BuyBotDetail() {
       // از همین `buildSpec` دوباره حساب می‌کند (lib/pluginPricing.ts).
       price: packagePrice,
       tierId: isCustom ? "custom" : tier?.id,
-      tierName: isCustom ? (fa ? "سفارشی" : "Custom") : (fa ? tier?.name.fa : tier?.name.en),
+      tierName: isCustom ? tt.custom.name : tierText?.name,
       buildSpec: {
         tierId: isCustom ? "custom" : (tier?.id ?? ""),
         ramGb: isCustom ? customRam : undefined,
@@ -108,8 +123,8 @@ export default function BuyBotDetail() {
       },
     });
     toast({
-      title: fa ? "به سبد خرید اضافه شد" : "Added to cart",
-      description: fa ? "حالا مشخصات بات را در صفحه‌ی تسویه‌حساب کامل کن." : "Now fill in the bot's details on the checkout page.",
+      title: tb.addedToCart,
+      description: tb.addedToCartDesc,
     });
     setLocation("/bots/cart");
   }
@@ -117,7 +132,7 @@ export default function BuyBotDetail() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <Button variant="ghost" size="sm" asChild className="-ms-2">
-        <Link href="/buy-bot"><BackArrow className="me-2 h-4 w-4" /> {fa ? "بازگشت" : "Back"}</Link>
+        <Link href="/buy-bot"><BackArrow className="me-2 h-4 w-4" /> {tb.back}</Link>
       </Button>
 
       <div className="grid gap-6 lg:grid-cols-5">
@@ -134,11 +149,9 @@ export default function BuyBotDetail() {
                 {isCustom ? <Settings2 className="size-6" /> : (() => { const Icon = tier!.icon; return <Icon className="size-6" />; })()}
               </div>
               <div>
-                <CardTitle className="text-2xl">{isCustom ? (fa ? "سفارشی" : "Custom") : (fa ? tier!.name.fa : tier!.name.en)}</CardTitle>
+                <CardTitle className="text-2xl">{isCustom ? tt.custom.name : tierText?.name}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {isCustom
-                    ? (fa ? "امکانات بات را خودت انتخاب کن" : "Choose your bot's features yourself")
-                    : (fa ? tier!.tagline.fa : tier!.tagline.en)}
+                  {isCustom ? tt.custom.tagline : tierText?.tagline}
                 </p>
               </div>
             </div>
@@ -152,21 +165,21 @@ export default function BuyBotDetail() {
                 <Separator />
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="rounded-md border p-3">
-                    <p className="text-muted-foreground">{fa ? "تعداد ربات" : "Bots"}</p>
+                    <p className="text-muted-foreground">{tb.botsCount}</p>
                     <p className="font-semibold">{tier!.maxBots}</p>
                   </div>
                   <div className="rounded-md border p-3">
-                    <p className="text-muted-foreground">{fa ? "تعداد پلاگین" : "Plugins"}</p>
-                    <p className="font-semibold">{tier!.maxPlugins >= 999 ? (fa ? "نامحدود" : "Unlimited") : tier!.maxPlugins}</p>
+                    <p className="text-muted-foreground">{tb.pluginsCount}</p>
+                    <p className="font-semibold">{tier!.maxPlugins >= 999 ? tb.unlimited : tier!.maxPlugins}</p>
                   </div>
                 </div>
                 <div>
-                  <p className="mb-2 text-sm font-medium">{fa ? "امکانات این پکیج" : "What's included"}</p>
+                  <p className="mb-2 text-sm font-medium">{tb.whatsIncluded}</p>
                   <ul className="space-y-2.5 text-sm">
-                    {tier!.features.map((f, i) => (
-                      <li key={i} className="flex items-start gap-2">
+                    {(tierText?.features ?? []).map((f: string) => (
+                      <li key={f} className="flex items-start gap-2">
                         <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                        <span>{fa ? f.fa : f.en}</span>
+                        <span>{f}</span>
                       </li>
                     ))}
                   </ul>
@@ -220,7 +233,7 @@ export default function BuyBotDetail() {
                 </div>
 
                 <p className="mb-3 text-sm font-medium">
-                  {fa ? "بخش‌های بات را انتخاب کن" : "Choose your bot's parts"}
+                  {tb.chooseParts}
                 </p>
                 <div className="space-y-2">
                   {CUSTOM_MODULES.map((m) => (
@@ -233,10 +246,10 @@ export default function BuyBotDetail() {
                         disabled={m.mandatory}
                         onCheckedChange={() => toggleModule(m.id)}
                       />
-                      <span className="flex-1">{fa ? m.name.fa : m.name.en}</span>
+                      <span className="flex-1">{moduleLabel(m.id)}</span>
                       {m.mandatory ? (
                         <Badge variant="secondary" className="flex items-center gap-1">
-                          <Lock className="size-3" /> {fa ? "اجباری" : "Required"}
+                          <Lock className="size-3" /> {tb.required}
                         </Badge>
                       ) : null}
                     </label>
@@ -252,24 +265,18 @@ export default function BuyBotDetail() {
             <div>
               <p className="mb-1 flex items-center gap-2 text-sm font-medium">
                 <Blocks className="size-4 text-primary" />
-                {fa ? "پلاگین‌ها" : "Plugins"}
+                {tb.plugins}
               </p>
-              <p className="mb-3 text-xs text-muted-foreground">
-                {fa
-                  ? "هر پلاگینی که انتخاب کنی به قیمت اضافه می‌شود و روی همین بات نصب می‌شود. بعداً هم می‌توانی از بخش پلاگین‌های همان بات اضافه کنی."
-                  : "Each plugin you pick is added to the price and installed on this bot. You can also add them later from the bot's Plugins section."}
-              </p>
+              <p className="mb-3 text-xs text-muted-foreground">{tb.pluginsAddonNote}</p>
 
               {pricingLoading ? (
                 <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
                   <Loader2 className="size-4 animate-spin" />
-                  {fa ? "در حال بارگذاری پلاگین‌ها…" : "Loading plugins…"}
+                  {tb.loadingPlugins}
                 </div>
               ) : availablePlugins.length === 0 ? (
                 <p className="rounded-md border border-dashed p-4 text-xs text-muted-foreground">
-                  {fa
-                    ? "فهرست پلاگین‌ها در دسترس نیست. می‌توانی بات را بخری و پلاگین‌ها را بعداً اضافه کنی."
-                    : "The plugin list isn't available. You can buy the bot and add plugins later."}
+                  {tb.pluginListUnavailable}
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -286,15 +293,15 @@ export default function BuyBotDetail() {
                           onCheckedChange={() => togglePlugin(plugin.id)}
                         />
                         <span className="min-w-0 flex-1">
-                          <span className="font-medium">{plugin.name}</span>
-                          {plugin.description && (
+                          <span className="font-medium">{pluginName(plugin, lang, plugin.id)}</span>
+                          {pluginDescription(plugin, lang) && (
                             <span className="mt-0.5 block text-xs text-muted-foreground">
-                              {plugin.description}
+                              {pluginDescription(plugin, lang)}
                             </span>
                           )}
                         </span>
                         <Badge variant={plugin.price > 0 ? "secondary" : "outline"} className="shrink-0">
-                          {plugin.price > 0 ? formatToman(plugin.price, lang) : (fa ? "رایگان" : "Free")}
+                          {plugin.price > 0 ? formatToman(plugin.price, lang) : tb.free}
                         </Badge>
                       </label>
                     );
@@ -309,14 +316,12 @@ export default function BuyBotDetail() {
         <Card className="lg:col-span-2 h-fit">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <ShoppingCart className="size-5 text-primary" /> {fa ? "افزودن به سبد خرید" : "Add to cart"}
+              <ShoppingCart className="size-5 text-primary" /> {tb.addToCart}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              {fa
-                ? "این پکیج به سبد خرید اضافه می‌شود. نام بات، توکن و بقیه‌ی مشخصات را در صفحه‌ی تسویه‌حساب کامل می‌کنی."
-                : "This package will be added to your cart. You'll fill in the bot's name, token and other details on the checkout page."}
+              {tb.cartNote}
             </p>
 
             <Separator />
@@ -326,33 +331,33 @@ export default function BuyBotDetail() {
               {isCustom ? (
                 <>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{fa ? "پایه" : "Base"}</span>
+                    <span className="text-muted-foreground">{tb.base}</span>
                     <span>{formatToman(customQuote.base, lang)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">
-                      {fa ? "منابع" : "Resources"}
+                      {tb.resources}
                       <span className="ms-1 text-xs" dir="ltr">
-                        ({customRam}GB / {customCpu} {fa ? "هسته" : "cores"})
+                        ({customRam}GB / {customCpu} {tb.coresShort})
                       </span>
                     </span>
                     <span>
                       {customQuote.resources > 0
                         ? formatToman(customQuote.resources, lang)
-                        : (fa ? "در قیمت پایه" : "Included")}
+                        : tb.includedInBase}
                     </span>
                   </div>
                 </>
               ) : (
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">{fa ? "قیمت پکیج" : "Package price"}</span>
+                  <span className="text-muted-foreground">{tb.packagePrice}</span>
                   <span>{formatToman(tier!.price, lang)}</span>
                 </div>
               )}
 
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">
-                  {fa ? "پلاگین‌ها" : "Plugins"}
+                  {tb.plugins}
                   {chosenPlugins.length > 0 && (
                     <span className="ms-1 text-xs">({chosenPlugins.length})</span>
                   )}
@@ -360,7 +365,7 @@ export default function BuyBotDetail() {
                 <span>
                   {pluginsTotal > 0
                     ? formatToman(pluginsTotal, lang)
-                    : (fa ? "انتخاب نشده" : "None selected")}
+                    : tb.noneSelected}
                 </span>
               </div>
 
@@ -369,9 +374,9 @@ export default function BuyBotDetail() {
                 <ul className="space-y-1 border-s ps-3 text-xs text-muted-foreground">
                   {chosenPlugins.map((plugin) => (
                     <li key={plugin.id} className="flex items-center justify-between gap-2">
-                      <span className="truncate">{plugin.name}</span>
+                      <span className="truncate">{pluginName(plugin, lang, plugin.id)}</span>
                       <span className="shrink-0">
-                        {plugin.price > 0 ? formatToman(plugin.price, lang) : (fa ? "رایگان" : "Free")}
+                        {plugin.price > 0 ? formatToman(plugin.price, lang) : tb.free}
                       </span>
                     </li>
                   ))}
@@ -380,19 +385,17 @@ export default function BuyBotDetail() {
 
               <Separator />
               <div className="flex items-baseline justify-between">
-                <span className="font-medium">{fa ? "مجموع" : "Total"}</span>
+                <span className="font-medium">{tb.total}</span>
                 <span className="text-xl font-extrabold">{formatToman(packagePrice, lang)}</span>
               </div>
             </div>
 
             <GlowButton className="w-full" wrapperClassName="w-full" onClick={handleAddToCart}>
               <ShoppingCart className="me-2 h-4 w-4" />
-              {fa ? "افزودن به سبد خرید" : "Add to cart"}
+              {tb.addToCart}
             </GlowButton>
             <p className="text-center text-xs text-muted-foreground">
-              {fa
-                ? "خرید نهایی از صفحه‌ی تسویه‌حساب انجام می‌شود."
-                : "Checkout is completed on the checkout page."}
+              {tb.checkoutNote}
             </p>
           </CardContent>
         </Card>

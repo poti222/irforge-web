@@ -92,8 +92,13 @@ export async function syncPluginMarketplaceItems(): Promise<SyncResult> {
     const id = marketplaceItemIdFor(manifest.id);
     const price = pluginPrice(manifest.id);
     const values = {
-      name: manifest.name_fa || manifest.name || manifest.id,
+      // `name`/`description` انگلیسی‌اند و `*_fa` فارسی؛ انتخاب زبان کار UI است،
+      // نه این لایه. قبلاً `name_fa || name` اینجا ذخیره می‌شد و همان انتخابِ
+      // زودهنگام باعث می‌شد کاربر انگلیسی فارسی ببیند.
+      name: manifest.name || manifest.id,
       description: manifest.description || "",
+      nameFa: manifest.name_fa || "",
+      descriptionFa: manifest.description_fa || "",
       category: PLUGIN_CATEGORY,
       price,
       isFree: price <= 0,

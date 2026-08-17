@@ -44,6 +44,8 @@ import botPluginsRouter from "./botPlugins.js";
 // داده‌ی پلاگین‌های تازه (باشگاه، رزرو، اشتراک، قرعه‌کشی، نظرسنجی، دریپ، CRM)
 // روی یک لایه‌ی CRUD عمومی — نگاه کن lib/pluginCollections.ts
 import botPluginDataRouter from "./botPluginData.js";
+// لایسنس پلاگین‌ها: نمای حساب‌محور + انتقال بین بات‌ها
+import pluginLicencesRouter from "./pluginLicences.js";
 import botObjectsRouter from "./botObjects.js";
 import botRelationsRouter from "./botRelations.js";
 import botWorkflowsRouter from "./botWorkflows.js";
@@ -92,6 +94,8 @@ router.use(botBroadcastRouter);
 router.use(botOrdersRouter);
 router.use(botPluginsRouter);
 router.use(botPluginDataRouter);
+// باید قبل از botsRouter نباشد؛ مسیرهایش زیر /plugin-licences است و تعارضی ندارد.
+router.use(pluginLicencesRouter);
 router.use(botObjectsRouter);
 router.use(botRelationsRouter);
 router.use(botWorkflowsRouter);

@@ -28,6 +28,7 @@ import { BotChatMockup } from "@/components/landing/BotChatMockup";
 import { MiniAnalyticsChart } from "@/components/landing/MiniAnalyticsChart";
 import { PluginRail } from "@/components/landing/PluginRail";
 import { FaqSection } from "@/components/landing/FaqSection";
+import { LandingPlans } from "@/components/landing/LandingPlans";
 import { PublicFooter } from "@/components/layout/public-footer";
 import { useLanguage } from "@/hooks/use-language";
 import { articleFor, type ArticleSlug } from "@/lib/learn-content";
@@ -384,6 +385,11 @@ export default function Landing() {
             </motion.div>
           </div>
         </section>
+
+        {/* ── Plans ───────────────────────────────────────────────────────
+            بعد از «چه چیزی می‌گیری» و قبل از سؤال‌های متداول: کسی که تا اینجا
+            آمده، سؤال بعدی‌اش قیمت است. */}
+        <LandingPlans reduce={!!reduce} />
 
         {/* ── FAQ ─────────────────────────────────────────────────────────
             Also the source of the FAQPage schema on this page. */}

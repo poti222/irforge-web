@@ -29,7 +29,7 @@ import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatToman } from "@/lib/format";
-import { BOT_TIERS, CUSTOM_MAX_RAM_GB } from "@/lib/bot-tiers";
+import { BOT_TIERS, CUSTOM_MAX_RAM_GB, type BotTier } from "@/lib/bot-tiers";
 import { TrialDialog } from "@/components/bots/TrialDialog";
 import { usePluginPricing } from "@/hooks/use-plugin-pricing";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
@@ -47,6 +47,9 @@ export default function BuyBot() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const t = useT("buyBot");
+  // متن پکیج‌ها از فایل‌های ترجمه، نه از `bot-tiers.ts` که فقط fa/en داشت —
+  // وگرنه همین صفحه برای کاربر عربی/ترکی/روسی انگلیسی درمی‌آمد.
+  const tt = useT("botTiers");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -89,16 +92,24 @@ export default function BuyBot() {
     );
   }
 
+  /** متن ترجمه‌شده‌ی یک پکیج ثابت (قیمت و منابع همچنان از `BOT_TIERS`). */
+  function tierText(tier: BotTier) {
+    switch (tier.id) {
+      case "silver": return tt.silver;
+      case "gold": return tt.gold;
+      case "diamond": return tt.diamond;
+      default: return null;
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col items-center gap-2 text-center">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-          {fa ? "خرید بات جدید" : "Buy a New Bot"}
+          {t.pageTitle}
         </h1>
         <p className="max-w-lg text-muted-foreground">
-          {fa
-            ? "یکی از پکیج‌های آماده را انتخاب کن یا خودت امکانات بات را بچین."
-            : "Pick one of the ready-made packages, or build your own."}
+          {t.pageSub}
         </p>
       </div>
 
@@ -109,16 +120,14 @@ export default function BuyBot() {
               <Gift className="size-6" />
             </div>
             <div>
-              <p className="font-semibold">{fa ? "۷ روز رایگان امتحان کن" : "Try it free for 7 days"}</p>
+              <p className="font-semibold">{t.trialTitle}</p>
               <p className="text-sm text-muted-foreground">
-                {fa
-                  ? "معادل پکیج نقره‌ای، فقط با اتصال تلگرام و بدون نیاز به پرداخت."
-                  : "Equivalent to the Silver package — just link Telegram, no payment needed."}
+                {t.trialDesc}
               </p>
             </div>
           </div>
           <GlowButton className="w-full sm:w-auto shrink-0" onClick={() => setTrialOpen(true)}>
-            <Gift className="me-2 h-4 w-4" /> {fa ? "شروع تریال رایگان" : "Start free trial"}
+            <Gift className="me-2 h-4 w-4" /> {t.trialCta}
           </GlowButton>
         </div>
       )}
@@ -133,7 +142,7 @@ export default function BuyBot() {
             >
               {tier.popular && (
                 <div className="absolute top-0 right-0 z-10 translate-x-1/4 -translate-y-1/2 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
-                  {fa ? "پیشنهادی" : "POPULAR"}
+                  {tt.popular}
                 </div>
               )}
               <div className="flex flex-1 flex-col overflow-hidden rounded-xl">
@@ -142,8 +151,8 @@ export default function BuyBot() {
                   <div className={`mb-2 flex size-11 items-center justify-center rounded-lg bg-gradient-to-br ${tier.accent} text-white`}>
                     <Icon className="size-5" />
                   </div>
-                  <CardTitle className="text-xl">{fa ? tier.name.fa : tier.name.en}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{fa ? tier.tagline.fa : tier.tagline.en}</p>
+                  <CardTitle className="text-xl">{tierText(tier)?.name}</CardTitle>
+                  <p className="text-sm text-muted-foreground">{tierText(tier)?.tagline}</p>
                   <div className="mt-3 flex items-baseline gap-1 text-2xl font-extrabold">
                     {formatToman(tier.price, lang)}
                   </div>
@@ -153,10 +162,10 @@ export default function BuyBot() {
                   {/* every feature, no "+N more" — a truncated list is exactly
                       what makes people leave to go and find the full one */}
                   <ul className="space-y-2.5 text-sm">
-                    {tier.features.map((f, i) => (
-                      <li key={i} className="flex items-start gap-2">
+                    {(tierText(tier)?.features ?? []).map((f: string) => (
+                      <li key={f} className="flex items-start gap-2">
                         <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                        <span>{fa ? f.fa : f.en}</span>
+                        <span>{f}</span>
                       </li>
                     ))}
                   </ul>
@@ -164,7 +173,7 @@ export default function BuyBot() {
                 <CardFooter>
                   <Button className="w-full" variant={tier.popular ? "default" : "secondary"} asChild>
                     <Link href={`/buy-bot/${tier.id}`}>
-                      {fa ? "مشاهده و انتخاب" : "View & Select"} <ArrowIcon className="ms-2 h-4 w-4" />
+                      {t.viewSelect} <ArrowIcon className="ms-2 h-4 w-4" />
                     </Link>
                   </Button>
                 </CardFooter>
@@ -180,15 +189,15 @@ export default function BuyBot() {
             <div className="mb-2 flex size-11 items-center justify-center rounded-lg bg-gradient-to-br from-violet-400 to-fuchsia-300 text-white">
               <Settings2 className="size-5" />
             </div>
-            <CardTitle className="text-xl">{fa ? "سفارشی" : "Custom"}</CardTitle>
+            <CardTitle className="text-xl">{tt.custom.name}</CardTitle>
             <p className="text-sm text-muted-foreground">
-              {fa ? "امکانات بات را خودت انتخاب کن" : "Choose your bot's features yourself"}
+              {tt.custom.tagline}
             </p>
           </CardHeader>
           {pricing?.customBuild && (
             <div className="px-6 pb-1">
               <div className="flex items-baseline gap-1.5">
-                <span className="text-xs text-muted-foreground">{fa ? "از" : "from"}</span>
+                <span className="text-xs text-muted-foreground">{t.from}</span>
                 <span className="text-2xl font-extrabold">
                   {formatToman(pricing.customBuild.basePrice, lang)}
                 </span>
@@ -197,14 +206,10 @@ export default function BuyBot() {
           )}
           <CardContent className="flex-1 space-y-2">
             <p className="text-sm text-muted-foreground">
-              {fa
-                ? "بعضی بخش‌ها همیشه فعال‌اند (اجباری) و بقیه را خودت روشن/خاموش می‌کنی."
-                : "Some parts are always on (required); you toggle the rest."}
+              {t.customRequiredNote}
             </p>
             <p className="text-sm text-muted-foreground">
-              {fa
-                ? "قیمت با رم، پردازنده و پلاگین‌هایی که انتخاب می‌کنی حساب می‌شود."
-                : "The price is calculated from the RAM, CPU and plugins you pick."}
+              {t.customPriceNote}
             </p>
             <p className="text-sm text-muted-foreground">
               {t.customResourcesHint.replace("8", String(CUSTOM_MAX_RAM_GB))}
@@ -213,7 +218,7 @@ export default function BuyBot() {
           <CardFooter>
             <Button className="w-full" variant="outline" asChild>
               <Link href="/buy-bot/custom">
-                {fa ? "ساخت پکیج سفارشی" : "Build Custom Package"} <ArrowIcon className="ms-2 h-4 w-4" />
+                {t.buildCustom} <ArrowIcon className="ms-2 h-4 w-4" />
               </Link>
             </Button>
           </CardFooter>
@@ -236,18 +241,18 @@ export default function BuyBot() {
             {plans.map((plan) => {
               const isCurrent = currentPlan?.planId === plan.id;
               const isBusy = busyPlanId === plan.id;
-              const intervalLabel = fa ? (plan.interval === "yearly" ? "سالانه" : "ماهانه") : plan.interval;
+              const intervalLabel = plan.interval === "yearly" ? t.intervalYearly : t.intervalMonthly;
               return (
                 <MotionCard key={plan.id} className={`flex flex-col ${plan.popular ? "relative border-primary shadow-md" : ""}`}>
                   {plan.popular && (
                     <div className="absolute top-0 right-0 z-10 translate-x-1/4 -translate-y-1/2 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
-                      {fa ? "محبوب" : "POPULAR"}
+                      {t.popular}
                     </div>
                   )}
                   <CardHeader>
                     <CardTitle className="text-2xl">{plan.name}</CardTitle>
                     <div className="mt-2 flex items-baseline gap-2 text-3xl font-extrabold">
-                      {plan.price === 0 ? (fa ? "رایگان" : "Free") : formatToman(plan.price, lang)}
+                      {plan.price === 0 ? t.free : formatToman(plan.price, lang)}
                       {plan.price > 0 && (
                         <span className="text-base font-medium text-muted-foreground">/{intervalLabel}</span>
                       )}
@@ -305,9 +310,9 @@ export default function BuyBot() {
             <AlertDialogTitle>{t.confirmUpgradeTitle}</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingPlan &&
-                (fa
-                  ? `پلن «${pendingPlan.name}» با هزینه ${formatToman(pendingPlan.price, lang)} برای هر دوره. ادامه می‌دهید؟`
-                  : `The “${pendingPlan.name}” plan costs ${formatToman(pendingPlan.price, lang)} per period. Continue?`)}
+                t.confirmUpgradeBody
+                  .replace("{plan}", pendingPlan.name)
+                  .replace("{price}", formatToman(pendingPlan.price, lang))}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

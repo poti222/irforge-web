@@ -47,7 +47,10 @@ export type PluginManifest = {
   id: string;
   name: string;
   name_fa: string;
+  /** انگلیسی. */
   description: string;
+  /** فارسی. خالی یعنی مانیفست فقط یک زبان دارد و UI به `description` می‌افتد. */
+  description_fa: string;
   version: string;
   author?: string;
   required_sheets: string[];
@@ -68,7 +71,8 @@ const BASELINE: PluginManifest[] = [
     id: "catalog",
     name: "Catalog",
     name_fa: "فروشگاه / کاتالوگ",
-    description: "فروش محصول یا خدمت با دسته‌بندی، قیمت‌گذاری، گزینه‌ها و فرایند خرید کامل.",
+    description: "Sell a product or service with categories, pricing, options and a full purchase flow.",
+    description_fa: "فروش محصول یا خدمت با دسته‌بندی، قیمت‌گذاری، گزینه‌ها و فرایند خرید کامل.",
     version: "0.6.0",
     required_sheets: ["catalog_categories", "catalog_items", "catalog_item_options", "catalog_fulfillments"],
     permissions: ["catalog.view", "catalog.manage"],
@@ -78,7 +82,8 @@ const BASELINE: PluginManifest[] = [
     id: "discount",
     name: "Discount",
     name_fa: "کد تخفیف",
-    description: "کدهای تخفیف و کوپن برای سفارش‌ها.",
+    description: "Coupon and discount codes for orders.",
+    description_fa: "کدهای تخفیف و کوپن برای سفارش‌ها.",
     version: "1.0.0",
     required_sheets: ["discounts"],
     permissions: ["discounts.view", "discounts.create", "discounts.delete"],
@@ -88,7 +93,8 @@ const BASELINE: PluginManifest[] = [
     id: "referral",
     name: "Referral",
     name_fa: "سیستم رفرال",
-    description: "لینک دعوت با ردیابی و پاداش.",
+    description: "Referral links with tracking and rewards.",
+    description_fa: "لینک دعوت با ردیابی و پاداش.",
     version: "1.0.0",
     required_sheets: ["referrals"],
     permissions: ["referral.view", "referral.manage"],
@@ -98,7 +104,8 @@ const BASELINE: PluginManifest[] = [
     id: "wallet",
     name: "Wallet",
     name_fa: "کیف پول",
-    description: "کیف پول هر کاربر با تاریخچه‌ی تراکنش، شارژ/برداشت دستی و اتصال به سفارش‌ها.",
+    description: "Per-user wallet with transaction history, manual top-up/withdrawal and order integration.",
+    description_fa: "کیف پول هر کاربر با تاریخچه‌ی تراکنش، شارژ/برداشت دستی و اتصال به سفارش‌ها.",
     version: "1.3.0",
     required_sheets: ["wallets"],
     permissions: ["wallet.view", "wallet.manage"],
@@ -139,6 +146,7 @@ function parseManifest(key: string, raw: unknown): PluginManifest | null {
     name: typeof row.name === "string" ? row.name : id,
     name_fa: typeof row.name_fa === "string" ? row.name_fa : (typeof row.name === "string" ? row.name : id),
     description: typeof row.description === "string" ? row.description : "",
+    description_fa: typeof row.description_fa === "string" ? row.description_fa : "",
     version: typeof row.version === "string" ? row.version : "",
     required_sheets: isStringArray(row.required_sheets) ? row.required_sheets : [],
     permissions: isStringArray(row.permissions) ? row.permissions : [],

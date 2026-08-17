@@ -23,6 +23,10 @@ function formatItem(item: any) {
     id: item.id,
     name: item.name,
     description: item.description,
+    // هر دو زبان به کلاینت می‌رود و انتخاب زبان آنجا انجام می‌شود
+    // (irforge/src/lib/plugin-text.ts).
+    name_fa: item.nameFa ?? "",
+    description_fa: item.descriptionFa ?? "",
     category: item.category,
     price: item.price,
     isFree: item.isFree,
@@ -98,8 +102,10 @@ router.get("/marketplace/pricing", requireAuth, async (_req: any, res) => {
     res.json({
       plugins: catalog.plugins.map((manifest) => ({
         id: manifest.id,
-        name: manifest.name_fa || manifest.name,
+        name: manifest.name,
+        name_fa: manifest.name_fa,
         description: manifest.description,
+        description_fa: manifest.description_fa,
         version: manifest.version,
         price: PLUGIN_PRICES[manifest.id] ?? 0,
         webSection: manifest.web_section ?? null,

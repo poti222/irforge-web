@@ -14,8 +14,15 @@ import { customFetch } from "@workspace/api-client-react";
 
 export type PluginPrice = {
   id: string;
+  /**
+   * نام و توضیح، هر دو زبان. سرور از همان اول این چهار فیلد را می‌فرستاد ولی
+   * این تایپ فقط دوتای انگلیسی را داشت، پس انتخابگر پلاگین در صفحه‌ی خرید
+   * همیشه انگلیسی درمی‌آمد.
+   */
   name: string;
+  name_fa: string;
   description: string;
+  description_fa: string;
   version: string;
   price: number;
   webSection: string | null;

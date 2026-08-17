@@ -235,6 +235,12 @@ ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFA
 ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Both languages for the display text. The sync used to write name_fa into the
+-- single "name" column, so an English-speaking visitor saw Persian names.
+-- NOTE: no backticks anywhere in this block - it is a JS template literal.
+ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS name_fa TEXT NOT NULL DEFAULT '';
+ALTER TABLE marketplace_items ADD COLUMN IF NOT EXISTS description_fa TEXT NOT NULL DEFAULT '';
+
 -- "downloads" was the old name for "install_count". Copy it across once, only
 -- where the new column is still at its default, so a real install count isn't
 -- lost and re-running this never overwrites a newer value. Guarded because the

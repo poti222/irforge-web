@@ -2762,6 +2762,21 @@ router.post("/bots/:botId/plugins", requireBotOwnership, async (req: any, res) =
     if (!marketplaceItemId) { res.status(400).json({ error: "marketplaceItemId is required" }); return; }
     const [item] = await db.select().from(marketplaceItemsTable).where(eq(marketplaceItemsTable.id, marketplaceItemId)).limit(1);
     if (!item) { res.status(404).json({ error: "Marketplace item not found" }); return; }
+    // A double click (or a retried request) used to charge the wallet twice and
+    // leave two licence rows for one plugin on one bot — which then broke the
+    // "one purchase, one bot, movable" accounting. One is enough; say so.
+    const [existing] = await db
+      .select({ id: installedPluginsTable.id })
+      .from(installedPluginsTable)
+      .where(and(
+        eq(installedPluginsTable.botId, req.params.botId),
+        eq(installedPluginsTable.marketplaceItemId, marketplaceItemId),
+      ))
+      .limit(1);
+    if (existing) {
+      res.status(409).json({ error: "این پلاگین از قبل روی این بات نصب است.", code: "already_installed", id: existing.id });
+      return;
+    }
     // Z6: cart checkout can pay from wallet. Charge the item's real (server-side)
     // price so the client can't understate it.
     if (payFromWallet && !item.isFree && item.price > 0) {

@@ -328,8 +328,14 @@ export const MarketplaceItemCategory = {
 
 export interface MarketplaceItem {
   id: string;
+  /** English display name. */
   name: string;
+  /** English description. */
   description: string;
+  /** Persian display name. Empty falls back to `name`; the client picks by locale. */
+  name_fa?: string;
+  /** Persian description. Empty falls back to `description`. */
+  description_fa?: string;
   category: MarketplaceItemCategory;
   price: number;
   isFree?: boolean;

@@ -6,6 +6,11 @@ export const marketplaceItemsTable = pgTable("marketplace_items", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description").notNull(),
+  // هر دو زبان ذخیره می‌شوند تا فهرست مارکت‌پلیس به زبان کاربر نشان داده شود.
+  // قبلاً فقط یک ستون بود و sync فارسی را می‌نوشت، پس کاربر انگلیسی هم فارسی
+  // می‌دید. خالی = این آیتم ترجمه‌ی فارسی ندارد و UI به انگلیسی می‌افتد.
+  nameFa: text("name_fa").notNull().default(""),
+  descriptionFa: text("description_fa").notNull().default(""),
   category: text("category").notNull(),
   price: real("price").notNull().default(0),
   isFree: boolean("is_free").notNull().default(true),

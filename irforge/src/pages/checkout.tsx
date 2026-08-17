@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
-import { useT } from "@/hooks/use-translation";
+import { useT, type LocaleShape } from "@/hooks/use-translation";
 
 const REQUIRED_BOT_FIELDS: (keyof Pick<CartBot, "phone" | "telegramId" | "name" | "token" | "description">)[] = [
   "phone", "telegramId", "name", "token", "description",
@@ -41,22 +41,31 @@ type AppliedDiscount = {
   finalAmount: number;
 };
 
-function discountReasonText(reason: string | undefined, fa: boolean): string {
-  const messages: Record<DiscountReason, { fa: string; en: string }> = {
-    not_found: { fa: "کد تخفیف پیدا نشد", en: "Discount code not found" },
-    inactive: { fa: "این کد تخفیف غیرفعال است", en: "This discount code is inactive" },
-    expired: { fa: "این کد تخفیف منقضی شده است", en: "This discount code has expired" },
-    exhausted: { fa: "سقف استفاده از این کد تخفیف پر شده است", en: "This discount code has reached its usage limit" },
+/**
+ * دلیلِ ردشدن کد تخفیف، به زبان کاربر.
+ *
+ * قبلاً این پیام‌ها fa/en هاردکد بودند، پس کاربر عربی/ترکی/روسی وسط صفحه‌ی
+ * پرداخت یک جمله‌ی انگلیسی می‌دید.
+ */
+function discountReasonText(
+  reason: string | undefined,
+  t: LocaleShape["checkout"],
+): string {
+  const messages: Record<DiscountReason, string> = {
+    not_found: t.discountNotFound,
+    inactive: t.discountInactive,
+    expired: t.discountExpired,
+    exhausted: t.discountExhausted,
   };
-  const entry = reason && reason in messages ? messages[reason as DiscountReason] : null;
-  if (!entry) return fa ? "کد تخفیف نامعتبر است" : "Invalid discount code";
-  return fa ? entry.fa : entry.en;
+  if (reason && reason in messages) return messages[reason as DiscountReason];
+  return t.discountInvalid;
 }
 
 export default function Checkout() {
   usePrivatePageTitle(useT("pageTitles").checkout);
   const { lang } = useLanguage();
   const fa = lang === "fa";
+  const t = useT("checkout");
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -110,7 +119,7 @@ export default function Checkout() {
   useEffect(() => {
     if (appliedDiscount && appliedDiscount.discountAmount + appliedDiscount.finalAmount !== total) {
       setAppliedDiscount(null);
-      setDiscountErrorMsg(fa ? "سبد خرید تغییر کرد؛ کد تخفیف دوباره اعمال شود." : "Your cart changed; re-apply the discount code.");
+      setDiscountErrorMsg(t.cartChangedReapply);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
@@ -134,7 +143,7 @@ export default function Checkout() {
       });
     } catch (err: any) {
       setAppliedDiscount(null);
-      setDiscountErrorMsg(discountReasonText(err?.data?.reason, fa));
+      setDiscountErrorMsg(discountReasonText(err?.data?.reason, t));
     } finally {
       setDiscountBusy(false);
     }
@@ -151,8 +160,8 @@ export default function Checkout() {
     if (balance < payableTotal) {
       toast({
         variant: "destructive",
-        title: fa ? "موجودی کیف پول کافی نیست" : "Insufficient wallet balance",
-        description: fa ? "ابتدا کیف پول را شارژ کنید." : "Top up your wallet first.",
+        title: t.insufficientTitle,
+        description: t.insufficientDesc,
       });
       setLocation("/wallet");
       return;
@@ -201,7 +210,7 @@ export default function Checkout() {
       });
       setAppliedDiscount(null);
       setDiscountInput("");
-      toast({ title: fa ? "خرید با موفقیت انجام شد" : "Checkout complete" });
+      toast({ title: t.complete });
       setLocation("/bots");
     } catch (err: any) {
       // A discount code that was valid at "Apply" time but died before this request
@@ -210,9 +219,9 @@ export default function Checkout() {
       // so a retry doesn't resend a dead code.
       if (err?.data?.code && ["not_found", "inactive", "expired", "exhausted"].includes(err.data.code)) {
         setAppliedDiscount(null);
-        toast({ variant: "destructive", title: fa ? "کد تخفیف دیگر معتبر نیست" : "Discount code no longer valid", description: discountReasonText(err.data.code, fa) });
+        toast({ variant: "destructive", title: t.discountNoLongerValid, description: discountReasonText(err.data.code, t) });
       } else {
-        toast({ variant: "destructive", title: fa ? "خطا در پرداخت" : "Checkout failed", description: err?.data?.error || err?.message });
+        toast({ variant: "destructive", title: t.payFailed, description: err?.data?.error || err?.message });
       }
     } finally {
       setBusy(false);
@@ -223,9 +232,9 @@ export default function Checkout() {
     return (
       <div className="mx-auto max-w-lg space-y-4 py-16 text-center">
         <ShoppingCart className="mx-auto size-10 text-muted-foreground" />
-        <p className="text-muted-foreground">{fa ? "سبد خرید خالی است." : "Your cart is empty."}</p>
+        <p className="text-muted-foreground">{t.emptyCart}</p>
         <Button asChild variant="outline">
-          <Link href="/buy-bot">{fa ? "خرید بات جدید" : "Buy a new bot"}</Link>
+          <Link href="/buy-bot">{t.buyNewBot}</Link>
         </Button>
       </div>
     );
@@ -234,13 +243,13 @@ export default function Checkout() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <Button variant="ghost" size="sm" asChild className="-ms-2">
-        <Link href="/bots"><BackArrow className="me-2 h-4 w-4" /> {fa ? "بازگشت" : "Back"}</Link>
+        <Link href="/bots"><BackArrow className="me-2 h-4 w-4" /> {t.back}</Link>
       </Button>
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{fa ? "تسویه‌حساب" : "Checkout"}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
         <p className="text-sm text-muted-foreground">
-          {fa ? "برای هر بات، مشخصات زیر را کامل کن تا دکمه‌ی پرداخت فعال شود." : "Fill in the details below for each bot to enable the pay button."}
+          {t.subtitle}
         </p>
       </div>
 
@@ -254,9 +263,9 @@ export default function Checkout() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{item.name}</p>
-                  <p className="text-xs text-muted-foreground">{fa ? `پلاگین · ${item.botName}` : `Plugin · ${item.botName}`}</p>
+                  <p className="text-xs text-muted-foreground">{t.pluginLine.replace("{bot}", item.botName)}</p>
                 </div>
-                <span className="text-sm font-semibold">{item.price > 0 ? formatToman(item.price, lang) : (fa ? "رایگان" : "Free")}</span>
+                <span className="text-sm font-semibold">{item.price > 0 ? formatToman(item.price, lang) : t.free}</span>
                 <Button variant="ghost" size="icon" onClick={() => remove(item.key)}><Trash2 className="size-4 text-red-500" /></Button>
               </CardContent>
             </Card>
@@ -265,16 +274,16 @@ export default function Checkout() {
               <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <BotIcon className="size-4 text-primary" />
-                  {item.tierName ? (fa ? `پکیج ${item.tierName}` : `${item.tierName} package`) : (fa ? "ربات جدید" : "New bot")}
+                  {item.tierName ? t.tierPackage.replace("{tier}", item.tierName) : t.newBot}
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">{item.price > 0 ? formatToman(item.price, lang) : (fa ? "رایگان" : "Free")}</span>
+                  <span className="text-sm font-semibold">{item.price > 0 ? formatToman(item.price, lang) : t.free}</span>
                   <Button variant="ghost" size="icon" onClick={() => remove(item.key)}><Trash2 className="size-4 text-red-500" /></Button>
                 </div>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor={`phone-${item.key}`}>{fa ? "شماره تلفن *" : "Phone number *"}</Label>
+                  <Label htmlFor={`phone-${item.key}`}>{t.phone}</Label>
                   <Input
                     id={`phone-${item.key}`}
                     dir="ltr"
@@ -284,7 +293,7 @@ export default function Checkout() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor={`tg-${item.key}`}>{fa ? "آیدی تلگرام *" : "Telegram ID *"}</Label>
+                  <Label htmlFor={`tg-${item.key}`}>{t.telegramId}</Label>
                   <Input
                     id={`tg-${item.key}`}
                     dir="ltr"
@@ -294,16 +303,16 @@ export default function Checkout() {
                   />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor={`name-${item.key}`}>{fa ? "اسم بات *" : "Bot name *"}</Label>
+                  <Label htmlFor={`name-${item.key}`}>{t.botName}</Label>
                   <Input
                     id={`name-${item.key}`}
-                    placeholder={fa ? "مثلاً: فروشگاه من" : "e.g. My Shop"}
+                    placeholder={t.botNamePlaceholder}
                     value={item.name}
                     onChange={(e) => updateBot(item.key, { name: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor={`token-${item.key}`}>{fa ? "توکن بات *" : "Bot token *"}</Label>
+                  <Label htmlFor={`token-${item.key}`}>{t.botToken}</Label>
                   <Input
                     id={`token-${item.key}`}
                     dir="ltr"
@@ -314,7 +323,7 @@ export default function Checkout() {
                   />
                   <p className="text-xs">
                     <Link href="/learn/telegram-bot-token" className="text-orange-500 hover:underline">
-                      {fa ? "چطور توکن بات را بگیرم؟" : "How do I get my bot token?"}
+                      {t.howToGetToken}
                     </Link>
                   </p>
                   {item.token.trim() && (tokenCounts.get(item.token.trim()) ?? 0) > 1 && (
@@ -326,15 +335,15 @@ export default function Checkout() {
                   )}
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor={`desc-${item.key}`}>{fa ? "توضیحات ساخت بات *" : "Bot build description *"}</Label>
+                  <Label htmlFor={`desc-${item.key}`}>{t.buildDesc}</Label>
                   <Textarea
                     id={`desc-${item.key}`}
-                    placeholder={fa ? "بات را برای چه کاری می‌خواهی؟ چه امکاناتی نیاز داری؟" : "What is this bot for? What features do you need?"}
+                    placeholder={t.buildDescPlaceholder}
                     value={item.description}
                     onChange={(e) => updateBot(item.key, { description: e.target.value })}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {fa ? "این توضیحات توسط ادمین بررسی و تایید می‌شود." : "This description will be reviewed and approved by an admin."}
+                    {t.buildDescNote}
                   </p>
                 </div>
               </CardContent>
@@ -346,11 +355,11 @@ export default function Checkout() {
       <Card>
         <CardContent className="space-y-3 p-4">
           <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-1 text-muted-foreground"><Wallet className="size-3.5" /> {fa ? "موجودی" : "Balance"}</span>
+            <span className="flex items-center gap-1 text-muted-foreground"><Wallet className="size-3.5" /> {t.balance}</span>
             <span className={balance < payableTotal ? "text-red-500" : ""}>{formatToman(balance, lang)}</span>
           </div>
           <div className="flex items-center justify-between font-semibold">
-            <span>{fa ? "جمع کل" : "Total"}</span>
+            <span>{t.total}</span>
             <span className={appliedDiscount ? "text-muted-foreground line-through" : ""}>{formatToman(total, lang)}</span>
           </div>
 
@@ -358,7 +367,7 @@ export default function Checkout() {
             <div className="flex items-center justify-between text-sm text-green-600 dark:text-green-500">
               <span className="flex items-center gap-1">
                 <Tag className="size-3.5" />
-                {fa ? `تخفیف (${appliedDiscount.code})` : `Discount (${appliedDiscount.code})`}
+                {t.discountLabel.replace("{code}", appliedDiscount.code)}
               </span>
               <span className="flex items-center gap-1">
                 −{formatToman(appliedDiscount.discountAmount, lang)}
@@ -366,7 +375,7 @@ export default function Checkout() {
                   type="button"
                   onClick={removeDiscount}
                   className="ms-1 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  aria-label={fa ? "حذف کد تخفیف" : "Remove discount code"}
+                  aria-label={t.removeDiscount}
                 >
                   <X className="size-3.5" />
                 </button>
@@ -375,7 +384,7 @@ export default function Checkout() {
           )}
           {appliedDiscount && (
             <div className="flex items-center justify-between text-base font-bold">
-              <span>{fa ? "قابل پرداخت" : "Payable"}</span>
+              <span>{t.payable}</span>
               <span>{formatToman(appliedDiscount.finalAmount, lang)}</span>
             </div>
           )}
@@ -384,7 +393,7 @@ export default function Checkout() {
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 dir="ltr"
-                placeholder={fa ? "کد تخفیف" : "Discount code"}
+                placeholder={t.discountPlaceholder}
                 value={discountInput}
                 onChange={(e) => { setDiscountInput(e.target.value); setDiscountErrorMsg(null); }}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyDiscount(); } }}
@@ -397,7 +406,7 @@ export default function Checkout() {
                 disabled={!discountInput.trim() || discountBusy}
                 onClick={applyDiscount}
               >
-                {discountBusy ? <Loader2 className="size-4 animate-spin" /> : (fa ? "اعمال" : "Apply")}
+                {discountBusy ? <Loader2 className="size-4 animate-spin" /> : t.apply}
               </Button>
             </div>
           )}
@@ -406,28 +415,28 @@ export default function Checkout() {
           )}
           {!hasBotItems && (
             <p className="text-xs text-muted-foreground">
-              {fa ? "کد تخفیف فقط روی خرید بات جدید اعمال می‌شود، نه افزونه‌ها." : "Discount codes apply to new bot purchases, not plugins."}
+              {t.discountScopeNote}
             </p>
           )}
 
           <Separator />
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1" disabled={busy} onClick={clear}>
-              {fa ? "خالی کردن سبد" : "Clear cart"}
+              {t.clearCart}
             </Button>
             <GlowButton className="flex-1" wrapperClassName="flex-1" disabled={!canPay || busy} onClick={checkout}>
               {busy ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Wallet className="me-2 h-4 w-4" />}
-              {fa ? "پرداخت از کیف پول" : "Pay from wallet"}
+              {t.payFromWallet}
             </GlowButton>
           </div>
           {!allBotsComplete && (
             <p className="text-center text-xs text-muted-foreground">
-              {fa ? "برای فعال شدن دکمه پرداخت، فیلدهای اجباری همه‌ی بات‌ها را کامل کن." : "Fill in every bot's required fields to enable payment."}
+              {t.fillRequired}
             </p>
           )}
           {allBotsComplete && hasDuplicateTokens && (
             <p className="text-center text-xs text-red-500">
-              {fa ? "یک توکن تکراری در سبد وجود دارد؛ آن را اصلاح کن." : "A duplicate token is in your cart; fix it to continue."}
+              {t.duplicateToken}
             </p>
           )}
         </CardContent>

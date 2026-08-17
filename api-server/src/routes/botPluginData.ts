@@ -74,11 +74,11 @@ function coerce(field: FieldSpec, raw: unknown): unknown {
       if (raw === "" || raw === null) return 0;
       const value = Number(raw);
       if (!Number.isFinite(value))
-        throw bad(`مقدار «${field.label}» باید یک عدد باشد.`, "bad_number");
+        throw bad(`مقدار «${field.label.fa}» باید یک عدد باشد.`, "bad_number");
       if (field.min !== undefined && value < field.min)
-        throw bad(`«${field.label}» نباید کمتر از ${field.min} باشد.`, "out_of_range");
+        throw bad(`«${field.label.fa}» نباید کمتر از ${field.min} باشد.`, "out_of_range");
       if (field.max !== undefined && value > field.max)
-        throw bad(`«${field.label}» نباید بیشتر از ${field.max} باشد.`, "out_of_range");
+        throw bad(`«${field.label.fa}» نباید بیشتر از ${field.max} باشد.`, "out_of_range");
       // عددهای گِرد به int تبدیل می‌شوند تا روی شیت "5" بنشیند نه "5.0" —
       // همان کاری که `RecordStore.increment` در بات می‌کند.
       return Number.isInteger(value) ? value : value;
@@ -88,7 +88,7 @@ function coerce(field: FieldSpec, raw: unknown): unknown {
       const value = String(raw ?? "");
       const allowed = (field.options ?? []).map((o) => o.value);
       if (value && allowed.length > 0 && !allowed.includes(value))
-        throw bad(`مقدار «${field.label}» معتبر نیست.`, "bad_option");
+        throw bad(`مقدار «${field.label.fa}» معتبر نیست.`, "bad_option");
       return value;
     }
 
@@ -97,7 +97,7 @@ function coerce(field: FieldSpec, raw: unknown): unknown {
       if (!value) return "";
       const parsed = new Date(value);
       if (Number.isNaN(parsed.getTime()))
-        throw bad(`تاریخ «${field.label}» معتبر نیست.`, "bad_datetime");
+        throw bad(`تاریخ «${field.label.fa}» معتبر نیست.`, "bad_datetime");
       // ISO با timezone صریح — بات با `parse_iso` می‌خواند و تاریخ بدون
       // timezone را UTC فرض می‌کند؛ صریح نوشتن، ابهام را حذف می‌کند.
       return parsed.toISOString();
@@ -110,7 +110,7 @@ function coerce(field: FieldSpec, raw: unknown): unknown {
       const value = String(raw ?? "");
       const limit = field.maxLength ?? 2000;
       if (value.length > limit)
-        throw bad(`طول «${field.label}» از ${limit} کاراکتر بیشتر است.`, "too_long");
+        throw bad(`طول «${field.label.fa}» از ${limit} کاراکتر بیشتر است.`, "too_long");
       return value;
     }
   }
@@ -139,7 +139,7 @@ function buildPayload(spec: CollectionSpec, body: any, creating: boolean): Recor
 
     if (creating && field.required) {
       const empty = value === undefined || value === "" || value === null;
-      if (empty) throw bad(`«${field.label}» الزامی است.`, "field_required");
+      if (empty) throw bad(`«${field.label.fa}» الزامی است.`, "field_required");
     }
 
     if (value !== undefined) out[field.key] = value;
@@ -231,7 +231,7 @@ router.post("/bots/:botId/plugin-data/:collection", requireAuth, async (req: any
     if (spec.readonly || spec.noCreate)
       throw new BotConfigError(
         405,
-        `«${spec.titleFa}» از سایت ساخته نمی‌شود — این رکوردها را خودِ بات می‌سازد.`,
+        `«${spec.title.fa}» از سایت ساخته نمی‌شود — این رکوردها را خودِ بات می‌سازد.`,
         "create_not_allowed",
       );
 
@@ -259,7 +259,7 @@ router.patch("/bots/:botId/plugin-data/:collection/:id", requireAuth, async (req
     if (spec.readonly)
       throw new BotConfigError(
         405,
-        `«${spec.titleFa}» از سایت قابل ویرایش نیست.`,
+        `«${spec.title.fa}» از سایت قابل ویرایش نیست.`,
         "update_not_allowed",
       );
 
@@ -291,7 +291,7 @@ router.delete("/bots/:botId/plugin-data/:collection/:id", requireAuth, async (re
     const spec = getCollection(String(req.params.collection));
     if (!spec) throw new BotConfigError(404, "این مجموعه شناخته‌شده نیست.", "collection_not_found");
     if (spec.readonly)
-      throw new BotConfigError(405, `«${spec.titleFa}» از سایت حذف نمی‌شود.`, "delete_not_allowed");
+      throw new BotConfigError(405, `«${spec.title.fa}» از سایت حذف نمی‌شود.`, "delete_not_allowed");
 
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
     await requirePluginEnabled(spreadsheetId, spec.plugin);

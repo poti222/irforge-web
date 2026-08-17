@@ -1171,8 +1171,19 @@ components:
           type: string
         name:
           type: string
+          description: English display name.
         description:
           type: string
+          description: English description.
+        name_fa:
+          type: string
+          description: >-
+            Persian display name. Empty when the item has no Persian text, in
+            which case the UI falls back to `name`. The client picks by locale
+            rather than the server deciding — see irforge/src/lib/plugin-text.ts.
+        description_fa:
+          type: string
+          description: Persian description. Empty means fall back to `description`.
         category:
           type: string
           enum: [plugin, component, template, theme]

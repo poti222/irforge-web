@@ -16,6 +16,7 @@ import type { Bot } from "@workspace/api-client-react";
 import { Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/hooks/use-translation";
+import { useLanguage } from "@/hooks/use-language";
 import { PluginCollectionTable, type CollectionSpec } from "./PluginCollectionTable";
 
 function errMessage(err: any, fallback: string): string {
@@ -35,6 +36,7 @@ export function usePluginCollections(botId: string) {
 
 export function PluginSection({ bot, plugin }: { bot: Bot; plugin: string }) {
   const t = useT("botPluginData");
+  const { lang } = useLanguage();
   const { data, isLoading, error } = usePluginCollections(bot.id);
 
   if (isLoading) {
@@ -75,7 +77,7 @@ export function PluginSection({ bot, plugin }: { bot: Bot; plugin: string }) {
       <TabsList className="flex-wrap">
         {collections.map((collection) => (
           <TabsTrigger key={collection.key} value={collection.key}>
-            {collection.titleFa}
+            {(lang === "fa" ? collection.title.fa : collection.title.en) || collection.title.en}
           </TabsTrigger>
         ))}
       </TabsList>

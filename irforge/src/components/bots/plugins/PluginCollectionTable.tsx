@@ -34,27 +34,31 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
+import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
+
+/** متن دوزبانه‌ای که سرور می‌دهد — `api-server/src/lib/pluginCollections.ts`. */
+export type Localized = { en: string; fa: string };
 
 export type FieldSpec = {
   key: string;
-  label: string;
+  label: Localized;
   type: "text" | "textarea" | "number" | "boolean" | "select" | "datetime" | "readonly";
   required?: boolean;
-  options?: Array<{ value: string; label: string }>;
+  options?: Array<{ value: string; label: Localized }>;
   min?: number;
   max?: number;
   maxLength?: number;
   default?: string | number | boolean;
-  help?: string;
+  help?: Localized;
 };
 
 export type CollectionSpec = {
   key: string;
   tab: string;
   plugin: string;
-  titleFa: string;
-  descriptionFa?: string;
+  title: Localized;
+  description?: Localized;
   idPrefix: string;
   fields: FieldSpec[];
   listColumns: string[];
@@ -69,6 +73,15 @@ function errMessage(err: any, fallback: string): string {
   return err?.data?.error ?? err?.message ?? fallback;
 }
 
+/**
+ * متن دوزبانه → زبان جاری. عربی/ترکی/روسی انگلیسی می‌گیرند: برچسبِ یک فیلد
+ * داده جای ترجمه‌ی حدسی نیست (همان قاعده‌ی lib/plugin-text.ts).
+ */
+function loc(text: Localized | undefined, lang: string): string {
+  if (!text) return "";
+  return (lang === "fa" ? text.fa : text.en) || text.en || text.fa || "";
+}
+
 /** ISO → مقداری که `<input type="datetime-local">` می‌پذیرد (بدون ثانیه/زون). */
 function isoToLocalInput(value: unknown): string {
   if (!value) return "";
@@ -79,7 +92,13 @@ function isoToLocalInput(value: unknown): string {
 }
 
 /** نمایش یک سلول — خواندنی برای انسان، نه JSON خام. */
-function renderCell(field: FieldSpec | undefined, value: unknown, locale: string): React.ReactNode {
+function renderCell(
+  field: FieldSpec | undefined,
+  value: unknown,
+  locale: string,
+  lang: string,
+  itemsLabel: string,
+): React.ReactNode {
   if (value === undefined || value === null || value === "") return <span className="text-muted-foreground">—</span>;
 
   if (field?.type === "boolean" || typeof value === "boolean") {
@@ -87,7 +106,8 @@ function renderCell(field: FieldSpec | undefined, value: unknown, locale: string
   }
   if (field?.type === "select") {
     const label = field.options?.find((o) => o.value === String(value))?.label;
-    return label ? <Badge variant="outline">{label}</Badge> : String(value);
+    const text = loc(label, lang);
+    return text ? <Badge variant="outline">{text}</Badge> : String(value);
   }
   if (field?.type === "datetime" || /_at$/.test(field?.key ?? "")) {
     const date = new Date(String(value));
@@ -105,7 +125,8 @@ function renderCell(field: FieldSpec | undefined, value: unknown, locale: string
   if (typeof value === "object") {
     // آبجکت/آرایه (مثل `questions` یا `answers`) — شمارش، نه دامپ JSON.
     const count = Array.isArray(value) ? value.length : Object.keys(value).length;
-    return <span className="text-muted-foreground">{count.toLocaleString(locale)} مورد</span>;
+    // «مورد» اینجا هاردکد فارسی بود و در رابط انگلیسی هم فارسی دیده می‌شد.
+    return <span className="text-muted-foreground">{count.toLocaleString(locale)} {itemsLabel}</span>;
   }
 
   const text = String(value);
@@ -113,11 +134,12 @@ function renderCell(field: FieldSpec | undefined, value: unknown, locale: string
 }
 
 function RecordForm({
-  spec, initial, onChange,
+  spec, initial, onChange, lang,
 }: {
   spec: CollectionSpec;
   initial: Record<string, unknown>;
   onChange: (next: Record<string, unknown>) => void;
+  lang: string;
 }) {
   const editable = spec.fields.filter((f) => f.type !== "readonly");
 
@@ -133,7 +155,7 @@ function RecordForm({
         return (
           <div key={field.key} className="grid gap-1.5">
             <Label htmlFor={id}>
-              {field.label}
+              {loc(field.label, lang)}
               {field.required && <span className="text-destructive"> *</span>}
             </Label>
 
@@ -199,14 +221,14 @@ function RecordForm({
                 <SelectContent>
                   {(field.options ?? []).map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {loc(option.label, lang)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
 
-            {field.help && <p className="text-xs text-muted-foreground">{field.help}</p>}
+            {field.help && <p className="text-xs text-muted-foreground">{loc(field.help, lang)}</p>}
           </div>
         );
       })}
@@ -216,6 +238,7 @@ function RecordForm({
 
 export function PluginCollectionTable({ botId, collection }: { botId: string; collection: string }) {
   const t = useT("botPluginData");
+  const { lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -328,16 +351,18 @@ export function PluginCollectionTable({ botId, collection }: { botId: string; co
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <h3 className="flex items-center gap-2 text-base font-semibold">
-            {spec.titleFa}
-            <Badge variant="outline" className="tabular-nums">{records.length.toLocaleString("fa-IR")}</Badge>
+            {loc(spec.title, lang)}
+            <Badge variant="outline" className="tabular-nums">
+              {records.length.toLocaleString(lang === "fa" ? "fa-IR" : "en-US")}
+            </Badge>
             {spec.readonly && (
               <Badge variant="secondary" className="gap-1">
                 <Lock className="size-3" /> {t.readOnly}
               </Badge>
             )}
           </h3>
-          {spec.descriptionFa && (
-            <p className="max-w-2xl text-sm text-muted-foreground">{spec.descriptionFa}</p>
+          {spec.description && (
+            <p className="max-w-2xl text-sm text-muted-foreground">{loc(spec.description, lang)}</p>
           )}
         </div>
         {canCreate && (
@@ -358,7 +383,7 @@ export function PluginCollectionTable({ botId, collection }: { botId: string; co
             <TableHeader>
               <TableRow>
                 {spec.listColumns.map((column) => (
-                  <TableHead key={column}>{fieldsByKey.get(column)?.label ?? column}</TableHead>
+                  <TableHead key={column}>{loc(fieldsByKey.get(column)?.label, lang) || column}</TableHead>
                 ))}
                 {canEdit && <TableHead className="w-24">{t.actions}</TableHead>}
               </TableRow>
@@ -368,7 +393,7 @@ export function PluginCollectionTable({ botId, collection }: { botId: string; co
                 <TableRow key={record.id}>
                   {spec.listColumns.map((column) => (
                     <TableCell key={column} className="align-top text-sm">
-                      {renderCell(fieldsByKey.get(column), record[column], "fa-IR")}
+                      {renderCell(fieldsByKey.get(column), record[column], lang === "fa" ? "fa-IR" : "en-US", lang, t.items)}
                     </TableCell>
                   ))}
                   {canEdit && (
@@ -407,9 +432,9 @@ export function PluginCollectionTable({ botId, collection }: { botId: string; co
         <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? t.editTitle : t.addTitle}</DialogTitle>
-            <DialogDescription>{spec.titleFa}</DialogDescription>
+            <DialogDescription>{loc(spec.title, lang)}</DialogDescription>
           </DialogHeader>
-          <RecordForm spec={spec} initial={draft} onChange={setDraft} />
+          <RecordForm spec={spec} initial={draft} onChange={setDraft} lang={lang} />
           <DialogFooter>
             <Button
               variant="outline"

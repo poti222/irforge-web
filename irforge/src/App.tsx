@@ -7,6 +7,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
+// هر تغییر مسیر، صفحه را از بالا نشان می‌دهد — نگاه کن به دو ظرف اسکرولِ
+// جدا که آن فایل توضیح می‌دهد.
+import { ScrollToTop } from "@/components/layout/scroll-to-top";
 import NotFound from "@/pages/not-found";
 
 // Public, prerendered pages: kept as static imports so SSG (scripts/ssg.mjs)
@@ -50,6 +53,7 @@ const BuyBotDetail = lazy(() => import("@/pages/buy-bot-detail"));
 const Checkout = lazy(() => import("@/pages/checkout"));
 const BotWorkspace = lazy(() => import("@/pages/bot-workspace"));
 const Marketplace = lazy(() => import("@/pages/marketplace"));
+const PluginDetail = lazy(() => import("@/pages/plugin-detail"));
 const Invoices = lazy(() => import("@/pages/invoices"));
 const Tickets = lazy(() => import("@/pages/tickets"));
 const WalletPage = lazy(() => import("@/pages/wallet"));
@@ -202,6 +206,7 @@ function Router() {
       <Route path="/bots/cart"><ProtectedRoute component={Checkout} /></Route>
       <Route path="/bots/:botId"><ProtectedRoute component={BotWorkspace} /></Route>
       <Route path="/marketplace"><ProtectedRoute component={Marketplace} /></Route>
+      <Route path="/marketplace/:pluginId"><ProtectedRoute component={PluginDetail} /></Route>
       <Route path="/invoices"><ProtectedRoute component={Invoices} /></Route>
       <Route path="/tickets"><ProtectedRoute component={Tickets} /></Route>
       <Route path="/wallet"><ProtectedRoute component={WalletPage} /></Route>
@@ -287,6 +292,7 @@ function App({ ssrPath }: { ssrPath?: string } = {}) {
             <WouterRouter base={base} ssrPath={ssrPath}>
               <AuthProvider>
                 <CartProvider>
+                  <ScrollToTop />
                   <Router />
                 </CartProvider>
               </AuthProvider>
