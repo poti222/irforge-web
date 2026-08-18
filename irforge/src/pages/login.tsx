@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch, getGetMeQueryKey } from "@workspace/api-client-react";
@@ -8,27 +8,93 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Phone, Mail, LifeBuoy } from "lucide-react";
+import { Loader2, Phone, Mail, LifeBuoy, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/use-seo";
 import { useT } from "@/hooks/use-translation";
+import { useLanguage } from "@/hooks/use-language";
 import { BrandLogo } from "@/components/layout/brand-home";
 import { CodeInput } from "@/components/auth/CodeInput";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
 
 /**
- * ورود دومرحله‌ای: شماره + رمز → کد در تلگرام → نشست.
+ * دو راه ورود، یک صفحه.
  *
- * کد در **هر** ورود لازم است. «این دستگاه را به خاطر بسپار» عمداً وجود ندارد:
- * عامل دومی که می‌شود خاموشش کرد، برای مهاجمی که رمز را دارد یعنی فقط یک
- * چک‌باکس فاصله تا حساب.
+ * ۱ **ورود با تلگرام (یک کلیک)** — کاربر دکمه را می‌زند، وارد بات می‌شود، بات
+ *   او را از روی `telegram_id` می‌شناسد و می‌گوید «وارد شدید»؛ همین صفحه که
+ *   در حال poll است، نشست را می‌گیرد و به داشبورد می‌رود. نه شماره، نه رمز،
+ *   نه کد شش‌رقمی — چون تلگرام خودش هویت را تضمین کرده و مالکیت حساب تلگرام
+ *   دقیقاً همان عاملی است که مسیر دوم با کد ثابتش می‌کند.
+ *
+ * ۲ **شماره + رمز → کد در تلگرام** — مسیر قبلی، دست‌نخورده. برای کسی که
+ *   تلگرامش روی این دستگاه نیست، و تنها راهِ حسابی که هنوز وصل نشده.
+ *
+ * کد در **هر** ورودِ مسیر دوم لازم است. «این دستگاه را به خاطر بسپار» عمداً
+ * وجود ندارد: عامل دومی که می‌شود خاموشش کرد، برای مهاجمی که رمز را دارد
+ * یعنی فقط یک چک‌باکس فاصله تا حساب.
  */
 
-type Step = "credentials" | "code" | "needs_telegram";
+type Step = "credentials" | "code" | "needs_telegram" | "telegram_waiting";
 
 /** شماره و رمز → کد تلگرام. */
 const TOTAL_STEPS = 2;
+
+/**
+ * درخواست ورودِ تلگرام، در `sessionStorage`.
+ *
+ * روی موبایل، رفتن به تلگرام یعنی خروج از مرورگر و معمولاً پاک‌شدن تب از
+ * حافظه؛ برگشتن یک بارگذاری کامل است که `useState` را از بین می‌برد. بدون
+ * این، کاربر برمی‌گشت و صفحه‌ی ورودِ خالی می‌دید در حالی که ورودش همان لحظه
+ * تأیید شده بود. همان درسی که `register.tsx` هم دارد.
+ *
+ * `pollSecret` اینجا می‌ماند و **هرگز در URL نمی‌رود** — از آنجا به referrer و
+ * تاریخچه‌ی مرورگر نشت می‌کرد.
+ */
+const TG_STORAGE_KEY = "irforge_tg_login";
+
+interface TgLoginRequest {
+  id: string;
+  pollSecret: string;
+  deepLink: string;
+}
+
+/**
+ * باز کردن لینک عمیق — روی موبایل و دسکتاپ عمداً متفاوت.
+ *
+ * روی **موبایل** همین تب: تب `_blank` به‌صورت ضمنی `noopener` می‌گیرد و
+ * `sessionStorage` والد را به ارث نمی‌برد، پس اگر کاربر بعد از تلگرام سر از
+ * آن تب دربیاورد، صفحه درخواستِ در جریان را نمی‌بیند. صفحه‌ی فعلی به bfcache
+ * می‌رود و دست‌نخورده برمی‌گردد. (همان دلیلی که `TelegramLinkPanel` هم
+ * `sameTab` دارد.)
+ *
+ * روی **دسکتاپ** برعکس: `t.me/...` در همان تب یعنی صفحه‌ی ورود جایش را به
+ * سایت تلگرام می‌دهد و چیزی برای poll کردن باقی نمی‌ماند. تب تازه باز می‌شود
+ * و صفحه‌ی انتظار — با QR — سر جایش می‌ماند. اگر مرورگر پاپ‌آپ را بست هم
+ * چیزی خراب نمی‌شود: همان صفحه دکمه و QR را دارد.
+ */
+function openTelegram(deepLink: string) {
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  if (isMobile) {
+    window.location.href = deepLink;
+    return;
+  }
+  window.open(deepLink, "_blank", "noopener,noreferrer");
+}
+
+function loadTgRequest(): TgLoginRequest | null {
+  try {
+    const raw = sessionStorage.getItem(TG_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.id === "string" && typeof parsed.pollSecret === "string") {
+      return { id: parsed.id, pollSecret: parsed.pollSecret, deepLink: parsed.deepLink ?? "" };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
 
 export default function Login() {
   const t = useT("auth") as Record<string, string>;
@@ -50,11 +116,150 @@ export default function Login() {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [linkDeepLink, setLinkDeepLink] = useState<string | null>(null);
 
+  const { lang } = useLanguage();
+  const [tgRequest, setTgRequest] = useState<TgLoginRequest | null>(null);
+  const [tgError, setTgError] = useState<string | null>(null);
+
   useEffect(() => {
     if (secondsLeft <= 0) return;
     const id = window.setInterval(() => setSecondsLeft((n) => Math.max(0, n - 1)), 1000);
     return () => window.clearInterval(id);
   }, [secondsLeft]);
+
+  // ─── ورود با تلگرام ───────────────────────────────────────────────────────
+
+  /** درخواستِ در جریان را دور می‌ریزد و به گام اول برمی‌گردد. */
+  const resetTelegram = useCallback((message?: string) => {
+    sessionStorage.removeItem(TG_STORAGE_KEY);
+    setTgRequest(null);
+    setTgError(message ?? null);
+    setStep("credentials");
+  }, []);
+
+  /**
+   * بازگشت از تلگرام روی موبایل معمولاً یک بارگذاری کامل است، پس درخواستِ
+   * ذخیره‌شده در همان mount برداشته می‌شود و کاربر مستقیم روی گام انتظار
+   * می‌نشیند — نه روی فرم خالی.
+   */
+  useEffect(() => {
+    const saved = loadTgRequest();
+    if (saved) {
+      setTgRequest(saved);
+      setStep("telegram_waiting");
+    }
+  }, []);
+
+  const finishSession = useCallback(
+    (res: { user: any; token: string }) => {
+      // همان کلیدی که main.tsx برای هدر Authorization می‌خواند ("irforge_token").
+      // نوشتن روی کلید دیگر یعنی همه‌ی درخواست‌های بعدی بدون Authorization
+      // بروند و سرور ۴۰۱ بدهد، در حالی که UI کاربر را واردشده نشان می‌دهد.
+      localStorage.setItem("irforge_token", res.token);
+      queryClient.setQueryData(getGetMeQueryKey(), res.user);
+      navigate("/dashboard");
+    },
+    [navigate, queryClient],
+  );
+
+  async function startTelegramLogin() {
+    setBusy(true);
+    setTgError(null);
+    try {
+      const res = await customFetch<{
+        id: string;
+        pollSecret: string;
+        deepLink: string;
+        expiresInSeconds: number;
+      }>("/api/auth/telegram/login/start", {
+        method: "POST",
+        body: JSON.stringify({ locale: lang }),
+      });
+
+      const request: TgLoginRequest = {
+        id: res.id,
+        pollSecret: res.pollSecret,
+        deepLink: res.deepLink,
+      };
+      // ذخیره **قبل** از باز کردن تلگرام: بعدش ممکن است این تب دیگر کد اجرا نکند.
+      sessionStorage.setItem(TG_STORAGE_KEY, JSON.stringify(request));
+      setTgRequest(request);
+      setSecondsLeft(res.expiresInSeconds);
+      setStep("telegram_waiting");
+
+      openTelegram(res.deepLink);
+    } catch (err: any) {
+      if (err?.status === 503) {
+        setTgError(t.tgUnavailable);
+      } else {
+        fail(err);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * poll تا وقتی بات تأیید کند.
+   *
+   * دو ثانیه فاصله عمدی است: کاربر همین حالا در حال زدن دکمه‌ی بات است و
+   * تأخیرِ محسوس، فیچر را «کار نمی‌کند» نشان می‌دهد. اندپوینت `rate limit`
+   * ندارد و محافظش `pollSecret` است، پس این نرخ مشکلی نمی‌سازد.
+   */
+  const pollingRef = useRef(false);
+  useEffect(() => {
+    if (step !== "telegram_waiting" || !tgRequest) return;
+
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled || pollingRef.current) return;
+      pollingRef.current = true;
+      try {
+        const res = await customFetch<{
+          status: "pending" | "approved" | "rejected" | "expired";
+          reason?: string;
+          user?: any;
+          token?: string;
+        }>(
+          `/api/auth/telegram/login/${tgRequest.id}/status?secret=${encodeURIComponent(
+            tgRequest.pollSecret,
+          )}`,
+        );
+
+        if (cancelled) return;
+        if (res.status === "approved" && res.token && res.user) {
+          sessionStorage.removeItem(TG_STORAGE_KEY);
+          finishSession({ user: res.user, token: res.token });
+          return;
+        }
+        if (res.status === "rejected") {
+          resetTelegram(
+            res.reason === "no_account"
+              ? t.tgNoAccount
+              : res.reason === "suspended"
+                ? t.tgSuspended
+                : t.tgFailed,
+          );
+          return;
+        }
+        if (res.status === "expired") {
+          resetTelegram(t.tgExpired);
+        }
+      } catch (err: any) {
+        // ۴۰۴ یعنی درخواست پاک شده یا راز نمی‌خواند — چرخیدن تا ابد بی‌فایده
+        // است. بقیه‌ی خطاها (قطعی گذرای شبکه) نادیده و دفعه‌ی بعد دوباره.
+        if (!cancelled && err?.status === 404) resetTelegram(t.tgExpired);
+      } finally {
+        pollingRef.current = false;
+      }
+    };
+
+    void tick();
+    const id = window.setInterval(() => void tick(), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [step, tgRequest, finishSession, resetTelegram, t]);
 
   function fail(err: any) {
     const retry = err?.data?.retryAfterSeconds;
@@ -106,15 +311,7 @@ export default function Login() {
         method: "POST",
         body: JSON.stringify({ challengeId, code: entered }),
       });
-      // Must match the key `customFetch`'s auth-token getter reads in main.tsx
-      // ("irforge_token") — writing to a different key here means every
-      // request after login silently goes out with no Authorization header,
-      // and the server 401s ("Unauthorized") on the very next authenticated
-      // call (e.g. connecting Telegram, starting a bot trial) even though the
-      // UI still shows the user as signed in.
-      localStorage.setItem("irforge_token", res.token);
-      queryClient.setQueryData(getGetMeQueryKey(), res.user);
-      navigate("/dashboard");
+      finishSession(res);
     } catch (err: any) {
       setCodeInvalid(true);
       setCode("");
@@ -155,6 +352,41 @@ export default function Login() {
             onSubmit={(e) => { e.preventDefault(); void submitCredentials(); }}
           >
             <AuthStepHeader title={t.signInAccount} step={1} total={TOTAL_STEPS} />
+
+            {/*
+              راه اول و پیش‌فرض. بالای فرم است چون برای کسی که تلگرامش روی همین
+              دستگاه باز است، یک لمس کل کار است — و رمز و کد شش‌رقمی فقط مسیر
+              پشتیبان‌اند.
+            */}
+            <div className="space-y-3">
+              <GlowButton
+                type="button"
+                className="w-full gap-2"
+                disabled={busy}
+                onClick={() => void startTelegramLogin()}
+              >
+                {busy ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Send className="size-4" aria-hidden="true" />
+                )}
+                {t.tgLoginButton}
+              </GlowButton>
+              <p className="text-center text-xs text-muted-foreground">{t.tgLoginHint}</p>
+
+              {tgError && (
+                <p className="text-center text-sm text-destructive" role="alert">
+                  {tgError}
+                </p>
+              )}
+
+              {/* جداکننده‌ی «یا» — تا فرم پایین یک گزینه دیده شود، نه گام بعدی. */}
+              <div className="flex items-center gap-3 pt-1">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">{t.orDivider}</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+            </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="login-phone">{t.loginPhone}</Label>
@@ -243,6 +475,34 @@ export default function Login() {
               {busy && <Loader2 className="me-2 size-4 animate-spin" />}
               {t.loginVerify}
             </GlowButton>
+          </div>
+        )}
+
+        {step === "telegram_waiting" && tgRequest && (
+          <div className="space-y-5">
+            <AuthStepHeader
+              title={t.tgWaitingTitle}
+              description={t.tgWaitingDesc}
+              step={2}
+              total={TOTAL_STEPS}
+              onBack={() => resetTelegram()}
+            />
+
+            {/*
+              همان پنل ثبت‌نام: دکمه‌ی «باز کردن تلگرام» + QR. QR اینجا هم
+              اختیاری نیست — روی دسکتاپ بدون تلگرامِ نصب‌شده، لینک `t.me` تنها
+              کاری که می‌کند باز کردن یک صفحه‌ی وب است.
+            */}
+            <TelegramLinkPanel mode="register" deepLink={tgRequest.deepLink} waiting sameTab />
+
+            <p className="text-center text-sm text-muted-foreground" aria-live="polite">
+              {secondsLeft > 0
+                ? (t.codeExpiresIn ?? "").replace(
+                    "{t}",
+                    `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`,
+                  )
+                : t.tgExpired}
+            </p>
           </div>
         )}
 

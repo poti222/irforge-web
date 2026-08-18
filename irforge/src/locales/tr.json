@@ -212,7 +212,19 @@
     "lostTelegramDesc": "Bir destek talebi açın; kimliğinizi doğrulayıp erişimi geri verelim.",
     "tooManyAttempts": "Çok fazla deneme. Lütfen baştan başlayın.",
     "rateLimited": "Çok fazla istek. {n} sn sonra deneyin.",
-    "expired": "Bu oturumun süresi doldu. Lütfen baştan başlayın."
+    "expired": "Bu oturumun süresi doldu. Lütfen baştan başlayın.",
+    "orDivider": "veya",
+    "tgExpired": "Bu giriş isteğinin süresi doldu. Lütfen tekrar deneyin.",
+    "tgFailed": "Telegram ile giriş tamamlanmadı. Lütfen tekrar deneyin.",
+    "tgLoginButton": "Telegram ile giriş yap",
+    "tgLoginHint": "Tek dokunuş — botu açtığınız Telegram hesabından sizi tanıyoruz.",
+    "tgNoAccount": "Bu Telegram'a bağlı hesap yok. Hesabınız varsa bir kez telefon ve şifrenizle girip Telegram'ı bağlayın.",
+    "tgSigningIn": "Giriş yapılıyor…",
+    "tgSuspended": "Bu hesap askıya alınmış. Lütfen destek ile iletişime geçin.",
+    "tgTicketExpired": "Bu giriş bağlantısının süresi doldu. Giriş sayfasından yeniden başlayın.",
+    "tgUnavailable": "Bu sunucuda Telegram ile giriş etkin değil.",
+    "tgWaitingDesc": "Botu açıp Başlat'a dokunun. Bot giriş yaptığınızı söyler söylemez bu sayfa kendiliğinden devam eder.",
+    "tgWaitingTitle": "Telegram'da onaylayın"
   },
   "pageTitles": {
     "dashboard": "Panel",

@@ -1,6 +1,14 @@
 import { Router } from "express";
-import { db, usersTable, sessionsTable, botsTable, telegramLinkTokensTable, loginChallengesTable } from "@workspace/db";
-import { eq, and, gt, count } from "drizzle-orm";
+import {
+  db,
+  usersTable,
+  sessionsTable,
+  botsTable,
+  telegramLinkTokensTable,
+  loginChallengesTable,
+  telegramLoginRequestsTable,
+} from "@workspace/db";
+import { eq, and, gt, count, isNull } from "drizzle-orm";
 import crypto from "crypto";
 import { logger } from "../lib/logger";
 import { normaliseEmail, emailEquals, isEmailUniqueViolation } from "../lib/email";
@@ -363,19 +371,8 @@ router.post("/auth/login/verify", authRateLimit("login_verify"), async (req, res
       .set({ consumedAt: new Date() })
       .where(eq(loginChallengesTable.id, challengeId));
 
-    await db.update(usersTable).set({ lastLogin: new Date() }).where(eq(usersTable.id, user.id));
-    const token = generateToken(user.id);
-    const loginSessionExpiry = sessionExpiresAt();
-    await db.insert(sessionsTable).values({ token, userId: user.id, expiresAt: loginSessionExpiry });
-    syncSessionUpsert({ token, userId: user.id, expiresAt: loginSessionExpiry });
-
-    const [{ value: botCount }] = await db
-      .select({ value: count() })
-      .from(botsTable)
-      .where(eq(botsTable.userId, user.id));
-
     logger.info({ userId: user.id }, "Login completed");
-    res.json({ user: toAuthUser(user, botCount), token });
+    res.json(await issueSession(user));
   } catch (err) {
     logger.error({ err }, "Login verify error");
     res.status(500).json({ error: "Internal server error" });
@@ -613,6 +610,223 @@ router.post("/auth/telegram/link/start", requireAuth, async (req: any, res) => {
 router.get("/auth/telegram/bot-username", (_req, res) => {
   const raw = process.env.TELEGRAM_BOT_USERNAME;
   res.json({ username: raw ? raw.replace(/^@/, "") : null });
+});
+
+// ─── ورود یک‌کلیکی با تلگرام ─────────────────────────────────────────────────
+//
+// «دکمه بزنی، بروی توی بات، بات بگوید وارد شدی.» بدون شماره، بدون رمز، بدون
+// کد شش‌رقمی — چون خودِ تلگرام هویت را تضمین می‌کند: وبهوک `from.id` را از
+// سرورهای تلگرام می‌گیرد، نه از چیزی که کاربر تایپ کرده.
+//
+// این جریان **فقط** برای حسابی کار می‌کند که `telegramId` دارد. حساب‌های
+// قدیمی‌ای که هنوز وصل نشده‌اند از همان مسیر ورود با شماره + `telegram_required`
+// یک‌بار وصل می‌شوند و بعد اینجا شناخته می‌شوند.
+//
+// چرا سه مقدارِ جدا (`id` در لینک، `pollSecret` در مرورگر، `webTicket` در پیام
+// بات): ببینید توضیح جدول در lib/db/src/schema/auth.ts.
+
+/** عمر درخواست ورود. عمداً کوتاه: پنجره‌ی حمله‌ی یک لینک لو رفته همین است. */
+const TG_LOGIN_TTL_MS = 3 * 60 * 1000;
+/** عمر تیکتِ دکمه‌ی داشبورد، از لحظه‌ی تأیید. */
+const TG_LOGIN_TICKET_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * نشست تازه برای یک کاربر + شکل استاندارد کاربر.
+ *
+ * هر سه مسیرِ صدور نشست (کد ورود، poll تلگرام، تیکت دکمه‌ی داشبورد) از همین
+ * تابع می‌آیند. سه پیاده‌سازیِ «نشست بساز» یعنی سه جا برای جا انداختن
+ * `syncSessionUpsert` یا `lastLogin`.
+ */
+async function issueSession(user: typeof usersTable.$inferSelect) {
+  await db.update(usersTable).set({ lastLogin: new Date() }).where(eq(usersTable.id, user.id));
+
+  const token = generateToken(user.id);
+  const expiresAt = sessionExpiresAt();
+  await db.insert(sessionsTable).values({ token, userId: user.id, expiresAt });
+  syncSessionUpsert({ token, userId: user.id, expiresAt });
+
+  const [{ value: botCount }] = await db
+    .select({ value: count() })
+    .from(botsTable)
+    .where(eq(botsTable.userId, user.id));
+
+  return { user: toAuthUser(user, botCount), token };
+}
+
+/** مقایسه‌ی timing-safe برای رازهایی که رشته‌اند و نه هش. */
+function secretEquals(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
+// ─── POST /api/auth/telegram/login/start ─────────────────────────────────────
+router.post("/auth/telegram/login/start", authRateLimit("telegram_login_start"), async (req, res) => {
+  try {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const username = process.env.TELEGRAM_BOT_USERNAME?.replace(/^@/, "");
+    if (!botToken || !username) {
+      res.status(503).json({ error: "Telegram login is not configured on this server" });
+      return;
+    }
+
+    const id = crypto.randomBytes(16).toString("hex");
+    const pollSecret = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + TG_LOGIN_TTL_MS);
+
+    await db.insert(telegramLoginRequestsTable).values({
+      id,
+      pollSecret,
+      status: "pending",
+      locale: typeof req.body?.locale === "string" ? req.body.locale.slice(0, 8) : null,
+      sourceIp: (req.ip ?? "").slice(0, 64) || null,
+      userAgent: String(req.headers["user-agent"] ?? "").slice(0, 512) || null,
+      expiresAt,
+    });
+
+    res.status(201).json({
+      id,
+      pollSecret,
+      // `tglogin_` + ۳۲ کاراکتر = ۴۰، زیر سقف ۶۴ کاراکتریِ payload تلگرام.
+      deepLink: `https://t.me/${username}?start=tglogin_${id}`,
+      expiresInSeconds: Math.floor(TG_LOGIN_TTL_MS / 1000),
+    });
+  } catch (err) {
+    logger.error({ err }, "Telegram login start error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── GET /api/auth/telegram/login/:id/status ─────────────────────────────────
+// مرورگرِ آغازکننده این را poll می‌کند. **عمداً `authRateLimit` ندارد**: در
+// یک پنجره‌ی ۳ دقیقه‌ای ده‌ها بار صدا زده می‌شود و سقف مشترکِ ۲۰ درخواست در
+// ۱۵ دقیقه، ورودِ درست را وسط کار قطع می‌کرد. محافظ اینجا `pollSecret` است،
+// نه شمارنده.
+router.get("/auth/telegram/login/:id/status", async (req, res) => {
+  try {
+    const secret = typeof req.query.secret === "string" ? req.query.secret : "";
+    const [row] = await db
+      .select()
+      .from(telegramLoginRequestsTable)
+      .where(eq(telegramLoginRequestsTable.id, req.params.id))
+      .limit(1);
+
+    // راز غلط و ردیفِ ناموجود یک پاسخ می‌گیرند: وگرنه این اندپوینت می‌گوید
+    // کدام شناسه‌ها واقعی‌اند.
+    if (!row || !secretEquals(secret, row.pollSecret)) {
+      res.status(404).json({ error: "Login request not found", code: "not_found" });
+      return;
+    }
+
+    if (row.status === "rejected") {
+      res.json({ status: "rejected", reason: row.rejectedReason ?? "unknown" });
+      return;
+    }
+    // یک درخواستِ مصرف‌شده دیگر نشست نمی‌دهد، حتی با راز درست.
+    if (row.status === "consumed") {
+      res.json({ status: "expired" });
+      return;
+    }
+    if (row.status === "pending") {
+      res.json({ status: isExpired(row.expiresAt) ? "expired" : "pending" });
+      return;
+    }
+
+    // ── approved ────────────────────────────────────────────────────────────
+    // مصرف **قبل** از هر کار دیگری و به‌صورت شرطی: دو poll هم‌زمان (دو تب،
+    // یا یک retry شبکه) نباید دو نشست بسازند.
+    const consumed = await db
+      .update(telegramLoginRequestsTable)
+      .set({ status: "consumed", consumedAt: new Date() })
+      .where(
+        and(
+          eq(telegramLoginRequestsTable.id, row.id),
+          eq(telegramLoginRequestsTable.status, "approved"),
+        ),
+      )
+      .returning({ id: telegramLoginRequestsTable.id });
+    if (consumed.length === 0) {
+      res.json({ status: "expired" });
+      return;
+    }
+
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, row.userId!))
+      .limit(1);
+    if (!user) {
+      res.json({ status: "rejected", reason: "no_account" });
+      return;
+    }
+    if (user.status === "banned" || user.status === "suspended") {
+      res.json({ status: "rejected", reason: "suspended" });
+      return;
+    }
+
+    logger.info({ userId: user.id }, "Telegram one-tap login completed");
+    res.json({ status: "approved", ...(await issueSession(user)) });
+  } catch (err) {
+    logger.error({ err }, "Telegram login status error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/auth/telegram/login/ticket ────────────────────────────────────
+// دکمه‌ی «داشبورد» داخل پیام بات به این می‌رسد. جدا از `pollSecret` است تا
+// کاربری که روی گوشی بات را باز کرده، همان‌جا هم وارد شود — بدون اینکه نشستِ
+// مرورگرِ اولیه را بدزدد یا مصرف کند.
+router.post("/auth/telegram/login/ticket", authRateLimit("telegram_login_ticket"), async (req, res) => {
+  try {
+    const ticket = req.body?.ticket;
+    if (typeof ticket !== "string" || ticket === "") {
+      res.status(400).json({ error: "Invalid ticket", code: "invalid_ticket" });
+      return;
+    }
+
+    // مصرف اتمیک: `web_ticket_used_at IS NULL` در همان UPDATE شرط است، پس دو
+    // کلیک روی همان دکمه فقط یکی جواب می‌گیرد.
+    const [row] = await db
+      .update(telegramLoginRequestsTable)
+      .set({ webTicketUsedAt: new Date() })
+      .where(
+        and(
+          eq(telegramLoginRequestsTable.webTicket, ticket),
+          isNull(telegramLoginRequestsTable.webTicketUsedAt),
+        ),
+      )
+      .returning();
+
+    if (!row || !row.userId || !row.approvedAt) {
+      res.status(400).json({ error: "This link has expired", code: "ticket_expired" });
+      return;
+    }
+    if (Date.now() - row.approvedAt.getTime() > TG_LOGIN_TICKET_TTL_MS) {
+      res.status(400).json({ error: "This link has expired", code: "ticket_expired" });
+      return;
+    }
+
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, row.userId))
+      .limit(1);
+    if (!user) {
+      res.status(400).json({ error: "This link has expired", code: "ticket_expired" });
+      return;
+    }
+    if (user.status === "banned" || user.status === "suspended") {
+      res.status(403).json({ error: "Account suspended", code: "suspended" });
+      return;
+    }
+
+    logger.info({ userId: user.id }, "Telegram login ticket redeemed");
+    res.json(await issueSession(user));
+  } catch (err) {
+    logger.error({ err }, "Telegram login ticket error");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ─── POST /api/auth/forgot-password ──────────────────────────────────────────

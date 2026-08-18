@@ -212,7 +212,19 @@
     "lostTelegramDesc": "Open a support ticket and we'll verify your identity and restore access.",
     "tooManyAttempts": "Too many attempts. Please start again.",
     "rateLimited": "Too many requests. Try again in {n}s.",
-    "expired": "This session expired. Please start again."
+    "expired": "This session expired. Please start again.",
+    "orDivider": "or",
+    "tgExpired": "This sign-in request expired. Please try again.",
+    "tgFailed": "Telegram sign-in didn't complete. Please try again.",
+    "tgLoginButton": "Sign in with Telegram",
+    "tgLoginHint": "One tap — we recognise your account from the Telegram you open the bot with.",
+    "tgNoAccount": "No account matches this Telegram. If you have one, sign in once with your phone and password and connect Telegram.",
+    "tgSigningIn": "Signing you in…",
+    "tgSuspended": "This account is suspended. Please contact support.",
+    "tgTicketExpired": "This sign-in link has expired. Start again from the sign-in page.",
+    "tgUnavailable": "Telegram sign-in is not enabled on this server.",
+    "tgWaitingDesc": "Open the bot and tap Start. As soon as it says you're signed in, this page continues on its own.",
+    "tgWaitingTitle": "Confirm in Telegram"
   },
   "pageTitles": {
     "dashboard": "Dashboard",

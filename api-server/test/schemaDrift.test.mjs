@@ -103,6 +103,10 @@ function schemaColumns(file, tableConst) {
 const COVERED = [
   { file: "marketplace.ts", table: "marketplace_items", constName: "marketplaceItemsTable" },
   { file: "marketplace.ts", table: "installed_plugins", constName: "installedPluginsTable" },
+  // ورود یک‌کلیکی با تلگرام: مسیر poll روی این جدول `select()` بدون ستون‌های
+  // صریح می‌زند، یعنی Drizzle نام **همه‌ی** ستون‌های اعلام‌شده را می‌آورد و یک
+  // ستونِ جاافتاده در migrate.mjs کل ورود را ۵۰۰ می‌کند.
+  { file: "auth.ts", table: "telegram_login_requests", constName: "telegramLoginRequestsTable" },
 ];
 
 for (const { file, table, constName } of COVERED) {

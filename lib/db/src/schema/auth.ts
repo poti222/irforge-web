@@ -84,6 +84,48 @@ export const loginChallengesTable = pgTable("login_challenges", {
 });
 
 /**
+ * درخواست ورود یک‌کلیکی با تلگرام.
+ *
+ * جریان: کاربر روی سایت «ورود با تلگرام» را می‌زند → یک ردیف اینجا ساخته
+ * می‌شود → با لینک عمیق `t.me/<bot>?start=tglogin_<id>` وارد بات می‌شود →
+ * وبهوک کاربر را **از روی `telegram_id` خودِ تلگرام** پیدا می‌کند و ردیف را
+ * تأیید می‌کند → مرورگری که در حال poll است، نشست را می‌گیرد.
+ *
+ * چرا `id` و `pollSecret` دو چیز جدا هستند و نه یک توکن:
+ * `id` داخل لینک عمیق است و هرکسی که لینک را ببیند (تاریخچه‌ی مرورگر، یک
+ * اسکرین‌شات، شخصی که کاربر لینک را برایش فرستاده) آن را دارد. اگر همان مقدار
+ * برای گرفتن نشست کافی بود، دیدنِ لینک یعنی گرفتن حساب. `pollSecret` هرگز از
+ * مرورگرِ آغازکننده بیرون نمی‌رود و شرط لازمِ تحویل نشست است.
+ *
+ * `webTicket` جدا از هر دوست: تنها چیزی است که در دکمه‌ی «داشبورد» داخل پیام
+ * بات می‌رود، تا کاربری که روی گوشی بات را باز کرده هم بتواند همان‌جا وارد
+ * سایت شود. یک‌بارمصرف، و **بعد** از تأیید ساخته می‌شود نه قبلش.
+ */
+export const telegramLoginRequestsTable = pgTable("telegram_login_requests", {
+  /** همان چیزی که در `/start tglogin_<id>` می‌رود — عمومی فرض می‌شود */
+  id: text("id").primaryKey(),
+  /** فقط مرورگر آغازکننده دارد؛ شرط لازم برای poll و تحویل نشست */
+  pollSecret: text("poll_secret").notNull(),
+  /** pending | approved | consumed | rejected */
+  status: text("status").notNull().default("pending"),
+  /** بعد از تأیید پر می‌شود — کاربری که تلگرامش شناخته شد */
+  userId: text("user_id"),
+  /** یک‌بارمصرف، فقط برای دکمه‌ی داشبورد داخل پیام بات */
+  webTicket: text("web_ticket"),
+  webTicketUsedAt: timestamp("web_ticket_used_at", { withTimezone: true }),
+  /** چرا رد شد — تا UI پیام درست بدهد، نه یک «منقضی شد» گنگ */
+  rejectedReason: text("rejected_reason"),
+  locale: text("locale"),
+  /** فقط برای بررسی سوءاستفاده — هرگز در پاسخی برنمی‌گردد */
+  sourceIp: text("source_ip"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+/**
  * محدودسازی نرخ.
  *
  * وضعیت در **دیتابیس** است نه حافظه‌ی پروسه: سرویس روی Railway اجرا می‌شود و
@@ -135,6 +177,7 @@ export const adminAuditLogTable = pgTable("admin_audit_log", {
 
 export type PendingRegistration = typeof pendingRegistrationsTable.$inferSelect;
 export type LoginChallenge = typeof loginChallengesTable.$inferSelect;
+export type TelegramLoginRequest = typeof telegramLoginRequestsTable.$inferSelect;
 export type AuthRateLimit = typeof authRateLimitsTable.$inferSelect;
 export type GuestSession = typeof guestSessionsTable.$inferSelect;
 export type AdminAuditLogEntry = typeof adminAuditLogTable.$inferSelect;

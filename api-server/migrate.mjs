@@ -533,6 +533,32 @@ CREATE TABLE IF NOT EXISTS login_challenges (
 CREATE INDEX IF NOT EXISTS login_challenges_user_idx ON login_challenges(user_id);
 CREATE INDEX IF NOT EXISTS login_challenges_expires_idx ON login_challenges(code_expires_at);
 
+-- ورود یک‌کلیکی با تلگرام: مرورگر یک درخواست می‌سازد، بات آن را تأیید می‌کند.
+-- ببینید lib/db/src/schema/auth.ts برای اینکه چرا id / poll_secret / web_ticket
+-- سه مقدار جدا هستند و نه یکی.
+CREATE TABLE IF NOT EXISTS telegram_login_requests (
+  id TEXT PRIMARY KEY,
+  poll_secret TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  user_id TEXT,
+  web_ticket TEXT,
+  web_ticket_used_at TIMESTAMPTZ,
+  rejected_reason TEXT,
+  locale TEXT,
+  source_ip TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  approved_at TIMESTAMPTZ,
+  consumed_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS telegram_login_requests_expires_idx
+  ON telegram_login_requests(expires_at);
+-- تبادل تیکت با یک SELECT دقیق انجام می‌شود، پس یکتایی لازم است. ایندکس جزئی
+-- است چون تا پیش از تأیید، web_ticket خالی است.
+CREATE UNIQUE INDEX IF NOT EXISTS telegram_login_requests_ticket_idx
+  ON telegram_login_requests(web_ticket) WHERE web_ticket IS NOT NULL;
+
 ALTER TABLE telegram_link_tokens ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'link';
 ALTER TABLE telegram_link_tokens ADD COLUMN IF NOT EXISTS pending_registration_id TEXT;
 ALTER TABLE telegram_link_tokens ALTER COLUMN user_id DROP NOT NULL;
@@ -729,10 +755,15 @@ async function cleanupExpired(client) {
   const uploads = await client.query(
     "DELETE FROM bot_upload_sessions WHERE expires_at < NOW() - INTERVAL '1 day'"
   );
+  // درخواست‌های ورود با تلگرام عمر ۳ دقیقه‌ای دارند؛ یک روز فرصت برای بررسی
+  // یک گزارش سوءاستفاده کافی است و بعدش فقط جدول را بزرگ می‌کنند.
+  const tgLogins = await client.query(
+    "DELETE FROM telegram_login_requests WHERE expires_at < NOW() - INTERVAL '1 day'"
+  );
   console.log(
     `[migrate] cleanup: ${pend.rowCount} pending registrations, ` +
     `${guests.rowCount} guest sessions, ${chall.rowCount} login challenges, ` +
-    `${uploads.rowCount} upload sessions`
+    `${uploads.rowCount} upload sessions, ${tgLogins.rowCount} telegram logins`
   );
 }
 

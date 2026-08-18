@@ -9,6 +9,11 @@
  *   purpose = "register"  ثبت‌نام تازه: تلگرام وصل می‌شه، شماره با دکمه‌ی
  *                          request_contact گرفته می‌شه و کد فرستاده می‌شه.
  *
+ * دو payload دیگه هم با پیشوند شناخته می‌شن و اصلاً به این جدول کاری ندارن:
+ *   `upload_<id>`   «با بات بفرست» — ضبط پیام بعدی برای سایت.
+ *   `tglogin_<id>`  ورود یک‌کلیکی — کاربر از روی `from.id` شناخته می‌شه و
+ *                    نشستِ مرورگری که منتظره تأیید می‌شه (handleLoginStart).
+ *
  * امنیت: تلگرام هدر X-Telegram-Bot-Api-Secret-Token رو با مقداری که موقع
  * setWebhook دادیم برمی‌گردونه؛ بدون تطابق این هدر، درخواست نادیده گرفته می‌شه.
  *
@@ -26,6 +31,7 @@ import {
   usersTable,
   telegramLinkTokensTable,
   pendingRegistrationsTable,
+  telegramLoginRequestsTable,
 } from "@workspace/db";
 import { eq, and, ne, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
@@ -34,7 +40,13 @@ import {
   telegramWebhookSecret,
   getTelegramUserPhotoFileId,
 } from "../lib/telegram";
-import { askForContact, sendRegistrationCode, sendPlain } from "../lib/registrationBot";
+import {
+  askForContact,
+  sendRegistrationCode,
+  sendPlain,
+  sendLoginApproved,
+  sendLoginRejected,
+} from "../lib/registrationBot";
 import {
   markWaiting,
   openSessionForChat,
@@ -123,7 +135,10 @@ router.post("/telegram/webhook", async (req, res) => {
       await sendTelegramMessage(
         botToken,
         chatId,
-        "سلام! برای اتصال حساب تلگرام به IRForge، از داخل پروفایل سایت روی «اتصال با ربات» بزنید."
+        "سلام! 👋\n\n" +
+          "برای <b>ورود</b> به IRForge، در صفحه‌ی ورودِ سایت روی «ورود با تلگرام» بزنید — " +
+          "همان دکمه شما را به همین‌جا برمی‌گرداند و ورودتان کامل می‌شود.\n\n" +
+          "برای <b>اتصال</b> حساب موجود، از پروفایل سایت روی «اتصال با ربات» بزنید."
       );
       return;
     }
@@ -131,6 +146,12 @@ router.post("/telegram/webhook", async (req, res) => {
     // ── `/start upload_<id>` — شروع ضبط ──────────────────────────────────
     if (token.startsWith("upload_")) {
       await handleUploadStart(botToken, chatId, token.slice("upload_".length));
+      return;
+    }
+
+    // ── `/start tglogin_<id>` — ورود یک‌کلیکی ─────────────────────────────
+    if (token.startsWith("tglogin_")) {
+      await handleLoginStart(chatId, from, token.slice("tglogin_".length));
       return;
     }
 
@@ -422,6 +443,134 @@ async function handleContact(botToken: string, chatId: string, from: any, contac
 
   logger.info({ registrationId: pending.id }, "Registration: phone verified, code sent");
   await sendRegistrationCode(chatId, code, pending.locale);
+}
+
+/**
+ * `/start tglogin_<id>` — ورود یک‌کلیکی.
+ *
+ * هیچ توکنی از سایت هویت را ثابت نمی‌کند؛ **`from.id` این کار را می‌کند**.
+ * آن عدد را تلگرام روی وبهوکِ امضاشده می‌فرستد، نه کاربر — پس اگر ردیفی در
+ * `users` با همان `telegram_id` باشد، همان کاربر است. شناسه‌ی داخل لینک فقط
+ * می‌گوید «کدام مرورگر منتظر است»، نه «چه کسی هستی».
+ *
+ * تنها چیزی که «وارد شدید» را یک‌بار نگه می‌دارد، همان UPDATE شرطیِ
+ * `status = 'pending'` است: هر مسیری که به پیام می‌رسد اول باید آن گذار را
+ * برنده شود. تلگرام وبهوک را retry می‌کند و `alreadyProcessed` فقط داخل یک
+ * اینستنس کار می‌کند، پس بدون این گذارِ اتمیک دو نشست و دو پیام ممکن بود.
+ */
+async function handleLoginStart(chatId: string, from: any, requestId: string) {
+  const [row] = await db
+    .select()
+    .from(telegramLoginRequestsTable)
+    .where(eq(telegramLoginRequestsTable.id, requestId))
+    .limit(1);
+
+  if (!row) {
+    await sendLoginRejected(chatId, "expired");
+    return;
+  }
+  const telegramId = String(from.id);
+
+  if (row.status !== "pending" || row.expiresAt < new Date()) {
+    /**
+     * سکوت وقتی همین کاربر همین درخواست را قبلاً تأیید کرده.
+     *
+     * تلگرام وبهوک را retry می‌کند و کاربر هم گاهی دوبار روی «شروع» می‌زند.
+     * `alreadyProcessed` فقط داخل یک اینستنس کار می‌کند، پس بدون این، کسی که
+     * همین الان «وارد شدید» گرفته بلافاصله یک «لینک منقضی شده» هم می‌گرفت و
+     * فکر می‌کرد ورودش خراب شده. برای هر حالت دیگری — لینکِ واقعاً کهنه، یا
+     * لینکِ کسِ دیگری — پیام منقضی درست است.
+     */
+    if (
+      (row.status === "approved" || row.status === "consumed") &&
+      row.userId &&
+      (await isOwnedByTelegramUser(row.userId, telegramId))
+    ) {
+      return;
+    }
+    await sendLoginRejected(chatId, "expired", row.locale);
+    return;
+  }
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, telegramId))
+    .limit(1);
+
+  if (!user) {
+    // درخواست را می‌کُشیم تا مرورگر تا ابد نچرخد و پیام درست را نشان بدهد.
+    await db
+      .update(telegramLoginRequestsTable)
+      .set({ status: "rejected", rejectedReason: "no_account" })
+      .where(
+        and(
+          eq(telegramLoginRequestsTable.id, row.id),
+          eq(telegramLoginRequestsTable.status, "pending"),
+        ),
+      );
+    await sendLoginRejected(chatId, "no_account", row.locale);
+    return;
+  }
+
+  if (user.status === "banned" || user.status === "suspended") {
+    await db
+      .update(telegramLoginRequestsTable)
+      .set({ status: "rejected", rejectedReason: "suspended" })
+      .where(
+        and(
+          eq(telegramLoginRequestsTable.id, row.id),
+          eq(telegramLoginRequestsTable.status, "pending"),
+        ),
+      );
+    await sendLoginRejected(chatId, "suspended", row.locale);
+    return;
+  }
+
+  const webTicket = crypto.randomBytes(24).toString("hex");
+  const approved = await db
+    .update(telegramLoginRequestsTable)
+    .set({
+      status: "approved",
+      userId: user.id,
+      webTicket,
+      approvedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(telegramLoginRequestsTable.id, row.id),
+        eq(telegramLoginRequestsTable.status, "pending"),
+      ),
+    )
+    .returning({ id: telegramLoginRequestsTable.id });
+  if (approved.length === 0) return; // retry موازی — پیام دوم نده
+
+  /**
+   * دکمه‌ی داشبورد یک لینکِ ورود است، نه فقط آدرس صفحه: کسی که بات را روی
+   * گوشی باز کرده معمولاً در آن مرورگر لاگین نیست، و فرستادنش به یک صفحه‌ی
+   * محافظت‌شده فقط او را به صفحه‌ی ورود می‌اندازد.
+   */
+  const siteUrl = process.env.PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
+  const dashboardUrl = siteUrl
+    ? `${siteUrl}/auth/telegram?ticket=${webTicket}`
+    : null;
+  if (!siteUrl) {
+    logger.warn("PUBLIC_SITE_URL is not set; Telegram login message has no dashboard button");
+  }
+
+  const displayName = user.telegramFirstName ?? user.name ?? null;
+  logger.info({ userId: user.id }, "Telegram one-tap login approved");
+  await sendLoginApproved(chatId, displayName, dashboardUrl, row.locale);
+}
+
+/** آیا این کاربرِ سایت همان کسی است که الان دارد با تلگرام حرف می‌زند؟ */
+async function isOwnedByTelegramUser(userId: string, telegramId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(and(eq(usersTable.id, userId), eq(usersTable.telegramId, telegramId)))
+    .limit(1);
+  return Boolean(row);
 }
 
 /**

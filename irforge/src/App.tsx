@@ -45,6 +45,7 @@ import Pricing from "@/pages/pricing";
 const Login = lazy(() => import("@/pages/login"));
 const Register = lazy(() => import("@/pages/register"));
 const ForgotPassword = lazy(() => import("@/pages/forgot-password"));
+const AuthTelegram = lazy(() => import("@/pages/auth-telegram"));
 const ResetPassword = lazy(() => import("@/pages/reset-password"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const Bots = lazy(() => import("@/pages/bots"));
@@ -195,6 +196,14 @@ function Router() {
       </Route>
       <Route path="/login"><PublicOnlyRoute component={Login} /></Route>
       <Route path="/register"><PublicOnlyRoute component={Register} /></Route>
+      {/*
+          مقصد دکمه‌ی «داشبورد» داخل پیام بات. عمداً `PublicOnlyRoute` نیست:
+          آن، کاربرِ از قبل لاگین را به داشبورد می‌فرستاد و تیکت هرگز مصرف
+          نمی‌شد — که یعنی اگر مرورگر نشستِ حساب دیگری داشته باشد، کاربر با
+          حساب اشتباه بالا می‌آمد. صفحه خودش تیکت را می‌سوزاند و نشست را
+          جایگزین می‌کند.
+      */}
+      <Route path="/auth/telegram" component={AuthTelegram} />
       <Route path="/forgot-password"><PublicOnlyRoute component={ForgotPassword} /></Route>
       <Route path="/reset-password"><PublicOnlyRoute component={ResetPassword} /></Route>
       

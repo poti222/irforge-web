@@ -166,3 +166,128 @@ export async function sendPlain(chatId: string, map: Record<string, string>, loc
   if (!token) return;
   await sendTelegramMessage(token, chatId, pick(locale, map));
 }
+
+/**
+ * «وارد شدی» — تأیید ورود یک‌کلیکی، با دکمه‌ی داشبورد زیرش.
+ *
+ * دکمه یک `inline_keyboard` است و نه یک لینک داخل متن: کاربری که بات را روی
+ * گوشی باز کرده باید بتواند با یک لمس به داشبورد برود، نه اینکه یک URL بلند
+ * را از میان متن پیدا کند.
+ *
+ * `dashboardUrl` یک لینکِ **یک‌بارمصرف** است (تیکت ورود)، پس اگر ساخته نشده
+ * باشد — یعنی `PUBLIC_SITE_URL` تنظیم نیست — دکمه اصلاً رندر نمی‌شود. یک دکمه‌ی
+ * داشبورد که به جای درستی نمی‌رود بدتر از نبودنش است.
+ *
+ * جمله‌ی هشدار عمداً هست: این جریان با یک لمس نشست می‌دهد، پس کسی که لینک
+ * ورود را برای کاربر فرستاده باشد هم می‌تواند نشست بگیرد. کاربر باید بداند
+ * که اگر خودش دکمه‌ای نزده، این پیام یعنی یک نفر دیگر تلاش کرده.
+ */
+export async function sendLoginApproved(
+  chatId: string,
+  displayName: string | null,
+  dashboardUrl: string | null,
+  locale?: Locale,
+): Promise<void> {
+  const token = platformToken();
+  if (!token) return;
+
+  const hi = displayName ? ` ${displayName}` : "";
+  const text = pick(locale, {
+    fa:
+      `✅ <b>وارد شدید${hi}</b>\n\n` +
+      "حساب شما از همین تلگرام شناسایی شد و ورود در مرورگرتان کامل شد.\n\n" +
+      "⚠️ اگر شما روی سایت دکمه‌ی ورود را نزده‌اید، این پیام را نادیده بگیرید و رمز حسابتان را عوض کنید.",
+    en:
+      `✅ <b>You're signed in${hi}</b>\n\n` +
+      "We recognised your account from this Telegram and completed the sign-in in your browser.\n\n" +
+      "⚠️ If you did not tap sign in on the site, ignore this message and change your password.",
+    ar:
+      `✅ <b>تم تسجيل دخولك${hi}</b>\n\n` +
+      "تعرّفنا على حسابك من تيليجرام وأكملنا الدخول في متصفحك.\n\n" +
+      "⚠️ إن لم تضغط زر الدخول على الموقع، فتجاهل هذه الرسالة وغيّر كلمة مرورك.",
+    tr:
+      `✅ <b>Giriş yaptınız${hi}</b>\n\n` +
+      "Hesabınızı bu Telegram üzerinden tanıdık ve tarayıcınızdaki girişi tamamladık.\n\n" +
+      "⚠️ Sitede giriş düğmesine siz basmadıysanız bu mesajı yok sayın ve şifrenizi değiştirin.",
+    ru:
+      `✅ <b>Вы вошли${hi}</b>\n\n` +
+      "Мы узнали ваш аккаунт по этому Telegram и завершили вход в браузере.\n\n" +
+      "⚠️ Если вы не нажимали кнопку входа на сайте — проигнорируйте это сообщение и смените пароль.",
+  });
+
+  const buttonText = pick(locale, {
+    fa: "🚀 رفتن به داشبورد",
+    en: "🚀 Open dashboard",
+    ar: "🚀 فتح لوحة التحكم",
+    tr: "🚀 Panoyu aç",
+    ru: "🚀 Открыть панель",
+  });
+
+  await tgApi(token, "sendMessage", {
+    chat_id: chatId,
+    text,
+    parse_mode: "HTML",
+    ...(dashboardUrl
+      ? { reply_markup: { inline_keyboard: [[{ text: buttonText, url: dashboardUrl }]] } }
+      : {}),
+  }).catch((err) => logger.warn({ err }, "sendLoginApproved failed (non-fatal)"));
+}
+
+/**
+ * ورود ممکن نشد.
+ *
+ * `no_account` تنها حالتی است که پیام راهنما دارد و نه فقط خطا: کاربری که
+ * حسابش هنوز به تلگرام وصل نشده باید بداند دقیقاً چه کار کند، وگرنه همین‌جا
+ * گیر می‌کند.
+ */
+export async function sendLoginRejected(
+  chatId: string,
+  reason: "no_account" | "expired" | "suspended",
+  locale?: Locale,
+): Promise<void> {
+  const token = platformToken();
+  if (!token) return;
+
+  const map: Record<typeof reason, Record<string, string>> = {
+    no_account: {
+      fa:
+        "❌ <b>حسابی با این تلگرام پیدا نشد</b>\n\n" +
+        "اگر قبلاً در IrForge حساب دارید، یک‌بار از سایت با شماره و رمز وارد شوید و " +
+        "حسابتان را به تلگرام وصل کنید؛ بعد از آن همین دکمه کافی است.\n\n" +
+        "اگر حساب ندارید، از صفحه‌ی ثبت‌نام شروع کنید.",
+      en:
+        "❌ <b>No account matches this Telegram</b>\n\n" +
+        "If you already have an IrForge account, sign in once on the site with your phone and " +
+        "password and connect Telegram; after that this button is all you need.\n\n" +
+        "If you don't have an account yet, start from the sign-up page.",
+      ar:
+        "❌ <b>لا يوجد حساب مرتبط بهذا التيليجرام</b>\n\n" +
+        "إن كان لديك حساب في IrForge، سجّل الدخول مرة من الموقع برقمك وكلمة مرورك واربط تيليجرام؛ " +
+        "بعدها يكفي هذا الزر.\n\nوإن لم يكن لديك حساب فابدأ من صفحة التسجيل.",
+      tr:
+        "❌ <b>Bu Telegram'a bağlı hesap yok</b>\n\n" +
+        "IrForge hesabınız varsa siteden bir kez telefon ve şifrenizle girip Telegram'ı bağlayın; " +
+        "sonrasında bu düğme yeterli.\n\nHesabınız yoksa kayıt sayfasından başlayın.",
+      ru:
+        "❌ <b>Аккаунт с этим Telegram не найден</b>\n\n" +
+        "Если у вас уже есть аккаунт IrForge, войдите один раз на сайте по номеру и паролю и " +
+        "привяжите Telegram — дальше хватит одной кнопки.\n\nЕсли аккаунта нет, начните с регистрации.",
+    },
+    expired: {
+      fa: "⌛️ این لینک ورود منقضی شده است. از سایت دوباره روی «ورود با تلگرام» بزنید.",
+      en: "⌛️ This sign-in link has expired. Tap “Sign in with Telegram” on the site again.",
+      ar: "⌛️ انتهت صلاحية رابط الدخول. اضغط «تسجيل الدخول عبر تيليجرام» من الموقع مجددًا.",
+      tr: "⌛️ Bu giriş bağlantısının süresi doldu. Sitede “Telegram ile giriş”e tekrar dokunun.",
+      ru: "⌛️ Срок действия ссылки истёк. Нажмите «Войти через Telegram» на сайте ещё раз.",
+    },
+    suspended: {
+      fa: "⛔️ این حساب موقتاً غیرفعال است. لطفاً با پشتیبانی تماس بگیرید.",
+      en: "⛔️ This account is suspended. Please contact support.",
+      ar: "⛔️ هذا الحساب موقوف. يرجى التواصل مع الدعم.",
+      tr: "⛔️ Bu hesap askıya alınmış. Lütfen destek ile iletişime geçin.",
+      ru: "⛔️ Этот аккаунт приостановлен. Свяжитесь с поддержкой.",
+    },
+  };
+
+  await sendTelegramMessage(token, chatId, pick(locale, map[reason]));
+}
