@@ -1,5 +1,24 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+
+/* NOTE [perf+access]: the two families used to come from a pair of
+   <link rel="stylesheet"> tags pointing at fonts.googleapis.com in index.html.
+   Those are render-blocking — PageSpeed measured 1,500 ms of blocking time on
+   them alone — and, more seriously for this site, fonts.googleapis.com is
+   unreliable from inside Iran, which is where most of our visitors are. When
+   it fails, the whole stylesheet request hangs and the page paints in a
+   system fallback anyway.
+
+   Self-hosted variable fonts instead: one file per subset, served from our own
+   origin (so they inherit the long-lived /assets cache headers set in
+   api-server/src/app.ts), and the browser downloads only the subsets the page
+   actually uses thanks to the unicode-range in each @font-face. A Persian page
+   pulls the arabic subset; /ru pulls cyrillic; nothing pulls all of them.
+
+   `wght.css` is the weight-axis-only variable build — one file covers 400/500/
+   600/700, which is every weight this design uses. */
+@import "@fontsource-variable/vazirmatn/wght.css";
+@import "@fontsource-variable/inter/wght.css";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -142,7 +161,7 @@
   --chart-4: 45 90% 52%;
   --chart-5: 0 80% 60%;
 
-  --app-font-sans: 'Inter', sans-serif;
+  --app-font-sans: 'Inter Variable', 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
   --radius: .5rem;
@@ -203,7 +222,15 @@
   --secondary: 0 0% 10%;
   --secondary-foreground: 30 15% 90%;
   --muted: 0 0% 10%;
-  --muted-foreground: 20 8% 50%;
+  /* NOTE [a11y]: was 50%. Against the flat background that measured 4.92:1 —
+     a pass, barely — but the landing hero paints a `bg-primary/10 blur-3xl`
+     glow behind its paragraph, which lifts the composited background enough to
+     drop the real ratio to 4.43:1, under the 4.5:1 floor. Lighthouse measures
+     what is actually composited, so it failed the hero copy.
+     58% gives 6.45:1 on the flat background and 5.81:1 through the glow, with
+     room for any future overlay, and is still clearly muted next to
+     --foreground at 90%. */
+  --muted-foreground: 20 8% 58%;
   --accent: 0 0% 13%;
   --accent-foreground: 30 15% 90%;
   --destructive: 0 84% 60%;
@@ -341,11 +368,16 @@
 
 /* RTL / Language support */
 :root {
-  --font-sans: 'Inter', sans-serif;
+  --font-sans: 'Inter Variable', 'Inter', sans-serif;
 }
 
-[lang="fa"] {
-  --font-sans: 'Vazirmatn', 'Inter', sans-serif;
+/* NOTE: `ar` used to be missing here, so Arabic pages inherited the :root
+   value — Inter, which has no Arabic glyphs — and rendered in whatever system
+   fallback the device happened to have. RTL_LANGS in lib/i18n.ts is ["fa","ar"];
+   this selector has to match it. */
+[lang="fa"],
+[lang="ar"] {
+  --font-sans: 'Vazirmatn Variable', 'Vazirmatn', 'Inter Variable', 'Inter', sans-serif;
   font-family: var(--font-sans);
 }
 
@@ -380,4 +412,33 @@
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
+}
+
+/* Landing bento sparkline (components/landing/MiniAnalyticsChart.tsx). The
+   draw-in used to be recharts' isAnimationActive + framer-motion's
+   useReducedMotion; it is now pure CSS so the tile costs zero JS.
+
+   It is a clip-path wipe rather than the more usual stroke-dasharray trick:
+   the <svg> stretches with preserveAspectRatio="none" and the line keeps its
+   2px width via vector-effect="non-scaling-stroke", and those two together
+   make the browser resolve dash lengths in screen space while the path is
+   measured in viewBox space — the dashes land in the wrong places and the
+   line renders with gaps in it. Clipping the container sidesteps the whole
+   coordinate mismatch. The tile is dir="ltr", so the wipe runs left to right
+   on every language. */
+@keyframes irforge-spark-wipe {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
+}
+
+.irforge-spark {
+  animation: irforge-spark-wipe 900ms ease-out both;
+}
+
+/* mirrors the old useReducedMotion() branch: show the final state, no draw */
+@media (prefers-reduced-motion: reduce) {
+  .irforge-spark {
+    animation: none;
+    clip-path: none;
+  }
 }

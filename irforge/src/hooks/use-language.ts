@@ -3,6 +3,7 @@ import { navigate } from "wouter/use-browser-location";
 import { useRunViewTransition } from "./use-view-transition";
 import { type Lang, DEFAULT_LANG, LANGUAGES, isRtlLang, isValidLang } from "@/lib/i18n";
 import { langHref, splitLangPrefix } from "@/lib/lang-routing";
+import { ensureLocales, isLocaleLoaded } from "@/locales/registry";
 
 // برای سازگاری با کدهای قدیمی که Lang رو از همینجا import می‌کردن
 export type { Lang };
@@ -31,7 +32,7 @@ function applyLangAttributes(lang: Lang) {
  * نمی‌تونن با هم اختلاف داشته باشن. انتخاب ذخیره‌شده از بین نمی‌ره — توی
  * useStoredLangRedirect (در App.tsx) کاربر رو به URL زبان خودش می‌فرسته.
  */
-function readInitialLang(): Lang {
+export function readInitialLang(): Lang {
   if (typeof window !== "undefined") {
     const fromUrl = splitLangPrefix(window.location.pathname).lang;
     if (fromUrl) return fromUrl;
@@ -107,26 +108,41 @@ export function useLanguage() {
             window.location.search +
             window.location.hash;
 
-      // W3: crossfade+scale the page across every language flip
-      // (including RTL<->LTR when fa/ar are involved) instead of an instant flash.
-      runViewTransition(
-        () => {
-          commitLang(next);
-          // same tick as commitLang so React batches them into one render —
-          // the router base and the URL must never disagree, even briefly
-          if (target) navigate(target);
-        },
-        () => {
-          document.documentElement.animate(
-            { opacity: [1, 0], transform: ["scale(1)", "scale(0.98)"] },
-            { duration: SWEEP_MS, easing: "ease-in", pseudoElement: "::view-transition-old(root)" } as any
-          );
-          document.documentElement.animate(
-            { opacity: [0, 1], transform: ["scale(1.02)", "scale(1)"] },
-            { duration: SWEEP_MS, easing: "ease-out", pseudoElement: "::view-transition-new(root)" } as any
-          );
-        }
-      );
+      // NOTE [perf]: locale files are lazily loaded (locales/registry.ts), so a
+      // language the visitor hasn't used yet isn't in memory. Commit only once
+      // its chunk has landed — otherwise the view transition would play and
+      // every string would render empty for a frame while the JSON downloads.
+      // Already-loaded languages resolve on the same tick, so switching back
+      // and forth stays instant.
+      const commit = () => {
+        // W3: crossfade+scale the page across every language flip
+        // (including RTL<->LTR when fa/ar are involved) instead of an instant flash.
+        runViewTransition(
+          () => {
+            commitLang(next);
+            // same tick as commitLang so React batches them into one render —
+            // the router base and the URL must never disagree, even briefly
+            if (target) navigate(target);
+          },
+          () => {
+            document.documentElement.animate(
+              { opacity: [1, 0], transform: ["scale(1)", "scale(0.98)"] },
+              { duration: SWEEP_MS, easing: "ease-in", pseudoElement: "::view-transition-old(root)" } as any
+            );
+            document.documentElement.animate(
+              { opacity: [0, 1], transform: ["scale(1.02)", "scale(1)"] },
+              { duration: SWEEP_MS, easing: "ease-out", pseudoElement: "::view-transition-new(root)" } as any
+            );
+          }
+        );
+      };
+
+      if (isLocaleLoaded(next)) {
+        commit();
+      } else {
+        // a failed chunk still commits: English fallback beats a dead button
+        ensureLocales(next).catch(() => {}).then(commit);
+      }
     },
     [runViewTransition]
   );

@@ -1,23 +1,22 @@
 import { useLanguage } from "@/hooks/use-language";
 import type { Lang } from "@/lib/i18n";
-import en from "@/locales/en.json";
-import fa from "@/locales/fa.json";
-import ar from "@/locales/ar.json";
-import tr from "@/locales/tr.json";
-import ru from "@/locales/ru.json";
+import { useSyncExternalStore } from "react";
+import {
+  getFallbackLocale,
+  getLocale,
+  localesVersion,
+  subscribeLocales,
+  type LocaleData,
+} from "@/locales/registry";
 
-export type LocaleShape = typeof en;
+export type LocaleShape = LocaleData;
 export type Namespace = keyof LocaleShape;
 
-// یک آبجکت واحد که هر ۵ زبان رو نگه می‌داره — استاتیک import شده، بدون
-// درخواست شبکه‌ی اضافه (فایل‌های locale کوچیک‌اند، توسط bundler خودِ vite
-// در build نهایی inline می‌شن).
-//
-// نوعش صریحاً Record<Lang, LocaleShape> است، نه استنتاجِ خودکار: با استنتاج،
-// هر زبان نوع مستقل خودش رو می‌گرفت و LOCALES[lang][namespace] یه union از
-// ۵ آبجکت بزرگ می‌ساخت. بعد از اضافه شدن namespaceهای seo و faq، همین union
-// از حد TypeScript رد شد و خطای TS2590 داد.
-const LOCALES: Record<Lang, LocaleShape> = { en, fa, ar, tr, ru };
+// NOTE [perf]: the five locale files used to be static imports right here,
+// which inlined all 744 kB of them into the main entry chunk (see
+// locales/registry.ts). They are now lazily loaded per language; main.tsx
+// awaits the current language + English before the first render, so these
+// two reads are still plain synchronous property lookups.
 
 /**
  * useT(namespace): کلیدهای همون namespace رو برای زبان جاری برمی‌گردونه.
@@ -30,9 +29,12 @@ const LOCALES: Record<Lang, LocaleShape> = { en, fa, ar, tr, ru };
  */
 export function useT<N extends Namespace>(namespace: N): LocaleShape[N] {
   const { lang } = useLanguage();
+  // Locale chunks load asynchronously; re-render when one lands so a late
+  // English fallback (see locales/registry.ts) doesn't leave stale strings.
+  useSyncExternalStore(subscribeLocales, localesVersion, localesVersion);
 
-  const current = (LOCALES[lang]?.[namespace] ?? {}) as Partial<LocaleShape[N]>;
-  const fallback = LOCALES.en[namespace];
+  const current = (getLocale(lang)?.[namespace] ?? {}) as Partial<LocaleShape[N]>;
+  const fallback = (getFallbackLocale()?.[namespace] ?? {}) as LocaleShape[N];
 
   // merge: هر کلیدی که توی زبون جاری خالی/گم بود از انگلیسی پر می‌شه.
   const merged = { ...fallback, ...stripEmpty(current) } as LocaleShape[N];

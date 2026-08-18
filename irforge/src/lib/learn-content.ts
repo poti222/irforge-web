@@ -1,8 +1,4 @@
-import en from "@/locales/en.json";
-import fa from "@/locales/fa.json";
-import ar from "@/locales/ar.json";
-import tr from "@/locales/tr.json";
-import ru from "@/locales/ru.json";
+import { getFallbackLocale, getLocale } from "@/locales/registry";
 import type { Lang } from "./i18n";
 
 /**
@@ -142,7 +138,7 @@ export function articleRoute(slug: ArticleSlug): string {
   return `/learn/${slug}`;
 }
 
-const LOCALES: Record<Lang, any> = { en, fa, ar, tr, ru };
+// locales are lazily loaded — see locales/registry.ts
 
 /**
  * One article's copy in one language, falling back to English per key.
@@ -152,8 +148,8 @@ const LOCALES: Record<Lang, any> = { en, fa, ar, tr, ru };
  * blank section in the prerendered HTML.
  */
 export function articleFor(lang: Lang, slug: ArticleSlug): ArticleContent | null {
-  const base = LOCALES.en?.learn?.articles?.[slug];
-  const local = LOCALES[lang]?.learn?.articles?.[slug];
+  const base = (getFallbackLocale() as any)?.learn?.articles?.[slug];
+  const local = (getLocale(lang) as any)?.learn?.articles?.[slug];
   if (!base && !local) return null;
   return { ...(base ?? {}), ...(local ?? {}) } as ArticleContent;
 }

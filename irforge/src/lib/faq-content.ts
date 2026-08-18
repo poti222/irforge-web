@@ -1,8 +1,4 @@
-import en from "@/locales/en.json";
-import fa from "@/locales/fa.json";
-import ar from "@/locales/ar.json";
-import tr from "@/locales/tr.json";
-import ru from "@/locales/ru.json";
+import { getFallbackLocale, getLocale } from "@/locales/registry";
 import type { Lang } from "./i18n";
 
 /**
@@ -19,8 +15,6 @@ import type { Lang } from "./i18n";
  * page and in the schema with no code change at all.
  */
 
-const LOCALES: Record<Lang, any> = { en, fa, ar, tr, ru };
-
 /** Hard stop so a malformed locale file can't spin forever. */
 const MAX_QUESTIONS = 50;
 
@@ -30,7 +24,11 @@ export interface FaqEntry {
 }
 
 export function faqEntries(lang: Lang): FaqEntry[] {
-  const ns = { ...(LOCALES.en?.faq ?? {}), ...(LOCALES[lang]?.faq ?? {}) };
+  // locales are lazily loaded — see locales/registry.ts
+  const ns: Record<string, string> = {
+    ...((getFallbackLocale() as any)?.faq ?? {}),
+    ...((getLocale(lang) as any)?.faq ?? {}),
+  };
   const out: FaqEntry[] = [];
   for (let i = 1; i <= MAX_QUESTIONS; i++) {
     const q = ns[`q${i}`];

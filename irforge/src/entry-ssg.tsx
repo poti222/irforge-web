@@ -2,6 +2,7 @@ import { renderToString } from "react-dom/server";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import App, { queryClient } from "./App";
 import { setRenderLang } from "./hooks/use-language";
+import { seedLocales } from "./locales/registry";
 import en from "./locales/en.json";
 import fa from "./locales/fa.json";
 import ar from "./locales/ar.json";
@@ -41,6 +42,12 @@ export { PRIVATE_ROUTES, ALL_LANGS };
  */
 
 const LOCALES: Record<Lang, typeof en> = { en, fa, ar, tr, ru } as any;
+
+// The build-time render is synchronous and has no network, so the registry
+// that useT()/faqEntries()/articleFor() read from gets handed all five locales
+// up front. In the browser these same five are lazily imported per language —
+// see locales/registry.ts for why.
+seedLocales(LOCALES as any);
 
 export interface RenderedPage {
   /** markup for <div id="root"> */

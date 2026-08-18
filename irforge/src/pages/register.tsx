@@ -18,6 +18,7 @@ import { BrandLogo } from "@/components/layout/brand-home";
 import { CodeInput } from "@/components/auth/CodeInput";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
+import { setAuthToken } from "@/lib/auth-token";
 
 /**
  * ثبت‌نام پنج‌مرحله‌ای.
@@ -412,7 +413,7 @@ export default function Register() {
       // Same key `customFetch`'s auth-token getter reads ("irforge_token") —
       // see the note in login.tsx's verify(). Mismatched keys here silently
       // break every authenticated request after registration.
-      localStorage.setItem("irforge_token", res.token);
+      setAuthToken(res.token);
       queryClient.setQueryData(getGetMeQueryKey(), res.user);
       sessionStorage.removeItem(STORAGE_KEY);
       navigate("/dashboard");

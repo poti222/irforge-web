@@ -124,7 +124,19 @@ export function LandingPlans({ reduce }: { reduce: boolean }) {
                         className="mt-6 w-full"
                         variant={tier.popular ? "default" : "secondary"}
                       >
-                        <Link href={`/buy-bot/${tier.id}`} data-testid={`link-plan-${tier.id}`}>
+                        {/* NOTE [a11y]: all three cards render the same visible
+                            label ("انتخاب همین پلن") but point at different
+                            plans, so a screen-reader user tabbing the page hears
+                            the same link three times with no way to tell them
+                            apart — Lighthouse flags it as "Identical links have
+                            the same purpose". aria-label overrides the accessible
+                            name with the plan it actually leads to, while the
+                            visible button text stays short. */}
+                        <Link
+                          href={`/buy-bot/${tier.id}`}
+                          aria-label={`${tt.choose} — ${text.name}`}
+                          data-testid={`link-plan-${tier.id}`}
+                        >
                           {tt.choose} <ArrowIcon className="ms-2 size-4" />
                         </Link>
                       </Button>

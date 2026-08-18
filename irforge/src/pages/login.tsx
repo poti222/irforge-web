@@ -17,6 +17,7 @@ import { BrandLogo } from "@/components/layout/brand-home";
 import { CodeInput } from "@/components/auth/CodeInput";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
+import { setAuthToken } from "@/lib/auth-token";
 
 /**
  * دو راه ورود، یک صفحه.
@@ -154,7 +155,7 @@ export default function Login() {
       // همان کلیدی که main.tsx برای هدر Authorization می‌خواند ("irforge_token").
       // نوشتن روی کلید دیگر یعنی همه‌ی درخواست‌های بعدی بدون Authorization
       // بروند و سرور ۴۰۱ بدهد، در حالی که UI کاربر را واردشده نشان می‌دهد.
-      localStorage.setItem("irforge_token", res.token);
+      setAuthToken(res.token);
       queryClient.setQueryData(getGetMeQueryKey(), res.user);
       navigate("/dashboard");
     },

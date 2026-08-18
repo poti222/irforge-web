@@ -11,7 +11,7 @@
 //   dist/en/index.html         → en   /en/
 //   dist/en/docs/index.html    → en   /en/docs   … and so on for tr, ru, ar
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -54,6 +54,99 @@ function loadTemplate() {
 }
 
 const template = loadTemplate();
+
+/**
+ * Locale chunks, by language.
+ *
+ * NOTE [perf]: the five locale JSON files (744 kB combined) used to be bundled
+ * into the entry chunk, so every visitor downloaded all five. They are now one
+ * lazy chunk each (see src/locales/registry.ts), and main.tsx awaits only the
+ * one a page actually needs — the language in its URL.
+ *
+ * Awaiting them would be a request waterfall (entry chunk runs, THEN asks for
+ * the locale) if the browser only learned about them from JS. So each
+ * prerendered page gets a <link rel="modulepreload"> for its own language:
+ * the fetch starts from the HTML, in parallel with the entry itself, and is
+ * already in the memory cache by the time main.tsx asks for it.
+ *
+ * The hashed filenames come from the client build's manifest (build.manifest
+ * in vite.config.ts). If the manifest is missing the site still works — the
+ * import just costs one extra round-trip — so this degrades rather than fails.
+ */
+function readLocaleChunks() {
+  const manifestPath = join(distDir, ".vite", "manifest.json");
+  if (!existsSync(manifestPath)) {
+    console.warn("[ssg] no dist/.vite/manifest.json — skipping locale modulepreload");
+    return {};
+  }
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const out = {};
+  for (const entry of Object.values(manifest)) {
+    const m = /^assets\/locale-(en|fa|ar|tr|ru)-[^/]+\.js$/.exec(entry.file ?? "");
+    if (m) out[m[1]] = "/" + entry.file;
+  }
+  return out;
+}
+
+const LOCALE_CHUNKS = readLocaleChunks();
+
+/**
+ * The one font subset each language actually paints its LCP text with.
+ *
+ * The fonts are self-hosted variable subsets (see src/index.css) and each
+ * @font-face carries a unicode-range, so the browser only discovers which file
+ * it needs AFTER it has downloaded the CSS, matched a rule and laid out some
+ * text — three steps deep in the critical path. `font-display: swap` means the
+ * heading paints in a fallback face until then and reflows when the real font
+ * lands, which is both a visible flash and a late LCP.
+ *
+ * Preloading the single subset the page will certainly need pulls that fetch
+ * up next to the stylesheet's. Only ONE file per page: preloading a font the
+ * page never uses is pure wasted bandwidth on a mobile connection.
+ *
+ * fa/ar render in Vazirmatn (arabic subset); en/tr in Inter latin; ru in Inter
+ * cyrillic. Keep this in step with the [lang="fa"], [lang="ar"] rule in
+ * src/index.css.
+ */
+const FONT_SUBSET_FOR_LANG = {
+  fa: "vazirmatn-arabic-wght-normal",
+  ar: "vazirmatn-arabic-wght-normal",
+  en: "inter-latin-wght-normal",
+  tr: "inter-latin-wght-normal",
+  ru: "inter-cyrillic-wght-normal",
+};
+
+/** Hashed font filenames in dist/assets, keyed by their un-hashed stem. */
+const FONT_FILES = (() => {
+  const assetsDir = join(distDir, "assets");
+  if (!existsSync(assetsDir)) return {};
+  const out = {};
+  for (const name of readdirSync(assetsDir)) {
+    const m = /^(.+)-[A-Za-z0-9_-]{8}\.woff2$/.exec(name);
+    if (m) out[m[1]] = `/assets/${name}`;
+  }
+  return out;
+})();
+
+function fontPreload(lang) {
+  const href = FONT_FILES[FONT_SUBSET_FOR_LANG[lang]];
+  return href
+    ? `    <link rel="preload" as="font" type="font/woff2" crossorigin href="${href}" />`
+    : "";
+}
+
+/**
+ * modulepreload tag for this page's language.
+ *
+ * Only the one language: English is the fallback layer for missing keys and is
+ * fetched in the background after the first render, so preloading it here
+ * would put ~35 kB of gzipped JSON in front of resources the page actually
+ * paints with.
+ */
+function localePreloads(lang) {
+  const href = LOCALE_CHUNKS[lang];
+  return href ? `    <link rel="modulepreload" crossorigin href="${href}" />` : "";
+}
 
 /**
  * Framer Motion serialises its *initial* variant, so a server render of the
@@ -150,6 +243,17 @@ function renderToFile(page) {
   // is idempotent even if the template ever picks one up.
   html = html.replace(/\s*<link rel="alternate"[^>]*>/gi, "");
   html = html.replace(/\s*<link rel="canonical"[^>]*>\s*/i, buildHead(page));
+
+  // Locale chunks for this language, preloaded so main.tsx's await costs
+  // nothing. Stripped first so a re-run can't stack duplicates.
+  html = html.replace(/\s*<link rel="modulepreload"[^>]*\/assets\/locale-[^>]*>/gi, "");
+  html = html.replace(/\s*<link rel="preload" as="font"[^>]*>/gi, "");
+  const preloads = [fontPreload(page.lang), localePreloads(page.lang)]
+    .filter(Boolean)
+    .join("\n");
+  if (preloads) {
+    html = html.replace(/<\/head>/i, `${preloads}\n  </head>`);
+  }
 
   // JSON-LD, replacing any block from a previous pass so this stays idempotent
   html = html.replace(

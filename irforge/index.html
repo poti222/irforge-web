@@ -2,7 +2,15 @@
 <html lang="fa" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <!--
+      NOTE [a11y]: no `maximum-scale` / `user-scalable=no`. Pinning the scale
+      stops a low-vision visitor from zooming, which is exactly the group that
+      needs to; Lighthouse fails the page for it. iOS' old "zooms on focused
+      input" quirk — the usual reason people add this — is already handled by
+      the design: every input is at least 16px, which is what actually
+      suppresses that zoom.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IrForge | ساخت ربات تلگرام بدون کدنویسی</title>
     <meta name="description" content="با IrForge بدون نیاز به کدنویسی ربات تلگرام بسازید؛ پلاگین نصب کنید، دستورات دلخواه تعریف کنید و ربات خود را در چند دقیقه راه‌اندازی، شخصی‌سازی و مدیریت کنید." />
     <meta name="keywords" content="ساخت ربات تلگرام, ربات تلگرام بدون کدنویسی, بات ساز تلگرام, پلتفرم ساخت بات, اتوماسیون تلگرام, IrForge" />
@@ -41,10 +49,15 @@
       full reciprocal set (plus x-default) per prerendered page. See
       src/lib/lang-routing.ts for the URL architecture.
     -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!--
+      NOTE [perf]: Inter and Vazirmatn used to be two render-blocking
+      <link rel="stylesheet"> requests to fonts.googleapis.com (plus two
+      preconnects). They are now self-hosted variable fonts, @import-ed from
+      src/index.css so they ship inside the one stylesheet this page already
+      blocks on — no extra origin, no extra round-trip, and no dependency on a
+      Google domain that is frequently unreachable from Iran. See the comment
+      at the top of src/index.css.
+    -->
     <!--
       NOTE [perf]: telegram-web-app.js was previously loaded synchronously
       here on every single page (render-blocking), but nothing in src/

@@ -43,7 +43,35 @@ const LANG_PREFIXES = new Set(["en", "ar", "tr", "ru"]);
 // directory in dist — gets a 301 to /docs/, changing the canonical URL of an
 // already-indexed page. We resolve extension-less paths ourselves below
 // instead, so /docs and /en/docs keep responding 200 directly.
-app.use(express.static(frontendDist, { redirect: false }));
+app.use(
+  express.static(frontendDist, {
+    redirect: false,
+    /**
+     * NOTE [perf]: express.static defaults to no Cache-Control at all, which
+     * left Cloudflare guessing (it settled on 4h) and PageSpeed reporting
+     * ~356 KiB of re-downloads on every repeat visit.
+     *
+     * Everything vite writes into /assets carries a content hash in its
+     * filename — index-DQ_dqTkl.js, the woff2 font subsets, the CSS — so a
+     * changed file is a *different URL* by construction. Those can be cached
+     * forever; `immutable` additionally stops the browser from sending a
+     * revalidation request on reload.
+     *
+     * Everything else in dist/ (the prerendered index.html files, favicons,
+     * og images, robots.txt, sitemap.xml) keeps a stable URL across deploys
+     * and must NOT be pinned, or a visitor would keep booting last week's
+     * HTML — which references asset hashes that no longer exist. Those get
+     * `no-cache`: cheap 304s, always correct.
+     */
+    setHeaders(res, filePath) {
+      const isHashedAsset = filePath.includes(`${path.sep}assets${path.sep}`);
+      res.setHeader(
+        "Cache-Control",
+        isHashedAsset ? "public, max-age=31536000, immutable" : "no-cache",
+      );
+    },
+  }),
+);
 
 /** Resolve a request path to a prerendered file inside dist, or null. */
 function prerenderedFor(urlPath: string): string | null {

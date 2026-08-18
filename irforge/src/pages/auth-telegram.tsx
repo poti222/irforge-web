@@ -7,6 +7,7 @@ import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { useSEO } from "@/hooks/use-seo";
 import { useT } from "@/hooks/use-translation";
 import { BrandLogo } from "@/components/layout/brand-home";
+import { setAuthToken } from "@/lib/auth-token";
 
 /**
  * `/auth/telegram?ticket=…` — مقصد دکمه‌ی «داشبورد» داخل پیام بات.
@@ -52,7 +53,7 @@ export default function AuthTelegram() {
     })
       .then((res) => {
         // همان کلیدی که main.tsx برای هدر Authorization می‌خواند.
-        localStorage.setItem("irforge_token", res.token);
+        setAuthToken(res.token);
         queryClient.setQueryData(getGetMeQueryKey(), res.user);
         navigate("/dashboard", { replace: true });
       })

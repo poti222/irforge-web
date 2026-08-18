@@ -1,8 +1,15 @@
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useSyncExternalStore } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { User, LoginInput, RegisterInput } from "@workspace/api-client-react";
 import { useGetMe, getGetMeQueryKey, login as apiLogin, register as apiRegister, logout as apiLogout } from "@workspace/api-client-react";
+import {
+  clearAuthToken,
+  getAuthToken,
+  getServerAuthToken,
+  setAuthToken,
+  subscribeAuthToken,
+} from "@/lib/auth-token";
 
 interface AuthContextType {
   user: User | null;
@@ -19,10 +26,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
 
+  // NOTE: an anonymous visitor has no token, so there is nothing for
+  // GET /api/auth/me to answer — it used to fire anyway and come back 401 on
+  // every single landing-page view. That is a wasted round-trip during the
+  // page's busiest moment, and the browser logs the 401 itself (PageSpeed
+  // reports it under "Browser errors were logged to the console"; no amount of
+  // catching in JS suppresses it).
+  //
+  // `enabled` gates the request on actually having a session. react-query v5
+  // reports isLoading = isPending && isFetching, so a disabled query is not
+  // "loading" — ProtectedRoute sees (isLoading=false, user=null) immediately
+  // and redirects to /login instead of hanging on a spinner.
+  const token = useSyncExternalStore(subscribeAuthToken, getAuthToken, getServerAuthToken);
+
   const { data: me, isLoading: isLoadingMe, refetch } = useGetMe({
     query: {
       queryKey: getGetMeQueryKey(),
       retry: false,
+      enabled: Boolean(token),
     }
   });
 
@@ -38,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (data: LoginInput) => {
     try {
       const result = await apiLogin(data);
-      localStorage.setItem("irforge_token", result.token);
+      setAuthToken(result.token);
       queryClient.setQueryData(getGetMeQueryKey(), result.user);
       setLocation("/dashboard");
     } catch (error) {
@@ -50,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (data: RegisterInput) => {
     try {
       const result = await apiRegister(data);
-      localStorage.setItem("irforge_token", result.token);
+      setAuthToken(result.token);
       queryClient.setQueryData(getGetMeQueryKey(), result.user);
       setLocation("/dashboard");
     } catch (error) {
@@ -65,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error(error);
     } finally {
-      localStorage.removeItem("irforge_token");
+      clearAuthToken();
       queryClient.setQueryData(getGetMeQueryKey(), null);
       setLocation("/login");
     }
