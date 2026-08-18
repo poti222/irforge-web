@@ -81,10 +81,54 @@ export default defineConfig({
             return "vendor-charts";
           }
 
-          // the Radix primitives behind components/ui/* — many small packages
-          // that are always used together, so one chunk beats forty.
-          if (/[\\/]node_modules[\\/](@radix-ui|@floating-ui|react-remove-scroll|aria-hidden|cmdk|vaul|sonner|input-otp|embla-carousel[a-z-]*)[\\/]/.test(id)) {
+          // NOTE [perf]: App.tsx wraps every route — including the
+          // statically-imported, prerendered marketing pages — in
+          // TooltipProvider and Toaster, Button (used everywhere) reads Slot
+          // for its `asChild` prop, and the navbar's language switcher
+          // (rendered on landing.tsx itself, not behind a lazy route) uses
+          // DropdownMenu. Traced by walking every static import reachable
+          // from App.tsx (excluding lazy() targets) — these four are the
+          // only @radix-ui packages a public page's own code actually
+          // touches; everything else under components/ui/* is dashboard-only.
+          //
+          // Before this split they were one broad "@radix-ui" bucket, so
+          // needing @radix-ui/react-tooltip pulled the ENTIRE ~150 kB chunk —
+          // Dialog, Sheet, Accordion, Avatar, Select, the rest — into the
+          // landing page's eager, modulepreloaded graph. Lighthouse flagged
+          // that dashboard-only majority as unused JavaScript on a page that
+          // never renders a sidebar.
+          //
+          // The dashboard-only bucket below is deliberately an EXPLICIT
+          // allowlist of just the packages that trace confirmed are
+          // unreachable from a public page, rather than "everything except
+          // tooltip/toast/slot/dropdown-menu": several small internal
+          // packages (react-popper, react-menu, react-remove-scroll,
+          // aria-hidden, ...) are shared plumbing that dropdown-menu and
+          // tooltip both depend on — react-remove-scroll isn't Dialog-
+          // exclusive, DropdownMenu's own react-menu dependency needs it too.
+          // Trying to carve those out by hand would just recreate the same
+          // cross-chunk import this split exists to avoid. They fall through
+          // to the catch-all below instead, which is correct: that code was
+          // going into every page's download either way.
+          if (
+            /[\\/]node_modules[\\/]@radix-ui[\\/]react-(dialog|alert-dialog|accordion|avatar|checkbox|select|separator|switch|tabs|scroll-area|radio-group|collapsible|hover-card|progress|slider|toggle-group|toggle|navigation-menu|menubar|popover|context-menu|aspect-ratio)[\\/]/.test(
+              id,
+            )
+          ) {
             return "vendor-ui";
+          }
+          // Non-Radix dashboard-only widgets: command palette, drawer, toast-
+          // style stack, OTP input, carousel — same story, just not under
+          // @radix-ui so they need their own match.
+          if (/[\\/]node_modules[\\/](cmdk|vaul|sonner|input-otp|embla-carousel[a-z-]*)[\\/]/.test(id)) {
+            return "vendor-ui";
+          }
+
+          // Everything else Radix-shaped (tooltip, toast, slot, dropdown-menu,
+          // their shared internals, @floating-ui) — either directly used on a
+          // public page or small plumbing several of the above pull in.
+          if (/[\\/]node_modules[\\/](@radix-ui|@floating-ui|react-remove-scroll|aria-hidden)[\\/]/.test(id)) {
+            return "vendor-ui-core";
           }
 
           if (/[\\/]node_modules[\\/](@tanstack|wouter|zod|react-hook-form|@hookform)[\\/]/.test(id)) {

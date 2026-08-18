@@ -57,17 +57,32 @@ app.use(
      * forever; `immutable` additionally stops the browser from sending a
      * revalidation request on reload.
      *
-     * Everything else in dist/ (the prerendered index.html files, favicons,
-     * og images, robots.txt, sitemap.xml) keeps a stable URL across deploys
-     * and must NOT be pinned, or a visitor would keep booting last week's
-     * HTML — which references asset hashes that no longer exist. Those get
-     * `no-cache`: cheap 304s, always correct.
+     * The prerendered index.html files (and robots.txt/sitemap.xml, which are
+     * regenerated per build) keep a stable URL across deploys and must NOT be
+     * pinned, or a visitor would keep booting last week's HTML — which
+     * references asset hashes that no longer exist. Those stay `no-cache`:
+     * cheap 304s, always correct.
+     *
+     * Brand images (favicon*, apple-touch-icon, the og:image social-preview
+     * PNGs, the lion/sun flag) are a third case: not content-hashed, so they
+     * can't be pinned forever like /assets — but they're also not deploy
+     * output that changes shape every push, just static files someone
+     * occasionally replaces by hand. `no-cache` was making the browser
+     * re-fetch the favicon set on every single navigation (Lighthouse:
+     * "efficient cache lifetimes"). A week is short enough that a manual swap
+     * shows up same-day for anyone who reloads, long enough to stop the
+     * constant re-fetching.
      */
     setHeaders(res, filePath) {
       const isHashedAsset = filePath.includes(`${path.sep}assets${path.sep}`);
+      const isBrandImage = /\.(?:png|ico|webp|svg)$/i.test(filePath);
       res.setHeader(
         "Cache-Control",
-        isHashedAsset ? "public, max-age=31536000, immutable" : "no-cache",
+        isHashedAsset
+          ? "public, max-age=31536000, immutable"
+          : isBrandImage
+            ? "public, max-age=604800"
+            : "no-cache",
       );
     },
   }),

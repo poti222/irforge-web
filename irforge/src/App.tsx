@@ -72,10 +72,11 @@ const UpdateDetail = lazy(() => import("@/pages/update-detail"));
 const NotificationDetail = lazy(() => import("@/pages/notification-detail"));
 const DatabasePage = lazy(() => import("@/pages/database"));
 
-import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/layout/app-sidebar";
-import { SupportFab } from "@/components/layout/support-fab";
-import { HeaderControls } from "@/components/layout/header-controls";
+// NOTE [perf]: sidebar/header/support-FAB chrome is dashboard-only, but a
+// static import here put it in the graph every page — including the
+// anonymous landing view — has to fetch. Lazy, same as every page below.
+// See DashboardShell.tsx.
+const DashboardShell = lazy(() => import("@/components/layout/DashboardShell"));
 import { Spinner } from "@/components/ui/spinner";
 import ErrorBoundary from "@/components/error-boundary";
 import { readStoredLang, useLanguage } from "@/hooks/use-language";
@@ -117,23 +118,11 @@ function ProtectedRoute({ component: Component, adminOnly = false, superAdminOnl
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger />
-          <HeaderControls />
-        </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
-          {/* Per-page boundary keyed by route: a crash in one page shows the
-              recovery card inside the shell, and navigating away resets it. */}
-          <ErrorBoundary inline key={location}>
-            <Component {...rest} />
-          </ErrorBoundary>
-        </main>
-        <SupportFab />
-      </SidebarInset>
-    </SidebarProvider>
+    <Suspense fallback={<RouteFallback />}>
+      <DashboardShell routeKey={location}>
+        <Component {...rest} />
+      </DashboardShell>
+    </Suspense>
   );
 }
 
