@@ -147,6 +147,36 @@ router.get("/bots/:botId/health", requireAuth, async (req: any, res) => {
             });
         }
       }
+
+      // IRFORGE_PROMPT_V3 Phase 3 — before this phase, nine of twelve plugins'
+      // routers ran regardless of is_enabled(), so a bot could accumulate
+      // real rows (bookings, catalog orders, discount codes, ...) in a
+      // plugin's tabs while that plugin showed as "disabled" on the site.
+      // Gating the router doesn't delete that data — surface it instead so
+      // the owner can decide to re-enable or export it, rather than
+      // wondering why their sheet has tabs full of rows for a feature
+      // they've never turned on.
+      const enabledSet = new Set(enabled);
+      for (const [pluginId, sheets] of Object.entries(PLUGIN_REQUIRED_SHEETS)) {
+        if (enabledSet.has(pluginId)) continue;
+        for (const sheet of sheets) {
+          if (!tabs.includes(sheet)) continue;
+          let rowCount = 0;
+          try {
+            rowCount = (await listEntity(spreadsheetId, sheet)).length;
+          } catch {
+            continue; // تب هست ولی خواندنش شکست خورد — نه خطای این بات، رد شو.
+          }
+          if (rowCount > 0)
+            issues.push({
+              code: "disabled_plugin_has_data",
+              severity: "warning",
+              detail: `این ربات داده‌ی افزونه‌ای دارد که فعال نیست — پلاگین «${pluginId}» غیرفعال است ولی تب «${sheet}» آن ${rowCount.toLocaleString("fa-IR")} ردیف دارد. از بخش پلاگین‌ها آن را فعال یا داده‌اش را دریافت کنید.`,
+              section: "plugins",
+              repairable: false,
+            });
+        }
+      }
     }
 
     // ۵. تنظیمات ناقص.
