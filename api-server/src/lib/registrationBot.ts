@@ -9,6 +9,7 @@
  * **هیچ کدی اینجا لاگ نمی‌شود.** فقط شناسه و نتیجه.
  */
 import { sendTelegramMessage, tgApi } from "./telegram";
+import { sendSms } from "./smsSender";
 import { logger } from "./logger";
 
 type Locale = string | null | undefined;
@@ -70,14 +71,74 @@ export async function askForContact(chatId: string, locale?: Locale): Promise<vo
   }).catch((err) => logger.warn({ err }, "askForContact failed (non-fatal)"));
 }
 
+/**
+ * IRFORGE_PROMPT_V3 Phase 13 — "Telegram + SMS together": every OTP this
+ * file sends now also goes out over SMS to the phone already collected
+ * for this account (Telegram's own request_contact still verifies phone
+ * *ownership* at registration time — SMS can't replace that, a bot can't
+ * initiate a DM to a phone number — but once we have it, texting the same
+ * code alongside the Telegram message means a slow/blocked Telegram
+ * delivery doesn't strand the user mid-flow). sendSms itself never throws
+ * and silently no-ops when SMS_GATEWAY_URL isn't configured, so callers
+ * that don't pass a phone (or don't have SMS set up) behave exactly as
+ * before.
+ */
+type CodeKind = "register" | "login" | "reset";
+
+const SMS_CODE_TEMPLATES: Record<CodeKind, Record<string, (code: string) => string>> = {
+  register: {
+    fa: (c) => `کد تأیید IrForge: ${c}\nتا ۵ دقیقه معتبر است.`,
+    en: (c) => `Your IrForge verification code: ${c}\nValid for 5 minutes.`,
+    ar: (c) => `رمز تحقّق IrForge: ${c}\nصالح لمدة 5 دقائق.`,
+    tr: (c) => `IrForge doğrulama kodu: ${c}\n5 dakika geçerlidir.`,
+    ru: (c) => `Код подтверждения IrForge: ${c}\nДействителен 5 минут.`,
+  },
+  login: {
+    fa: (c) => `کد ورود IrForge: ${c}\nتا ۵ دقیقه معتبر است.`,
+    en: (c) => `Your IrForge sign-in code: ${c}\nValid for 5 minutes.`,
+    ar: (c) => `رمز دخول IrForge: ${c}\nصالح لمدة 5 دقائق.`,
+    tr: (c) => `IrForge giriş kodu: ${c}\n5 dakika geçerlidir.`,
+    ru: (c) => `Код входа IrForge: ${c}\nДействителен 5 минут.`,
+  },
+  reset: {
+    fa: (c) => `کد بازیابی رمز IrForge: ${c}\nتا ۱۵ دقیقه معتبر است.`,
+    en: (c) => `Your IrForge password reset code: ${c}\nValid for 15 minutes.`,
+    ar: (c) => `رمز استعادة كلمة المرور IrForge: ${c}\nصالح لمدة 15 دقيقة.`,
+    tr: (c) => `IrForge şifre sıfırlama kodu: ${c}\n15 dakika geçerlidir.`,
+    ru: (c) => `Код сброса пароля IrForge: ${c}\nДействителен 15 минут.`,
+  },
+};
+
+function smsCodeText(code: string, locale: Locale, kind: CodeKind): string {
+  return pick(locale, SMS_CODE_TEMPLATES[kind])(code);
+}
+
+async function sendCodeSms(phone: string | undefined, code: string, locale: Locale, kind: CodeKind): Promise<void> {
+  if (!phone) return;
+  await sendSms({ to: phone, text: smsCodeText(code, locale, kind) });
+}
+
+/** Password-reset code over SMS — the Telegram half of this message is
+ * sent inline in routes/auth.ts (its wording differs enough from the
+ * registration/login texts above that it isn't worth forcing through a
+ * shared wrapper), so this is exported standalone for that call site. */
+export async function sendResetCodeSms(phone: string | undefined, code: string, locale?: Locale): Promise<void> {
+  await sendCodeSms(phone, code, locale, "reset");
+}
+
 /** کد ثبت‌نام + برداشتن کیبورد. */
 export async function sendRegistrationCode(
   chatId: string,
   code: string,
   locale?: Locale,
+  phone?: string,
 ): Promise<void> {
+  const smsPromise = sendCodeSms(phone, code, locale, "register");
   const token = platformToken();
-  if (!token) return;
+  if (!token) {
+    await smsPromise;
+    return;
+  }
 
   const text = pick(locale, {
     fa:
@@ -107,12 +168,15 @@ export async function sendRegistrationCode(
       "⚠️ Наши сотрудники никогда не спросят у вас этот код.",
   });
 
-  await tgApi(token, "sendMessage", {
-    chat_id: chatId,
-    text,
-    parse_mode: "HTML",
-    reply_markup: { remove_keyboard: true },
-  }).catch((err) => logger.warn({ err }, "sendRegistrationCode failed (non-fatal)"));
+  await Promise.all([
+    tgApi(token, "sendMessage", {
+      chat_id: chatId,
+      text,
+      parse_mode: "HTML",
+      reply_markup: { remove_keyboard: true },
+    }).catch((err) => logger.warn({ err }, "sendRegistrationCode failed (non-fatal)")),
+    smsPromise,
+  ]);
 }
 
 /** کد ورود. */
@@ -120,9 +184,14 @@ export async function sendLoginCode(
   chatId: string,
   code: string,
   locale?: Locale,
+  phone?: string,
 ): Promise<void> {
+  const smsPromise = sendCodeSms(phone, code, locale, "login");
   const token = platformToken();
-  if (!token) return;
+  if (!token) {
+    await smsPromise;
+    return;
+  }
 
   const text = pick(locale, {
     fa:
@@ -157,7 +226,7 @@ export async function sendLoginCode(
       "⚠️ Наши сотрудники никогда не спросят у вас этот код.",
   });
 
-  await sendTelegramMessage(token, chatId, text);
+  await Promise.all([sendTelegramMessage(token, chatId, text), smsPromise]);
 }
 
 /** پیام ساده‌ی متنی به کاربر بات، با زبان انتخابی. */

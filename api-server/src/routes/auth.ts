@@ -16,6 +16,7 @@ import { syncUserUpsert, syncSessionUpsert, syncSessionDelete } from "../lib/she
 import { verifyTelegramAuth, verifyTelegramInitData } from "../lib/telegramAuth";
 import { hashPassword, verifyPassword } from "../lib/password";
 import { sendTelegramMessage } from "../lib/telegram";
+import { sendResetCodeSms } from "../lib/registrationBot";
 import {
   CODE_TTL_MS,
   MAX_CODE_ATTEMPTS,
@@ -313,7 +314,7 @@ router.post("/auth/login", authRateLimit("login"), async (req, res) => {
       codeHash: hashCode(code),
       codeExpiresAt: codeExpiry(),
     });
-    await sendLoginCode(user.telegramId, code, null);
+    await sendLoginCode(user.telegramId, code, null, phone);
 
     logger.info({ userId: user.id }, "Login challenge issued");
     res.json({
@@ -897,13 +898,19 @@ router.post("/auth/forgot-password", async (req, res) => {
       .set({ resetCodeHash: hashCode(code), resetCodeExpiresAt: expiresAt })
       .where(eq(usersTable.id, user.id));
 
-    await sendTelegramMessage(
-      botToken,
-      user.telegramId,
-      `🔐 <b>کد بازیابی رمز IRForge</b>\n\n` +
-        `کد شما: <code>${code}</code>\n` +
-        `این کد تا ۱۵ دقیقه معتبر است. اگر شما درخواست نداده‌اید، این پیام را نادیده بگیرید.`
-    );
+    await Promise.all([
+      sendTelegramMessage(
+        botToken,
+        user.telegramId,
+        `🔐 <b>کد بازیابی رمز IRForge</b>\n\n` +
+          `کد شما: <code>${code}</code>\n` +
+          `این کد تا ۱۵ دقیقه معتبر است. اگر شما درخواست نداده‌اید، این پیام را نادیده بگیرید.`
+      ),
+      // IRFORGE_PROMPT_V3 Phase 13 — same "Telegram + SMS together" as the
+      // registration/login codes: sendResetCodeSms no-ops when the user
+      // has no phone on file or SMS isn't configured.
+      sendResetCodeSms(user.phone ?? undefined, code, null),
+    ]);
 
     res.json({ message: genericMessage });
   } catch (err) {

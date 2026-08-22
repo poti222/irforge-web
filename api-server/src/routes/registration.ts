@@ -372,7 +372,7 @@ router.post("/auth/register/resend", authRateLimit("register_resend"), async (re
       codeAttempts: 0,
       step: "code_sent",
     });
-    await sendRegistrationCode(row.telegramChatId, code, row.locale);
+    await sendRegistrationCode(row.telegramChatId, code, row.locale, row.phone ?? undefined);
     logger.info({ registrationId: row.id }, "Registration code resent");
     res.json({ ok: true });
   } catch (err) {

@@ -442,7 +442,7 @@ async function handleContact(botToken: string, chatId: string, from: any, contac
   if (advanced.length === 0) return;
 
   logger.info({ registrationId: pending.id }, "Registration: phone verified, code sent");
-  await sendRegistrationCode(chatId, code, pending.locale);
+  await sendRegistrationCode(chatId, code, pending.locale, phone);
 }
 
 /**
