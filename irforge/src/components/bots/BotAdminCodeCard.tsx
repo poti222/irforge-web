@@ -50,7 +50,7 @@ export function BotAdminCodeCard({ bot }: { bot: Bot }) {
       </CardHeader>
       <CardContent className="flex flex-wrap items-center gap-2">
         <code dir="ltr" className="min-w-0 flex-1 select-all rounded-md border bg-muted/40 px-3 py-2 font-mono text-sm">
-          {shown ? bot.adminCode : "••••••••"}
+          {shown ? bot.adminCode : "•".repeat(bot.adminCode.length)}
         </code>
         <Button variant="ghost" size="icon" aria-label={shown ? t.adminCodeHide : t.adminCodeShow} onClick={() => setShown((v) => !v)}>
           {shown ? <EyeOff className="size-4" /> : <Eye className="size-4" />}

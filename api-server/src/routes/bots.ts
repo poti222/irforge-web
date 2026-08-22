@@ -229,9 +229,17 @@ function formatBot(bot: any) {
   };
 }
 
-/** تولید admin code — ۸ کاراکتر hex */
+/**
+ * تولید admin code — ۱۶ کاراکتر hex (۶۴ بیت).
+ *
+ * IRFORGE_PROMPT_V3 Phase 2: قبلاً ۴ بایت/۸ کاراکتر (۳۲ بیت) بود — قابل
+ * brute-force با منابع متوسط. کدهای ۸-کاراکتریِ قبلاً صادرشده همچنان کار
+ * می‌کنند (مقایسه رشته‌ای است، نه طول‌محور)؛ صاحب بات از تنظیمات → منطقه‌ی
+ * خطر می‌تواند با «تولید کد جدید» (`POST /bots/:botId/regenerate-admin-code`)
+ * ارتقا بدهد. هیچ باتِ زنده‌ای با این تغییر به‌خودی‌خود باطل نمی‌شود.
+ */
 function generateAdminCode(): string {
-  return crypto.randomBytes(4).toString("hex").toUpperCase();
+  return crypto.randomBytes(8).toString("hex").toUpperCase();
 }
 
 /**

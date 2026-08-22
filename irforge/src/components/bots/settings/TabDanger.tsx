@@ -173,7 +173,7 @@ export function TabDanger({ bot }: { bot: Bot }) {
           {adminCode ? (
             <div className="flex items-center gap-2">
               <code dir="ltr" className="rounded-md border bg-muted px-3 py-1.5 font-mono tracking-widest">
-                {showCode ? adminCode : "••••••••"}
+                {showCode ? adminCode : "•".repeat(adminCode.length)}
               </code>
               <Button variant="ghost" size="icon" onClick={() => setShowCode((s) => !s)} aria-label={t.toggleCodeVisibility}>
                 {showCode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
