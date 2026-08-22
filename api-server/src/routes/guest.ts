@@ -21,6 +21,8 @@ import crypto from "crypto";
 import { db, guestSessionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { requireAuth } from "./auth";
+import { authRateLimit } from "../middleware/rateLimit";
 
 const router = Router();
 
@@ -38,7 +40,10 @@ export function isGuestToken(token: string | undefined | null): boolean {
 }
 
 // ─── POST /api/guest/session ─────────────────────────────────────────────────
-router.post("/guest/session", async (req, res) => {
+// IRFORGE_PROMPT_V3 Phase 6.3 — unauthenticated by nature (that's the whole
+// point of a guest session), so the per-IP auth-endpoint limiter is the
+// backstop against a script minting guest_sessions rows by the thousand.
+router.post("/guest/session", authRateLimit("guest_session"), async (req, res) => {
   try {
     const id = crypto.randomUUID();
     const token = `${GUEST_TOKEN_PREFIX}${id}`;
@@ -88,18 +93,25 @@ router.get("/guest/me", async (req: any, res) => {
 // ─── POST /api/guest/convert ─────────────────────────────────────────────────
 // وقتی مهمان ثبت‌نام یا ورود کرد: سبد منتقل می‌شود، ردیف مهمان علامت می‌خورد.
 // بقیه‌ی چیزها دور ریخته می‌شوند — بنر همین را صریح می‌گوید.
-router.post("/guest/convert", async (req: any, res) => {
+//
+// IRFORGE_PROMPT_V3 Phase 6.3 — this trusted `req.body.userId` from an
+// unauthenticated caller: anyone who knew (or enumerated) a guestToken UUID
+// could attribute that guest session's conversion to *any* userId they
+// typed in, real or not. `convertedUserId` isn't read anywhere yet, but the
+// fix is the same regardless of what future feature ends up trusting it —
+// require the caller to actually be the user being recorded, the same way
+// every other mutating route does.
+router.post("/guest/convert", requireAuth, async (req: any, res) => {
   try {
     const guestToken = req.body?.guestToken;
-    const userId = req.body?.userId;
-    if (!isGuestToken(guestToken) || typeof userId !== "string" || userId === "") {
+    if (!isGuestToken(guestToken)) {
       res.status(400).json({ error: "Invalid conversion" });
       return;
     }
     const id = String(guestToken).slice(GUEST_TOKEN_PREFIX.length);
     await db
       .update(guestSessionsTable)
-      .set({ convertedUserId: userId })
+      .set({ convertedUserId: req.userId })
       .where(eq(guestSessionsTable.id, id));
     res.json({ ok: true });
   } catch (err) {

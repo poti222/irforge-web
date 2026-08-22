@@ -28,6 +28,7 @@ import {
 } from "../lib/otp";
 import { sendLoginCode } from "../lib/registrationBot";
 import { authRateLimit, hit, phoneKey, reset, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS } from "../middleware/rateLimit";
+import { hashSessionToken, hashUserAgent } from "../lib/sessionToken";
 
 /**
  * کد بازیابی رمز حالا از `lib/otp.ts` می‌آید — همان تولیدکننده، همان هش و
@@ -77,14 +78,30 @@ function generateToken(userId: string): string {
   ).toString("base64");
 }
 
+/** Below this, a session is worth another write; above it, skip the extra
+ * UPDATE on every single authenticated request. */
+const LAST_USED_THROTTLE_MS = 5 * 60 * 1000;
+
 export async function getUserIdFromToken(token: string): Promise<string | null> {
   const now = new Date();
+  const tokenHash = hashSessionToken(token);
   const rows = await db
     .select()
     .from(sessionsTable)
-    .where(and(eq(sessionsTable.token, token), gt(sessionsTable.expiresAt, now)))
+    .where(and(eq(sessionsTable.token, tokenHash), gt(sessionsTable.expiresAt, now)))
     .limit(1);
-  return rows[0]?.userId ?? null;
+  const row = rows[0];
+  if (!row) return null;
+
+  if (now.getTime() - row.lastUsedAt.getTime() > LAST_USED_THROTTLE_MS) {
+    // Fire-and-forget: activity tracking must never add latency (or a
+    // failure mode) to the auth check itself.
+    db.update(sessionsTable).set({ lastUsedAt: now })
+      .where(eq(sessionsTable.token, tokenHash))
+      .catch((err) => logger.warn({ err }, "session lastUsedAt update failed"));
+  }
+
+  return row.userId;
 }
 
 export function requireAuth(req: any, res: any, next: any) {
@@ -193,9 +210,13 @@ router.post("/auth/register", async (req, res) => {
       .values({ id, name, email, passwordHash, role: "user", plan: "free", status: "active" })
       .returning();
     const token = generateToken(id);
+    const tokenHash = hashSessionToken(token);
     const sessionExpiry = sessionExpiresAt();
-    await db.insert(sessionsTable).values({ token, userId: id, expiresAt: sessionExpiry });
-    syncSessionUpsert({ token, userId: id, expiresAt: sessionExpiry });
+    await db.insert(sessionsTable).values({
+      token: tokenHash, userId: id, expiresAt: sessionExpiry,
+      userAgentHash: hashUserAgent(req.headers["user-agent"]),
+    });
+    syncSessionUpsert({ token: tokenHash, userId: id, expiresAt: sessionExpiry });
     syncUserUpsert({
       id: user.id, name: user.name, email: user.email, role: user.role,
       plan: user.plan, status: user.status, bio: user.bio,
@@ -372,7 +393,7 @@ router.post("/auth/login/verify", authRateLimit("login_verify"), async (req, res
       .where(eq(loginChallengesTable.id, challengeId));
 
     logger.info({ userId: user.id }, "Login completed");
-    res.json(await issueSession(user));
+    res.json(await issueSession(user, req));
   } catch (err) {
     logger.error({ err }, "Login verify error");
     res.status(500).json({ error: "Internal server error" });
@@ -383,9 +404,9 @@ router.post("/auth/login/verify", authRateLimit("login_verify"), async (req, res
 router.post("/auth/logout", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.slice(7);
-    await db.delete(sessionsTable).where(eq(sessionsTable.token, token)).catch(() => {});
-    syncSessionDelete(token);
+    const tokenHash = hashSessionToken(authHeader.slice(7));
+    await db.delete(sessionsTable).where(eq(sessionsTable.token, tokenHash)).catch(() => {});
+    syncSessionDelete(tokenHash);
   }
   res.json({ success: true });
 });
@@ -637,13 +658,17 @@ const TG_LOGIN_TICKET_TTL_MS = 10 * 60 * 1000;
  * تابع می‌آیند. سه پیاده‌سازیِ «نشست بساز» یعنی سه جا برای جا انداختن
  * `syncSessionUpsert` یا `lastLogin`.
  */
-async function issueSession(user: typeof usersTable.$inferSelect) {
+async function issueSession(user: typeof usersTable.$inferSelect, req: { headers: Record<string, unknown> }) {
   await db.update(usersTable).set({ lastLogin: new Date() }).where(eq(usersTable.id, user.id));
 
   const token = generateToken(user.id);
+  const tokenHash = hashSessionToken(token);
   const expiresAt = sessionExpiresAt();
-  await db.insert(sessionsTable).values({ token, userId: user.id, expiresAt });
-  syncSessionUpsert({ token, userId: user.id, expiresAt });
+  await db.insert(sessionsTable).values({
+    token: tokenHash, userId: user.id, expiresAt,
+    userAgentHash: hashUserAgent(req.headers["user-agent"] as string | undefined),
+  });
+  syncSessionUpsert({ token: tokenHash, userId: user.id, expiresAt });
 
   const [{ value: botCount }] = await db
     .select({ value: count() })
@@ -766,7 +791,7 @@ router.get("/auth/telegram/login/:id/status", async (req, res) => {
     }
 
     logger.info({ userId: user.id }, "Telegram one-tap login completed");
-    res.json({ status: "approved", ...(await issueSession(user)) });
+    res.json({ status: "approved", ...(await issueSession(user, req)) });
   } catch (err) {
     logger.error({ err }, "Telegram login status error");
     res.status(500).json({ error: "Internal server error" });
@@ -822,7 +847,7 @@ router.post("/auth/telegram/login/ticket", authRateLimit("telegram_login_ticket"
     }
 
     logger.info({ userId: user.id }, "Telegram login ticket redeemed");
-    res.json(await issueSession(user));
+    res.json(await issueSession(user, req));
   } catch (err) {
     logger.error({ err }, "Telegram login ticket error");
     res.status(500).json({ error: "Internal server error" });

@@ -69,6 +69,13 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at TIMESTAMPTZ NOT NULL
 );
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+-- Phase 6.2: "token" now holds sha256(token), not the raw value (see
+-- lib/sessionToken.ts) -- every existing row's stored value stops matching
+-- anything the app will ever hash again, which invalidates all sessions
+-- that predate this deploy. Expected and one-time: everyone just logs in
+-- again, same as a forced password reset.
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_agent_hash TEXT;
 
 -- ─── BOTS ─────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS bots (

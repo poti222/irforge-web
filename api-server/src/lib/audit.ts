@@ -21,7 +21,8 @@ export type AuditAction =
   | "role_changed"
   | "status_changed"
   | "sessions_revoked"
-  | "impersonation_started";
+  | "impersonation_started"
+  | "bot_purged";
 
 export async function writeAudit(input: {
   actorUserId: string;

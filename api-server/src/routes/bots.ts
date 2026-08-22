@@ -37,7 +37,8 @@ import { eq, ne, gte, and, or, exists, sql, desc, inArray } from "drizzle-orm";
 import { reserveDiscount, DiscountCodeError, type DiscountReservation } from "../lib/discountStore";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
-import { perUserRateLimit } from "../middleware/rateLimit.js";
+import { perUserRateLimit, authRateLimit, clientIp } from "../middleware/rateLimit.js";
+import { writeAudit } from "../lib/audit.js";
 import { encryptToken, decryptToken } from "../lib/tokenCrypto";
 import { sendTelegramMessage, tgApi, tgSetProfilePhoto, fetchBotIdentity, getTelegramFilePath } from "../lib/telegram";
 import {
@@ -2245,11 +2246,28 @@ router.delete("/bots/:botId", requireAuth, async (req: any, res) => {
 // `WEBSITE_API_URL` should point at the site's base URL including `/api`
 // (the same convention the frontend's `VITE_API_URL` + generated API client
 // already use for every other route in this file).
-router.post("/internal/bots/:botId/purge", async (req: any, res) => {
-  const providedSecret = req.header("X-Internal-Secret");
-  const expectedSecret = process.env.INTERNAL_PURGE_SECRET;
+// IRFORGE_PROMPT_V3 Phase 6.4:
+//  - constant-time secret compare (a plain `!==` leaks a timing signal an
+//    attacker can use to recover INTERNAL_PURGE_SECRET byte by byte —
+//    same reasoning as lib/otp.ts's code compare).
+//  - rate-limited per IP: this is an unauthenticated-by-design endpoint
+//    (no user session exists on a service-to-service call), so it's the
+//    one backstop against brute-forcing the secret.
+//  - every call — denied or not — leaves an audit trail. A successful
+//    purge is irreversible, so "who/when/from where" has to survive it.
+router.post("/internal/bots/:botId/purge", authRateLimit("internal_purge"), async (req: any, res) => {
+  const providedSecret = req.header("X-Internal-Secret") ?? "";
+  const expectedSecret = process.env.INTERNAL_PURGE_SECRET ?? "";
 
-  if (!expectedSecret || providedSecret !== expectedSecret) {
+  const providedBuf = Buffer.from(providedSecret);
+  const expectedBuf = Buffer.from(expectedSecret);
+  const secretOk =
+    expectedSecret.length > 0 &&
+    providedBuf.length === expectedBuf.length &&
+    crypto.timingSafeEqual(providedBuf, expectedBuf);
+
+  if (!secretOk) {
+    logger.warn({ ip: clientIp(req), botId: req.params.botId }, "Internal purge: bad or missing secret");
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -2270,6 +2288,13 @@ router.post("/internal/bots/:botId/purge", async (req: any, res) => {
     }
 
     await purgeBotFully(bot, "expiry");
+    await writeAudit({
+      actorUserId: "system:mainbot",
+      action: "bot_purged",
+      targetUserId: bot.userId,
+      reason: "expiry",
+      metadata: { botId: bot.id, botName: bot.name, sourceIp: clientIp(req) },
+    });
     res.status(204).end();
   } catch (err) {
     logger.error({ err }, "Internal purge error");

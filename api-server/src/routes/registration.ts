@@ -40,6 +40,7 @@ import {
 import { hashPassword } from "../lib/password";
 import { syncSessionUpsert, syncUserUpsert } from "../lib/sheetsSync";
 import { authRateLimit } from "../middleware/rateLimit";
+import { hashSessionToken, hashUserAgent } from "../lib/sessionToken";
 import {
   MAX_CODE_ATTEMPTS,
   MAX_CODE_SENDS,
@@ -445,6 +446,7 @@ router.post("/auth/register/complete", async (req, res) => {
     const userId = crypto.randomUUID();
     const passwordHash = await hashPassword(password);
     const token = generateToken(userId);
+    const tokenHash = hashSessionToken(token);
     const sessionExpiry = sessionExpiresAt();
     const fullName = `${row.firstName} ${row.lastName}`.trim();
 
@@ -504,7 +506,10 @@ router.post("/auth/register/complete", async (req, res) => {
         })
         .returning();
 
-      await tx.insert(sessionsTable).values({ token, userId, expiresAt: sessionExpiry });
+      await tx.insert(sessionsTable).values({
+        token: tokenHash, userId, expiresAt: sessionExpiry,
+        userAgentHash: hashUserAgent(req.headers["user-agent"]),
+      });
       await tx
         .delete(pendingRegistrationsTable)
         .where(eq(pendingRegistrationsTable.id, row.id));
@@ -514,7 +519,7 @@ router.post("/auth/register/complete", async (req, res) => {
       return created;
     });
 
-    syncSessionUpsert({ token, userId, expiresAt: sessionExpiry });
+    syncSessionUpsert({ token: tokenHash, userId, expiresAt: sessionExpiry });
     syncUserUpsert({
       id: user.id, name: user.name, email: user.email, role: user.role,
       plan: user.plan, status: user.status, bio: user.bio,

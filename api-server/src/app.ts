@@ -1,5 +1,6 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import path from "path";
 import { existsSync } from "fs";
@@ -8,6 +9,8 @@ import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 import { sanitizeBody } from "./middleware/sanitizeBody.js";
 import { globalRateLimit } from "./middleware/rateLimit.js";
+import { resolveCorsOrigin } from "./lib/corsConfig.js";
+import { INLINE_SCRIPT_HASHES } from "./lib/csp.js";
 
 const app: Express = express();
 
@@ -20,17 +23,84 @@ const currentDir =
     : path.dirname(fileURLToPath(import.meta.url));
 
 app.use(pinoHttp({ logger }));
+
+// IRFORGE_PROMPT_V3 Phase 6.1 — security headers. CSP's script-src is a
+// hash allow-list (see lib/csp.ts) rather than a nonce: the frontend is a
+// prerendered static build served with res.sendFile, so there's no
+// per-request render step to hand a nonce to, and the inline scripts are
+// fixed at build time anyway — a hash is the correct, simpler tool for
+// content that never changes per request.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        // https://telegram.org: the Telegram Login Widget injects its own
+        // <script src="https://telegram.org/js/telegram-widget.js"> at
+        // runtime (see irforge/src/components/telegram-login-button.tsx).
+        scriptSrc: ["'self'", "https://telegram.org", ...INLINE_SCRIPT_HASHES.map((h) => `'${h}'`)],
+        // Radix/shadcn (popovers, dropdowns, dialogs) position themselves
+        // via inline `style` attributes — style-src has no equivalent to a
+        // script hash for that, and CSS injection is a far lower-severity
+        // vector than script injection, so 'unsafe-inline' here is the
+        // standard, accepted trade-off (it is NOT script-src).
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        fontSrc: ["'self'", "data:"],
+        connectSrc: ["'self'"],
+        // The Telegram Login Widget's iframe (oauth.telegram.org).
+        frameSrc: ["https://oauth.telegram.org"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        // Nothing in this app embeds it in an iframe; refuse to be framed.
+        frameAncestors: ["'none'"],
+      },
+    },
+    // Default (require-corp) would block cross-origin subresources with no
+    // CORP header of their own — e.g. bot avatar images fetched straight
+    // from Telegram's CDN — for a cross-origin isolation guarantee this app
+    // has no use for (no SharedArrayBuffer/high-res timers).
+    crossOriginEmbedderPolicy: false,
+    hsts: { maxAge: 15552000, includeSubDomains: true, preload: false },
+  }),
+);
+
+// IRFORGE_PROMPT_V3 Phase 6.1 — CORS_ORIGIN unset in production used to
+// silently fall back to reflecting any request Origin (see corsConfigIssue's
+// boot-time check in lib/corsConfig.ts, which now refuses to boot instead).
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || true,
+  origin: resolveCorsOrigin(),
   credentials: true,
 }));
-// FIX: default express.json() body limit is 100kb, which silently 413s any
-// base64 data-URL upload (bot profile photos, wallet deposit receipts) once
-// the encoded payload — image bytes * ~1.33 for base64, plus JSON overhead —
-// crosses that. Raised to accommodate the largest such upload (bot profile
-// photo, capped at 5MB raw server-side in bots.ts) with headroom.
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// IRFORGE_PROMPT_V3 Phase 6.1 — most routes are small JSON bodies; a small
+// cap here shrinks the attack surface for a body-based DoS on the many
+// endpoints that don't need more. The routes that legitimately carry a
+// base64 data-URL (bot profile photos, wallet/receipt images, full-sheet
+// backup restore, admin update post images — see botMedia.ts, botBackup.ts,
+// bots.ts, updates.ts) get the larger limit back, scoped to just their
+// path prefix, so they keep working without widening the cap for everyone
+// else.
+const SMALL_BODY_LIMIT = "256kb";
+const LARGE_BODY_LIMIT = "10mb";
+const LARGE_BODY_PREFIXES = ["/api/bots", "/api/admin/updates"];
+
+function needsLargeBody(req: Request): boolean {
+  return LARGE_BODY_PREFIXES.some((p) => req.path.startsWith(p));
+}
+
+const smallJson = express.json({ limit: SMALL_BODY_LIMIT });
+const largeJson = express.json({ limit: LARGE_BODY_LIMIT });
+const smallUrlencoded = express.urlencoded({ extended: true, limit: SMALL_BODY_LIMIT });
+const largeUrlencoded = express.urlencoded({ extended: true, limit: LARGE_BODY_LIMIT });
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const large = needsLargeBody(req);
+  (large ? largeJson : smallJson)(req, res, (err?: unknown) => {
+    if (err) { next(err); return; }
+    (large ? largeUrlencoded : smallUrlencoded)(req, res, next);
+  });
+});
 // IRFORGE_PROMPT_V3 Phase 4.5 — prototype-pollution backstop, after body
 // parsing and before any route sees req.body. See middleware/sanitizeBody.ts.
 app.use(sanitizeBody);
