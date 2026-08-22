@@ -37,12 +37,43 @@ export function generateCode(): string {
 }
 
 /**
- * sha256 کد. نمک ثابت است چون هدف اینجا مقاومت در برابر جدول رنگین‌کمانی
- * نیست — کد ۵ دقیقه عمر دارد و فضایش کوچک است؛ هدف این است که یک نشتِ
- * فقط-خواندنی از دیتابیس کدِ در جریان را لو ندهد.
+ * IRFORGE_PROMPT_V3 Phase 4.6 — the salt used to be the fixed string
+ * "irforge_otp". For a 6-digit code that's a 1,000,000-entry rainbow table
+ * anyone can precompute once, offline, in seconds — a read-only DB leak
+ * (a backup, a replica, a support export) would recover every pending code
+ * immediately. `OTP_SECRET` makes the table useless without also stealing
+ * the secret, and rotating it is cheap: it just invalidates in-flight codes,
+ * which have a 5-minute TTL anyway.
+ *
+ * Returns a description of the problem if OTP_SECRET is missing or too
+ * short *in production*, else null. A pure function (env passed in rather
+ * than always reading `process.env`) so this is testable without process
+ * mutation or reload tricks.
  */
+export function otpSecretConfigIssue(env: NodeJS.ProcessEnv = process.env): string | null {
+  const secret = env.OTP_SECRET || "";
+  if (env.NODE_ENV === "production" && secret.length < 32) {
+    return (
+      "OTP_SECRET is unset (or shorter than 32 characters) in production. " +
+      "Set it to a long random value before boot — see .env.example."
+    );
+  }
+  return null;
+}
+
+const _otpSecretIssue = otpSecretConfigIssue();
+if (_otpSecretIssue) {
+  throw new Error(_otpSecretIssue);
+}
+
+// Only reachable in non-production (the guard above already refused to boot
+// otherwise) — a fixed, obviously-fake fallback so local dev/tests don't
+// need OTP_SECRET configured, and it can never be mistaken for a real one.
+const OTP_SECRET = process.env.OTP_SECRET || "dev-only-insecure-otp-secret-do-not-use-in-prod";
+
+/** HMAC-SHA256 کد با `OTP_SECRET`. کد خام هرگز ذخیره نمی‌شود. */
 export function hashCode(code: string): string {
-  return crypto.createHash("sha256").update(code.trim() + "irforge_otp").digest("hex");
+  return crypto.createHmac("sha256", OTP_SECRET).update(code.trim()).digest("hex");
 }
 
 /**

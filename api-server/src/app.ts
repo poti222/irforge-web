@@ -6,6 +6,7 @@ import { existsSync } from "fs";
 import { fileURLToPath } from "url";
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
+import { sanitizeBody } from "./middleware/sanitizeBody.js";
 
 const app: Express = express();
 
@@ -29,6 +30,9 @@ app.use(cors({
 // photo, capped at 5MB raw server-side in bots.ts) with headroom.
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+// IRFORGE_PROMPT_V3 Phase 4.5 — prototype-pollution backstop, after body
+// parsing and before any route sees req.body. See middleware/sanitizeBody.ts.
+app.use(sanitizeBody);
 
 app.use("/api", router);
 
