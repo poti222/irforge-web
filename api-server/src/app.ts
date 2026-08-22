@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 import { sanitizeBody } from "./middleware/sanitizeBody.js";
+import { globalRateLimit } from "./middleware/rateLimit.js";
 
 const app: Express = express();
 
@@ -34,6 +35,11 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // parsing and before any route sees req.body. See middleware/sanitizeBody.ts.
 app.use(sanitizeBody);
 
+// IRFORGE_PROMPT_V3 Phase 5.2 — a generous per-IP backstop across all of
+// /api, so an unauthenticated scan can't walk every route at full speed.
+// Route-specific, tighter (and per-user) limits still apply on top of this
+// for expensive endpoints (middleware/rateLimit.ts's perUserRateLimit).
+app.use("/api", globalRateLimit);
 app.use("/api", router);
 
 // dist/index.cjs lives at api-server/dist/, frontend is at irforge/dist

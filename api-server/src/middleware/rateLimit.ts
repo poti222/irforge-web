@@ -119,16 +119,84 @@ export function clientIp(req: Request): string {
  * `scope` فقط برای خوانایی کلید است؛ سقف مشترک است تا کسی نتواند با پخش‌کردن
  * درخواست‌ها بین چند اندپوینت از آن رد شود.
  */
-export function authRateLimit(scope: string) {
+/** IRFORGE_PROMPT_V3 Phase 5.2 — the JSON body already carried
+ * retryAfterSeconds; a real `Retry-After` header lets a spec-compliant HTTP
+ * client (and any browser devtools inspecting the response) back off
+ * correctly without parsing the body, and a translated message replaces the
+ * generic English one the UI otherwise has nothing to show. */
+function send429(res: Response, retryAfterSeconds: number, message = "چند لحظه صبر کنید و دوباره تلاش کنید."): void {
+  res.setHeader("Retry-After", String(Math.max(1, Math.ceil(retryAfterSeconds))));
+  res.status(429).json({
+    error: message,
+    code: "rate_limited",
+    retryAfterSeconds,
+  });
+}
+
+// `hitFn` on the three functions below defaults to `hit` (the real,
+// DB-backed limiter) in production. Tests substitute a fake so the verdict
+// is deterministic without a live Postgres — ES module named exports are
+// read-only from the importing side, so `rateLimit.hit = fake` isn't
+// possible; passing it as a parameter is.
+type HitFn = typeof hit;
+
+export function authRateLimit(scope: string, hitFn: HitFn = hit) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const verdict = await hit(`ip:${clientIp(req)}`, IP_LIMIT);
+    const verdict = await hitFn(`ip:${clientIp(req)}`, IP_LIMIT);
     if (!verdict.allowed) {
       logger.warn({ scope, ip: clientIp(req) }, "auth rate limit: IP blocked");
-      res.status(429).json({
-        error: "Too many requests. Please try again later.",
-        code: "rate_limited",
-        retryAfterSeconds: verdict.retryAfterSeconds,
-      });
+      send429(res, verdict.retryAfterSeconds);
+      return;
+    }
+    next();
+  };
+}
+
+/**
+ * IRFORGE_PROMPT_V3 Phase 5.2 — a generous limiter for `/api` as a whole, so
+ * an unauthenticated scan can't walk every route at full speed. Deliberately
+ * far above what any real user session needs; this is a backstop, not a
+ * feature limit — the per-route limiters below are where the real ceilings
+ * for expensive endpoints live.
+ */
+export const GLOBAL_IP_LIMIT_PER_MINUTE = 300;
+
+export function globalRateLimit(req: Request, res: Response, next: NextFunction, hitFn: HitFn = hit): void {
+  hitFn(`global-ip:${clientIp(req)}`, GLOBAL_IP_LIMIT_PER_MINUTE, 0, 60 * 1000)
+    .then((verdict) => {
+      if (!verdict.allowed) {
+        logger.warn({ ip: clientIp(req), path: req.path }, "global rate limit: IP blocked");
+        send429(res, verdict.retryAfterSeconds);
+        return;
+      }
+      next();
+    })
+    .catch((err) => {
+      logger.error({ err }, "globalRateLimit failed (allowing request)");
+      next();
+    });
+}
+
+/**
+ * IRFORGE_PROMPT_V3 Phase 5.2 — tighter, per-route limits for expensive
+ * operations (bot creation, backup export/restore, media upload, broadcast,
+ * translate-all, any CSV export), keyed **per user**, not per IP — an
+ * attacker with one account behind a proxy pool defeats an IP-only limit,
+ * and these routes all require auth (`requireAuth` sets `req.userId`)
+ * before this can run.
+ */
+export function perUserRateLimit(scope: string, limit: number, windowMs = WINDOW_MS, hitFn: HitFn = hit) {
+  return async (req: Request & { userId?: string }, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+      // requireAuth must run first; if it didn't, fail closed rather than
+      // rate-limiting nothing under a shared "anonymous" key.
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const verdict = await hitFn(`user:${scope}:${req.userId}`, limit, 0, windowMs);
+    if (!verdict.allowed) {
+      logger.warn({ scope, userId: req.userId }, "per-user rate limit: blocked");
+      send429(res, verdict.retryAfterSeconds);
       return;
     }
     next();

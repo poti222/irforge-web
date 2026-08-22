@@ -37,6 +37,7 @@ import { eq, ne, gte, and, or, exists, sql, desc, inArray } from "drizzle-orm";
 import { reserveDiscount, DiscountCodeError, type DiscountReservation } from "../lib/discountStore";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
+import { perUserRateLimit } from "../middleware/rateLimit.js";
 import { encryptToken, decryptToken } from "../lib/tokenCrypto";
 import { sendTelegramMessage, tgApi, tgSetProfilePhoto, fetchBotIdentity, getTelegramFilePath } from "../lib/telegram";
 import {
@@ -581,7 +582,7 @@ router.get("/bots", requireAuth, async (req: any, res) => {
 // ─── POST /api/bots ──────────────────────────────────────────────────────────
 // FIX [Group 3]: فلوی کامل — فیش پرداخت + pending_payment
 
-router.post("/bots", requireAuth, blockWhileImpersonating, requireCompleteProfile(), async (req: any, res) => {
+router.post("/bots", requireAuth, perUserRateLimit("bot_create", 10, 60 * 60 * 1000), blockWhileImpersonating, requireCompleteProfile(), async (req: any, res) => {
   try {
     const { name, description, token, paymentDescription, receiptUrl, amount } = req.body;
 
@@ -687,7 +688,7 @@ router.post("/bots", requireAuth, blockWhileImpersonating, requireCompleteProfil
 // تریال ۷ روزه‌ی رایگان (معادل پکیج نقره‌ای) — بدون فیش، بدون تأیید ادمین،
 // فوری فعال می‌شود. شرط: تلگرام وصل باشد و کاربر قبلاً تریال نگرفته باشد.
 
-router.post("/bots/trial", requireAuth, async (req: any, res) => {
+router.post("/bots/trial", requireAuth, perUserRateLimit("bot_create", 10, 60 * 60 * 1000), async (req: any, res) => {
   try {
     const { name, token } = req.body ?? {};
     if (!name?.trim() || !token?.trim()) {
@@ -855,7 +856,7 @@ router.get("/payments/me", requireAuth, async (req: any, res) => {
 // Z6: buy a bot paid directly from wallet balance (no receipt/pending review).
 // Deducts the amount and creates an already-approved bot with an admin code.
 
-router.post("/bots/wallet-purchase", requireAuth, blockWhileImpersonating, requireCompleteProfile(), async (req: any, res) => {
+router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create", 10, 60 * 60 * 1000), blockWhileImpersonating, requireCompleteProfile(), async (req: any, res) => {
   try {
     const { name, token, description, phone, telegramId, discountCode } = req.body;
     if (!name || !token) {

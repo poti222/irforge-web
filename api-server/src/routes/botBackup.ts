@@ -15,6 +15,7 @@ import zlib from "node:zlib";
 import { promisify } from "node:util";
 import { db, activityTable } from "@workspace/db";
 import { requireAuth } from "./auth.js";
+import { perUserRateLimit } from "../middleware/rateLimit.js";
 import { logger } from "../lib/logger.js";
 import { listTabs } from "../lib/tenantSheets.js";
 import {
@@ -252,7 +253,7 @@ async function planRestore(
   return plan;
 }
 
-router.post("/bots/:botId/restore", requireAuth, async (req: any, res) => {
+router.post("/bots/:botId/restore", requireAuth, perUserRateLimit("backup_restore", 10, 60 * 60 * 1000), async (req: any, res) => {
   try {
     const { spreadsheetId, botName } = await resolveBotSheet(req.userId, req.params.botId);
 

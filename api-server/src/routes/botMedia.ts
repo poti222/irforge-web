@@ -17,6 +17,7 @@ import { Router } from "express";
 import { db, botsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "./auth.js";
+import { perUserRateLimit } from "../middleware/rateLimit.js";
 import { decryptToken } from "../lib/tokenCrypto.js";
 import { tgApi, getTelegramFilePath } from "../lib/telegram.js";
 import { logger } from "../lib/logger.js";
@@ -95,7 +96,7 @@ async function uploadChatId(spreadsheetId: string, userId: string): Promise<stri
 
 // ─── POST /api/bots/:botId/media ────────────────────────────────────────────
 
-router.post("/bots/:botId/media", requireAuth, async (req: any, res) => {
+router.post("/bots/:botId/media", requireAuth, perUserRateLimit("media_upload", 60, 60 * 60 * 1000), async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
 

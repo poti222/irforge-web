@@ -28,6 +28,7 @@ import { Router } from "express";
 import { db, botsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "./auth.js";
+import { perUserRateLimit } from "../middleware/rateLimit.js";
 import { decryptToken } from "../lib/tokenCrypto.js";
 import { tgApi, downloadTelegramFile } from "../lib/telegram.js";
 import { botQueueAvailable, enqueueJob, listJobs } from "../lib/botQueue.js";
@@ -137,7 +138,7 @@ router.get("/bots/:botId/broadcast", requireAuth, async (req: any, res) => {
 
 // ─── POST /api/bots/:botId/broadcast ────────────────────────────────────────
 
-router.post("/bots/:botId/broadcast", requireAuth, async (req: any, res) => {
+router.post("/bots/:botId/broadcast", requireAuth, perUserRateLimit("broadcast", 20, 60 * 60 * 1000), async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
     if (!botQueueAvailable()) throw queueUnavailable();
