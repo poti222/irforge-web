@@ -348,7 +348,8 @@
     "sectionGiveaways": "قرعه‌کشی",
     "sectionSurveys": "نظرسنجی",
     "sectionDrip": "پیام زمان‌بندی‌شده",
-    "sectionCrm": "CRM"
+    "sectionCrm": "CRM",
+    "sectionAddresses": "آدرس‌ها"
   },
   "marketplace": {
     "walletBalance": "موجودی کیف پول",
@@ -2187,7 +2188,41 @@
     "actionDone": "انجام‌شده",
     "actionNoShow": "عدم حضور",
     "noShowBadge": "عدم حضور",
-    "reservationUpdated": "رزرو به‌روزرسانی شد"
+    "reservationUpdated": "رزرو به‌روزرسانی شد",
+    "customerLocation": "موقعیت مکانی ارسال‌شده"
+  },
+  "botAddresses": {
+    "loading": "در حال بارگذاری آدرس‌ها…",
+    "errorGeneric": "خطایی رخ داد. دوباره تلاش کنید.",
+    "noSheetYet": "این بات هنوز شیت اختصاصی ندارد؛ آدرس‌ها بعد از تخصیص شیت باز می‌شوند.",
+    "pluginDisabledTitle": "پلاگین آدرس را روشن کنید",
+    "pluginDisabledDesc": "با روشن‌شدن این پلاگین، کاربران با /address آدرس کسب‌وکار شما، پین روی نقشه و دکمه‌های مسیریابی/تماس را می‌گیرند.",
+    "activatePlugin": "فعال‌سازی",
+    "activating": "در حال فعال‌سازی…",
+    "sectionDesc": "مکان‌هایی که بات می‌تواند بفرستد — عکس، متن آدرس، پین روی نقشه و دکمه‌های مسیریابی/تماس.",
+    "newAddress": "آدرس جدید",
+    "editAddress": "ویرایش آدرس",
+    "noAddresses": "هنوز آدرسی ثبت نشده است.",
+    "defaultBadge": "پیش‌فرض",
+    "edit": "ویرایش",
+    "delete": "حذف",
+    "save": "ذخیره",
+    "addressCreated": "آدرس ساخته شد",
+    "addressUpdated": "آدرس به‌روزرسانی شد",
+    "addressDeleted": "آدرس حذف شد",
+    "fieldTitle": "عنوان",
+    "fieldText": "متن آدرس",
+    "fieldMap": "موقعیت مکانی",
+    "mapHelp": "روی نقشه کلیک کنید یا پین را بکشید تا موقعیت دقیق تنظیم شود.",
+    "fieldPhone": "تلفن",
+    "fieldPlusCode": "پلاس‌کد (اختیاری)",
+    "fieldHoursNote": "یادداشت ساعات کاری (اختیاری)",
+    "fieldPhoto": "عکس (اختیاری)",
+    "fieldIsDefault": "آدرس پیش‌فرض (وقتی /address فقط یک آدرس دارد، همین فرستاده می‌شود)",
+    "mapProviderLabel": "مسیریابی با",
+    "mapProvider_google": "گوگل‌مپ",
+    "mapProvider_neshan": "نشان",
+    "mapProvider_balad": "بلد"
   },
   "botHealth": {
     "loading": "در حال بررسی بات…",

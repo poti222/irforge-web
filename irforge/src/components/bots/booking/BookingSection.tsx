@@ -24,7 +24,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
 import {
-  CalendarClock, Download, Loader2, Plus, Search, Trash2, X,
+  CalendarClock, Download, Loader2, MapPin, Plus, Search, Trash2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +81,8 @@ type BookingReservation = {
   status: string;
   customer_name?: string;
   customer_phone?: string;
+  customer_lat?: number | null;
+  customer_lng?: number | null;
   note?: string;
   no_show?: boolean;
   created_at?: string;
@@ -534,6 +536,17 @@ function ReservationsTab({ botId }: { botId: string }) {
                 <TableCell>
                   <div className="font-medium">{r.customer_name || "—"}</div>
                   <div dir="ltr" className="text-xs text-muted-foreground">{r.customer_phone || r.user_id}</div>
+                  {r.customer_lat != null && r.customer_lng != null && (
+                    <a
+                      dir="ltr"
+                      href={`https://www.google.com/maps?q=${r.customer_lat},${r.customer_lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-0.5 flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      <MapPin className="size-3" /> {t.customerLocation}
+                    </a>
+                  )}
                 </TableCell>
                 <TableCell>{serviceTitle(r.service_id)}</TableCell>
                 <TableCell>

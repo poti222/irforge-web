@@ -348,7 +348,8 @@
     "sectionGiveaways": "Giveaways",
     "sectionSurveys": "Surveys",
     "sectionDrip": "Drip messages",
-    "sectionCrm": "CRM"
+    "sectionCrm": "CRM",
+    "sectionAddresses": "Addresses"
   },
   "marketplace": {
     "walletBalance": "Wallet balance",
@@ -2187,7 +2188,41 @@
     "actionDone": "Mark done",
     "actionNoShow": "No-show",
     "noShowBadge": "No-show",
-    "reservationUpdated": "Reservation updated"
+    "reservationUpdated": "Reservation updated",
+    "customerLocation": "Location shared"
+  },
+  "botAddresses": {
+    "loading": "Loading addresses…",
+    "errorGeneric": "Something went wrong. Please try again.",
+    "noSheetYet": "This bot doesn't have its own spreadsheet yet; addresses unlock once one is assigned.",
+    "pluginDisabledTitle": "Turn on the address plugin",
+    "pluginDisabledDesc": "Let users get your business address, a map pin, and directions/call buttons with /address once this is on.",
+    "activatePlugin": "Activate",
+    "activating": "Activating…",
+    "sectionDesc": "Business locations your bot can send — photo, address text, a map pin, and directions/call buttons.",
+    "newAddress": "New address",
+    "editAddress": "Edit address",
+    "noAddresses": "No addresses yet.",
+    "defaultBadge": "Default",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "addressCreated": "Address created",
+    "addressUpdated": "Address updated",
+    "addressDeleted": "Address deleted",
+    "fieldTitle": "Title",
+    "fieldText": "Address text",
+    "fieldMap": "Location",
+    "mapHelp": "Click the map or drag the pin to set the exact location.",
+    "fieldPhone": "Phone",
+    "fieldPlusCode": "Plus code (optional)",
+    "fieldHoursNote": "Hours note (optional)",
+    "fieldPhoto": "Photo (optional)",
+    "fieldIsDefault": "Default address (sent when /address has only one, or as the top choice)",
+    "mapProviderLabel": "Directions via",
+    "mapProvider_google": "Google Maps",
+    "mapProvider_neshan": "Neshan",
+    "mapProvider_balad": "Balad"
   },
   "botHealth": {
     "loading": "Checking the bot…",

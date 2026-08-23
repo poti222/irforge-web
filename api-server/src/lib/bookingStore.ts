@@ -92,6 +92,11 @@ export interface BookingReservation {
   status: ReservationStatus | string;
   customer_name?: string;
   customer_phone?: string;
+  // IRFORGE_PROMPT_V3 Phase 18 — اختیاری، از بات (`plugins/booking/handlers.py`ی
+  // قدمِ collect location). PII مشتریه: عمداً در ستون‌های CSV
+  // (`routes/booking.ts`) نیست، فقط در جدولِ خودِ سایت به ادمین نشان داده می‌شود.
+  customer_lat?: number | null;
+  customer_lng?: number | null;
   note?: string;
   price_paid?: number;
   no_show?: boolean;

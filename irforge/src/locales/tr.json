@@ -348,7 +348,8 @@
     "sectionGiveaways": "Çekilişler",
     "sectionSurveys": "Anketler",
     "sectionDrip": "Zamanlı mesajlar",
-    "sectionCrm": "CRM"
+    "sectionCrm": "CRM",
+    "sectionAddresses": "Adresler"
   },
   "marketplace": {
     "walletBalance": "Cüzdan bakiyesi",
@@ -2187,7 +2188,41 @@
     "actionDone": "Tamamlandı olarak işaretle",
     "actionNoShow": "Gelmedi",
     "noShowBadge": "Gelmedi",
-    "reservationUpdated": "Rezervasyon güncellendi"
+    "reservationUpdated": "Rezervasyon güncellendi",
+    "customerLocation": "Konum paylaşıldı"
+  },
+  "botAddresses": {
+    "loading": "Adresler yükleniyor…",
+    "errorGeneric": "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
+    "noSheetYet": "Bu botun henüz kendi elektronik tablosu yok; bir tablo atandığında adresler açılır.",
+    "pluginDisabledTitle": "Adres eklentisini açın",
+    "pluginDisabledDesc": "Bu açıldığında kullanıcılar /address ile işletme adresinizi, harita üzerindeki konumu ve yol tarifi/arama düğmelerini alır.",
+    "activatePlugin": "Etkinleştir",
+    "activating": "Etkinleştiriliyor…",
+    "sectionDesc": "Botunuzun gönderebileceği konumlar — fotoğraf, adres metni, harita üzerinde bir iğne ve yol tarifi/arama düğmeleri.",
+    "newAddress": "Yeni adres",
+    "editAddress": "Adresi düzenle",
+    "noAddresses": "Henüz adres yok.",
+    "defaultBadge": "Varsayılan",
+    "edit": "Düzenle",
+    "delete": "Sil",
+    "save": "Kaydet",
+    "addressCreated": "Adres oluşturuldu",
+    "addressUpdated": "Adres güncellendi",
+    "addressDeleted": "Adres silindi",
+    "fieldTitle": "Başlık",
+    "fieldText": "Adres metni",
+    "fieldMap": "Konum",
+    "mapHelp": "Tam konumu ayarlamak için haritaya tıklayın veya iğneyi sürükleyin.",
+    "fieldPhone": "Telefon",
+    "fieldPlusCode": "Plus code (isteğe bağlı)",
+    "fieldHoursNote": "Çalışma saatleri notu (isteğe bağlı)",
+    "fieldPhoto": "Fotoğraf (isteğe bağlı)",
+    "fieldIsDefault": "Varsayılan adres (/address yalnızca bir adres olduğunda bu gönderilir)",
+    "mapProviderLabel": "Yol tarifi",
+    "mapProvider_google": "Google Haritalar",
+    "mapProvider_neshan": "Neshan",
+    "mapProvider_balad": "Balad"
   },
   "botHealth": {
     "loading": "Bot kontrol ediliyor…",

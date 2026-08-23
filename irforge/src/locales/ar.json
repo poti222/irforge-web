@@ -348,7 +348,8 @@
     "sectionGiveaways": "السحوبات",
     "sectionSurveys": "الاستبيانات",
     "sectionDrip": "رسائل مجدولة",
-    "sectionCrm": "إدارة العملاء"
+    "sectionCrm": "إدارة العملاء",
+    "sectionAddresses": "العناوين"
   },
   "marketplace": {
     "walletBalance": "رصيد المحفظة",
@@ -2187,7 +2188,41 @@
     "actionDone": "وضع كمنتهٍ",
     "actionNoShow": "لم يحضر",
     "noShowBadge": "لم يحضر",
-    "reservationUpdated": "تم تحديث الحجز"
+    "reservationUpdated": "تم تحديث الحجز",
+    "customerLocation": "تم مشاركة الموقع"
+  },
+  "botAddresses": {
+    "loading": "جارٍ تحميل العناوين…",
+    "errorGeneric": "حدث خطأ ما. حاول مرة أخرى.",
+    "noSheetYet": "لا يملك هذا البوت جدول بيانات خاصًا بعد؛ ستُفتح العناوين عند تخصيص واحد.",
+    "pluginDisabledTitle": "فعّل إضافة العناوين",
+    "pluginDisabledDesc": "بتفعيل هذه الإضافة يحصل المستخدمون عبر /address على عنوان نشاطك، دبوس على الخريطة، وأزرار الاتجاهات/الاتصال.",
+    "activatePlugin": "تفعيل",
+    "activating": "جارٍ التفعيل…",
+    "sectionDesc": "المواقع التي يمكن لبوتك إرسالها — صورة، نص العنوان، دبوس على الخريطة، وأزرار الاتجاهات/الاتصال.",
+    "newAddress": "عنوان جديد",
+    "editAddress": "تعديل العنوان",
+    "noAddresses": "لا توجد عناوين بعد.",
+    "defaultBadge": "افتراضي",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "save": "حفظ",
+    "addressCreated": "تم إنشاء العنوان",
+    "addressUpdated": "تم تحديث العنوان",
+    "addressDeleted": "تم حذف العنوان",
+    "fieldTitle": "العنوان",
+    "fieldText": "نص العنوان",
+    "fieldMap": "الموقع",
+    "mapHelp": "انقر على الخريطة أو اسحب الدبوس لتحديد الموقع الدقيق.",
+    "fieldPhone": "الهاتف",
+    "fieldPlusCode": "الرمز البريدي المصغر (اختياري)",
+    "fieldHoursNote": "ملاحظة ساعات العمل (اختياري)",
+    "fieldPhoto": "صورة (اختياري)",
+    "fieldIsDefault": "العنوان الافتراضي (يُرسل عند وجود عنوان واحد فقط مع /address)",
+    "mapProviderLabel": "الاتجاهات عبر",
+    "mapProvider_google": "خرائط جوجل",
+    "mapProvider_neshan": "نشان",
+    "mapProvider_balad": "بلد"
   },
   "botHealth": {
     "loading": "جارٍ فحص البوت…",

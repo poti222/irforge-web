@@ -348,7 +348,8 @@
     "sectionGiveaways": "Розыгрыши",
     "sectionSurveys": "Опросы",
     "sectionDrip": "Отложенные сообщения",
-    "sectionCrm": "CRM"
+    "sectionCrm": "CRM",
+    "sectionAddresses": "Адреса"
   },
   "marketplace": {
     "walletBalance": "Баланс кошелька",
@@ -2187,7 +2188,41 @@
     "actionDone": "Завершить",
     "actionNoShow": "Неявка",
     "noShowBadge": "Неявка",
-    "reservationUpdated": "Бронь обновлена"
+    "reservationUpdated": "Бронь обновлена",
+    "customerLocation": "Местоположение отправлено"
+  },
+  "botAddresses": {
+    "loading": "Загрузка адресов…",
+    "errorGeneric": "Что-то пошло не так. Попробуйте ещё раз.",
+    "noSheetYet": "У этого бота ещё нет своей таблицы; адреса станут доступны после её назначения.",
+    "pluginDisabledTitle": "Включите плагин адресов",
+    "pluginDisabledDesc": "После включения пользователи смогут командой /address получить адрес вашей компании, метку на карте и кнопки маршрута/звонка.",
+    "activatePlugin": "Включить",
+    "activating": "Включение…",
+    "sectionDesc": "Места, которые может отправлять ваш бот — фото, текст адреса, метка на карте и кнопки маршрута/звонка.",
+    "newAddress": "Новый адрес",
+    "editAddress": "Изменить адрес",
+    "noAddresses": "Адресов пока нет.",
+    "defaultBadge": "По умолчанию",
+    "edit": "Изменить",
+    "delete": "Удалить",
+    "save": "Сохранить",
+    "addressCreated": "Адрес создан",
+    "addressUpdated": "Адрес обновлён",
+    "addressDeleted": "Адрес удалён",
+    "fieldTitle": "Название",
+    "fieldText": "Текст адреса",
+    "fieldMap": "Местоположение",
+    "mapHelp": "Нажмите на карту или перетащите метку, чтобы задать точное местоположение.",
+    "fieldPhone": "Телефон",
+    "fieldPlusCode": "Plus code (необязательно)",
+    "fieldHoursNote": "Заметка о часах работы (необязательно)",
+    "fieldPhoto": "Фото (необязательно)",
+    "fieldIsDefault": "Адрес по умолчанию (отправляется, если адрес всего один)",
+    "mapProviderLabel": "Маршрут через",
+    "mapProvider_google": "Google Карты",
+    "mapProvider_neshan": "Neshan",
+    "mapProvider_balad": "Balad"
   },
   "botHealth": {
     "loading": "Проверка бота…",
