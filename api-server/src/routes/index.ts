@@ -56,6 +56,7 @@ import botHealthRouter from "./botHealth.js";
 import internalTicketNotifyRouter from "./internalTicketNotify.js";
 import bookingRouter from "./booking.js";
 import addressesRouter from "./addresses.js";
+import dripRouter from "./drip.js";
 
 const router: IRouter = Router();
 
@@ -109,5 +110,6 @@ router.use(botHealthRouter);
 router.use(internalTicketNotifyRouter);
 router.use(bookingRouter);
 router.use(addressesRouter);
+router.use(dripRouter);
 
 export default router;

@@ -59,6 +59,7 @@ import { LanguageSection } from "@/components/bots/language/LanguageSection";
 import { TicketsSection } from "@/components/bots/tickets/TicketsSection";
 import { BookingSection } from "@/components/bots/booking/BookingSection";
 import { AddressesSection } from "@/components/bots/addresses/AddressesSection";
+import { DripSection } from "@/components/bots/drip/DripSection";
 // سکشن عمومیِ پلاگین‌های تازه — جدول‌هایش از اسکیمای سرور ساخته می‌شوند.
 import { PluginSection } from "@/components/bots/plugins/PluginSection";
 import { BotHealthCard } from "@/components/bots/BotHealthCard";
@@ -201,7 +202,9 @@ const SECTION_GROUPS: SectionGroup[] = [
       // Phase 16). به همین دلیل `showWhenDisabled`: این سکشن هیچ‌وقت نباید
       // ناپدید شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
       { key: "tickets", icon: LifeBuoy, labelKey: "sectionTickets", requiresPlugin: "ticket", showWhenDisabled: true },
-      { key: "drip", icon: Send, labelKey: "sectionDrip", requiresPlugin: "drip" },
+      // IRFORGE_PROMPT_V3 Phase 19 — همان الگوی `showWhenDisabled`ی booking/address:
+      // سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
+      { key: "drip", icon: Send, labelKey: "sectionDrip", requiresPlugin: "drip", showWhenDisabled: true },
       { key: "giveaways", icon: Gift, labelKey: "sectionGiveaways", requiresPlugin: "giveaway" },
       { key: "surveys", icon: ClipboardList, labelKey: "sectionSurveys", requiresPlugin: "survey" },
       { key: "crm", icon: Contact, labelKey: "sectionCrm", requiresPlugin: "crm" },
@@ -448,7 +451,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "subscriptions" && <PluginSection bot={bot} plugin="subscription" />}
             {section === "giveaways" && <PluginSection bot={bot} plugin="giveaway" />}
             {section === "surveys" && <PluginSection bot={bot} plugin="survey" />}
-            {section === "drip" && <PluginSection bot={bot} plugin="drip" />}
+            {section === "drip" && <DripSection bot={bot} />}
             {section === "crm" && <PluginSection bot={bot} plugin="crm" />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}

@@ -39,7 +39,7 @@ const TTL_MS = 15 * 60 * 1000;
 const MEDIA_FIELDS = ["photo", "voice", "audio", "video", "document", "animation"] as const;
 export type CapturedMedia = (typeof MEDIA_FIELDS)[number];
 
-export type UploadSessionKind = "broadcast" | "panel_media" | "command_media";
+export type UploadSessionKind = "broadcast" | "panel_media" | "command_media" | "drip_media";
 
 export function newSessionId(): string {
   // در URL می‌نشیند و تنها چیزی است که جلسه را محافظت می‌کند، پس باید

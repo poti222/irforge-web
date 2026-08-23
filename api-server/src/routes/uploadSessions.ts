@@ -16,7 +16,7 @@ import {
 
 const router = Router();
 
-const KINDS: UploadSessionKind[] = ["broadcast", "panel_media", "command_media"];
+const KINDS: UploadSessionKind[] = ["broadcast", "panel_media", "command_media", "drip_media"];
 
 /** شکل امنِ پاسخ — `userId` و شناسه‌های داخلی به کلاینت نمی‌روند. */
 function present(session: Awaited<ReturnType<typeof getSession>>) {

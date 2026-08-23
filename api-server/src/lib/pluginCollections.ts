@@ -315,54 +315,12 @@ export const COLLECTIONS: CollectionSpec[] = [
   },
 
   // ── پیام زمان‌بندی‌شده ─────────────────────────────────────────────────
-  {
-    key: "drip-campaigns",
-    tab: "drip_campaigns",
-    plugin: "drip",
-    title: t("Drip campaigns", "کمپین‌های پیام زمان‌بندی‌شده"),
-    description: t(
-      "\"When this event happens, send this message after this delay.\"",
-      "«وقتی این رویداد رخ داد، پس از این تأخیر این پیام را بفرست.»",
-    ),
-    idPrefix: "drp",
-    fields: [
-      { key: "title", label: t("Campaign name", "نام کمپین"), type: "text", required: true, maxLength: 80 },
-      {
-        key: "trigger_event", label: t("Trigger event", "رویداد محرک"), type: "text", required: true, maxLength: 80,
-        help: t(
-          "Such as event.booking.created — a * pattern also works (event.wallet.*).",
-          "مثل event.booking.created — الگوی * هم قبول است (event.wallet.*).",
-        ),
-      },
-      {
-        key: "delay_minutes", label: t("Delay (minutes)", "تأخیر (دقیقه)"), type: "number", required: true, min: 0,
-        max: 129600, default: 0,
-      },
-      { key: "message", label: t("Message text", "متن پیام"), type: "textarea", required: true, maxLength: 3000 },
-      { key: "once_per_user", label: t("Once per user only", "فقط یک بار برای هر کاربر"), type: "boolean", default: true },
-      { key: "is_active", label: t("Active", "فعال"), type: "boolean", default: true },
-      { key: "sent_count", label: t("Sent", "ارسال‌شده"), type: "readonly" },
-    ],
-    listColumns: ["title", "trigger_event", "delay_minutes", "is_active", "sent_count"],
-    sortBy: "created_at",
-  },
-  {
-    key: "drip-deliveries",
-    tab: "drip_deliveries",
-    plugin: "drip",
-    title: t("Send queue", "صف ارسال"),
-    idPrefix: "drd",
-    readonly: true,
-    fields: [
-      { key: "campaign_id", label: t("Campaign ID", "شناسه کمپین"), type: "readonly" },
-      USER_ID,
-      { key: "due_at", label: t("Due at", "زمان سررسید"), type: "readonly" },
-      { key: "status", label: t("Status", "وضعیت"), type: "readonly" },
-      { key: "error", label: t("Error", "خطا"), type: "readonly" },
-    ],
-    listColumns: ["user_id", "campaign_id", "due_at", "status", "error"],
-    sortBy: "due_at",
-  },
+  // Phase 19: `drip-campaigns`/`drip-deliveries` moved OUT of this generic
+  // system into a dedicated `lib/dripStore.ts` + `routes/drip.ts` (same
+  // split as address/booking) — the editor needs a schedule-type picker,
+  // a Jalali date/time input, button/media capture, and an audience
+  // picker that the generic field types (text/number/boolean/select/
+  // textarea/datetime/readonly) don't cover.
 
   // ── CRM ────────────────────────────────────────────────────────────────
   {
