@@ -59,6 +59,7 @@ import addressesRouter from "./addresses.js";
 import dripRouter from "./drip.js";
 import crmRouter from "./crm.js";
 import surveyRouter from "./survey.js";
+import giveawayRouter from "./giveaway.js";
 
 const router: IRouter = Router();
 
@@ -115,5 +116,6 @@ router.use(addressesRouter);
 router.use(dripRouter);
 router.use(crmRouter);
 router.use(surveyRouter);
+router.use(giveawayRouter);
 
 export default router;

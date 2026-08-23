@@ -86,14 +86,6 @@ const SUB_STATUS = [
   { value: "canceled", label: t("Canceled", "لغوشده") },
 ];
 
-/** وضعیت‌های قرعه‌کشی — `plugins/giveaway/domain.py`. */
-const GIVEAWAY_STATUS = [
-  { value: "draft", label: t("Draft", "پیش‌نویس") },
-  { value: "running", label: t("Running", "در جریان") },
-  { value: "drawn", label: t("Drawn", "قرعه‌کشی‌شده") },
-  { value: "canceled", label: t("Canceled", "لغوشده") },
-];
-
 /** فیلدهای مشترکی که در چند مجموعه تکرار می‌شوند. */
 const USER_ID = { key: "user_id", label: t("User ID", "شناسه کاربر"), type: "readonly" } as const;
 const USERNAME = { key: "username", label: t("Username", "یوزرنیم"), type: "readonly" } as const;
@@ -229,51 +221,13 @@ export const COLLECTIONS: CollectionSpec[] = [
   },
 
   // ── قرعه‌کشی ───────────────────────────────────────────────────────────
-  {
-    key: "giveaways",
-    tab: "giveaways",
-    plugin: "giveaway",
-    title: t("Giveaway campaigns", "کمپین‌های قرعه‌کشی"),
-    description: t(
-      "The draw itself runs from inside the bot, so the result is recorded once and for good.",
-      "خودِ قرعه‌کشی (انتخاب برنده) از داخل بات انجام می‌شود تا نتیجه یک بار و برای همیشه ثبت شود.",
-    ),
-    idPrefix: "gw",
-    fields: [
-      { key: "title", label: t("Title", "عنوان"), type: "text", required: true, maxLength: 80 },
-      { key: "prize", label: t("Prize", "جایزه"), type: "text", required: true, maxLength: 120 },
-      { key: "description", label: t("Description", "توضیح"), type: "textarea", maxLength: 500 },
-      { key: "winner_count", label: t("Number of winners", "تعداد برنده"), type: "number", required: true, min: 1, default: 1 },
-      { key: "status", label: t("Status", "وضعیت"), type: "select", options: GIVEAWAY_STATUS, default: "running" },
-      {
-        key: "ends_at", label: t("Ends at", "زمان پایان"), type: "datetime",
-        help: t("Empty means no automatic end.", "خالی = بدون پایان خودکار."),
-      },
-      {
-        key: "require_channel", label: t("Required channel membership", "شرط عضویت در کانال"), type: "text", maxLength: 80,
-        help: t("Write it with @. The bot must be an admin of that channel.", "با @ بنویسید. بات باید در آن کانال ادمین باشد."),
-      },
-      { key: "min_points", label: t("Minimum club points", "حداقل امتیاز باشگاه"), type: "number", min: 0, default: 0 },
-      { key: "entry_count", label: t("Entries", "شرکت‌کننده"), type: "readonly" },
-    ],
-    listColumns: ["title", "prize", "status", "winner_count", "entry_count", "ends_at"],
-    sortBy: "created_at",
-  },
-  {
-    key: "giveaway-entries",
-    tab: "giveaway_entries",
-    plugin: "giveaway",
-    title: t("Entrants", "شرکت‌کنندگان"),
-    idPrefix: "gwe",
-    readonly: true,
-    fields: [
-      { key: "giveaway_id", label: t("Campaign ID", "شناسه کمپین"), type: "readonly" },
-      USER_ID,
-      USERNAME,
-    ],
-    listColumns: ["giveaway_id", "user_id", "username", "created_at"],
-    sortBy: "created_at",
-  },
+  // Phase 20: moved OUT of this generic system into a dedicated
+  // `lib/giveawayStore.ts` + `routes/giveaway.ts` (same split as
+  // drip/crm/survey). The old `giveaways` entry had no field for
+  // `winner_ids`/`drawn_at`/`announced_at` at all, so a drawn winner was
+  // invisible on the site, and `giveaway-entries` was a flat unfiltered
+  // list with no per-campaign drill-down. The draw itself stays bot-only —
+  // see the store's own header comment for why.
 
   // ── نظرسنجی ────────────────────────────────────────────────────────────
   // Phase 20: moved OUT of this generic system into a dedicated

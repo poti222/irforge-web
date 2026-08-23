@@ -186,23 +186,13 @@ test("مجموعه‌های فقط‌خواندنی، همان‌هایی هست
   // می‌سازد، دقیقاً به همین دلیل که این تست قبلاً مستند می‌کرد.
 });
 
-test("فیلدهای شمارنده‌ی بات، readonly اعلام شده‌اند", () => {
-  // اگر سایت اجازه‌ی نوشتن روی این‌ها را بدهد، عددی که بات نگه می‌دارد خراب می‌شود.
-  // درپ (drip-campaigns) و نظرسنجی (surveys) از فاز ۱۹/۲۰ به بعد اینجا نیستند
-  // — هر کدام یک lib/*Store.ts اختصاصی دارند (مثل booking/address) که
-  // response_count/sent_count را اصلاً در ورودی create/update نمی‌پذیرند،
-  // نه اینکه با type:"readonly" نشانشان بدهند.
-  const counters = {
-    giveaways: "entry_count",
-  };
-  for (const [collection, field] of Object.entries(counters)) {
-    const spec = collectionsMod.getCollection(collection);
-    assert.ok(spec, `${collection} پیدا نشد`);
-    const found = spec.fields.find((f) => f.key === field);
-    assert.ok(found, `${collection} فیلد ${field} ندارد`);
-    assert.equal(found.type, "readonly", `${collection}.${field} باید readonly باشد`);
-  }
-});
+// «فیلدهای شمارنده‌ی بات، readonly اعلام شده‌اند» اینجا بود تا وقتی که
+// drip/survey/giveaway — تنها سه مجموعه‌ای که یک شمارنده‌ی بات‌ساخته
+// داشتند (sent_count/response_count/entry_count) — هر سه به فاز ۱۹/۲۰ یک
+// lib/*Store.ts اختصاصی منتقل شدند (مثل booking/address) که اصلاً این
+// فیلدها را در ورودیِ create/update نمی‌پذیرند، نه اینکه با
+// type:"readonly" نشانشان بدهند. امروز هیچ مجموعه‌ای در COLLECTIONS یک
+// شمارنده‌ی این‌شکلی ندارد؛ اگر یکی اضافه شد، همین‌جا یک تستِ مشابه اضافه شود.
 
 test("مجموعه‌ی ناشناخته null برمی‌گرداند (روت ۴۰۴ می‌دهد)", () => {
   assert.equal(collectionsMod.getCollection("nope"), null);
