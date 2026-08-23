@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { Send, Instagram } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
-import { EDUCATION_CHANNEL_URL, INSTAGRAM_URL } from "@/config/support";
+import { useSupportLinks } from "@/config/support";
 import { ARTICLE_SLUGS, articleFor, articleRoute } from "@/lib/learn-content";
 
 /**
@@ -20,6 +20,7 @@ export function PublicFooter() {
   const { lang } = useLanguage();
   const t = useT("footer");
   const seo = useT("seo") as Record<string, string>;
+  const { educationChannelUrl, instagramUrl } = useSupportLinks();
 
   const articles = ARTICLE_SLUGS.map((slug) => ({ slug, content: articleFor(lang, slug) })).filter(
     (a) => a.content,
@@ -57,7 +58,7 @@ export function PublicFooter() {
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li>
               <a
-                href={EDUCATION_CHANNEL_URL}
+                href={educationChannelUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 hover:text-foreground"
@@ -67,7 +68,7 @@ export function PublicFooter() {
             </li>
             <li>
               <a
-                href={INSTAGRAM_URL}
+                href={instagramUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 hover:text-foreground"

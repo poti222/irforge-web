@@ -19,7 +19,8 @@ import { AnnouncementsManager } from "@/components/admin/AnnouncementsManager";
 import { UpdatesManager, ADMIN_UPDATES_KEY } from "@/components/admin/UpdatesManager";
 import { PendingRegistrations, PENDING_REGISTRATIONS_KEY } from "@/components/admin/PendingRegistrations";
 import { DiscountsManager } from "@/components/admin/DiscountsManager";
-import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, Percent, Sparkles, UserPlus } from "lucide-react";
+import { SupportLinksSettings, ADMIN_SUPPORT_LINKS_KEY } from "@/components/admin/SupportLinksSettings";
+import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, Percent, Sparkles, UserPlus, LifeBuoy } from "lucide-react";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
 
@@ -36,6 +37,7 @@ const TAB_KEYS: Record<string, QueryKey[]> = {
   updates: [ADMIN_UPDATES_KEY],
   pending: [PENDING_REGISTRATIONS_KEY],
   discounts: [["admin-discounts"]],
+  settings: [ADMIN_SUPPORT_LINKS_KEY],
 };
 
 export default function Admin() {
@@ -84,6 +86,7 @@ export default function Admin() {
           <TabsTrigger value="updates"><Sparkles className="me-2 h-4 w-4" /> {fa ? "آپدیت‌ها" : "Updates"}</TabsTrigger>
           <TabsTrigger value="pending"><UserPlus className="me-2 h-4 w-4" /> {fa ? "ثبت‌نام‌های ناتمام" : "Pending signups"}</TabsTrigger>
           {isSuperAdmin && <TabsTrigger value="discounts"><Percent className="me-2 h-4 w-4" /> {fa ? "تخفیف‌ها" : "Discounts"}</TabsTrigger>}
+          {isSuperAdmin && <TabsTrigger value="settings"><LifeBuoy className="me-2 h-4 w-4" /> {fa ? "تنظیمات سایت" : "Site settings"}</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="overview"><AdminOverview showRevenue={isSuperAdmin} /></TabsContent>
@@ -96,6 +99,7 @@ export default function Admin() {
         <TabsContent value="updates"><UpdatesManager /></TabsContent>
         <TabsContent value="pending"><PendingRegistrations /></TabsContent>
         {isSuperAdmin && <TabsContent value="discounts"><DiscountsManager /></TabsContent>}
+        {isSuperAdmin && <TabsContent value="settings"><SupportLinksSettings /></TabsContent>}
       </Tabs>
     </div>
   );

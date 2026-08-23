@@ -69,6 +69,7 @@ import { BotHealthCard } from "@/components/bots/BotHealthCard";
 import { BotAdminCodeCard } from "@/components/bots/BotAdminCodeCard";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
+import { TutorialLinksCallout } from "@/components/bots/TutorialLinksCallout";
 import type { LocaleShape } from "@/hooks/use-translation";
 
 type SectionKey =
@@ -403,6 +404,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
           <motion.div key={section} {...anim}>
             {section === "overview" && (
               <div className="space-y-4">
+                <TutorialLinksCallout />
                 <BotIdentityCard bot={bot} />
 
                 {/* فاز ۲۴ — سلامت بات: شکست‌های بی‌صدا را قبل از اینکه کاربرِ

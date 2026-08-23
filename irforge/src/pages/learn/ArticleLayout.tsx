@@ -7,7 +7,7 @@ import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
 import { useSEO } from "@/hooks/use-seo";
 import { isRtlLang } from "@/lib/i18n";
-import { EDUCATION_CHANNEL_URL, EDUCATION_CHANNEL_HANDLE } from "@/config/support";
+import { useSupportLinks } from "@/config/support";
 import {
   RELATED,
   articleFor,
@@ -45,6 +45,7 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
   const route = articleRoute(slug);
   const entry = ROUTE_SEO[route];
   const BackArrow = isRtlLang(lang) ? ArrowRight : ArrowLeft;
+  const { educationChannelUrl, educationChannelHandle } = useSupportLinks();
 
   useSEO({
     title: seo[entry.titleKey],
@@ -172,11 +173,11 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
             <h2 className="font-semibold">{t.channelTitle}</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">{t.channelBody}</p>
             <p className="font-mono text-xs text-muted-foreground" dir="ltr">
-              {EDUCATION_CHANNEL_HANDLE}
+              {educationChannelHandle}
             </p>
           </div>
           <Button asChild className="shrink-0 gap-2">
-            <a href={EDUCATION_CHANNEL_URL} target="_blank" rel="noopener noreferrer">
+            <a href={educationChannelUrl} target="_blank" rel="noopener noreferrer">
               <Send className="size-4" aria-hidden="true" />
               {t.channelCta}
             </a>
