@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Loader2, Phone, Mail, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/use-seo";
@@ -48,6 +47,7 @@ interface SavedRegistration {
   id: string;
   deepLink: string | null;
   step: Step;
+  method: "phone" | "email";
 }
 
 function loadSaved(): SavedRegistration | null {
@@ -56,11 +56,16 @@ function loadSaved(): SavedRegistration | null {
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed.id === "string") {
-      return { id: parsed.id, deepLink: parsed.deepLink ?? null, step: parsed.step ?? "telegram" };
+      return {
+        id: parsed.id,
+        deepLink: parsed.deepLink ?? null,
+        step: parsed.step ?? "telegram",
+        method: parsed.method === "email" ? "email" : "phone",
+      };
     }
   } catch {
     // نسخه‌ی قدیمی فقط رشته‌ی id را ذخیره می‌کرد.
-    return { id: raw, deepLink: null, step: "telegram" };
+    return { id: raw, deepLink: null, step: "telegram", method: "phone" };
   }
   return null;
 }
@@ -69,8 +74,20 @@ function saveRegistration(data: SavedRegistration) {
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-/** روش → هویت → تلگرام → کد → رمز عبور. */
-const TOTAL_STEPS = 5;
+/**
+ * روش → هویت → [تلگرام] → کد → رمز عبور.
+ *
+ * گام تلگرام فقط در مسیر شماره است؛ مسیر ایمیل چهار گام دارد نه پنج.
+ */
+function stepNumber(method: "phone" | "email", s: Step): number {
+  switch (s) {
+    case "method": return 1;
+    case "identity": return 2;
+    case "telegram": return 3;
+    case "code": return method === "email" ? 3 : 4;
+    case "finish": return method === "email" ? 4 : 5;
+  }
+}
 
 interface RegStatus {
   registrationId: string;
@@ -99,6 +116,7 @@ export default function Register() {
   useSEO({ title: t.createAccount ?? "Sign up | IrForge", noindex: true });
 
   const [step, setStep] = useState<Step>("method");
+  const [method, setMethod] = useState<"phone" | "email">("phone");
   const [registrationId, setRegistrationId] = useState<string | null>(null);
   const [deepLink, setDeepLink] = useState<string | null>(null);
   const [status, setStatus] = useState<RegStatus | null>(null);
@@ -140,6 +158,7 @@ export default function Register() {
     setRegistrationId(saved.id);
     setDeepLink(saved.deepLink);
     setStep(saved.step);
+    setMethod(saved.method);
     void refreshStatus(saved.id, { force: true });
     // فقط یک‌بار در mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -148,8 +167,8 @@ export default function Register() {
   // هر بار که گام یا لینک عوض شد، عکس تازه‌ای برای بازیابی بعدی ذخیره کن.
   useEffect(() => {
     if (!registrationId) return;
-    saveRegistration({ id: registrationId, deepLink, step });
-  }, [registrationId, deepLink, step]);
+    saveRegistration({ id: registrationId, deepLink, step, method });
+  }, [registrationId, deepLink, step, method]);
 
   function stepForServer(serverStep: string): Step | null {
     if (serverStep === "identity" || serverStep === "telegram_pending") return "telegram";
@@ -305,6 +324,28 @@ export default function Register() {
     if (!firstName.trim() || !lastName.trim() || !email.trim()) return;
     setBusy(true);
     try {
+      if (method === "email") {
+        // مسیر ایمیل گام تلگرام ندارد: کد همین‌جا و بلافاصله فرستاده می‌شود.
+        const res = await customFetch<{ registrationId: string; step?: string }>(
+          "/api/auth/register/email/start",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              firstName: firstName.trim(),
+              lastName: lastName.trim(),
+              email: email.trim(),
+              locale: lang,
+            }),
+          },
+        );
+        setRegistrationId(res.registrationId);
+        setDeepLink(null);
+        saveRegistration({ id: res.registrationId, deepLink: null, step: "code", method: "email" });
+        lastServerStepRef.current = res.step ?? "code_sent";
+        setStep("code");
+        return;
+      }
+
       const res = await customFetch<{ registrationId: string; deepLink: string; step?: string }>(
         "/api/auth/register/start",
         {
@@ -322,7 +363,7 @@ export default function Register() {
       );
       setRegistrationId(res.registrationId);
       setDeepLink(res.deepLink);
-      saveRegistration({ id: res.registrationId, deepLink: res.deepLink, step: "telegram" });
+      saveRegistration({ id: res.registrationId, deepLink: res.deepLink, step: "telegram", method: "phone" });
       lastServerStepRef.current = res.step ?? null;
       setStep("telegram");
     } catch (err) {
@@ -441,11 +482,11 @@ export default function Register() {
         {step === "method" && (
           <div className="space-y-4">
             {/* گام اول: بازگشتی وجود ندارد، پس فقط نشانگر گام. */}
-            <AuthStepHeader title={t.methodTitle} step={1} total={TOTAL_STEPS} />
+            <AuthStepHeader title={t.methodTitle} step={1} total={stepNumber(method, "finish")} />
 
             <button
               type="button"
-              onClick={() => setStep("identity")}
+              onClick={() => { setMethod("phone"); setStep("identity"); }}
               className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
             >
               <div className="flex items-start gap-3">
@@ -457,23 +498,19 @@ export default function Register() {
               </div>
             </button>
 
-            {/* عمداً پنهان نشده: گزینه‌ی پنهان یعنی «وجود ندارد»، گزینه‌ی
-                غیرفعال یعنی «در مسیر است». */}
-            <div
-              className="w-full cursor-not-allowed rounded-xl border p-5 opacity-60"
-              aria-disabled="true"
+            <button
+              type="button"
+              onClick={() => { setMethod("email"); setStep("identity"); }}
+              className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
             >
               <div className="flex items-start gap-3">
-                <Mail className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold">{t.methodEmail}</p>
-                    <Badge variant="secondary">{t.comingSoon}</Badge>
-                  </div>
+                <Mail className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="font-semibold">{t.methodEmail}</p>
                   <p className="mt-1 text-sm text-muted-foreground">{t.methodEmailDesc}</p>
                 </div>
               </div>
-            </div>
+            </button>
 
             <p className="text-center text-sm text-muted-foreground">
               {t.alreadyHaveAccount ?? ""}{" "}
@@ -490,9 +527,9 @@ export default function Register() {
           >
             <AuthStepHeader
               title={t.identityTitle}
-              description={t.identityDesc}
-              step={2}
-              total={TOTAL_STEPS}
+              description={method === "email" ? t.identityDescEmail : t.identityDesc}
+              step={stepNumber(method, "identity")}
+              total={stepNumber(method, "finish")}
               onBack={() => goBack("method")}
             />
 
@@ -524,8 +561,8 @@ export default function Register() {
             <AuthStepHeader
               title={t.telegramTitle}
               description={t.telegramDesc}
-              step={3}
-              total={TOTAL_STEPS}
+              step={stepNumber(method, "telegram")}
+              total={stepNumber(method, "finish")}
               // رکورد در انتظار زنده می‌ماند؛ برگشتن به هویت همان
               // `registrationId` را دوباره می‌فرستد و ردیف تازه‌ای نمی‌سازد.
               onBack={() => goBack("identity")}
@@ -552,10 +589,10 @@ export default function Register() {
                 نمی‌فرستد؛ ارسال مجدد دکمه‌ی خودش را دارد. */}
             <AuthStepHeader
               title={t.codeTitle}
-              description={t.codeDesc}
-              step={4}
-              total={TOTAL_STEPS}
-              onBack={() => goBack("telegram")}
+              description={method === "email" ? t.codeDescEmail : t.codeDesc}
+              step={stepNumber(method, "code")}
+              total={stepNumber(method, "finish")}
+              onBack={() => goBack(method === "email" ? "identity" : "telegram")}
             />
 
             <CodeInput
@@ -604,23 +641,27 @@ export default function Register() {
                 ویرایش دارد. */}
             <AuthStepHeader
               title={t.finishTitle}
-              description={t.finishDesc}
-              step={5}
-              total={TOTAL_STEPS}
+              description={method === "email" ? t.finishDescEmail : t.finishDesc}
+              step={stepNumber(method, "finish")}
+              total={stepNumber(method, "finish")}
             />
 
             <Card>
               <CardContent className="space-y-2 p-4 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">{t.connectedAs}</span>
-                  <span className="truncate font-medium" dir="ltr">
-                    {status?.telegramUsername ? `@${status.telegramUsername}` : telegramName || "—"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">{t.phoneLabel}</span>
-                  <span className="font-medium tabular-nums" dir="ltr">{status?.phone ?? "—"}</span>
-                </div>
+                {method === "phone" && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">{t.connectedAs}</span>
+                    <span className="truncate font-medium" dir="ltr">
+                      {status?.telegramUsername ? `@${status.telegramUsername}` : telegramName || "—"}
+                    </span>
+                  </div>
+                )}
+                {method === "phone" && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">{t.phoneLabel}</span>
+                    <span className="font-medium tabular-nums" dir="ltr">{status?.phone ?? "—"}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">{t.email}</span>
                   {editingEmail ? (

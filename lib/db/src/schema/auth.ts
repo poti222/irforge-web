@@ -25,6 +25,16 @@ import { pgTable, text, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 export const pendingRegistrationsTable = pgTable("pending_registrations", {
   id: text("id").primaryKey(),
 
+  /**
+   * IRFORGE_PROMPT_V3 Phase 14 — "phone" (default, every row before this
+   * phase) goes through the Telegram deep-link steps below; "email" skips
+   * straight from identity to sending a code to `email` and never touches
+   * `phone`/`telegram*`. Both share the exact same code_hash/attempts/
+   * verify-code/complete machinery below -- this column is what tells the
+   * two endpoints that do differ (resend, complete) which path a row is on.
+   */
+  registrationMethod: text("registration_method").notNull().default("phone"),
+
   // ─── گام ۲: هویت ───────────────────────────────────────────
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),

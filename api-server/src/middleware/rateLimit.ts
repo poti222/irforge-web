@@ -207,3 +207,8 @@ export function perUserRateLimit(scope: string, limit: number, windowMs = WINDOW
 export function phoneKey(phone: string): string {
   return `phone:${phone}`;
 }
+
+/** IRFORGE_PROMPT_V3 Phase 14 — همان کلید، برای ورود با ایمیل. */
+export function emailKey(email: string): string {
+  return `email:${email}`;
+}

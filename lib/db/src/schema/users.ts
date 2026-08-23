@@ -59,6 +59,13 @@ export const usersTable = pgTable("users", {
    */
   phoneVerified: boolean("phone_verified").notNull().default(false),
   /**
+   * IRFORGE_PROMPT_V3 Phase 14 — آیا ایمیل با یک کدِ واقعاً ارسال‌شده تأیید
+   * شده؟ حساب‌های ثبت‌نام‌شده با شماره، ایمیل را در گام هویت جمع می‌کنند ولی
+   * هرگز کدی به آن نمی‌فرستند — این ستون برای آن‌ها همیشه false می‌ماند،
+   * چون هیچ‌وقت واقعاً تأیید نشده، نه چون فراموش شده باشد.
+   */
+  emailVerified: boolean("email_verified").notNull().default(false),
+  /**
    * یوزرنیم اختصاصی پلتفرم (نه تلگرام) — برای آینده.
    * فعلاً nullable، بعداً می‌تونه unique بشه.
    */

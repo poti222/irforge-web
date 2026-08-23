@@ -52,6 +52,7 @@ import {
   verifyCode,
 } from "../lib/otp";
 import { sendRegistrationCode } from "../lib/registrationBot";
+import { sendEmailRegistrationCode } from "../lib/authEmails";
 
 const router = Router();
 
@@ -252,6 +253,62 @@ router.post("/auth/register/start", authRateLimit("register_start"), async (req,
   }
 });
 
+// ─── POST /api/auth/register/email/start ─────────────────────────────────────
+// IRFORGE_PROMPT_V3 Phase 14 — the email counterpart of /register/start.
+// No Telegram deep-link step exists for this path: there's nothing for it
+// to verify (unlike a phone number, an email address isn't something
+// Telegram can hand us pre-verified), so identity collection goes straight
+// to sending a code, landing this row at "code_sent" in one call instead
+// of two-step ("identity" then "telegram_pending" then "code_sent").
+router.post("/auth/register/email/start", authRateLimit("register_start"), async (req, res) => {
+  try {
+    const firstName = requireText(req.body?.firstName, "First name", NAME_MAX);
+    const lastName = requireText(req.body?.lastName, "Last name", NAME_MAX);
+    const emailRaw = requireText(req.body?.email, "Email", EMAIL_MAX);
+    const email = normaliseEmail(emailRaw);
+    if (!EMAIL_RE.test(email)) throw new ValidationError("Email is not valid");
+    const locale = typeof req.body?.locale === "string" ? req.body.locale.slice(0, 8) : null;
+
+    // عمداً همان قاعده‌ی /register/start: یکتایی ایمیل اینجا بررسی نمی‌شود
+    // و هرگز گفته نمی‌شود که ایمیلی از قبل ثبت شده — وگرنه این فرم به یک
+    // اوراکل شمارش حساب تبدیل می‌شود. یکتایی واقعی در /complete اعمال
+    // می‌شود، داخل همان تراکنش که ایندکس یکتای دیتابیس آن را تضمین می‌کند.
+    const now = new Date();
+    const id = crypto.randomUUID();
+    const code = generateCode();
+
+    await db.insert(pendingRegistrationsTable).values({
+      id,
+      registrationMethod: "email",
+      firstName,
+      lastName,
+      email,
+      codeHash: hashCode(code),
+      codeExpiresAt: codeExpiry(),
+      codeSentCount: 1,
+      step: "code_sent",
+      locale,
+      sourceIp: (req.ip ?? "").slice(0, 64) || null,
+      userAgent: String(req.headers["user-agent"] ?? "").slice(0, 512) || null,
+      createdAt: now,
+      lastActivityAt: now,
+      expiresAt: new Date(now.getTime() + PENDING_TTL_MS),
+    });
+
+    await sendEmailRegistrationCode(email, code, locale);
+
+    logger.info({ registrationId: id }, "Email registration started");
+    res.status(201).json({ registrationId: id, step: "code_sent" });
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    logger.error({ err }, "register/email/start error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── GET /api/auth/register/:id/status ───────────────────────────────────────
 // صفحه‌ی ثبت‌نام این را poll می‌کند تا بفهمد کاربر داخل بات کارش را تمام کرده.
 // هرگز `codeHash`، `sourceIp` یا `userAgent` برنمی‌گرداند.
@@ -346,7 +403,8 @@ router.post("/auth/register/resend", authRateLimit("register_resend"), async (re
       res.status(404).json({ error: "Registration not found or expired" });
       return;
     }
-    if (!row.telegramChatId) {
+    const isEmailMethod = row.registrationMethod === "email";
+    if (!isEmailMethod && !row.telegramChatId) {
       res.status(400).json({ error: "Telegram is not connected yet", code: "no_telegram" });
       return;
     }
@@ -372,7 +430,11 @@ router.post("/auth/register/resend", authRateLimit("register_resend"), async (re
       codeAttempts: 0,
       step: "code_sent",
     });
-    await sendRegistrationCode(row.telegramChatId, code, row.locale, row.phone ?? undefined);
+    if (isEmailMethod) {
+      await sendEmailRegistrationCode(normaliseEmail(row.email ?? ""), code, row.locale);
+    } else {
+      await sendRegistrationCode(row.telegramChatId, code, row.locale, row.phone ?? undefined);
+    }
     logger.info({ registrationId: row.id }, "Registration code resent");
     res.json({ ok: true });
   } catch (err) {
@@ -422,10 +484,14 @@ router.post("/auth/register/complete", async (req, res) => {
       return;
     }
     if (!row.verifiedAt || row.step !== "code_verified") {
-      res.status(400).json({ error: "Phone is not verified yet", code: "not_verified" });
+      res.status(400).json({ error: "Verification is not complete yet", code: "not_verified" });
       return;
     }
-    if (!row.phone || !row.telegramId) {
+    const isEmailMethod = row.registrationMethod === "email";
+    // IRFORGE_PROMPT_V3 Phase 14 — an email registration never goes through
+    // the Telegram deep-link steps at all, so it has neither by design;
+    // that's only a problem for the phone path.
+    if (!isEmailMethod && (!row.phone || !row.telegramId)) {
       res.status(400).json({ error: "Telegram is not connected", code: "no_telegram" });
       return;
     }
@@ -468,12 +534,17 @@ router.post("/auth/register/complete", async (req, res) => {
         .limit(1);
       if (emailTaken) throw new TakenError("email");
 
-      const [phoneTaken] = await tx
-        .select({ id: usersTable.id })
-        .from(usersTable)
-        .where(eq(usersTable.phone, row.phone))
-        .limit(1);
-      if (phoneTaken) throw new TakenError("phone");
+      // یک ثبت‌نام با ایمیل اصلاً شماره‌ای ندارد — چیزی برای برخورد نیست،
+      // و `eq(usersTable.phone, null)` هم در SQL هرگز چیزی مطابقت نمی‌دهد،
+      // فقط یک کوئری بی‌فایده است.
+      if (row.phone) {
+        const [phoneTaken] = await tx
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(eq(usersTable.phone, row.phone))
+          .limit(1);
+        if (phoneTaken) throw new TakenError("phone");
+      }
 
       const [created] = await tx
         .insert(usersTable)
@@ -486,7 +557,8 @@ router.post("/auth/register/complete", async (req, res) => {
           plan: "free",
           status: "active",
           phone: row.phone,
-          phoneVerified: true,
+          phoneVerified: Boolean(row.phone) && !isEmailMethod,
+          emailVerified: isEmailMethod,
           telegramId: row.telegramId,
           telegramUsername: row.telegramUsername,
           telegramFirstName: row.telegramFirstName,
@@ -539,6 +611,7 @@ router.post("/auth/register/complete", async (req, res) => {
         bio: user.bio,
         phone: user.phone,
         phoneVerified: user.phoneVerified,
+        emailVerified: user.emailVerified,
         telegramId: user.telegramId,
         telegramUsername: user.telegramUsername,
         telegramFirstName: user.telegramFirstName,

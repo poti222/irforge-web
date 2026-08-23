@@ -498,9 +498,15 @@ ALTER TABLE notifications ADD COLUMN IF NOT EXISTS ref_id TEXT;
 
 -- ─── AUTH: ثبت‌نام/ورود دومرحله‌ای، مهمان، لاگ ممیزی ──────────────────────
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT false;
+-- Phase 14: real, code-verified email registration/login. Every row created
+-- before this phase got its email from the phone flow's identity step,
+-- which never sent it a code -- false is correct for all of them, not a
+-- placeholder waiting to be backfilled.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS pending_registrations (
   id TEXT PRIMARY KEY,
+  registration_method TEXT NOT NULL DEFAULT 'phone',
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
   email TEXT,
@@ -527,6 +533,9 @@ CREATE TABLE IF NOT EXISTS pending_registrations (
 CREATE INDEX IF NOT EXISTS pending_registrations_step_idx ON pending_registrations(step, created_at DESC);
 CREATE INDEX IF NOT EXISTS pending_registrations_expires_idx ON pending_registrations(expires_at);
 CREATE INDEX IF NOT EXISTS pending_registrations_telegram_idx ON pending_registrations(telegram_id);
+-- Phase 14: upgrade existing installs (the CREATE TABLE above only runs on a
+-- brand-new database).
+ALTER TABLE pending_registrations ADD COLUMN IF NOT EXISTS registration_method TEXT NOT NULL DEFAULT 'phone';
 
 CREATE TABLE IF NOT EXISTS login_challenges (
   id TEXT PRIMARY KEY,

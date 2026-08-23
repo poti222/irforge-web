@@ -28,8 +28,16 @@ import {
   verifyCode as verifyOtp,
 } from "../lib/otp";
 import { sendLoginCode } from "../lib/registrationBot";
-import { authRateLimit, hit, phoneKey, reset, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS } from "../middleware/rateLimit";
+import { sendEmailLoginCode } from "../lib/authEmails";
+import { authRateLimit, hit, phoneKey, emailKey, reset, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS } from "../middleware/rateLimit";
 import { hashSessionToken, hashUserAgent } from "../lib/sessionToken";
+
+/** برای نمایش در پاسخ — اشاره‌ی ماسک‌شده به ایمیل، نه خودِ آن. */
+function maskEmail(email: string): string {
+  const at = email.indexOf("@");
+  if (at <= 0) return "***";
+  return `${email.slice(0, Math.min(2, at))}***${email.slice(at)}`;
+}
 
 /**
  * کد بازیابی رمز حالا از `lib/otp.ts` می‌آید — همان تولیدکننده، همان هش و
@@ -255,15 +263,21 @@ router.post("/auth/login", authRateLimit("login"), async (req, res) => {
   };
 
   try {
+    // IRFORGE_PROMPT_V3 Phase 14 — شماره یا ایمیل، هرکدام که فرستاده شده.
+    // اگر هر دو بیایند شماره برتری دارد؛ چیزی که واقعاً تعیین می‌کند کد از
+    // کدام کانال می‌رود ویژگی‌های خودِ حساب است (پایین‌تر)، نه این‌که کاربر
+    // کدام شناسه را تایپ کرده.
     const phone = normalizePhone(req.body?.phone);
+    const email = !phone && req.body?.email ? normaliseEmail(req.body.email) : null;
     const password = req.body?.password;
-    if (!phone || typeof password !== "string" || password === "") {
+    if ((!phone && !email) || typeof password !== "string" || password === "") {
       await genericFail();
       return;
     }
 
-    // بلاک per-phone بعد از ۵ ورود ناموفق در ۱۵ دقیقه.
-    const blocked = await hit(phoneKey(phone), PHONE_FAIL_LIMIT, PHONE_BLOCK_MS);
+    // بلاک per-identifier بعد از ۵ ورود ناموفق در ۱۵ دقیقه.
+    const rateKey = phone ? phoneKey(phone) : emailKey(email as string);
+    const blocked = await hit(rateKey, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS);
     if (!blocked.allowed) {
       res.status(429).json({
         error: "Too many attempts. Please try again later.",
@@ -273,7 +287,9 @@ router.post("/auth/login", authRateLimit("login"), async (req, res) => {
       return;
     }
 
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
+    const [user] = phone
+      ? await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1)
+      : await db.select().from(usersTable).where(emailEquals(email)).limit(1);
     if (!user || !user.passwordHash || !(await verifyPassword(password, user.passwordHash))) {
       await genericFail();
       return;
@@ -283,11 +299,17 @@ router.post("/auth/login", authRateLimit("login"), async (req, res) => {
       return;
     }
 
-    // حساب‌های ساخته‌شده پیش از این فیچر تلگرام ندارند و نمی‌توانند کد بگیرند.
-    // نه اجازه‌ی عبور بدون عامل دوم، نه قفل‌شدن: یک وضعیت مشخص برمی‌گردد که UI
-    // آن را به صفحه‌ی «حسابت باید به تلگرام وصل شود» با لینک عمیق تبدیل می‌کند،
-    // و همان ماشین فاز ۳ را با purpose = "link" دوباره استفاده می‌کند.
-    if (!user.telegramId) {
+    // IRFORGE_PROMPT_V3 Phase 14 — یک حساب فقط-ایمیل (بدون شماره) هرگز شماره
+    // یا تلگرامی نداشته که وصل کند؛ کدش را روی همان ایمیل می‌گیرد. اما یک
+    // حساب قدیمیِ شماره‌محور که تلگرامش وصل نیست باید همان مسیر قبلی
+    // («وصل کن») را ببیند — نه این‌که ناگهان کد را جای دیگری بگیرد.
+    const isEmailOnlyAccount = !user.telegramId && !user.phone;
+
+    if (!user.telegramId && !isEmailOnlyAccount) {
+      // حساب‌های ساخته‌شده پیش از این فیچر تلگرام ندارند و نمی‌توانند کد بگیرند.
+      // نه اجازه‌ی عبور بدون عامل دوم، نه قفل‌شدن: یک وضعیت مشخص برمی‌گردد که UI
+      // آن را به صفحه‌ی «حسابت باید به تلگرام وصل شود» با لینک عمیق تبدیل می‌کند،
+      // و همان ماشین فاز ۳ را با purpose = "link" دوباره استفاده می‌کند.
       const linkToken = crypto.randomBytes(16).toString("hex");
       await db.insert(telegramLinkTokensTable).values({
         token: linkToken,
@@ -304,7 +326,7 @@ router.post("/auth/login", authRateLimit("login"), async (req, res) => {
       return;
     }
 
-    await reset(phoneKey(phone));
+    await reset(rateKey);
 
     const code = generateCode();
     const challengeId = crypto.randomUUID();
@@ -314,16 +336,23 @@ router.post("/auth/login", authRateLimit("login"), async (req, res) => {
       codeHash: hashCode(code),
       codeExpiresAt: codeExpiry(),
     });
-    await sendLoginCode(user.telegramId, code, null, phone);
+
+    if (isEmailOnlyAccount) {
+      await sendEmailLoginCode(user.email, code, null);
+    } else {
+      await sendLoginCode(user.telegramId as string, code, null, user.phone ?? undefined);
+    }
 
     logger.info({ userId: user.id }, "Login challenge issued");
     res.json({
       challengeId,
       expiresInSeconds: Math.floor(CODE_TTL_MS / 1000),
       // اشاره‌ی ماسک‌شده به مقصد، نه خودِ مقصد.
-      destinationHint: user.telegramUsername
-        ? `@${user.telegramUsername.slice(0, 3)}***`
-        : "Telegram",
+      destinationHint: isEmailOnlyAccount
+        ? maskEmail(user.email)
+        : user.telegramUsername
+          ? `@${user.telegramUsername.slice(0, 3)}***`
+          : "Telegram",
     });
   } catch (err) {
     logger.error({ err }, "Login error");

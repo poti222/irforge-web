@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Loader2, Phone, Mail, LifeBuoy, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/use-seo";
@@ -106,7 +105,9 @@ export default function Login() {
   useSEO({ title: t.signIn ?? "Sign in | IrForge", noindex: true });
 
   const [step, setStep] = useState<Step>("credentials");
+  const [loginMethod, setLoginMethod] = useState<"phone" | "email">("phone");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -283,7 +284,9 @@ export default function Login() {
         destinationHint: string;
       }>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ phone: phone.trim(), password }),
+        body: JSON.stringify(
+          loginMethod === "email" ? { email: email.trim(), password } : { phone: phone.trim(), password },
+        ),
       });
       setChallengeId(res.challengeId);
       setDestination(res.destinationHint);
@@ -389,18 +392,33 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="login-phone">{t.loginPhone}</Label>
-              <Input
-                id="login-phone"
-                dir="ltr"
-                inputMode="tel"
-                autoComplete="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                required
-              />
-            </div>
+            {loginMethod === "phone" ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="login-phone">{t.loginPhone}</Label>
+                <Input
+                  id="login-phone"
+                  dir="ltr"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                />
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="login-email">{t.email}</Label>
+                <Input
+                  id="login-email"
+                  type="email"
+                  dir="ltr"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="login-pass">{t.loginPassword}</Label>
               <PasswordInput
@@ -417,12 +435,20 @@ export default function Login() {
               {t.loginContinue}
             </GlowButton>
 
-            {/* ایمیل مثل ثبت‌نام، دیده می‌شود ولی غیرفعال است. */}
-            <div className="flex items-center gap-2 rounded-lg border p-3 opacity-60" aria-disabled="true">
-              <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <span className="text-sm">{t.methodEmail}</span>
-              <Badge variant="secondary" className="ms-auto">{t.comingSoon}</Badge>
-            </div>
+            <button
+              type="button"
+              onClick={() => setLoginMethod((m) => (m === "phone" ? "email" : "phone"))}
+              className="flex w-full items-center gap-2 rounded-lg border p-3 text-start transition-colors hover:border-primary/60"
+            >
+              {loginMethod === "phone" ? (
+                <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              ) : (
+                <Phone className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              )}
+              <span className="text-sm">
+                {loginMethod === "phone" ? t.loginWithEmailInstead : t.loginWithPhoneInstead}
+              </span>
+            </button>
 
             <p className="text-center text-sm text-muted-foreground">
               {t.noAccount}{" "}
