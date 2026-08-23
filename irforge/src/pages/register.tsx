@@ -106,6 +106,20 @@ function serverMessage(err: any): string | undefined {
   return typeof reason === "string" && reason.trim() !== "" ? reason : err?.message;
 }
 
+/** IRFORGE_PROMPT_V3 Phase 15 — «۰۹۱۲···۴۵۶۷» به‌جای شماره‌ی کامل. */
+function maskPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 6) return phone;
+  return `${digits.slice(0, 4)}···${digits.slice(-4)}`;
+}
+
+/** همان ایده برای ایمیل: فقط دو حرف اول + دامنه دیده می‌شود. */
+function maskEmail(value: string): string {
+  const at = value.indexOf("@");
+  if (at <= 0) return value;
+  return `${value.slice(0, Math.min(2, at))}···${value.slice(at)}`;
+}
+
 export default function Register() {
   const t = useT("auth") as Record<string, string>;
   const { lang } = useLanguage();
@@ -132,6 +146,7 @@ export default function Register() {
 
   const [code, setCode] = useState("");
   const [codeInvalid, setCodeInvalid] = useState(false);
+  const [codeErrorMessage, setCodeErrorMessage] = useState<string | undefined>(undefined);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [resendIn, setResendIn] = useState(0);
 
@@ -343,6 +358,10 @@ export default function Register() {
         saveRegistration({ id: res.registrationId, deepLink: null, step: "code", method: "email" });
         lastServerStepRef.current = res.step ?? "code_sent";
         setStep("code");
+        // مسیر شماره این را از همان poll گام تلگرام می‌گیرد؛ مسیر ایمیل هیچ
+        // poll ای ندارد، پس بدون این fetch صریح، `codeExpiresAt`/`canResend`
+        // هرگز پر نمی‌شدند و شمارش معکوس همان لحظه «منقضی شده» نشان می‌داد.
+        await refreshStatus(res.registrationId, { force: true });
         return;
       }
 
@@ -377,6 +396,7 @@ export default function Register() {
     if (!registrationId || entered.length !== 6) return;
     setBusy(true);
     setCodeInvalid(false);
+    setCodeErrorMessage(undefined);
     try {
       const res = await customFetch<RegStatus & { ok: boolean }>(
         "/api/auth/register/verify-code",
@@ -395,6 +415,14 @@ export default function Register() {
         toast({ variant: "destructive", title: t.tooManyAttempts });
         return;
       }
+      // IRFORGE_PROMPT_V3 Phase 15 — «کد اشتباه است» به‌تنهایی کاربر را رها
+      // می‌کند؛ تعداد تلاش باقی‌مانده می‌گوید عجله برای دوباره‌فرستادن هست یا نه.
+      const attemptsLeft = err?.data?.attemptsLeft;
+      const message =
+        err?.data?.code === "invalid_code" && typeof attemptsLeft === "number"
+          ? (t.codeAttemptsLeft ?? "").replace("{n}", String(attemptsLeft))
+          : serverMessage(err);
+      setCodeErrorMessage(message);
       fail(err);
     } finally {
       setBusy(false);
@@ -410,6 +438,9 @@ export default function Register() {
         body: JSON.stringify({ registrationId }),
       });
       setResendIn(60);
+      setCode("");
+      setCodeInvalid(false);
+      setCodeErrorMessage(undefined);
       await refreshStatus(registrationId);
     } catch (err: any) {
       if (typeof err?.data?.retryAfterSeconds === "number") setResendIn(err.data.retryAfterSeconds);
@@ -595,12 +626,26 @@ export default function Register() {
               onBack={() => goBack(method === "email" ? "identity" : "telegram")}
             />
 
+            {/* مقصد ماسک‌شده — نه رشته‌ی خام، ولی به‌قدر کافی برای این‌که کاربر
+                مطمئن شود کجا فرستاده شده. اینجا هیچ «✅ فرستاده شد» با علامت
+                سبز ادعا نمی‌شود چون هیچ تأییدیه‌ی واقعی تحویل (کیو ارسال، فاز
+                ۱۲) هنوز وجود ندارد — فقط همان چیزی گفته می‌شود که واقعاً اتفاق
+                افتاده: تلاش برای ارسال. */}
+            <p className="text-center text-sm text-muted-foreground" dir="ltr">
+              {method === "email"
+                ? maskEmail(email)
+                : status?.phone
+                  ? maskPhone(status.phone)
+                  : ""}
+            </p>
+
             <CodeInput
               value={code}
               onChange={setCode}
               onComplete={(c) => void verify(c)}
               disabled={busy}
               invalid={codeInvalid}
+              errorMessage={codeErrorMessage}
             />
 
             <p className="text-center text-sm text-muted-foreground" aria-live="polite">
@@ -617,18 +662,29 @@ export default function Register() {
               {t.verify}
             </GlowButton>
 
-            <Button
-              variant="ghost"
-              className="w-full"
-              disabled={busy || resendIn > 0 || status?.canResend === false}
-              onClick={() => void resend()}
-            >
-              {status?.canResend === false
-                ? t.resendLimit
-                : resendIn > 0
-                  ? (t.resendIn ?? "").replace("{n}", String(resendIn))
-                  : t.resend}
-            </Button>
+            <div className="space-y-2">
+              <Button
+                variant="ghost"
+                className="w-full"
+                disabled={busy || resendIn > 0 || status?.canResend === false}
+                onClick={() => void resend()}
+              >
+                {status?.canResend === false
+                  ? t.resendLimit
+                  : resendIn > 0
+                    ? (t.resendIn ?? "").replace("{n}", String(resendIn))
+                    : t.resend}
+              </Button>
+              {/* بعد از رسیدن به سقفِ ارسال مجدد، بن‌بست نیست — یک مسیر واقعی. */}
+              {status?.canResend === false && (
+                <Link
+                  href="/support?topic=verification-code"
+                  className="block text-center text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {t.codeNotReceived}
+                </Link>
+              )}
+            </div>
           </div>
         )}
 

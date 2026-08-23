@@ -115,6 +115,7 @@ export default function Login() {
   const [destination, setDestination] = useState<string>("Telegram");
   const [code, setCode] = useState("");
   const [codeInvalid, setCodeInvalid] = useState(false);
+  const [codeErrorMessage, setCodeErrorMessage] = useState<string | undefined>(undefined);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [linkDeepLink, setLinkDeepLink] = useState<string | null>(null);
 
@@ -310,6 +311,7 @@ export default function Login() {
     if (!challengeId || entered.length !== 6) return;
     setBusy(true);
     setCodeInvalid(false);
+    setCodeErrorMessage(undefined);
     try {
       const res = await customFetch<{ user: any; token: string }>("/api/auth/login/verify", {
         method: "POST",
@@ -325,6 +327,10 @@ export default function Login() {
         toast({ variant: "destructive", title: t.tooManyAttempts });
         return;
       }
+      const attemptsLeft = err?.data?.attemptsLeft;
+      if (err?.data?.code === "invalid_code" && typeof attemptsLeft === "number") {
+        setCodeErrorMessage((t.codeAttemptsLeft ?? "").replace("{n}", String(attemptsLeft)));
+      }
       fail(err);
     } finally {
       setBusy(false);
@@ -339,6 +345,7 @@ export default function Login() {
     setChallengeId(null);
     setCode("");
     setCodeInvalid(false);
+    setCodeErrorMessage(undefined);
     setSecondsLeft(0);
     setStep("credentials");
   }
@@ -483,6 +490,7 @@ export default function Login() {
               onComplete={(c) => void verify(c)}
               disabled={busy}
               invalid={codeInvalid}
+              errorMessage={codeErrorMessage}
             />
 
             <p className="text-center text-sm text-muted-foreground" aria-live="polite">

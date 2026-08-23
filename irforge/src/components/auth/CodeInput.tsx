@@ -13,8 +13,20 @@ import { useT } from "@/hooks/use-translation";
  *    کیبورد عددی بیاید و کد از پیامک/تلگرام auto-fill شود.
  *  - **جهت همیشه LTR است**، حتی در فارسی و عربی: کد یک عدد است و ترتیب
  *    ارقامش نباید با جهت متن صفحه برعکس شود.
+ *  - **ارقام فارسی/عربی هم پذیرفته می‌شوند**: کیبورد فارسی موبایل پیش‌فرض
+ *    ۰-۹ فارسی می‌دهد؛ بدون این تبدیل، تایپ مستقیم کد کار نمی‌کرد.
  */
 export const CODE_LENGTH = 6;
+
+/** ۰۱۲۳۴۵۶۷۸۹ فارسی و ٠١٢٣٤٥٦٧٨٩ عربی → ASCII. IRFORGE_PROMPT_V3 Phase 15. */
+function foldDigits(raw: string): string {
+  return raw.replace(/[۰-۹٠-٩]/g, (ch) => {
+    const code = ch.charCodeAt(0);
+    // ۰-۹ فارسی: U+06F0–U+06F9. ٠-٩ عربی: U+0660–U+0669.
+    const base = code >= 0x06f0 ? 0x06f0 : 0x0660;
+    return String(code - base);
+  });
+}
 
 export function CodeInput({
   value,
@@ -22,12 +34,15 @@ export function CodeInput({
   onComplete,
   disabled,
   invalid,
+  errorMessage,
 }: {
   value: string;
   onChange: (next: string) => void;
   onComplete?: (code: string) => void;
   disabled?: boolean;
   invalid?: boolean;
+  /** پیام قابل‌شنیدن برای صفحه‌خوان (aria-live) — مثلاً «کد اشتباه است، ۲ تلاش باقی مانده». */
+  errorMessage?: string;
 }) {
   const t = useT("auth") as Record<string, string>;
   const refs = useRef<(HTMLInputElement | null)[]>([]);
@@ -41,6 +56,15 @@ export function CodeInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
+  // فوکوس روی خانه‌ی اول: هم موقع باز شدن صفحه، هم بعد از یک کد اشتباه —
+  // کاربر نباید خودش دنبال خانه‌ی خالی بگردد.
+  useEffect(() => {
+    refs.current[0]?.focus();
+  }, []);
+  useEffect(() => {
+    if (invalid) refs.current[0]?.focus();
+  }, [invalid]);
+
   function setAt(index: number, char: string) {
     const next = value.padEnd(CODE_LENGTH, " ").split("");
     next[index] = char;
@@ -48,7 +72,7 @@ export function CodeInput({
   }
 
   function handleChange(index: number, raw: string) {
-    const clean = raw.replace(/\D/g, "");
+    const clean = foldDigits(raw).replace(/\D/g, "");
     if (clean === "") {
       setAt(index, " ");
       return;
@@ -77,31 +101,39 @@ export function CodeInput({
   }
 
   return (
-    <div className="flex justify-center gap-2" dir="ltr" role="group" aria-label={t.codeGroupLabel}>
-      {Array.from({ length: CODE_LENGTH }).map((_, i) => (
-        <input
-          key={i}
-          ref={(el) => { refs.current[i] = el; }}
-          type="text"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={CODE_LENGTH}
-          disabled={disabled}
-          value={digits[i]?.trim() ?? ""}
-          aria-label={(t.codeDigitLabel ?? "Digit {n}").replace("{n}", String(i + 1))}
-          aria-invalid={invalid || undefined}
-          onFocus={() => setFocused(i)}
-          onChange={(e) => handleChange(i, e.target.value)}
-          onKeyDown={(e) => handleKeyDown(i, e)}
-          className={cn(
-            "size-12 rounded-lg border bg-background text-center text-xl font-semibold tabular-nums outline-none transition-colors",
-            "focus:border-primary focus:ring-2 focus:ring-primary/30",
-            invalid && "border-destructive",
-            focused === i && !invalid && "border-primary",
-            disabled && "opacity-60",
-          )}
-        />
-      ))}
+    <div className="space-y-2">
+      <div className="flex justify-center gap-2" dir="ltr" role="group" aria-label={t.codeGroupLabel}>
+        {Array.from({ length: CODE_LENGTH }).map((_, i) => (
+          <input
+            key={i}
+            ref={(el) => { refs.current[i] = el; }}
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={CODE_LENGTH}
+            disabled={disabled}
+            value={digits[i]?.trim() ?? ""}
+            aria-label={(t.codeDigitLabel ?? "Digit {n}").replace("{n}", String(i + 1))}
+            aria-invalid={invalid || undefined}
+            onFocus={() => setFocused(i)}
+            onChange={(e) => handleChange(i, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(i, e)}
+            className={cn(
+              "size-12 rounded-lg border bg-background text-center text-xl font-semibold tabular-nums outline-none transition-colors motion-reduce:transition-none",
+              "focus:border-primary focus:ring-2 focus:ring-primary/30",
+              invalid && "border-destructive",
+              focused === i && !invalid && "border-primary",
+              disabled && "opacity-60",
+            )}
+          />
+        ))}
+      </div>
+      {/* فقط برای صفحه‌خوان: خانه‌های قرمزشده به‌تنهایی خطا را اعلام نمی‌کنند. */}
+      {invalid && errorMessage && (
+        <p role="alert" aria-live="assertive" className="text-center text-sm text-destructive">
+          {errorMessage}
+        </p>
+      )}
     </div>
   );
 }
