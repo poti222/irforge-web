@@ -203,13 +203,27 @@ export async function parseCampaignInput(
       throw bad("نوع مخاطب نامعتبر است.", "bad_audience_mode");
     out.audience_mode = audienceMode as AudienceMode;
   }
-  if (out.audience_mode === "single_chat" || (partial && body.audience_value !== undefined)) {
+  if (out.audience_mode === "single_chat") {
+    // یک @username/آی‌دی — همین‌جا (نه لحظه‌ی ارسال) با تلگرام تأیید و به
+    // chat id عددی تبدیل می‌شود، دقیقاً مثل booking/address.
     const raw = String(body.audience_value ?? "").trim();
-    if (out.audience_mode === "single_chat" && !raw)
-      throw bad("شناسه‌ی chat مقصد را وارد کنید.", "bad_audience_value");
-    out.audience_value = raw ? (await resolveTelegramUser(botId, raw)).userId : "";
+    if (!raw) throw bad("شناسه‌ی chat مقصد را وارد کنید.", "bad_audience_value");
+    out.audience_value = (await resolveTelegramUser(botId, raw)).userId;
+  } else if (out.audience_mode === "segment") {
+    // یک tag_id از پلاگین CRM — چیزی برای resolve کردن با تلگرام نیست؛
+    // همان‌طور که هست ذخیره می‌شود (bot's resolve_audience آن را در لحظه‌ی
+    // ارسال به لیست کاربرانِ همان تگ ترجمه می‌کند).
+    const raw = String(body.audience_value ?? "").trim();
+    if (!raw) throw bad("یک برچسبِ CRM انتخاب کنید.", "bad_audience_value");
+    out.audience_value = raw;
   } else if (out.audience_mode) {
     out.audience_value = "";
+  } else if (partial && body.audience_value !== undefined) {
+    // audience_mode خودش در این آپدیت نیامده (پس این ماند و mode موجود
+    // تغییر نکرده) — چون اینجا نمی‌دانیم mode موجود کدام است، مقدار خام را
+    // بدون resolve عبور می‌دهیم؛ محدودیتی مستند، نه یک باگِ خاموش. کلاینتِ
+    // این ریپو (DripSection.tsx) همیشه mode و value را با هم می‌فرستد.
+    out.audience_value = String(body.audience_value ?? "").trim();
   }
 
   return out;

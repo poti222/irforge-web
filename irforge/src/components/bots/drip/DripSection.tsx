@@ -156,6 +156,26 @@ function useFormOptions(botId: string) {
   });
 }
 
+type CrmTagOption = { id: string; name: string; emoji: string };
+
+/** برچسب‌های CRM برای انتخابگرِ مخاطبِ segment — اگه پلاگین CRM خاموش باشه
+ * یا شیت هنوز اختصاص نیافته، فهرست خالی برمی‌گرده (نه خطا)، پس این
+ * گزینه فقط وقتی واقعاً کار می‌کنه که برچسبی وجود داشته باشه. */
+function useCrmTags(botId: string) {
+  return useQuery({
+    queryKey: ["bot-crm-tags", botId],
+    queryFn: async () => {
+      try {
+        const res = await customFetch<{ tags: CrmTagOption[] }>(`/api/bots/${botId}/crm/tags`);
+        return res.tags ?? [];
+      } catch {
+        return [] as CrmTagOption[];
+      }
+    },
+    staleTime: 60_000,
+  });
+}
+
 function scheduleSummary(t: any, c: Campaign): string {
   if (c.schedule_type === "datetime") {
     if (!c.run_at) return t.scheduleDatetime;
@@ -171,13 +191,14 @@ function scheduleSummary(t: any, c: Campaign): string {
 }
 
 function CampaignEditor({
-  botId, campaign, triggers, panels, forms, onClose,
+  botId, campaign, triggers, panels, forms, crmTags, onClose,
 }: {
   botId: string;
   campaign: Campaign | null;
   triggers: Array<{ event: string; label: string }>;
   panels: any[];
   forms: Array<{ id: string; title: string }>;
+  crmTags: CrmTagOption[];
   onClose: () => void;
 }) {
   const t = useT("botDrip");
@@ -262,7 +283,8 @@ function CampaignEditor({
         once_per_user: onceOnly, is_active: isActive,
         media_file_id: mediaFileId, media_type: mediaType,
         buttons: rowsToButtons(rows),
-        audience_mode: audienceMode, audience_value: audienceMode === "single_chat" ? audienceValue : "",
+        audience_mode: audienceMode,
+        audience_value: audienceMode === "all_users" ? "" : audienceValue,
       };
       if (scheduleType === "event") {
         body.trigger_event = triggerEvent;
@@ -298,7 +320,8 @@ function CampaignEditor({
     title.trim() && message.trim() &&
     (scheduleType !== "event" || triggerEvent.trim()) &&
     (scheduleType !== "recurring" || recurringDays.length > 0) &&
-    (audienceMode !== "single_chat" || audienceValue.trim());
+    (audienceMode !== "single_chat" || audienceValue.trim()) &&
+    (audienceMode !== "segment" || audienceValue.trim());
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -441,16 +464,30 @@ function CampaignEditor({
 
           <div className="space-y-1.5">
             <Label>{t.fieldAudience}</Label>
-            <Select value={audienceMode} onValueChange={(v) => setAudienceMode(v as AudienceMode)}>
+            <Select value={audienceMode} onValueChange={(v) => { setAudienceMode(v as AudienceMode); setAudienceValue(""); }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all_users">{t.audienceAll}</SelectItem>
                 <SelectItem value="single_chat">{t.audienceSingle}</SelectItem>
-                <SelectItem value="segment" disabled>{t.audienceSegment}</SelectItem>
+                <SelectItem value="segment" disabled={crmTags.length === 0}>{t.audienceSegment}</SelectItem>
               </SelectContent>
             </Select>
             {audienceMode === "single_chat" && (
               <Input dir="ltr" placeholder="@username یا chat id" value={audienceValue} onChange={(e) => setAudienceValue(e.target.value)} />
+            )}
+            {audienceMode === "segment" && (
+              <>
+                <Select value={audienceValue || "__none__"} onValueChange={(v) => setAudienceValue(v === "__none__" ? "" : v)}>
+                  <SelectTrigger><SelectValue placeholder={t.pickTag} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{t.pickTag}</SelectItem>
+                    {crmTags.map((tag) => (
+                      <SelectItem key={tag.id} value={tag.id}>{tag.emoji} {tag.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {crmTags.length === 0 && <p className="text-xs text-muted-foreground">{t.noCrmTagsHint}</p>}
+              </>
             )}
           </div>
 
@@ -579,6 +616,7 @@ export function DripSection({ bot }: { bot: Bot }) {
   const triggers = useTriggerOptions(bot.id);
   const { data: panelsData } = usePanels(bot.id);
   const { data: forms = [] } = useFormOptions(bot.id);
+  const { data: crmTags = [] } = useCrmTags(bot.id);
 
   const activate = useMutation({
     mutationFn: () => customFetch(`/api/bots/${bot.id}/plugins/drip`, { method: "PATCH", body: JSON.stringify({ enabled: true }) }),
@@ -697,6 +735,7 @@ export function DripSection({ bot }: { bot: Bot }) {
           triggers={triggers}
           panels={panelsData?.panels ?? []}
           forms={forms}
+          crmTags={crmTags}
           onClose={() => setEditing(null)}
         />
       )}

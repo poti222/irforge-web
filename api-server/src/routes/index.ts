@@ -57,6 +57,7 @@ import internalTicketNotifyRouter from "./internalTicketNotify.js";
 import bookingRouter from "./booking.js";
 import addressesRouter from "./addresses.js";
 import dripRouter from "./drip.js";
+import crmRouter from "./crm.js";
 
 const router: IRouter = Router();
 
@@ -111,5 +112,6 @@ router.use(internalTicketNotifyRouter);
 router.use(bookingRouter);
 router.use(addressesRouter);
 router.use(dripRouter);
+router.use(crmRouter);
 
 export default router;

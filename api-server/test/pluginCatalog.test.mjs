@@ -181,8 +181,9 @@ test("مجموعه‌های فقط‌خواندنی، همان‌هایی هست
   const readonly = collectionsMod.COLLECTIONS.filter((c) => c.readonly).map((c) => c.key);
   // حساب امتیاز: نوشتن مستقیم، لِجِر `loyalty_events` را دور می‌زد.
   assert.ok(readonly.includes("loyalty-accounts"));
-  // تخصیص برچسب: کلیدش ترکیبی است (`<user_id>:<tag_id>`).
-  assert.ok(readonly.includes("crm-user-tags"));
+  // تخصیصِ برچسبِ CRM (کلیدش ترکیبی است، `<user_id>:<tag_id>`) از فاز ۲۰
+  // اینجا نیست — یک lib/crmStore.ts اختصاصی دارد که خودش این کلید را
+  // می‌سازد، دقیقاً به همین دلیل که این تست قبلاً مستند می‌کرد.
 });
 
 test("فیلدهای شمارنده‌ی بات، readonly اعلام شده‌اند", () => {

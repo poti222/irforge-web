@@ -323,56 +323,13 @@ export const COLLECTIONS: CollectionSpec[] = [
   // textarea/datetime/readonly) don't cover.
 
   // ── CRM ────────────────────────────────────────────────────────────────
-  {
-    key: "crm-tags",
-    tab: "crm_tags",
-    plugin: "crm",
-    title: t("Tags", "برچسب‌ها"),
-    description: t(
-      "A tool for segmenting users. Assigning a tag to a user is done from inside the bot.",
-      "ابزار سگمنت‌بندی کاربران. تخصیص برچسب به کاربر از داخل بات انجام می‌شود.",
-    ),
-    idPrefix: "tag",
-    fields: [
-      { key: "name", label: t("Tag name", "نام برچسب"), type: "text", required: true, maxLength: 40 },
-      { key: "emoji", label: t("Emoji", "ایموجی"), type: "text", maxLength: 4, default: "🏷" },
-      { key: "description", label: t("Description", "توضیح"), type: "textarea", maxLength: 200 },
-    ],
-    listColumns: ["emoji", "name", "description"],
-    sortBy: "name",
-  },
-  {
-    key: "crm-user-tags",
-    tab: "crm_user_tags",
-    plugin: "crm",
-    title: t("Tag assignments", "تخصیص برچسب‌ها"),
-    description: t("Which user carries which tag.", "کدام کاربر چه برچسبی دارد."),
-    idPrefix: "",
-    // کلید این تب ترکیبی است (`<user_id>:<tag_id>`) و بات همان را می‌سازد؛
-    // ساخت از سایت با شناسه‌ی تصادفی، «برچسب تکراری» را ممکن می‌کرد.
-    readonly: true,
-    fields: [
-      USER_ID,
-      { key: "tag_id", label: t("Tag ID", "شناسه برچسب"), type: "readonly" },
-      { key: "assigned_by", label: t("Assigned by", "توسط"), type: "readonly" },
-    ],
-    listColumns: ["user_id", "tag_id", "assigned_by", "created_at"],
-    sortBy: "created_at",
-  },
-  {
-    key: "crm-notes",
-    tab: "crm_notes",
-    plugin: "crm",
-    title: t("Admin notes", "یادداشت‌های ادمین"),
-    idPrefix: "note",
-    fields: [
-      { key: "user_id", label: t("User ID", "شناسه کاربر"), type: "text", required: true },
-      { key: "body", label: t("Note text", "متن یادداشت"), type: "textarea", required: true, maxLength: 1000 },
-      { key: "author_id", label: t("Author", "نویسنده"), type: "readonly" },
-    ],
-    listColumns: ["user_id", "body", "author_id", "created_at"],
-    sortBy: "created_at",
-  },
+  // Phase 20: moved OUT of this generic system into a dedicated
+  // `lib/crmStore.ts` + `routes/crm.ts` (same split as drip/booking/address).
+  // `crm_user_tags`'s id is a deterministic composite key
+  // (`<user_id>:<tag_id>`, so re-assigning a tag overwrites instead of
+  // duplicating) — the generic POST handler above only ever generates a
+  // random id, which made real assignment from the site structurally
+  // impossible here; it had to stay `readonly` for that reason alone.
 ];
 
 const BY_KEY = new Map(COLLECTIONS.map((c) => [c.key, c]));

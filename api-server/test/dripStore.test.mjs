@@ -243,6 +243,31 @@ test("createCampaign rejects single_chat with an empty audience_value", async ()
   }));
 });
 
+test("createCampaign stores a segment tag_id verbatim, with no Telegram resolution", async () => {
+  installSheet();
+  const created = await store.createCampaign(SID, BOT_ID, {
+    ...EVENT_CAMPAIGN, audience_mode: "segment", audience_value: "tag_vip123",
+  });
+  assert.equal(created.audience_value, "tag_vip123");
+});
+
+test("createCampaign rejects segment mode with an empty tag_id", async () => {
+  installSheet();
+  await assert.rejects(() => store.createCampaign(SID, BOT_ID, {
+    ...EVENT_CAMPAIGN, audience_mode: "segment", audience_value: "",
+  }));
+});
+
+test("updateCampaign switches a campaign from all_users to a segment tag", async () => {
+  installSheet();
+  const created = await store.createCampaign(SID, BOT_ID, EVENT_CAMPAIGN);
+  const updated = await store.updateCampaign(SID, BOT_ID, created.id, {
+    audience_mode: "segment", audience_value: "tag_vip123",
+  });
+  assert.equal(updated.audience_mode, "segment");
+  assert.equal(updated.audience_value, "tag_vip123");
+});
+
 test("createCampaign clears audience_value for non single_chat modes", async () => {
   installSheet();
   const created = await store.createCampaign(SID, BOT_ID, {

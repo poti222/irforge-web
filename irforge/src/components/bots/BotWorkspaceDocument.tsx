@@ -60,6 +60,7 @@ import { TicketsSection } from "@/components/bots/tickets/TicketsSection";
 import { BookingSection } from "@/components/bots/booking/BookingSection";
 import { AddressesSection } from "@/components/bots/addresses/AddressesSection";
 import { DripSection } from "@/components/bots/drip/DripSection";
+import { CrmSection } from "@/components/bots/crm/CrmSection";
 // سکشن عمومیِ پلاگین‌های تازه — جدول‌هایش از اسکیمای سرور ساخته می‌شوند.
 import { PluginSection } from "@/components/bots/plugins/PluginSection";
 import { BotHealthCard } from "@/components/bots/BotHealthCard";
@@ -207,7 +208,8 @@ const SECTION_GROUPS: SectionGroup[] = [
       { key: "drip", icon: Send, labelKey: "sectionDrip", requiresPlugin: "drip", showWhenDisabled: true },
       { key: "giveaways", icon: Gift, labelKey: "sectionGiveaways", requiresPlugin: "giveaway" },
       { key: "surveys", icon: ClipboardList, labelKey: "sectionSurveys", requiresPlugin: "survey" },
-      { key: "crm", icon: Contact, labelKey: "sectionCrm", requiresPlugin: "crm" },
+      // IRFORGE_PROMPT_V3 Phase 20 — همان الگوی `showWhenDisabled`ی booking/address/drip.
+      { key: "crm", icon: Contact, labelKey: "sectionCrm", requiresPlugin: "crm", showWhenDisabled: true },
     ],
   },
   {
@@ -452,7 +454,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "giveaways" && <PluginSection bot={bot} plugin="giveaway" />}
             {section === "surveys" && <PluginSection bot={bot} plugin="survey" />}
             {section === "drip" && <DripSection bot={bot} />}
-            {section === "crm" && <PluginSection bot={bot} plugin="crm" />}
+            {section === "crm" && <CrmSection bot={bot} />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}
