@@ -276,43 +276,13 @@ export const COLLECTIONS: CollectionSpec[] = [
   },
 
   // ── نظرسنجی ────────────────────────────────────────────────────────────
-  {
-    key: "surveys",
-    tab: "surveys",
-    plugin: "survey",
-    title: t("Surveys and quizzes", "نظرسنجی‌ها و کوییزها"),
-    description: t(
-      "Questions are added from inside the bot. Nothing is published until it has at least one question.",
-      "سؤال‌ها از داخل بات اضافه می‌شوند. تا سؤال نداشته باشد منتشر نمی‌شود.",
-    ),
-    idPrefix: "sv",
-    fields: [
-      { key: "title", label: t("Title", "عنوان"), type: "text", required: true, maxLength: 100 },
-      { key: "description", label: t("Description", "توضیح"), type: "textarea", maxLength: 500 },
-      { key: "is_quiz", label: t("Is a quiz (scored)", "کوییز است (نمره دارد)"), type: "boolean", default: false },
-      { key: "anonymous", label: t("Anonymous", "بی‌نام"), type: "boolean", default: false },
-      { key: "is_active", label: t("Published", "منتشرشده"), type: "boolean", default: false },
-      { key: "response_count", label: t("Responses", "پاسخ‌ها"), type: "readonly" },
-    ],
-    listColumns: ["title", "is_quiz", "is_active", "response_count"],
-    sortBy: "created_at",
-  },
-  {
-    key: "survey-responses",
-    tab: "survey_responses",
-    plugin: "survey",
-    title: t("Survey responses", "پاسخ‌های نظرسنجی"),
-    idPrefix: "svr",
-    readonly: true,
-    fields: [
-      { key: "survey_id", label: t("Survey ID", "شناسه نظرسنجی"), type: "readonly" },
-      USER_ID,
-      { key: "score", label: t("Score", "نمره"), type: "readonly" },
-      { key: "max_score", label: t("Out of", "از"), type: "readonly" },
-    ],
-    listColumns: ["survey_id", "user_id", "score", "max_score", "created_at"],
-    sortBy: "created_at",
-  },
+  // Phase 20: moved OUT of this generic system into a dedicated
+  // `lib/surveyStore.ts` + `routes/survey.ts` (same split as drip/crm).
+  // The old `surveys` entry here had no `questions` field at all — a
+  // survey created from the site could never actually be published, since
+  // the bot refuses to publish one with zero questions. The dedicated
+  // store adds real question authoring (add/edit/remove, stable
+  // never-reused ids) and a results view over `survey_responses`.
 
   // ── پیام زمان‌بندی‌شده ─────────────────────────────────────────────────
   // Phase 19: `drip-campaigns`/`drip-deliveries` moved OUT of this generic

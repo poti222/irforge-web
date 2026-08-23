@@ -188,12 +188,12 @@ test("مجموعه‌های فقط‌خواندنی، همان‌هایی هست
 
 test("فیلدهای شمارنده‌ی بات، readonly اعلام شده‌اند", () => {
   // اگر سایت اجازه‌ی نوشتن روی این‌ها را بدهد، عددی که بات نگه می‌دارد خراب می‌شود.
-  // درپ (drip-campaigns) از فاز ۱۹ به بعد اینجا نیست — یک lib/dripStore.ts
-  // اختصاصی دارد (مثل booking/address) که sent_count را اصلاً در ورودی
-  // create/update نمی‌پذیرد، نه اینکه با type:"readonly" نشانش بدهد.
+  // درپ (drip-campaigns) و نظرسنجی (surveys) از فاز ۱۹/۲۰ به بعد اینجا نیستند
+  // — هر کدام یک lib/*Store.ts اختصاصی دارند (مثل booking/address) که
+  // response_count/sent_count را اصلاً در ورودی create/update نمی‌پذیرند،
+  // نه اینکه با type:"readonly" نشانشان بدهند.
   const counters = {
     giveaways: "entry_count",
-    surveys: "response_count",
   };
   for (const [collection, field] of Object.entries(counters)) {
     const spec = collectionsMod.getCollection(collection);

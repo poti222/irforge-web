@@ -61,6 +61,7 @@ import { BookingSection } from "@/components/bots/booking/BookingSection";
 import { AddressesSection } from "@/components/bots/addresses/AddressesSection";
 import { DripSection } from "@/components/bots/drip/DripSection";
 import { CrmSection } from "@/components/bots/crm/CrmSection";
+import { SurveySection } from "@/components/bots/survey/SurveySection";
 // سکشن عمومیِ پلاگین‌های تازه — جدول‌هایش از اسکیمای سرور ساخته می‌شوند.
 import { PluginSection } from "@/components/bots/plugins/PluginSection";
 import { BotHealthCard } from "@/components/bots/BotHealthCard";
@@ -207,7 +208,8 @@ const SECTION_GROUPS: SectionGroup[] = [
       // سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
       { key: "drip", icon: Send, labelKey: "sectionDrip", requiresPlugin: "drip", showWhenDisabled: true },
       { key: "giveaways", icon: Gift, labelKey: "sectionGiveaways", requiresPlugin: "giveaway" },
-      { key: "surveys", icon: ClipboardList, labelKey: "sectionSurveys", requiresPlugin: "survey" },
+      // IRFORGE_PROMPT_V3 Phase 20
+      { key: "surveys", icon: ClipboardList, labelKey: "sectionSurveys", requiresPlugin: "survey", showWhenDisabled: true },
       // IRFORGE_PROMPT_V3 Phase 20 — همان الگوی `showWhenDisabled`ی booking/address/drip.
       { key: "crm", icon: Contact, labelKey: "sectionCrm", requiresPlugin: "crm", showWhenDisabled: true },
     ],
@@ -452,7 +454,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "addresses" && <AddressesSection bot={bot} />}
             {section === "subscriptions" && <PluginSection bot={bot} plugin="subscription" />}
             {section === "giveaways" && <PluginSection bot={bot} plugin="giveaway" />}
-            {section === "surveys" && <PluginSection bot={bot} plugin="survey" />}
+            {section === "surveys" && <SurveySection bot={bot} />}
             {section === "drip" && <DripSection bot={bot} />}
             {section === "crm" && <CrmSection bot={bot} />}
             {section === "profile" && <BotProfileForm bot={bot} />}

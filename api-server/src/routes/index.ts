@@ -58,6 +58,7 @@ import bookingRouter from "./booking.js";
 import addressesRouter from "./addresses.js";
 import dripRouter from "./drip.js";
 import crmRouter from "./crm.js";
+import surveyRouter from "./survey.js";
 
 const router: IRouter = Router();
 
@@ -113,5 +114,6 @@ router.use(bookingRouter);
 router.use(addressesRouter);
 router.use(dripRouter);
 router.use(crmRouter);
+router.use(surveyRouter);
 
 export default router;
