@@ -60,6 +60,7 @@ import dripRouter from "./drip.js";
 import crmRouter from "./crm.js";
 import surveyRouter from "./survey.js";
 import giveawayRouter from "./giveaway.js";
+import supportLinksRouter from "./supportLinks.js";
 
 const router: IRouter = Router();
 
@@ -117,5 +118,6 @@ router.use(dripRouter);
 router.use(crmRouter);
 router.use(surveyRouter);
 router.use(giveawayRouter);
+router.use(supportLinksRouter);
 
 export default router;

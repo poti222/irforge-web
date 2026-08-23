@@ -3,9 +3,16 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * خواندن/نوشتن تنظیمات سطح پلتفرم از جدول `platform_settings`.
  *
- * امروز فقط یک کلید دارد: `payment_methods` — اطلاعاتی که کاربر برای واریز
- * لازم دارد ببیند (آدرس کیف پول تتر، شماره کارت). تا پیش از این، صفحه‌ی کیف
- * پول از کاربر «هش تراکنش» می‌خواست ولی هیچ‌وقت نمی‌گفت پول را **کجا** بفرستد.
+ * دو کلید دارد:
+ *   - `payment_methods` — اطلاعاتی که کاربر برای واریز لازم دارد ببیند
+ *     (آدرس کیف پول تتر، شماره کارت). تا پیش از این، صفحه‌ی کیف پول از کاربر
+ *     «هش تراکنش» می‌خواست ولی هیچ‌وقت نمی‌گفت پول را **کجا** بفرستد.
+ *   - `support_links` (فاز ۲۱) — کانال آموزشی/اینستاگرام و لیستِ لینک‌های
+ *     آموزشیِ نام‌دار که سوپرادمین مدیریت می‌کند؛ قبلاً در
+ *     `irforge/src/config/support.ts` hardcode بودند.
+ *
+ * هر کلیدِ تازه فقط یعنی یک `type` + سه تابع (`fromEnv*`/`merge*`/`get*`+`set*`)
+ * دیگر اینجا، نه یک migration جدید — همان دلیلی که این جدول key/value است.
  *
  * سه لایه‌ی مقدار، به همین ترتیب:
  *   ۱. ردیف دیتابیس (چیزی که سوپرادمین در پنل وارد کرده)
@@ -130,6 +137,116 @@ export async function setPaymentMethods(
   await db
     .insert(platformSettingsTable)
     .values({ key: PAYMENT_METHODS_KEY, value: JSON.stringify(value), updatedBy })
+    .onConflictDoUpdate({
+      target: platformSettingsTable.key,
+      set: { value: JSON.stringify(value), updatedBy, updatedAt: new Date() },
+    });
+  return value;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  لینک‌های آموزشی — IRFORGE_PROMPT_V3 Phase 21
+// ══════════════════════════════════════════════════════════════════════════
+//
+// `irforge/src/config/support.ts` تا امروز این مقادیر را به‌عنوان ثابتِ
+// hardcode شده export می‌کرد، با یک کامنت TODO صریح که می‌گفت این‌ها باید از
+// یک پنل تنظیماتِ سوپرادمین بیایند. این همان پنل است — دقیقاً همان الگوی
+// payment_methods بالا (سه لایه env→دیتابیس→پیش‌فرض، هرگز throw نمی‌کند).
+//
+// `tutorialLinks` یک آرایه است (نه یک URL ثابت) چون عنوانِ این فاز جمع است:
+// سوپرادمین باید بتواند چند لینکِ آموزشیِ نام‌دار (مثلاً «شروع کار»، «اتصال
+// درگاه پرداخت») اضافه/حذف کند، نه فقط یک آدرس را عوض کند.
+//
+// SUPPORT_CONTACTS (آی‌دی ادمین/بات پشتیبانی) عمداً اینجا نیست — آن یک
+// نگرانیِ متفاوت است (کانال تماسِ مستقیم، نه محتوای آموزشی) و به فاز دیگری
+// واگذار شده.
+
+export const SUPPORT_LINKS_KEY = "support_links";
+
+export type TutorialLink = {
+  id: string;
+  label: string;
+  url: string;
+};
+
+export type SupportLinksSettings = {
+  educationChannelUrl: string;
+  educationChannelHandle: string;
+  instagramUrl: string;
+  instagramHandle: string;
+  tutorialLinks: TutorialLink[];
+};
+
+/** همان مقادیرِ hardcode‌شده‌ی قدیمِ `config/support.ts` — پیش‌فرض، نه راز. */
+function fromEnvSupportLinks(): SupportLinksSettings {
+  const educationChannelUrl = process.env.EDUCATION_CHANNEL_URL ?? "https://t.me/irforge_Education";
+  return {
+    educationChannelUrl,
+    educationChannelHandle: process.env.EDUCATION_CHANNEL_HANDLE ?? "@irforge_Education",
+    instagramUrl: process.env.INSTAGRAM_URL ?? "https://instagram.com/ir_forge",
+    instagramHandle: process.env.INSTAGRAM_HANDLE ?? "@ir_forge",
+    tutorialLinks: [
+      { id: "education-channel", label: "ویدیوهای آموزشی", url: educationChannelUrl },
+    ],
+  };
+}
+
+function mergeTutorialLinks(raw: unknown, fallback: TutorialLink[]): TutorialLink[] {
+  if (!Array.isArray(raw)) return fallback;
+  const out: TutorialLink[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const label = typeof (item as any).label === "string" ? (item as any).label.trim() : "";
+    const url = typeof (item as any).url === "string" ? (item as any).url.trim() : "";
+    if (!label || !url) continue; // یک ردیفِ نیمه‌پرشده هرگز ذخیره نمی‌شود
+    const id = typeof (item as any).id === "string" && (item as any).id ? (item as any).id : `tut_${out.length}_${Date.now()}`;
+    out.push({ id, label: label.slice(0, 80), url: url.slice(0, 500) });
+  }
+  return out;
+}
+
+function mergeSupportLinks(stored: unknown): SupportLinksSettings {
+  const base = fromEnvSupportLinks();
+  if (!stored || typeof stored !== "object") return base;
+  const raw = stored as Partial<SupportLinksSettings>;
+  return {
+    educationChannelUrl: typeof raw.educationChannelUrl === "string" && raw.educationChannelUrl.trim()
+      ? raw.educationChannelUrl.trim() : base.educationChannelUrl,
+    educationChannelHandle: typeof raw.educationChannelHandle === "string" && raw.educationChannelHandle.trim()
+      ? raw.educationChannelHandle.trim() : base.educationChannelHandle,
+    instagramUrl: typeof raw.instagramUrl === "string" && raw.instagramUrl.trim()
+      ? raw.instagramUrl.trim() : base.instagramUrl,
+    instagramHandle: typeof raw.instagramHandle === "string" && raw.instagramHandle.trim()
+      ? raw.instagramHandle.trim() : base.instagramHandle,
+    tutorialLinks: mergeTutorialLinks(raw.tutorialLinks, base.tutorialLinks),
+  };
+}
+
+/** هرگز throw نمی‌کند — صفحات عمومی (فوتر، مقاله‌های آموزشی) نباید به‌خاطر
+ * این تنظیم ۵۰۰ بدهند. */
+export async function getSupportLinks(): Promise<SupportLinksSettings> {
+  try {
+    const [row] = await db
+      .select()
+      .from(platformSettingsTable)
+      .where(eq(platformSettingsTable.key, SUPPORT_LINKS_KEY))
+      .limit(1);
+    if (!row) return fromEnvSupportLinks();
+    return mergeSupportLinks(JSON.parse(row.value));
+  } catch (err) {
+    logger.warn({ err }, "getSupportLinks failed — falling back to defaults");
+    return fromEnvSupportLinks();
+  }
+}
+
+export async function setSupportLinks(
+  input: unknown,
+  updatedBy: string,
+): Promise<SupportLinksSettings> {
+  const value = mergeSupportLinks(input);
+  await db
+    .insert(platformSettingsTable)
+    .values({ key: SUPPORT_LINKS_KEY, value: JSON.stringify(value), updatedBy })
     .onConflictDoUpdate({
       target: platformSettingsTable.key,
       set: { value: JSON.stringify(value), updatedBy, updatedAt: new Date() },
