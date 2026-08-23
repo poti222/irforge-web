@@ -1,0 +1,222 @@
+{
+  "_comment": "IRFORGE_PROMPT_V3 Phase 17 — shared test fixture for the booking availability derivation. This exact file must stay byte-for-byte identical to irforge-web/api-server/test/fixtures/booking_availability_cases.json (two separate git repos, kept in sync by hand) — that is the whole point: if the Python and TypeScript implementations of compute_available_slots ever disagree, one of the two test suites reading this file will fail.",
+  "cases": [
+    {
+      "name": "2h slots, 12:00-20:00, one window -> exactly four slots",
+      "input": {
+        "date": "2026-08-25",
+        "week": { "tuesday": [{ "from": "12:00", "to": "20:00" }] },
+        "slot_minutes": 120,
+        "buffer_minutes": 0,
+        "lead_time_minutes": 0,
+        "daily_cap": 0,
+        "default_capacity": 1,
+        "now": "2026-08-20T00:00",
+        "exception": null,
+        "existing_slots": [],
+        "booked_counts": {}
+      },
+      "expected_starts": [
+        "2026-08-25T12:00", "2026-08-25T14:00", "2026-08-25T16:00", "2026-08-25T18:00"
+      ]
+    },
+    {
+      "name": "two windows with a gap -> the gap never appears as a slot",
+      "input": {
+        "date": "2026-08-29",
+        "week": {
+          "saturday": [
+            { "from": "09:00", "to": "14:00" },
+            { "from": "16:00", "to": "20:00" }
+          ]
+        },
+        "slot_minutes": 60,
+        "buffer_minutes": 0,
+        "lead_time_minutes": 0,
+        "daily_cap": 0,
+        "default_capacity": 1,
+        "now": "2026-08-20T00:00",
+        "exception": null,
+        "existing_slots": [],
+        "booked_counts": {}
+      },
+      "expected_starts": [
+        "2026-08-29T09:00", "2026-08-29T10:00", "2026-08-29T11:00", "2026-08-29T12:00", "2026-08-29T13:00",
+        "2026-08-29T16:00", "2026-08-29T17:00", "2026-08-29T18:00", "2026-08-29T19:00"
+      ]
+    },
+    {
+      "name": "buffer minutes are added between slots, shrinking the count",
+      "input": {
+        "date": "2026-08-25",
+        "week": { "tuesday": [{ "from": "09:00", "to": "12:00" }] },
+        "slot_minutes": 60,
+        "buffer_minutes": 30,
+        "lead_time_minutes": 0,
+        "daily_cap": 0,
+        "default_capacity": 1,
+        "now": "2026-08-20T00:00",
+        "exception": null,
+        "existing_slots": [],
+        "booked_counts": {}
+      },
+      "expected_starts": ["2026-08-25T09:00", "2026-08-25T10:30"]
+    },
+    {
+      "name": "a date marked closed by an exception has no slots even though the weekday is normally open",
+      "input": {
+        "date": "2026-07-15",
+        "week": { "wednesday": [{ "from": "09:00", "to": "13:00" }] },
+        "slot_minutes": 60,
+        "buffer_minutes": 0,
+        "lead_time_minutes": 0,
+        "daily_cap": 0,
+        "default_capacity": 1,
+        "now": "2026-07-01T00:00",
+        "exception": { "closed": true },
+        "existing_slots": [],
+        "booked_counts": {}
+      },
+      "expected_starts": []
+    },
+    {
+      "name": "an exception's own windows fully replace the weekday default, not merge with it",
+      "input": {
+        "date": "2026-07-15",
+        "week": { "wednesday": [{ "from": "09:00", "to": "13:00" }] },
+        "slot_minutes": 60,
+        "buffer_minutes": 0,
+        "lead_time_minutes": 0,
+        "daily_cap": 0,
+        "default_capacity": 1,
+        "now": "2026-07-01T00:00",
+        "exception": { "windows": [{ "from": "18:00", "to": "20:00" }] },
+        "existing_slots": [],
+        "booked_counts": {}
+      },
+      "expected_starts": ["2026-07-15T18:00", "2026-07-15T19:00"]
+    },
+    {
+      "name": "lead time drops slots too close to now, even if the window would otherwise offer them",
+      "input": {
+        "date": "2026-08-25",
+        "week": { "tuesday": [{ "from": "09:00", "to": "13:00" }] },
+        "slot_minutes": 60,
+        "buffer_minutes": 0,
+        "lead_time_minutes": 180,
+        "daily_cap": 0,
+        "default_capacity": 1,
+        "now": "2026-08-25T08:00",
+        "exception": null,
+        "existing_slots": [],
+        "booked_counts": {}
+      },
+      "expected_starts": ["2026-08-25T11:00", "2026-08-25T12:00"]
+    },
+    {
+      "name": "a fully-booked slot is hidden entirely, not shown disabled",
+      "input": {
+        "date": "2026-08-25",
+        "week": { "tuesday": [{ "from": "09:00", "to": "11:00" }] },
+        "slot_minutes": 60,
+        "buffer_minutes": 0,
+        "lead_time_minutes": 0,
+        "daily_cap": 0,
+        "default_capacity": 1,
+        "now": "2026-08-20T00:00",
+        "exception": null,
+        "existing_slots": [],
+        "booked_counts": { "2026-08-25T09:00": 1 }
+      },
+      "expected_starts": ["2026-08-25T10:00"]
+    },
+    {
+      "name": "capacity greater than 1: a slot with some seats taken still shows with reduced free count",
+      "input": {
+        "date": "2026-08-25",
+        "week": { "tuesday": [{ "from": "09:00", "to": "10:00" }] },
+        "slot_minutes": 60,
+        "buffer_minutes": 0,
+        "lead_time_minutes": 0,
+        "daily_cap": 0,
+        "default_capacity": 3,
+        "now": "2026-08-20T00:00",
+        "exception": null,
+        "existing_slots": [],
+        "booked_counts": { "2026-08-25T09:00": 2 }
+      },
+      "expected_starts": ["2026-08-25T09:00"],
+      "expected_free": { "2026-08-25T09:00": 1 }
+    },
+    {
+      "name": "daily cap of 3 with 3 already booked across the day hides every remaining slot",
+      "input": {
+        "date": "2026-08-25",
+        "week": { "tuesday": [{ "from": "09:00", "to": "13:00" }] },
+        "slot_minutes": 60,
+        "buffer_minutes": 0,
+        "lead_time_minutes": 0,
+        "daily_cap": 3,
+        "default_capacity": 5,
+        "now": "2026-08-20T00:00",
+        "exception": null,
+        "existing_slots": [],
+        "booked_counts": { "2026-08-25T09:00": 2, "2026-08-25T10:00": 1 }
+      },
+      "expected_starts": []
+    },
+    {
+      "name": "daily cap partially reached still leaves some room, capped below each slot's own capacity",
+      "input": {
+        "date": "2026-08-25",
+        "week": { "tuesday": [{ "from": "09:00", "to": "11:00" }] },
+        "slot_minutes": 60,
+        "buffer_minutes": 0,
+        "lead_time_minutes": 0,
+        "daily_cap": 3,
+        "default_capacity": 5,
+        "now": "2026-08-20T00:00",
+        "exception": null,
+        "existing_slots": [],
+        "booked_counts": { "2026-08-25T09:00": 1 }
+      },
+      "expected_starts": ["2026-08-25T09:00", "2026-08-25T10:00"],
+      "expected_free": { "2026-08-25T09:00": 2, "2026-08-25T10:00": 2 }
+    },
+    {
+      "name": "a legacy hand-made slot on a day the weekly schedule is closed still shows up (union)",
+      "input": {
+        "date": "2026-08-28",
+        "week": { "friday": [] },
+        "slot_minutes": 60,
+        "buffer_minutes": 0,
+        "lead_time_minutes": 0,
+        "daily_cap": 0,
+        "default_capacity": 1,
+        "now": "2026-08-20T00:00",
+        "exception": null,
+        "existing_slots": [{ "start": "2026-08-28T15:00", "end": "2026-08-28T15:30", "capacity": 2 }],
+        "booked_counts": {}
+      },
+      "expected_starts": ["2026-08-28T15:00"],
+      "expected_free": { "2026-08-28T15:00": 2 }
+    },
+    {
+      "name": "a closed weekday with no exception and no legacy slots yields nothing",
+      "input": {
+        "date": "2026-08-28",
+        "week": { "friday": [] },
+        "slot_minutes": 60,
+        "buffer_minutes": 0,
+        "lead_time_minutes": 0,
+        "daily_cap": 0,
+        "default_capacity": 1,
+        "now": "2026-08-20T00:00",
+        "exception": null,
+        "existing_slots": [],
+        "booked_counts": {}
+      },
+      "expected_starts": []
+    }
+  ]
+}

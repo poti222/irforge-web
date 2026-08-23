@@ -183,17 +183,11 @@ test("مجموعه‌های فقط‌خواندنی، همان‌هایی هست
   assert.ok(readonly.includes("loyalty-accounts"));
   // تخصیص برچسب: کلیدش ترکیبی است (`<user_id>:<tag_id>`).
   assert.ok(readonly.includes("crm-user-tags"));
-
-  // رزرو: ساخت ممنوع (شمارنده‌ی ظرفیت)، ولی تغییر وضعیت مجاز.
-  const reservations = collectionsMod.getCollection("booking-reservations");
-  assert.equal(reservations.noCreate, true);
-  assert.notEqual(reservations.readonly, true);
 });
 
 test("فیلدهای شمارنده‌ی بات، readonly اعلام شده‌اند", () => {
   // اگر سایت اجازه‌ی نوشتن روی این‌ها را بدهد، عددی که بات نگه می‌دارد خراب می‌شود.
   const counters = {
-    "booking-slots": "booked_count",
     giveaways: "entry_count",
     surveys: "response_count",
     "drip-campaigns": "sent_count",
@@ -212,8 +206,11 @@ test("مجموعه‌ی ناشناخته null برمی‌گرداند (روت ۴
 });
 
 test("مجموعه‌های هر پلاگین قابل استخراج‌اند", () => {
+  // IRFORGE_PROMPT_V3 Phase 17 — booking-slots/booking-reservations یک
+  // UI/روتِ اختصاصی گرفتند (BookingSection.tsx / routes/booking.ts)،
+  // درست مثل تیکت. فقط booking-services روی سیستم عمومی مانده.
   const booking = collectionsMod.collectionsOfPlugin("booking").map((c) => c.key);
-  assert.deepEqual(booking.sort(), ["booking-reservations", "booking-services", "booking-slots"]);
+  assert.deepEqual(booking.sort(), ["booking-services"]);
   assert.deepEqual(collectionsMod.collectionsOfPlugin("ticket"), [],
     "تیکت سکشن اختصاصی خودش را دارد (botSupportTickets.ts)");
 });

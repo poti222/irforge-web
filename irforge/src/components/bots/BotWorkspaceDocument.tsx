@@ -56,6 +56,7 @@ import { RelationsSection } from "@/components/bots/advanced/RelationsSection";
 import { WorkflowsSection } from "@/components/bots/advanced/WorkflowsSection";
 import { LanguageSection } from "@/components/bots/language/LanguageSection";
 import { TicketsSection } from "@/components/bots/tickets/TicketsSection";
+import { BookingSection } from "@/components/bots/booking/BookingSection";
 // سکشن عمومیِ پلاگین‌های تازه — جدول‌هایش از اسکیمای سرور ساخته می‌شوند.
 import { PluginSection } from "@/components/bots/plugins/PluginSection";
 import { BotHealthCard } from "@/components/bots/BotHealthCard";
@@ -178,7 +179,10 @@ const SECTION_GROUPS: SectionGroup[] = [
       // روی این بات روشن باشد — گیت واقعی سمت سرور است (`lib/pluginGate.ts`).
       { key: "subscriptions", icon: BadgeCheck, labelKey: "sectionSubscriptions", requiresPlugin: "subscription" },
       { key: "loyalty", icon: Star, labelKey: "sectionLoyalty", requiresPlugin: "loyalty" },
-      { key: "booking", icon: CalendarClock, labelKey: "sectionBooking", requiresPlugin: "booking" },
+      // IRFORGE_PROMPT_V3 Phase 17 — همان الگوی `showWhenDisabled` تیکت
+      // (فاز ۱۶): سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA
+      // فعال‌سازی نشان می‌دهد (`BookingSection.tsx`'s plugin_disabled branch).
+      { key: "booking", icon: CalendarClock, labelKey: "sectionBooking", requiresPlugin: "booking", showWhenDisabled: true },
     ],
   },
   {
@@ -434,7 +438,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "language" && <LanguageSection bot={bot} />}
             {section === "tickets" && <TicketsSection bot={bot} />}
             {section === "loyalty" && <PluginSection bot={bot} plugin="loyalty" />}
-            {section === "booking" && <PluginSection bot={bot} plugin="booking" />}
+            {section === "booking" && <BookingSection bot={bot} />}
             {section === "subscriptions" && <PluginSection bot={bot} plugin="subscription" />}
             {section === "giveaways" && <PluginSection bot={bot} plugin="giveaway" />}
             {section === "surveys" && <PluginSection bot={bot} plugin="survey" />}

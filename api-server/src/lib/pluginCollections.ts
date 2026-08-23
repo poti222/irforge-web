@@ -78,14 +78,6 @@ export type CollectionSpec = {
 /** میان‌بر، تا اعلان‌های زیر خوانا بمانند. */
 const t = (en: string, fa: string): Localized => ({ en, fa });
 
-/** وضعیت‌های رزرو — `plugins/booking/domain.py`. */
-const BOOKING_STATUS = [
-  { value: "pending", label: t("Awaiting approval", "در انتظار تأیید") },
-  { value: "confirmed", label: t("Confirmed", "تأییدشده") },
-  { value: "canceled", label: t("Canceled", "لغوشده") },
-  { value: "done", label: t("Done", "انجام‌شده") },
-];
-
 /** وضعیت‌های عضویت — `plugins/subscription/domain.py`. */
 const SUB_STATUS = [
   { value: "trial", label: t("Trial", "دوره‌ی آزمایشی") },
@@ -153,20 +145,29 @@ export const COLLECTIONS: CollectionSpec[] = [
   },
 
   // ── رزرو نوبت ──────────────────────────────────────────────────────────
+  // IRFORGE_PROMPT_V3 Phase 17 — `booking-slots`/`booking-reservations` قبلاً
+  // اینجا بودند (CRUD عمومی). حذف شدند چون فاز ۱۷ بازه‌ها را دیگر از قبل
+  // نمی‌سازد — از برنامه‌ی کاری هفتگی + استثناها **مشتق** می‌کند
+  // (`plugins/booking/availability.py`) — و رزروها الان فیلدهای
+  // مشتری/سقفِ لغو/یادآورِ دومرحله‌ای دارند که فرمِ عمومیِ این فایل بلد
+  // نیست نشان بدهد. هر دو با UI اختصاصی (`BookingSection.tsx`) و روت‌های
+  // اختصاصی (`routes/booking.ts`) جایگزین شدند. `booking-services` همان
+  // CRUD عمومیِ قبلی می‌ماند — طبق مشخصات فاز، فقط پاکیزه‌سازیِ جزئی لازم
+  // داشت، نه بازنویسی.
   {
     key: "booking-services",
     tab: "booking_services",
     plugin: "booking",
     title: t("Bookable services", "سرویس‌های قابل رزرو"),
     description: t(
-      "What can be booked. After creating a service, generate its time slots from inside the bot.",
-      "چه چیزی رزرو می‌شود. بعد از ساخت سرویس، بازه‌های زمانی‌اش را از داخل بات بسازید.",
+      "What can be booked. Working hours and time slots are configured in the Schedule tab, not per service.",
+      "چه چیزی رزرو می‌شود. ساعات کاری و بازه‌های زمانی از تب «برنامه‌ی کاری» تنظیم می‌شوند، نه جداگانه برای هر سرویس.",
     ),
     idPrefix: "svc",
     fields: [
       { key: "title", label: t("Service name", "نام سرویس"), type: "text", required: true, maxLength: 80 },
       { key: "description", label: t("Description", "توضیح"), type: "textarea", maxLength: 500 },
-      { key: "duration_minutes", label: t("Duration (minutes)", "مدت (دقیقه)"), type: "number", required: true, min: 1, default: 30 },
+      { key: "duration_minutes", label: t("Duration (minutes, display only)", "مدت (دقیقه، فقط نمایشی)"), type: "number", required: true, min: 1, default: 30 },
       { key: "price", label: t("Price (Toman)", "هزینه (تومان)"), type: "number", min: 0, default: 0 },
       {
         key: "requires_approval", label: t("Needs admin approval", "نیاز به تأیید ادمین"), type: "boolean", default: true,
@@ -176,52 +177,6 @@ export const COLLECTIONS: CollectionSpec[] = [
     ],
     listColumns: ["title", "duration_minutes", "price", "requires_approval", "is_active"],
     sortBy: "title",
-  },
-  {
-    key: "booking-slots",
-    tab: "booking_slots",
-    plugin: "booking",
-    title: t("Time slots", "بازه‌های زمانی"),
-    description: t(
-      "Each slot has its own capacity. Generating slots in bulk is easier from inside the bot.",
-      "ظرفیت هر بازه مستقل است. ساخت انبوه بازه از داخل بات راحت‌تر است.",
-    ),
-    idPrefix: "slot",
-    fields: [
-      { key: "service_id", label: t("Service ID", "شناسه سرویس"), type: "text", required: true },
-      { key: "starts_at", label: t("Starts at", "زمان شروع"), type: "datetime", required: true },
-      { key: "capacity", label: t("Capacity", "ظرفیت"), type: "number", required: true, min: 1, default: 1 },
-      // بات خودش با هر رزرو/لغو این را جابه‌جا می‌کند.
-      { key: "booked_count", label: t("Booked", "رزروشده"), type: "readonly" },
-      { key: "is_active", label: t("Active", "فعال"), type: "boolean", default: true },
-    ],
-    listColumns: ["starts_at", "service_id", "capacity", "booked_count", "is_active"],
-    sortBy: "starts_at",
-  },
-  {
-    key: "booking-reservations",
-    tab: "booking_reservations",
-    plugin: "booking",
-    title: t("Reservations", "رزروها"),
-    description: t(
-      "Approve or reject a reservation. Setting it to canceled also frees the slot's capacity.",
-      "تأیید یا رد رزرو. تغییر وضعیت به «لغوشده» ظرفیت بازه را هم آزاد می‌کند.",
-    ),
-    idPrefix: "rsv",
-    // ساخت رزرو از سایت مجاز نیست: `reserve()` در بات ظرفیت را چک و
-    // `booked_count` را افزایش می‌دهد. یک ردیف دستی، آن شمارنده را عقب
-    // می‌انداخت و بازه بیش از ظرفیتش رزرو می‌شد.
-    noCreate: true,
-    fields: [
-      USER_ID,
-      USERNAME,
-      { key: "service_id", label: t("Service ID", "شناسه سرویس"), type: "readonly" },
-      { key: "slot_id", label: t("Slot ID", "شناسه بازه"), type: "readonly" },
-      { key: "status", label: t("Status", "وضعیت"), type: "select", options: BOOKING_STATUS },
-      { key: "note", label: t("User's note", "توضیح کاربر"), type: "textarea", maxLength: 300 },
-    ],
-    listColumns: ["user_id", "service_id", "status", "note", "created_at"],
-    sortBy: "created_at",
   },
 
   // ── اشتراک دوره‌ای ─────────────────────────────────────────────────────
