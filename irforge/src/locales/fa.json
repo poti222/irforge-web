@@ -2116,7 +2116,11 @@
     "status_assigned": "ارجاع‌شده",
     "status_closed": "بسته",
     "status_reopened": "بازگشایی‌شده",
-    "status_escalated": "ارجاع به بالاتر"
+    "status_escalated": "ارجاع به بالاتر",
+    "pluginDisabledTitle": "پلاگین تیکت را روشن کنید",
+    "pluginDisabledDesc": "پشتیبانی پایه همین حالا داخل بات‌تان کار می‌کند. روشن‌کردن این پلاگین یک صف اولویت‌بندی‌شده، تخصیص به ادمین و یادآوری تیکت‌های بی‌پاسخ اینجا در سایت اضافه می‌کند.",
+    "activatePlugin": "فعال‌سازی",
+    "activating": "در حال فعال‌سازی…"
   },
   "botHealth": {
     "loading": "در حال بررسی بات…",

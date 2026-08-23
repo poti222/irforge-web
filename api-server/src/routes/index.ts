@@ -53,6 +53,7 @@ import botLanguageRouter from "./botLanguage.js";
 import botBackupRouter from "./botBackup.js";
 import botSupportTicketsRouter from "./botSupportTickets.js";
 import botHealthRouter from "./botHealth.js";
+import internalTicketNotifyRouter from "./internalTicketNotify.js";
 
 const router: IRouter = Router();
 
@@ -103,5 +104,6 @@ router.use(botLanguageRouter);
 router.use(botBackupRouter);
 router.use(botSupportTicketsRouter);
 router.use(botHealthRouter);
+router.use(internalTicketNotifyRouter);
 
 export default router;

@@ -8,12 +8,13 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
-import { Loader2, Search, Send, ArrowRight, LifeBuoy } from "lucide-react";
+import { Loader2, Search, Send, ArrowRight, LifeBuoy, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -31,13 +32,44 @@ type Ticket = {
   messageCount: number;
 };
 
+type TicketAttachment = {
+  type: "photo" | "document" | "voice" | "video" | "video_note" | "audio";
+  file_id: string;
+  caption?: string;
+};
+
 type TicketMessage = {
   id: string;
   sender_type: string;
   sender_id: string;
   text: string;
   timestamp: string;
+  /** IRFORGE_PROMPT_V3 Phase 16 — عکس/فایل/صوتی که کاربر یا ادمین فرستاده. */
+  attachments?: TicketAttachment[];
 };
+
+/** پیش‌نمایش یک پیوست — عکس مستقیم، بقیه فقط لینک دانلود از همان پروکسیِ رسانه. */
+function AttachmentPreview({ botId, attachment }: { botId: string; attachment: TicketAttachment }) {
+  const t = useT("botTickets");
+  const url = `/api/bots/${botId}/media/${attachment.file_id}`;
+  if (attachment.type === "photo") {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" className="block">
+        <img src={url} alt={attachment.caption || ""} className="max-h-48 rounded-md border object-contain" />
+      </a>
+    );
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+    >
+      <Paperclip className="size-3.5" /> {attachment.type}
+    </a>
+  );
+}
 
 function errMessage(err: any, fallback: string): string {
   return err?.data?.error ?? err?.message ?? fallback;
@@ -134,7 +166,14 @@ function TicketThread({ botId, ticketId, onBack }: { botId: string; ticketId: st
                 {" · "}
                 <span dir="ltr">{String(message.timestamp ?? "").slice(0, 16).replace("T", " ")}</span>
               </p>
-              <p className="whitespace-pre-wrap break-words">{message.text}</p>
+              {message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>}
+              {(message.attachments ?? []).length > 0 && (
+                <div className={`flex flex-wrap gap-2 ${message.text ? "mt-2" : ""}`}>
+                  {message.attachments!.map((a, i) => (
+                    <AttachmentPreview key={i} botId={botId} attachment={a} />
+                  ))}
+                </div>
+              )}
             </div>
           ))
         )}
@@ -154,19 +193,56 @@ function TicketThread({ botId, ticketId, onBack }: { botId: string; ticketId: st
 
 export function TicketsSection({ bot }: { bot: Bot }) {
   const t = useT("botTickets");
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const [status, setStatus] = useState("active");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const ticketsKey = ["bot-support-tickets", bot.id, status, search] as const;
   const { data, isLoading, error } = useQuery({
-    queryKey: ["bot-support-tickets", bot.id, status, search],
+    queryKey: ticketsKey,
     queryFn: () =>
       customFetch<{ tickets: Ticket[]; counts: Record<string, number>; statuses: string[] }>(
         `/api/bots/${bot.id}/support-tickets?status=${status}&search=${encodeURIComponent(search)}`
       ),
   });
 
+  // IRFORGE_PROMPT_V3 Phase 16 — «در را باز کن، سکشن را پنهان نکن»: به‌جای
+  // یک پیام خطای قرمز، همان CTA فعال‌سازی که PluginsManager.tsx استفاده
+  // می‌کند، همین‌جا هم — کاربر مجبور نیست برای پیدا کردنش سکشن دیگری برود.
+  const activate = useMutation({
+    mutationFn: () =>
+      customFetch(`/api/bots/${bot.id}/plugins/ticket`, {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: true }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bot-plugins", bot.id] });
+      qc.invalidateQueries({ queryKey: ticketsKey });
+    },
+    onError: (err: any) =>
+      toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
+  });
+
   if (isLoading) return <div className="flex items-center gap-2 p-8 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {t.loading}</div>;
+
+  if (errCode(error) === "plugin_disabled") {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
+          <LifeBuoy className="size-8 text-muted-foreground" />
+          <p className="font-semibold">{t.pluginDisabledTitle}</p>
+          <p className="max-w-md text-sm text-muted-foreground">{t.pluginDisabledDesc}</p>
+          <Button onClick={() => activate.mutate()} disabled={activate.isPending}>
+            {activate.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+            {activate.isPending ? t.activating : t.activatePlugin}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (error || !data) {
     return (
       <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">

@@ -2116,7 +2116,11 @@
     "status_assigned": "Assigned",
     "status_closed": "Closed",
     "status_reopened": "Reopened",
-    "status_escalated": "Escalated"
+    "status_escalated": "Escalated",
+    "pluginDisabledTitle": "Turn on the ticket plugin",
+    "pluginDisabledDesc": "Basic support already works inside your bot. Turning this on adds a priority queue, assignment, and SLA reminders for unanswered tickets here on the site.",
+    "activatePlugin": "Activate",
+    "activating": "Activating…"
   },
   "botHealth": {
     "loading": "Checking the bot…",

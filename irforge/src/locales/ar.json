@@ -2116,7 +2116,11 @@
     "status_assigned": "مُسندة",
     "status_closed": "مغلقة",
     "status_reopened": "أُعيد فتحها",
-    "status_escalated": "مُصعّدة"
+    "status_escalated": "مُصعّدة",
+    "pluginDisabledTitle": "فعّل إضافة التذاكر",
+    "pluginDisabledDesc": "الدعم الأساسي يعمل بالفعل داخل البوت الخاص بك. تفعيل هذا يضيف قائمة انتظار بأولوية، وتخصيصًا لمشرف، وتذكيرات للتذاكر غير المجابة هنا في الموقع.",
+    "activatePlugin": "تفعيل",
+    "activating": "جارٍ التفعيل…"
   },
   "botHealth": {
     "loading": "جارٍ فحص البوت…",

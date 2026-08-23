@@ -2116,7 +2116,11 @@
     "status_assigned": "Atandı",
     "status_closed": "Kapalı",
     "status_reopened": "Yeniden açıldı",
-    "status_escalated": "Üst birime iletildi"
+    "status_escalated": "Üst birime iletildi",
+    "pluginDisabledTitle": "Talep eklentisini açın",
+    "pluginDisabledDesc": "Temel destek botunuzda zaten çalışıyor. Bunu açmak burada, sitede, öncelik sıralı bir kuyruk, bir yöneticiye atama ve yanıtsız talepler için SLA hatırlatmaları ekler.",
+    "activatePlugin": "Etkinleştir",
+    "activating": "Etkinleştiriliyor…"
   },
   "botHealth": {
     "loading": "Bot kontrol ediliyor…",

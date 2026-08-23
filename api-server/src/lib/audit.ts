@@ -22,7 +22,10 @@ export type AuditAction =
   | "status_changed"
   | "sessions_revoked"
   | "impersonation_started"
-  | "bot_purged";
+  | "bot_purged"
+  // IRFORGE_PROMPT_V3 Phase 16 — mainbot's ticket-created/escalated call.
+  | "ticket_created_notified"
+  | "ticket_escalated_notified";
 
 export async function writeAudit(input: {
   actorUserId: string;

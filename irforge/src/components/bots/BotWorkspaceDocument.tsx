@@ -108,6 +108,17 @@ type SectionMeta = {
    * گیت واقعی سمت سرور است (`lib/pluginGate.ts`).
    */
   requiresPlugin?: string;
+  /**
+   * استثنای بالا، برای سکشن‌هایی که خاموش‌بودنِ پلاگین‌شان خودش خبری است که
+   * کاربر باید ببیند — نه یک سکشن که وجودش بی‌معناست.
+   *
+   * IRFORGE_PROMPT_V3 Phase 16 — «در را باز کن، سکشن را پنهان نکن»: تیکت‌ها
+   * برخلاف سفارش‌ها/رزرو، یک قابلیتِ همیشه-مرتبط است (هر بات ممکن است کاربر
+   * پیام بدهد)، پس به‌جای ناپدید شدن، یک CTA بزرگِ «فعال‌سازی» نشان می‌دهد —
+   * خودِ سکشن (`TicketsSection.tsx`) این تصمیم را از روی خطای
+   * `plugin_disabled` سرور می‌گیرد.
+   */
+  showWhenDisabled?: boolean;
 };
 
 type SectionGroup = {
@@ -175,11 +186,12 @@ const SECTION_GROUPS: SectionGroup[] = [
     labelKey: "groupComms",
     items: [
       { key: "broadcast", icon: Megaphone, labelKey: "sectionBroadcast" },
-      // تیکت‌های داخل بات امروز یک قابلیت **هسته**‌اند (`support_router` بدون
-      // شرط در main.py رجیستر می‌شود) و پلاگین تیکتی وجود ندارد. ولی تا وقتی
-      // آن پلاگین ساخته نشده، این سکشن نباید دیده شود — با ساخته‌شدنش، فقط
-      // کافی است `id` پلاگین به کاتالوگ اضافه شود و این خط خودش کار می‌کند.
-      { key: "tickets", icon: LifeBuoy, labelKey: "sectionTickets", requiresPlugin: "ticket" },
+      // پشتیبانیِ پایه (`handlers/support.py`) همیشه هسته و روشن است؛ پلاگین
+      // «تیکت» چیزی که از قبل کار می‌کرد را روشن/خاموش نمی‌کند، فقط صف
+      // ادمین/اولویت/SLA را روی همان داده اضافه می‌کند (IRFORGE_PROMPT_V3
+      // Phase 16). به همین دلیل `showWhenDisabled`: این سکشن هیچ‌وقت نباید
+      // ناپدید شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
+      { key: "tickets", icon: LifeBuoy, labelKey: "sectionTickets", requiresPlugin: "ticket", showWhenDisabled: true },
       { key: "drip", icon: Send, labelKey: "sectionDrip", requiresPlugin: "drip" },
       { key: "giveaways", icon: Gift, labelKey: "sectionGiveaways", requiresPlugin: "giveaway" },
       { key: "surveys", icon: ClipboardList, labelKey: "sectionSurveys", requiresPlugin: "survey" },
@@ -261,9 +273,13 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
 
   const enabledPlugins = useEnabledPlugins(bot.id);
 
-  /** سکشنی که پلاگینش خاموش است اصلاً وجود ندارد. */
+  /**
+   * سکشنی که پلاگینش خاموش است اصلاً وجود ندارد — مگر `showWhenDisabled`،
+   * که به‌جای ناپدید شدن یک CTA فعال‌سازی نشان می‌دهد (فاز ۱۶).
+   */
   function visible(meta: SectionMeta): boolean {
     if (!meta.requiresPlugin) return true;
+    if (meta.showWhenDisabled) return true;
     return enabledPlugins?.has(meta.requiresPlugin) ?? false;
   }
 
@@ -271,8 +287,10 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
   const match = findSection(requested);
   // A locked section is not a valid destination either — someone with a stale
   // bookmark from a future phase shouldn't land on a blank panel. Same for a
-  // section whose plugin is off: a bookmark from when it was on must not land
-  // on a section the server will 403.
+  // section whose plugin is off and doesn't opt into `showWhenDisabled`: a
+  // bookmark from when it was on must not land on a section the server will
+  // 403. A `showWhenDisabled` section is always a valid destination — it
+  // handles its own "plugin is off" state instead of relying on this gate.
   const section: SectionKey = match && !match.locked && visible(match) ? match.key : "overview";
 
   function goTo(next: SectionKey) {
