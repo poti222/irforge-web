@@ -63,6 +63,7 @@ import giveawayRouter from "./giveaway.js";
 import supportLinksRouter from "./supportLinks.js";
 import loyaltySettingsRouter from "./loyaltySettings.js";
 import catalogRouter from "./catalog.js";
+import botWalletRouter from "./botWallet.js";
 
 const router: IRouter = Router();
 
@@ -123,5 +124,6 @@ router.use(giveawayRouter);
 router.use(supportLinksRouter);
 router.use(loyaltySettingsRouter);
 router.use(catalogRouter);
+router.use(botWalletRouter);
 
 export default router;

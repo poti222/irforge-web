@@ -30,6 +30,7 @@ import {
   Contact,
   MapPin,
   Store,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
@@ -63,6 +64,7 @@ import { AddressesSection } from "@/components/bots/addresses/AddressesSection";
 import { DripSection } from "@/components/bots/drip/DripSection";
 import { CrmSection } from "@/components/bots/crm/CrmSection";
 import { CatalogSection } from "@/components/bots/catalog/CatalogSection";
+import { WalletSection } from "@/components/bots/wallet/WalletSection";
 import { SurveySection } from "@/components/bots/survey/SurveySection";
 import { GiveawaySection } from "@/components/bots/giveaway/GiveawaySection";
 import { LoyaltySection } from "@/components/bots/loyalty/LoyaltySection";
@@ -102,6 +104,7 @@ type SectionKey =
   | "drip"
   | "crm"
   | "catalog"
+  | "wallet"
   | "language"
   | "settings";
 
@@ -180,6 +183,11 @@ const SECTION_GROUPS: SectionGroup[] = [
       // پرداخت‌ها از تنظیمات عمومی به اینجا منتقل شد: به همان دنیایی تعلق
       // دارد که سفارش‌ها، و پشت همان گیت است.
       { key: "payments", icon: CreditCard, labelKey: "sectionPayments", requiresPlugin: "wallet" },
+      // IRFORGE_PROMPT_V3 Phase 24 — admin-only wallet actions (balance
+      // lookup, credit/debit, freeze/unfreeze, order charge/refund, notify
+      // templates) that used to be Telegram-command-only. Same
+      // `showWhenDisabled` pattern as booking/address/crm below.
+      { key: "wallet", icon: Wallet, labelKey: "sectionWallet", requiresPlugin: "wallet", showWhenDisabled: true },
       // Deliberately still locked, and the only one left. "Discounts" means two
       // different things here: the platform's own discount codes (routes/
       // discounts.ts, site Postgres) and the bot's `discount` plugin with its
@@ -469,6 +477,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "drip" && <DripSection bot={bot} />}
             {section === "crm" && <CrmSection bot={bot} />}
             {section === "catalog" && <CatalogSection bot={bot} />}
+            {section === "wallet" && <WalletSection bot={bot} />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}
