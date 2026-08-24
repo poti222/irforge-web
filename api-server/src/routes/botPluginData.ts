@@ -122,6 +122,35 @@ function coerce(field: FieldSpec, raw: unknown): unknown {
  * `creating=true` یعنی فیلدهای اجباری باید حاضر باشند و پیش‌فرض‌ها اعمال شوند.
  * در ویرایش، فیلدِ نفرستاده دست‌نخورده می‌ماند (PATCH، نه PUT).
  */
+/**
+ * IRFORGE_PROMPT_V3 Phase 23 — تمدیدِ اشتراک از سایت با تمدیدِ دستیِ خودِ
+ * بات (plugins/subscription/domain.py::extend) فرق داشت: بات با هر تمدید
+ * `expiry_notified_at` و `renewal_failures` را صفر می‌کند تا هشدارِ «چند روز
+ * به پایان مانده» برای دوره‌ی تازه از نو محاسبه شود و شکست‌های تمدیدِ
+ * خودکارِ دوره‌ی قبلی زودتر از حد لازم تمدیدِ خودکارِ دوره‌ی تازه را متوقف
+ * نکند؛ ویرایشِ عمومیِ این روت این دو فیلد را اصلاً نمی‌شناخت، پس
+ * دست‌نخورده می‌ماندند — مشتری‌ای که تمدید شده، تا انتهای دوره‌ی *جدید*ش
+ * هیچ هشدارِ انقضایی نمی‌گرفت، چون پرچمِ «قبلاً هشدار داده شده» از دوره‌ی
+ * قبلی هنوز روشن بود.
+ *
+ * فقط برای مجموعه‌ی `member-subscriptions` و فقط وقتی `current_period_end`
+ * واقعاً عوض شده — تا هر ویرایشِ دیگر (مثلاً فقط auto_renew) دست‌نخورده بماند.
+ */
+function subscriptionExtendSideEffect(
+  spec: CollectionSpec,
+  payload: Record<string, unknown>,
+  existing: Record<string, unknown>,
+): Record<string, unknown> {
+  if (
+    spec.key === "member-subscriptions" &&
+    "current_period_end" in payload &&
+    payload.current_period_end !== existing.current_period_end
+  ) {
+    return { expiry_notified_at: "", renewal_failures: 0 };
+  }
+  return {};
+}
+
 function buildPayload(spec: CollectionSpec, body: any, creating: boolean): Record<string, unknown> {
   if (!body || typeof body !== "object" || Array.isArray(body))
     throw bad("بدنه‌ی درخواست باید یک آبجکت باشد.");
@@ -275,7 +304,9 @@ router.patch("/bots/:botId/plugin-data/:collection/:id", requireAuth, async (req
     // merge روی رکورد موجود — نه جایگزینی. فیلدهای readonly، شمارنده‌ها، و هر
     // کلیدی که فقط بات می‌شناسد باید سرِ جایشان بمانند.
     const payload = buildPayload(spec, req.body, false);
-    const record = { ...existing, ...payload, id, updated_at: nowIso() };
+    const record: Record<string, unknown> = { ...existing, ...payload, id, updated_at: nowIso() };
+
+    Object.assign(record, subscriptionExtendSideEffect(spec, payload, existing));
 
     await putEntity(spreadsheetId, spec.tab, id, record);
     res.json({ record: { ...record, id_key: id } });
@@ -308,5 +339,7 @@ router.delete("/bots/:botId/plugin-data/:collection/:id", requireAuth, async (re
     sendBotConfigError(res, err, "Failed to delete plugin record");
   }
 });
+
+export const __testables = { subscriptionExtendSideEffect };
 
 export default router;

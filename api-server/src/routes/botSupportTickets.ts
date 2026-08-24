@@ -53,6 +53,15 @@ type Ticket = {
   message_thread_id?: number | null;
   created_at?: string;
   updated_at?: string;
+  // آینه‌ی plugins/ticket/domain.py::add_message — IRFORGE_PROMPT_V3 Phase 23.
+  // این سه فیلد قبلاً اینجا اصلاً نوشته نمی‌شدند، پس پاسخِ ادمین از سایت
+  // "last_sender_role" را روی "user" و "last_message_at" را روی قدیمی جا
+  // می‌گذاشت — چند ساعت بعد escalate_stale_tickets (بات) با اینکه تیکت
+  // واقعاً جواب داده شده بود، آن را «بی‌پاسخ‌مانده» گزارش می‌کرد.
+  last_message_at?: string;
+  last_sender_role?: string;
+  message_count?: number;
+  escalation_notified_at?: string;
 };
 
 type TicketMessage = {
@@ -151,6 +160,37 @@ router.get("/bots/:botId/support-tickets/:ticketId", requireAuth, async (req: an
 // ─── پاسخ ادمین ─────────────────────────────────────────────────────────────
 
 /**
+ * همان جدول وضعیتِ `plugins/ticket/domain.py::add_message` — IRFORGE_PROMPT_V3
+ * Phase 23. پاسخِ ادمین فقط open/reopened را به assigned می‌برد؛ تیکتِ closed
+ * با پاسخِ ادمین باز نمی‌شود (فقط پاسخِ *کاربر* یک تیکتِ بسته را reopen
+ * می‌کند — که اینجا اصلاً رخ نمی‌دهد، چون کاربر از خودِ بات جواب می‌دهد نه
+ * از سایت). قبلاً هر پاسخِ ادمین یک تیکتِ closed را به reopened می‌برد —
+ * دقیقاً برعکسِ رفتار بات.
+ */
+function nextTicketStatusAfterAdminReply(currentStatus: string): string {
+  return currentStatus === "open" || currentStatus === "reopened" ? "assigned" : currentStatus;
+}
+
+/**
+ * فیلدهایی که باید روی تیکت merge شوند — دقیقاً همان چیزی که `add_message`
+ * سمت بات بعد از هر پیام به‌روز می‌کند. قبلاً این سه فیلد (`last_message_at`/
+ * `last_sender_role`/`message_count`) اینجا اصلاً نوشته نمی‌شدند: پاسخِ ادمین
+ * از سایت `last_sender_role` را روی "user" و `last_message_at` را روی
+ * قدیمی جا می‌گذاشت، پس `escalate_stale_tickets` (بات) چند ساعت بعد تیکتِ
+ * واقعاً جواب‌داده‌شده را غلط «بی‌پاسخ‌مانده» گزارش می‌کرد.
+ */
+function ticketPatchAfterAdminReply(ticket: Ticket, message: TicketMessage) {
+  return {
+    status: nextTicketStatusAfterAdminReply(ticket.status),
+    last_message_at: message.timestamp,
+    last_sender_role: "admin",
+    message_count: Number(ticket.message_count ?? 0) + 1,
+    escalation_notified_at: "",
+    updated_at: nowIso(),
+  };
+}
+
+/**
  * پیام ادمین را هم در تب ثبت می‌کند و هم با توکن بات به کاربر می‌فرستد.
  * ثبت **اول** انجام می‌شود: تیکتی که پاسخش ثبت شده ولی نرسیده، بهتر از پاسخی
  * است که رفته و هیچ ردی در تاریخچه ندارد.
@@ -181,13 +221,12 @@ router.post("/bots/:botId/support-tickets/:ticketId/reply", requireAuth, async (
     };
     await putEntity(spreadsheetId, MESSAGES_TAB, messageId, message);
 
-    // بسته‌بودن تیکت با پاسخ ادمین معنا ندارد — مثل بات، به assigned برمی‌گردد.
-    const nextStatus = ticket.status === "closed" ? "reopened" : ticket.status;
+    const patch = ticketPatchAfterAdminReply(ticket, message);
+    const nextStatus = patch.status;
     await putEntity(spreadsheetId, TICKETS_TAB, req.params.ticketId, {
       ...ticket,
       id: req.params.ticketId,
-      status: nextStatus,
-      updated_at: nowIso(),
+      ...patch,
     });
 
     let delivered: "sent" | "failed" = "failed";
@@ -254,5 +293,7 @@ router.patch("/bots/:botId/support-tickets/:ticketId", requireAuth, async (req: 
     sendBotConfigError(res, err, "Failed to update support ticket");
   }
 });
+
+export const __testables = { nextTicketStatusAfterAdminReply, ticketPatchAfterAdminReply };
 
 export default router;
