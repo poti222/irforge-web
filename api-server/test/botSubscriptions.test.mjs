@@ -134,3 +134,75 @@ test("بدون planId صریح، effectivePlanId تننت به‌کار می‌�
   }));
   assert.equal(await subs.planHasFeature(SHEET, "multi_language"), true);
 });
+
+// ─── getSubscriptionSummary (Phase 32 — dashboard plan card) ───────────────
+
+test("بدون ردیفِ tenant_subscriptions → خلاصه‌ی پلنِ رایگان با پیش‌فرضِ کدی", async () => {
+  install(fakeSheet({}));
+  const summary = await subs.getSubscriptionSummary(SHEET);
+  assert.equal(summary.planId, "bronze");
+  assert.equal(summary.planName, "برنزی");
+  assert.equal(summary.priceMonthly, 0);
+  assert.equal(summary.status, "active");
+  assert.equal(summary.currentPeriodEnd, null);
+  assert.equal(summary.inGrace, false);
+  assert.equal(summary.daysRemaining, null);
+});
+
+test("اشتراکِ فعال با تاریخِ پایانِ آینده → daysRemaining مثبت", async () => {
+  const in10Days = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+  install(fakeSheet({
+    tenant_subscriptions: {
+      [SHEET]: { tenant_id: SHEET, plan_id: "gold", status: "active", current_period_end: in10Days },
+    },
+  }));
+  const summary = await subs.getSubscriptionSummary(SHEET);
+  assert.equal(summary.planId, "gold");
+  assert.equal(summary.planName, "طلایی");
+  assert.equal(summary.priceMonthly, 199);
+  assert.equal(summary.status, "active");
+  assert.equal(summary.inGrace, false);
+  assert.ok(summary.daysRemaining >= 9 && summary.daysRemaining <= 10);
+});
+
+test("اشتراکِ لغوشده ولی داخل بازه‌ی grace → inGrace true", async () => {
+  const stillInGrace = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
+  install(fakeSheet({
+    tenant_subscriptions: {
+      [SHEET]: { tenant_id: SHEET, plan_id: "diamond", status: "canceled", current_period_end: stillInGrace },
+    },
+  }));
+  const summary = await subs.getSubscriptionSummary(SHEET);
+  assert.equal(summary.status, "canceled");
+  assert.equal(summary.inGrace, true);
+  assert.equal(summary.planId, "diamond"); // خلاصه پلنِ ثبت‌شده را نشان می‌دهد، نه effective plan
+});
+
+test("سطرِ صریحِ subscription_plans روی پیش‌فرضِ کدی غالب است", async () => {
+  install(fakeSheet({
+    tenant_subscriptions: { [SHEET]: { tenant_id: SHEET, plan_id: "gold", status: "active" } },
+    subscription_plans: { gold: { plan_id: "gold", name: "Custom Gold", price_monthly: 250 } },
+  }));
+  const summary = await subs.getSubscriptionSummary(SHEET);
+  assert.equal(summary.planName, "Custom Gold");
+  assert.equal(summary.priceMonthly, 250);
+});
+
+test("پلنِ ناشناخته بدون هیچ ردیفی → نامِ خودِ plan_id به‌عنوانِ fallback", async () => {
+  install(fakeSheet({
+    tenant_subscriptions: { [SHEET]: { tenant_id: SHEET, plan_id: "custom_plan", status: "active" } },
+  }));
+  const summary = await subs.getSubscriptionSummary(SHEET);
+  assert.equal(summary.planName, "custom_plan");
+  assert.equal(summary.priceMonthly, 0);
+});
+
+test("current_period_end نامعتبر → daysRemaining به‌جای NaN، null است", async () => {
+  install(fakeSheet({
+    tenant_subscriptions: {
+      [SHEET]: { tenant_id: SHEET, plan_id: "gold", status: "active", current_period_end: "not-a-date" },
+    },
+  }));
+  const summary = await subs.getSubscriptionSummary(SHEET);
+  assert.equal(summary.daysRemaining, null);
+});

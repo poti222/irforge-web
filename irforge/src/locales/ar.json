@@ -2566,6 +2566,19 @@
     "infraQueueOn": "طابور الرسائل الجماعية متصل",
     "infraQueueOff": "طابور الرسائل الجماعية غير مُهيّأ"
   },
+  "botPlan": {
+    "loading": "جارٍ تحميل الخطة…",
+    "title": "الخطة والاشتراك",
+    "statusActive": "نشِط",
+    "statusPastDue": "الدفع متأخر",
+    "statusCanceled": "أُلغي",
+    "statusGrace": "فترة السماح",
+    "priceMonthly": "{price}/شهريًا",
+    "daysRemaining": "{n} يوم حتى التجديد",
+    "expired": "انتهت صلاحية هذه الخطة.",
+    "graceWarning": "انتهى اشتراكك — أنت الآن في فترة السماح. جدّده قريبًا للحفاظ على الميزات المدفوعة.",
+    "upgradeCta": "عرض الخطط"
+  },
   "botPluginData": {
     "loading": "جارٍ التحميل…",
     "errorGeneric": "حدث خطأ. يرجى المحاولة مرة أخرى.",

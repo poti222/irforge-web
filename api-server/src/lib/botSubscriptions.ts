@@ -97,3 +97,79 @@ export async function planHasFeature(spreadsheetId: string, featureKey: string, 
 // display name/price), but the tab constant is exported so a future caller
 // doesn't have to re-derive the bot's exact tab name.
 export { SUBSCRIPTION_PLANS_TAB };
+
+// ─── IRFORGE_PROMPT_V3 Phase 32 — dashboard plan card ────────────────────────
+// The overview section's cards (BotIdentityCard, BotHealthCard, ...) had
+// nothing showing an operator their own plan, price, or renewal date --
+// display-only, since actually changing plans is a separate flow. Mirrors
+// `utils/subscriptions.py::DEFAULT_PLANS`'s name/price fields (that module's
+// FEATURE lists are already mirrored above as DEFAULT_PLAN_FEATURES).
+
+type PlanRow = { plan_id: string; name?: string; price_monthly?: number };
+
+const DEFAULT_PLAN_META: Record<string, { name: string; priceMonthly: number }> = {
+  bronze: { name: "برنزی", priceMonthly: 0 },
+  silver: { name: "نقره‌ای", priceMonthly: 99 },
+  gold: { name: "طلایی", priceMonthly: 199 },
+  diamond: { name: "الماسی", priceMonthly: 399 },
+};
+
+export type SubscriptionSummary = {
+  planId: string;
+  planName: string;
+  priceMonthly: number;
+  status: string;
+  currentPeriodEnd: string | null;
+  inGrace: boolean;
+  /** null when the plan has no expiry to count down to (e.g. the free plan,
+   * or a paid plan whose period end was never set). */
+  daysRemaining: number | null;
+};
+
+/** Read-only summary for the dashboard plan card -- distinct from
+ * `effectivePlanId`/`planHasFeature` above, which answer "is X unlocked
+ * right now" for a gate, not "what should the operator see". */
+export async function getSubscriptionSummary(spreadsheetId: string): Promise<SubscriptionSummary> {
+  let sub: TenantSubscriptionRow | null = null;
+  try {
+    sub = await getEntity<TenantSubscriptionRow>(spreadsheetId, TENANT_SUBSCRIPTIONS_TAB, spreadsheetId);
+  } catch {
+    sub = null;
+  }
+
+  const planId = sub?.plan_id || FREE_PLAN;
+  const status = sub?.status || "active";
+  const currentPeriodEnd = sub?.current_period_end || null;
+  const grace = sub ? inGrace(sub) : false;
+
+  let planMeta = DEFAULT_PLAN_META[planId] ?? { name: planId, priceMonthly: 0 };
+  try {
+    const row = await getEntity<PlanRow>(spreadsheetId, SUBSCRIPTION_PLANS_TAB, planId);
+    if (row) {
+      planMeta = {
+        name: row.name || planMeta.name,
+        priceMonthly: typeof row.price_monthly === "number" ? row.price_monthly : planMeta.priceMonthly,
+      };
+    }
+  } catch {
+    // subscription_plans tab not seeded yet (lazy, like every plugin_db
+    // sheet) -- the code defaults above stand in until the bot's own
+    // `_ensure_seeded()` runs on its next read.
+  }
+
+  let daysRemaining: number | null = null;
+  if (currentPeriodEnd) {
+    const end = new Date(currentPeriodEnd).getTime();
+    if (!Number.isNaN(end)) daysRemaining = Math.ceil((end - Date.now()) / (24 * 60 * 60 * 1000));
+  }
+
+  return {
+    planId,
+    planName: planMeta.name,
+    priceMonthly: planMeta.priceMonthly,
+    status,
+    currentPeriodEnd,
+    inGrace: grace,
+    daysRemaining,
+  };
+}

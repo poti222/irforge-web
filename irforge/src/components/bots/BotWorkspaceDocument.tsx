@@ -71,6 +71,7 @@ import { LoyaltySection } from "@/components/bots/loyalty/LoyaltySection";
 // سکشن عمومیِ پلاگین‌های تازه — جدول‌هایش از اسکیمای سرور ساخته می‌شوند.
 import { PluginSection } from "@/components/bots/plugins/PluginSection";
 import { BotHealthCard } from "@/components/bots/BotHealthCard";
+import { BotPlanCard } from "@/components/bots/BotPlanCard";
 import { BotAdminCodeCard } from "@/components/bots/BotAdminCodeCard";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
@@ -425,6 +426,8 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
                 {/* فاز ۲۴ — سلامت بات: شکست‌های بی‌صدا را قبل از اینکه کاربرِ
                     بات به آن‌ها بخورد نشان می‌دهد. */}
                 <BotHealthCard bot={bot} />
+                {/* فاز ۳۲ — پلن و اشتراک: پلنِ فعلی، قیمت، و روزهای باقی‌مانده. */}
+                <BotPlanCard bot={bot} />
                 <BotAdminCodeCard bot={bot} />
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

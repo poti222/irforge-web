@@ -2566,6 +2566,19 @@
     "infraQueueOn": "صف پیام همگانی وصل است",
     "infraQueueOff": "صف پیام همگانی پیکربندی نشده"
   },
+  "botPlan": {
+    "loading": "در حال بارگذاریِ پلن…",
+    "title": "پلن و اشتراک",
+    "statusActive": "فعال",
+    "statusPastDue": "پرداخت معوق",
+    "statusCanceled": "لغوشده",
+    "statusGrace": "دورهٔ مهلت",
+    "priceMonthly": "{price} در ماه",
+    "daysRemaining": "{n} روز تا تمدید",
+    "expired": "این پلن منقضی شده است.",
+    "graceWarning": "اشتراک شما منقضی شده — در دورهٔ مهلت هستید. برای حفظ قابلیت‌های پولی، هرچه زودتر تمدید کنید.",
+    "upgradeCta": "مشاهدهٔ پلن‌ها"
+  },
   "botPluginData": {
     "loading": "در حال بارگذاری…",
     "errorGeneric": "خطایی رخ داد. لطفاً دوباره تلاش کنید.",

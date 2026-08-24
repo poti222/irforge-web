@@ -2566,6 +2566,19 @@
     "infraQueueOn": "broadcast queue connected",
     "infraQueueOff": "broadcast queue not configured"
   },
+  "botPlan": {
+    "loading": "Loading plan…",
+    "title": "Plan & Subscription",
+    "statusActive": "Active",
+    "statusPastDue": "Payment overdue",
+    "statusCanceled": "Canceled",
+    "statusGrace": "Grace period",
+    "priceMonthly": "{price}/month",
+    "daysRemaining": "{n} day(s) until renewal",
+    "expired": "This plan has expired.",
+    "graceWarning": "Your subscription has expired — you're in the grace period. Renew soon to keep your paid features.",
+    "upgradeCta": "View plans"
+  },
   "botPluginData": {
     "loading": "Loading…",
     "errorGeneric": "Something went wrong. Please try again.",

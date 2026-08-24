@@ -2566,6 +2566,19 @@
     "infraQueueOn": "toplu mesaj kuyruğu bağlı",
     "infraQueueOff": "toplu mesaj kuyruğu yapılandırılmamış"
   },
+  "botPlan": {
+    "loading": "Plan yükleniyor…",
+    "title": "Plan ve Abonelik",
+    "statusActive": "Etkin",
+    "statusPastDue": "Ödeme gecikti",
+    "statusCanceled": "İptal edildi",
+    "statusGrace": "Ek süre",
+    "priceMonthly": "{price}/ay",
+    "daysRemaining": "Yenilemeye {n} gün kaldı",
+    "expired": "Bu planın süresi doldu.",
+    "graceWarning": "Aboneliğinizin süresi doldu — ek süre içindesiniz. Ücretli özellikleri korumak için en kısa zamanda yenileyin.",
+    "upgradeCta": "Planları görüntüle"
+  },
   "botPluginData": {
     "loading": "Yükleniyor…",
     "errorGeneric": "Bir hata oluştu. Lütfen tekrar deneyin.",
