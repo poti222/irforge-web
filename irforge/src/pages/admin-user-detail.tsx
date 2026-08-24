@@ -24,6 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { isRtlLang } from "@/lib/i18n";
+import { auditActionLabel, describeAuditDetail } from "@/lib/auditLog";
 
 /**
  * جزئیات کاربر برای super_admin.
@@ -374,20 +375,24 @@ export default function AdminUserDetail() {
           <Card>
             <CardContent className="space-y-2 p-5">
               {audit && audit.length > 0 ? (
-                audit.map((a) => (
-                  <div key={a.id} className="rounded-md border p-3 text-sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">{a.action}</Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(a.createdAt).toLocaleString(fa ? "fa-IR" : "en-US")}
-                      </span>
+                audit.map((a) => {
+                  const detail = describeAuditDetail(a.action, a.metadata, fa);
+                  return (
+                    <div key={a.id} className="rounded-md border p-3 text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">{auditActionLabel(a.action, fa)}</Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(a.createdAt).toLocaleString(fa ? "fa-IR" : "en-US")}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {fa ? "توسط" : "by"} {a.actor?.name ?? a.actor?.id}
+                      </p>
+                      {detail && <p className="mt-1 font-medium">{detail}</p>}
+                      {a.reason && <p className="mt-1 text-muted-foreground">{a.reason}</p>}
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {fa ? "توسط" : "by"} {a.actor?.name ?? a.actor?.id}
-                    </p>
-                    {a.reason && <p className="mt-1">{a.reason}</p>}
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <p className="py-6 text-center text-sm text-muted-foreground">
                   {fa ? "هنوز اقدامی ثبت نشده." : "No actions recorded yet."}
