@@ -30,6 +30,15 @@ type Ticket = {
   created_at?: string;
   updated_at?: string;
   messageCount: number;
+  /** IRFORGE_PROMPT_V3 Phase 24 — آینه‌ی plugins/ticket/domain.py::priority. */
+  priority?: string;
+};
+
+const PRIORITY_BADGE_CLASS: Record<string, string> = {
+  urgent: "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400",
+  high: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  normal: "",
+  low: "",
 };
 
 type TicketAttachment = {
@@ -125,6 +134,19 @@ function TicketThread({ botId, ticketId, onBack }: { botId: string; ticketId: st
     },
   });
 
+  const setPriority = useMutation({
+    mutationFn: (priority: string) =>
+      customFetch(`/api/bots/${botId}/support-tickets/${ticketId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ priority }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: key });
+      qc.invalidateQueries({ queryKey: ["bot-support-tickets", botId] });
+      toast({ title: t.priorityUpdated });
+    },
+  });
+
   if (isLoading || !data) return <Loader2 className="size-5 animate-spin text-muted-foreground" />;
 
   return (
@@ -136,6 +158,14 @@ function TicketThread({ botId, ticketId, onBack }: { botId: string; ticketId: st
         <h3 className="min-w-0 flex-1 truncate text-lg font-semibold">
           {data.ticket.subject || t.noSubject}
         </h3>
+        <Select value={data.ticket.priority ?? "normal"} onValueChange={(v) => setPriority.mutate(v)}>
+          <SelectTrigger className="w-auto min-w-28"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {["urgent", "high", "normal", "low"].map((p) => (
+              <SelectItem key={p} value={p}>{(t[`priority_${p}` as keyof typeof t] as string) ?? p}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={data.ticket.status} onValueChange={(v) => setStatus.mutate(v)}>
           <SelectTrigger className="w-auto min-w-32"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -293,6 +323,11 @@ export function TicketsSection({ bot }: { bot: Bot }) {
               >
                 <LifeBuoy className="size-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate">{ticket.subject || t.noSubject}</span>
+                {(ticket.priority === "urgent" || ticket.priority === "high") && (
+                  <Badge variant="outline" className={PRIORITY_BADGE_CLASS[ticket.priority]}>
+                    {(t[`priority_${ticket.priority}` as keyof typeof t] as string) ?? ticket.priority}
+                  </Badge>
+                )}
                 <Badge variant={ticket.status === "closed" ? "secondary" : "default"}>
                   {(t[`status_${ticket.status}` as keyof typeof t] as string) ?? ticket.status}
                 </Badge>

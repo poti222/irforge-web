@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 process.env.DATABASE_URL ??= "postgresql://test:test@127.0.0.1:1/testdb";
 
 const { __testables } = await import("../src/routes/botSupportTickets.ts");
-const { nextTicketStatusAfterAdminReply, ticketPatchAfterAdminReply } = __testables;
+const { nextTicketStatusAfterAdminReply, ticketPatchAfterAdminReply, priorityRank } = __testables;
 
 test("پاسخِ ادمین: open یا reopened به assigned می‌رود", () => {
   assert.equal(nextTicketStatusAfterAdminReply("open"), "assigned");
@@ -55,4 +55,16 @@ test("message_count نبود (تیکتِ قدیمی) از صفر شروع می�
   const message = { id: "m2", ticket_id: "t2", sender_type: "admin", sender_id: "admin1", text: "hi", timestamp: "2026-08-23T10:00:00.000Z" };
   const patch = ticketPatchAfterAdminReply(ticket, message);
   assert.equal(patch.message_count, 1);
+});
+
+// ─── priority (فاز ۲۴) ──────────────────────────────────────────────────────
+
+test("ترتیبِ اولویت دقیقاً آینه‌ی PRIORITY_RANK بات است: فوری < بالا < عادی < کم", () => {
+  assert.ok(priorityRank("urgent") < priorityRank("high"));
+  assert.ok(priorityRank("high") < priorityRank("normal"));
+  assert.ok(priorityRank("normal") < priorityRank("low"));
+});
+
+test("اولویتِ نامعتبر/نبوده مثل «عادی» رفتار می‌کند", () => {
+  assert.equal(priorityRank(undefined), priorityRank("normal"));
 });

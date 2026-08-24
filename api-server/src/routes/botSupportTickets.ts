@@ -43,6 +43,21 @@ const MESSAGES_TAB = "ticket_messages";
 export const TICKET_STATUSES = ["open", "assigned", "closed", "reopened", "escalated"] as const;
 const ACTIVE_STATUSES = new Set(["open", "assigned", "reopened", "escalated"]);
 
+/**
+ * آینه‌ی `plugins/ticket/domain.py::PRIORITIES`/`PRIORITY_RANK` —
+ * IRFORGE_PROMPT_V3 Phase 24. اولویت، افزودنیِ اصلیِ این پلاگین نسبت به
+ * سیستم پایه‌ی تیکتِ Core است؛ تا امروز فقط از داخل بات قابل دیدن/تنظیم
+ * بود — سایت اصلاً این فیلد را نمی‌خواند یا نمی‌نوشت، پس ادمینی که فقط از
+ * سایت کار می‌کند، هیچ‌وقت نمی‌دید کدام تیکت فوری است.
+ */
+export const TICKET_PRIORITIES = ["urgent", "high", "normal", "low"] as const;
+const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+const DEFAULT_PRIORITY = "normal";
+
+function priorityRank(priority: string | undefined): number {
+  return PRIORITY_RANK[priority ?? DEFAULT_PRIORITY] ?? 9;
+}
+
 type Ticket = {
   id: string;
   tenant_id?: string;
@@ -53,6 +68,7 @@ type Ticket = {
   message_thread_id?: number | null;
   created_at?: string;
   updated_at?: string;
+  priority?: string;
   // آینه‌ی plugins/ticket/domain.py::add_message — IRFORGE_PROMPT_V3 Phase 23.
   // این سه فیلد قبلاً اینجا اصلاً نوشته نمی‌شدند، پس پاسخِ ادمین از سایت
   // "last_sender_role" را روی "user" و "last_message_at" را روی قدیمی جا
@@ -125,13 +141,22 @@ router.get("/bots/:botId/support-tickets", requireAuth, async (req: any, res) =>
       );
     }
 
-    tickets.sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")));
+    // IRFORGE_PROMPT_V3 Phase 24 — اول اولویت (فوری بالاتر از عادی)، بعد
+    // جدیدترین فعالیت — همان قاعده‌ی صفِ بات (`plugins/ticket/domain.py::
+    // queue`'s "اول اولویت، بعد قدیمی‌ترین")، با این تفاوت که اینجا برای
+    // یک نمای زنده‌ی «چه چیزی همین الان مهم‌تر است»، تازه‌ترین فعالیت به‌جای
+    // قدیمی‌ترینِ ثبت به‌عنوان تای‌برک دومی معنادارتر است.
+    tickets.sort((a, b) => {
+      const byPriority = priorityRank(a.priority) - priorityRank(b.priority);
+      if (byPriority !== 0) return byPriority;
+      return String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? ""));
+    });
 
     const counts: Record<string, number> = { all: rows.length };
     for (const s of TICKET_STATUSES) counts[s] = rows.filter((r) => r.value.status === s).length;
     counts.active = rows.filter((r) => ACTIVE_STATUSES.has(r.value.status)).length;
 
-    res.json({ tickets, counts, statuses: TICKET_STATUSES });
+    res.json({ tickets, counts, statuses: TICKET_STATUSES, priorities: TICKET_PRIORITIES });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to list support tickets");
   }
@@ -273,6 +298,12 @@ router.patch("/bots/:botId/support-tickets/:ticketId", requireAuth, async (req: 
         throw new BotConfigError(400, `وضعیت «${status}» معتبر نیست.`, "bad_status");
       next.status = status;
     }
+    if ("priority" in body) {
+      const priority = String(body.priority);
+      if (!(TICKET_PRIORITIES as readonly string[]).includes(priority))
+        throw new BotConfigError(400, `اولویتِ «${priority}» معتبر نیست.`, "bad_priority");
+      next.priority = priority;
+    }
     if ("assigned_admin_id" in body) {
       const assignee = String(body.assigned_admin_id ?? "").trim();
       // ارجاع به کسی که ادمین این بات نیست، یک ارجاع مرده است.
@@ -294,6 +325,6 @@ router.patch("/bots/:botId/support-tickets/:ticketId", requireAuth, async (req: 
   }
 });
 
-export const __testables = { nextTicketStatusAfterAdminReply, ticketPatchAfterAdminReply };
+export const __testables = { nextTicketStatusAfterAdminReply, ticketPatchAfterAdminReply, priorityRank };
 
 export default router;

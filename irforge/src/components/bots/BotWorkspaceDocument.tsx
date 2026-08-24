@@ -63,6 +63,7 @@ import { DripSection } from "@/components/bots/drip/DripSection";
 import { CrmSection } from "@/components/bots/crm/CrmSection";
 import { SurveySection } from "@/components/bots/survey/SurveySection";
 import { GiveawaySection } from "@/components/bots/giveaway/GiveawaySection";
+import { LoyaltySection } from "@/components/bots/loyalty/LoyaltySection";
 // سکشن عمومیِ پلاگین‌های تازه — جدول‌هایش از اسکیمای سرور ساخته می‌شوند.
 import { PluginSection } from "@/components/bots/plugins/PluginSection";
 import { BotHealthCard } from "@/components/bots/BotHealthCard";
@@ -453,7 +454,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "workflows" && <WorkflowsSection bot={bot} />}
             {section === "language" && <LanguageSection bot={bot} />}
             {section === "tickets" && <TicketsSection bot={bot} />}
-            {section === "loyalty" && <PluginSection bot={bot} plugin="loyalty" />}
+            {section === "loyalty" && <LoyaltySection bot={bot} />}
             {section === "booking" && <BookingSection bot={bot} />}
             {section === "addresses" && <AddressesSection bot={bot} />}
             {section === "subscriptions" && <PluginSection bot={bot} plugin="subscription" />}

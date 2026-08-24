@@ -61,6 +61,7 @@ import crmRouter from "./crm.js";
 import surveyRouter from "./survey.js";
 import giveawayRouter from "./giveaway.js";
 import supportLinksRouter from "./supportLinks.js";
+import loyaltySettingsRouter from "./loyaltySettings.js";
 
 const router: IRouter = Router();
 
@@ -119,5 +120,6 @@ router.use(crmRouter);
 router.use(surveyRouter);
 router.use(giveawayRouter);
 router.use(supportLinksRouter);
+router.use(loyaltySettingsRouter);
 
 export default router;
