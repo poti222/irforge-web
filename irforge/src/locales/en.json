@@ -1140,36 +1140,7 @@
     "intro": "Plans, what each one includes, and how billing works. Every plan is for one hosted Telegram bot builder account; bots are added per package.",
     "breadcrumbLabel": "Breadcrumb",
     "tiersTitle": "The plans",
-    "tiers": {
-      "trial": {
-        "name": "Trial",
-        "description": "Try a bot before committing to a package.",
-        "features": [
-          "One bot, time-limited",
-          "Commands and plugins",
-          "Notifications before the trial ends"
-        ]
-      },
-      "starter": {
-        "name": "Starter",
-        "description": "A single live bot for a small shop or support desk.",
-        "features": [
-          "One production bot",
-          "Google Sheets as your database",
-          "Standard support"
-        ]
-      },
-      "growth": {
-        "name": "Growth",
-        "description": "More bots and more room as usage grows.",
-        "features": [
-          "Multiple bots",
-          "Higher resource allocation",
-          "Priority support"
-        ]
-      }
-    },
-    "priceNote": "Real figures for the Silver, Gold and Diamond packages are shown on the home page, and the buy-bot screen quotes the same numbers once you sign in. Subscription plans below are set per account and can change, so this page does not quote a figure for them.",
+    "priceNote": "These are the current, live plan prices — the same ones shown once you sign in. Real figures for the Silver, Gold and Diamond bot packages are shown on the home page.",
     "faqTitle": "Billing questions",
     "faq": [
       {

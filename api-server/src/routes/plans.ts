@@ -34,22 +34,16 @@ function slugify(s: string): string {
 }
 
 // GET /api/plans
-router.get("/plans", requireAuth, async (req: any, res) => {
+// IRFORGE_PROMPT_V3 Phase 44 — public on purpose: a plan's name/price/
+// features/limits are exactly what the public /pricing page needs to show
+// real numbers instead of the qualitative-only placeholder it shipped with
+// (see that page's own header comment, and structured-data.ts's note on why
+// `offers` stays omitted). Nothing here is per-user; only /plans/current and
+// /plans/subscribe — which actually touch an account — stay requireAuth.
+router.get("/plans", async (req: any, res) => {
   try {
     const plans = await db.select().from(plansTable);
-    res.json(plans.map(p => ({
-      id: p.id,
-      name: p.name,
-      price: p.price,
-      interval: p.interval,
-      features: p.features,
-      maxBots: p.maxBots,
-      maxPlugins: p.maxPlugins,
-      maxUsers: p.maxUsers,
-      ramGb: p.ramGb,
-      cpuCores: p.cpuCores,
-      popular: p.popular,
-    })));
+    res.json(plans.map(formatPlan));
   } catch (err) {
     logger.error({ err }, "List plans error");
     res.status(500).json({ error: "Internal server error" });

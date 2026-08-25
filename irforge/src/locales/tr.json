@@ -1140,36 +1140,7 @@
     "intro": "Planlar, her birinin içeriği ve faturalamanın işleyişi. Her plan tek bir hesap içindir; botlar paketlerle eklenir.",
     "breadcrumbLabel": "Sayfa yolu",
     "tiersTitle": "Planlar",
-    "tiers": {
-      "trial": {
-        "name": "Deneme",
-        "description": "Bir pakete bağlanmadan önce bir botu deneyin.",
-        "features": [
-          "Süre sınırlı tek bot",
-          "Komutlar ve eklentiler",
-          "Deneme bitmeden önce bildirim"
-        ]
-      },
-      "starter": {
-        "name": "Başlangıç",
-        "description": "Küçük bir mağaza veya destek masası için tek canlı bot.",
-        "features": [
-          "Tek üretim botu",
-          "Veritabanı olarak Google Sheets",
-          "Standart destek"
-        ]
-      },
-      "growth": {
-        "name": "Büyüme",
-        "description": "Kullanım arttıkça daha fazla bot ve daha fazla alan.",
-        "features": [
-          "Birden fazla bot",
-          "Daha yüksek kaynak tahsisi",
-          "Öncelikli destek"
-        ]
-      }
-    },
-    "priceNote": "Gümüş, Altın ve Elmas paketlerinin gerçek fiyatları ana sayfada yazılıdır; giriş yaptıktan sonra bot satın alma ekranı da aynı sayıları gösterir. Aşağıdaki abonelik planları hesap bazında belirlenir ve değişebilir, bu yüzden bu sayfa onlar için bir fiyat vermez.",
+    "priceNote": "Bunlar güncel, gerçek plan fiyatları — giriş yaptıktan sonra görülenlerle aynı. Gümüş, Altın ve Elmas paketlerinin gerçek fiyatları da ana sayfada yazılıdır.",
     "faqTitle": "Faturalama soruları",
     "faq": [
       {
