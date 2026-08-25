@@ -29,7 +29,8 @@ import { Check, Loader2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
-import { formatToman } from "@/lib/format";
+import { useCurrency } from "@/hooks/use-currency";
+import { formatToman, formatConvertedAmount } from "@/lib/format";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 
 type Relation = "current" | "renew" | "upgrade" | "downgrade" | "subscribe";
@@ -49,6 +50,7 @@ function relationOf(plan: Plan, plans: Plan[] | undefined, current: { planId: st
 export default function Plans() {
   const t = useT("plans");
   const { lang } = useLanguage();
+  const { activeRate } = useCurrency();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
@@ -136,6 +138,9 @@ export default function Plans() {
                       <>{formatToman(plan.price, lang)} <span className="text-sm font-normal text-muted-foreground">{intervalSuffix(plan.interval)}</span></>
                     ) : t.free}
                   </CardDescription>
+                  {plan.price > 0 && activeRate && (
+                    <p className="text-xs text-muted-foreground">{formatConvertedAmount(plan.price, activeRate, lang)}</p>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">

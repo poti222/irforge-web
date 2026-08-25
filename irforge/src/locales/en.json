@@ -2618,6 +2618,10 @@
     "successDowngrade": "Switched to \"{plan}\".",
     "successRenew": "\"{plan}\" renewed."
   },
+  "currency": {
+    "tomanOnly": "Toman only",
+    "switchAria": "Switch display currency"
+  },
   "botPluginData": {
     "loading": "Loading…",
     "errorGeneric": "Something went wrong. Please try again.",

@@ -253,3 +253,90 @@ export async function setSupportLinks(
     });
   return value;
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  نمایشِ چندارزی — IRFORGE_PROMPT_V3 Phase 39
+// ══════════════════════════════════════════════════════════════════════════
+//
+// تومان تنها ارزِ واقعیِ این پلتفرم می‌ماند — هیچ کیف‌پول یا خریدی به ارزِ
+// دیگری شارژ/کسر نمی‌شود. این تنظیم فقط می‌گوید «قیمت‌های محصول (پلن‌ها،
+// پلاگین‌ها) علاوه بر تومان، تقریبی‌شان به کدام ارزها هم نشان داده شود» —
+// یک لایه‌ی نمایشیِ محض، دقیقاً همان‌طور که صفحه‌ی کیف‌پول همین امروز نرخ
+// دلاریِ تتر را کنار آدرسِ واریز نشان می‌دهد (`usdt.tomanPerUsdt` بالا).
+//
+// بدون ردیفِ ذخیره‌شده، پیش‌فرض تهی نیست: اگر همان نرخِ تتر تنظیم شده باشد،
+// همان به‌عنوانِ نرخِ دلار پیشنهاد می‌شود — چون تتر روی دلار پگ است و از قبل
+// یک عدد واقعی و به‌روز است؛ گفتنِ دوباره‌ی همان عدد در یک تنظیمِ جدا فقط دو
+// جا برای هم‌ نبودن می‌ساخت. به‌محضِ اینکه سوپرادمین این تنظیم را صریح ذخیره
+// کند (حتی با فهرستِ خالی)، همان مقدارِ ذخیره‌شده حرفِ آخر است.
+
+export const CURRENCY_DISPLAY_KEY = "currency_display";
+
+export type CurrencyRate = {
+  /** مثلاً "USD" — فقط حروفِ بزرگِ لاتین، ۲ تا ۵ کاراکتر. */
+  code: string;
+  /** برچسبِ نمایشی، مثلاً "دلار آمریکا". */
+  label: string;
+  /** هر ۱ واحدِ این ارز چند تومان است. */
+  tomanPerUnit: number;
+};
+
+export type CurrencyDisplaySettings = { rates: CurrencyRate[] };
+
+const CODE_RE = /^[A-Z]{2,5}$/;
+
+function mergeCurrencyRates(raw: unknown): CurrencyRate[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CurrencyRate[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const code = typeof (item as any).code === "string" ? (item as any).code.trim().toUpperCase() : "";
+    const label = typeof (item as any).label === "string" ? (item as any).label.trim() : "";
+    const tomanPerUnit = Number((item as any).tomanPerUnit);
+    // کدِ نامعتبر، برچسبِ خالی، یا نرخِ غیرمثبت — یک ردیفِ نیمه‌پر هرگز ذخیره نمی‌شود.
+    if (!CODE_RE.test(code) || !label || !Number.isFinite(tomanPerUnit) || tomanPerUnit <= 0) continue;
+    if (seen.has(code)) continue; // یک کد دوبار — اولی می‌ماند
+    seen.add(code);
+    out.push({ code, label: label.slice(0, 40), tomanPerUnit });
+  }
+  return out;
+}
+
+/** هرگز throw نمی‌کند — صفحاتِ قیمت نباید به‌خاطر این تنظیم ۵۰۰ بدهند. */
+export async function getCurrencyDisplay(): Promise<CurrencyDisplaySettings> {
+  try {
+    const [row] = await db
+      .select()
+      .from(platformSettingsTable)
+      .where(eq(platformSettingsTable.key, CURRENCY_DISPLAY_KEY))
+      .limit(1);
+    if (row) return { rates: mergeCurrencyRates(JSON.parse(row.value)?.rates) };
+
+    // هیچ‌وقت ذخیره نشده — نرخِ تترِ از قبل تنظیم‌شده را به‌عنوانِ دلار پیشنهاد بده.
+    const payment = await getPaymentMethods();
+    if (payment.usdt.tomanPerUsdt > 0) {
+      return { rates: [{ code: "USD", label: "دلار آمریکا", tomanPerUnit: payment.usdt.tomanPerUsdt }] };
+    }
+    return { rates: [] };
+  } catch (err) {
+    logger.warn({ err }, "getCurrencyDisplay failed — falling back to no extra currencies");
+    return { rates: [] };
+  }
+}
+
+export async function setCurrencyDisplay(
+  input: unknown,
+  updatedBy: string,
+): Promise<CurrencyDisplaySettings> {
+  const rawRates = input && typeof input === "object" ? (input as any).rates : input;
+  const value: CurrencyDisplaySettings = { rates: mergeCurrencyRates(rawRates) };
+  await db
+    .insert(platformSettingsTable)
+    .values({ key: CURRENCY_DISPLAY_KEY, value: JSON.stringify(value), updatedBy })
+    .onConflictDoUpdate({
+      target: platformSettingsTable.key,
+      set: { value: JSON.stringify(value), updatedBy, updatedAt: new Date() },
+    });
+  return value;
+}

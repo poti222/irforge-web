@@ -2618,6 +2618,10 @@
     "successDowngrade": "پلن شما به «{plan}» تغییر کرد.",
     "successRenew": "پلن «{plan}» تمدید شد."
   },
+  "currency": {
+    "tomanOnly": "فقط تومان",
+    "switchAria": "تغییر واحد نمایش قیمت"
+  },
   "botPluginData": {
     "loading": "در حال بارگذاری…",
     "errorGeneric": "خطایی رخ داد. لطفاً دوباره تلاش کنید.",

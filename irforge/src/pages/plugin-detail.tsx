@@ -33,8 +33,9 @@ import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
+import { useCurrency } from "@/hooks/use-currency";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
-import { formatToman } from "@/lib/format";
+import { formatToman, formatConvertedAmount } from "@/lib/format";
 import { pluginName, pluginDescription } from "@/lib/plugin-text";
 import { SECTION_LABEL_KEYS } from "@/lib/plugin-sections";
 import {
@@ -54,6 +55,7 @@ export default function PluginDetail() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const BackArrow = fa ? ArrowRight : ArrowLeft;
+  const { activeRate } = useCurrency();
   const { toast } = useToast();
 
   const { data, isLoading, error } = usePluginLicences();
@@ -166,6 +168,9 @@ export default function PluginDetail() {
                   <Badge variant={plugin.isFree ? "secondary" : "default"}>
                     {plugin.isFree ? t.free : formatToman(plugin.price, lang)}
                   </Badge>
+                  {!plugin.isFree && activeRate && (
+                    <span className="text-muted-foreground">{formatConvertedAmount(plugin.price, activeRate, lang)}</span>
+                  )}
                   {plugin.owned && (
                     <Badge variant="secondary" className="gap-1">
                       <Check className="size-3" /> {t.purchased}
@@ -322,6 +327,11 @@ export default function PluginDetail() {
                       : `${t.buy} — ${formatToman(plugin.price * Math.max(selectedBotIds.length, 1), lang)}`
                         + (selectedBotIds.length > 1 ? ` (${selectedBotIds.length})` : "")}
                   </Button>
+                  {!plugin.isFree && activeRate && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatConvertedAmount(plugin.price * Math.max(selectedBotIds.length, 1), activeRate, lang)}
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">{t.paidFromWallet}</p>
                 </>
               )}

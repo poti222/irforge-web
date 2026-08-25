@@ -2618,6 +2618,10 @@
     "successDowngrade": "\"{plan}\" planına geçildi.",
     "successRenew": "\"{plan}\" yenilendi."
   },
+  "currency": {
+    "tomanOnly": "Sadece Toman",
+    "switchAria": "Görüntülenen para birimini değiştir"
+  },
   "botPluginData": {
     "loading": "Yükleniyor…",
     "errorGeneric": "Bir hata oluştu. Lütfen tekrar deneyin.",

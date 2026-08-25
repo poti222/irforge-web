@@ -2618,6 +2618,10 @@
     "successDowngrade": "تم التبديل إلى «{plan}».",
     "successRenew": "تم تجديد «{plan}»."
   },
+  "currency": {
+    "tomanOnly": "التومان فقط",
+    "switchAria": "تغيير عملة العرض"
+  },
   "botPluginData": {
     "loading": "جارٍ التحميل…",
     "errorGeneric": "حدث خطأ. يرجى المحاولة مرة أخرى.",

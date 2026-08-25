@@ -2618,6 +2618,10 @@
     "successDowngrade": "Тариф изменён на «{plan}».",
     "successRenew": "Тариф «{plan}» продлён."
   },
+  "currency": {
+    "tomanOnly": "Только туман",
+    "switchAria": "Сменить валюту отображения"
+  },
   "botPluginData": {
     "loading": "Загрузка…",
     "errorGeneric": "Произошла ошибка. Попробуйте снова.",

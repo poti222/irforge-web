@@ -31,7 +31,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
-import { formatToman } from "@/lib/format";
+import { useCurrency } from "@/hooks/use-currency";
+import { formatToman, formatConvertedAmount } from "@/lib/format";
 import { pluginName, pluginDescription } from "@/lib/plugin-text";
 import { SECTION_LABEL_KEYS } from "@/lib/plugin-sections";
 import {
@@ -264,6 +265,7 @@ function AvailableCard({
   const t = useT("botPlugins");
   const tw = useT("botWorkspace");
   const { lang } = useLanguage();
+  const { activeRate } = useCurrency();
   const { toast } = useToast();
 
   const buy = useBuyPluginForBots();
@@ -330,6 +332,9 @@ function AvailableCard({
         <CardDescription className="line-clamp-2">
           {pluginDescription(plugin, lang)}
         </CardDescription>
+        {!plugin.isFree && activeRate && (
+          <p className="text-[11px] text-muted-foreground">{formatConvertedAmount(plugin.price, activeRate, lang)}</p>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-3 text-xs">

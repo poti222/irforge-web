@@ -200,3 +200,77 @@ test("support_links: label/url بلند به سقفِ طول برش می‌خو�
   assert.equal(saved.tutorialLinks[0].label.length, 80);
   assert.equal(saved.tutorialLinks[0].url.length, 500);
 });
+
+// ─── currency_display (فاز ۳۹) ──────────────────────────────────────────────
+
+test("currency_display: بدون ردیف و بدون نرخِ تتر → فهرستِ خالی", async () => {
+  delete process.env.USDT_TOMAN_RATE;
+  installDb(null);
+
+  const settings = await mod.getCurrencyDisplay();
+  assert.deepEqual(settings.rates, []);
+});
+
+test("currency_display: بدون ردیفِ ذخیره‌شده، ولی نرخِ تتر تنظیم شده → دلار از همان نرخ پیشنهاد می‌شود", async () => {
+  process.env.USDT_TOMAN_RATE = "850000";
+  installDb(null);
+
+  const settings = await mod.getCurrencyDisplay();
+  assert.equal(settings.rates.length, 1);
+  assert.equal(settings.rates[0].code, "USD");
+  assert.equal(settings.rates[0].tomanPerUnit, 850000);
+  delete process.env.USDT_TOMAN_RATE;
+});
+
+test("currency_display: ردیفِ ذخیره‌شده حرفِ آخر است، حتی اگر نرخِ تتر هم تنظیم شده باشد", async () => {
+  process.env.USDT_TOMAN_RATE = "850000";
+  installDb(fakeRow(mod.CURRENCY_DISPLAY_KEY, { rates: [{ code: "EUR", label: "یورو", tomanPerUnit: 900000 }] }));
+
+  const settings = await mod.getCurrencyDisplay();
+  assert.equal(settings.rates.length, 1);
+  assert.equal(settings.rates[0].code, "EUR");
+  assert.equal(settings.rates[0].tomanPerUnit, 900000);
+  delete process.env.USDT_TOMAN_RATE;
+});
+
+test("currency_display: خطای دیتابیس → فهرستِ خالی، بدون throw", async () => {
+  installDb(() => { throw new Error("ECONNREFUSED"); });
+
+  const settings = await mod.getCurrencyDisplay();
+  assert.deepEqual(settings.rates, []);
+});
+
+test("currency_display: کدِ نامعتبر یا برچسبِ خالی یا نرخِ غیرمثبت هرگز ذخیره نمی‌شود", async () => {
+  const inserted = installDb(null);
+
+  const saved = await mod.setCurrencyDisplay({
+    rates: [
+      { code: "U1", label: "دلار", tomanPerUnit: 850000 },        // کد باید فقط حروف باشد -> رد
+      { code: "USD", label: "", tomanPerUnit: 850000 },           // برچسبِ خالی -> رد
+      { code: "USD", label: "دلار", tomanPerUnit: 0 },            // نرخِ غیرمثبت -> رد
+      { code: "USD", label: "دلار آمریکا", tomanPerUnit: 850000 }, // معتبر
+    ],
+  }, "admin_1");
+
+  assert.equal(saved.rates.length, 1);
+  assert.equal(saved.rates[0].code, "USD");
+  assert.equal(inserted[0].value.key, mod.CURRENCY_DISPLAY_KEY);
+});
+
+test("currency_display: کدِ کوچک خودکار بزرگ می‌شود", async () => {
+  installDb(null);
+  const saved = await mod.setCurrencyDisplay({ rates: [{ code: "usd", label: "دلار", tomanPerUnit: 1 }] }, "admin_1");
+  assert.equal(saved.rates[0].code, "USD");
+});
+
+test("currency_display: کدِ تکراری فقط یک‌بار می‌ماند", async () => {
+  installDb(null);
+  const saved = await mod.setCurrencyDisplay({
+    rates: [
+      { code: "USD", label: "اول", tomanPerUnit: 850000 },
+      { code: "USD", label: "دوم", tomanPerUnit: 900000 },
+    ],
+  }, "admin_1");
+  assert.equal(saved.rates.length, 1);
+  assert.equal(saved.rates[0].label, "اول");
+});
