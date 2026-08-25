@@ -2,6 +2,7 @@ import { useEffect, lazy, Suspense } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
 import { navigate } from "wouter/use-browser-location";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MotionConfig } from "framer-motion";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
@@ -295,23 +296,38 @@ function App({ ssrPath }: { ssrPath?: string } = {}) {
   // next-themes persists it to localStorage (key "theme") and that
   // stored choice always wins over defaultTheme on every later visit.
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <WouterRouter base={base} ssrPath={ssrPath}>
-              <AuthProvider>
-                <CartProvider>
-                  <ScrollToTop />
-                  <Router />
-                </CartProvider>
-              </AuthProvider>
-            </WouterRouter>
-            <Toaster />
-          </TooltipProvider>
-        </QueryClientProvider>
-      </ErrorBoundary>
-    </ThemeProvider>
+    // IRFORGE_PROMPT_V3 Phase 50 — motion system. `reducedMotion="user"`
+    // makes every `motion.*` element in the app check prefers-reduced-motion
+    // once, here, instead of each component remembering to call
+    // useReducedMotion() itself. Before this, that check only actually
+    // happened on the landing page and inside MotionButton/MotionCard — every
+    // other framer-motion usage (docs.tsx's page transitions, the admin
+    // tables' row stagger, support.tsx's infinitely-looping robot bounce,
+    // brand-home's logo spring, ...) ran full motion regardless of the
+    // visitor's OS setting. This doesn't replace the landing page's own
+    // manual `reduce` checks — those drive imperative scroll-linked values
+    // (useTransform/useMotionValueEvent) that no top-level policy can reach —
+    // but it closes the gap for every plain `animate`/`whileHover`/
+    // `whileInView` usage everywhere else, for free.
+    <MotionConfig reducedMotion="user">
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <TooltipProvider>
+              <WouterRouter base={base} ssrPath={ssrPath}>
+                <AuthProvider>
+                  <CartProvider>
+                    <ScrollToTop />
+                    <Router />
+                  </CartProvider>
+                </AuthProvider>
+              </WouterRouter>
+              <Toaster />
+            </TooltipProvider>
+          </QueryClientProvider>
+        </ErrorBoundary>
+      </ThemeProvider>
+    </MotionConfig>
   );
 }
 
