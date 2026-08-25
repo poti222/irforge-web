@@ -1,17 +1,21 @@
+import { useState } from "react";
 import { useAdminGetStats } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Bot, Activity, UserPlus, Package, Wallet } from "lucide-react";
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
 } from "recharts";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
+import { RevenueDrilldown, type RevenueDrilldownFilter } from "@/components/admin/RevenueDrilldown";
 
 /**
  * `showRevenue` gates money figures. The stats endpoint itself is
  * `requireAdmin`, so a plain admin can load this panel — but revenue is
  * super-admin information, so the total-revenue card and the monthly revenue
- * chart are withheld from them.
+ * chart are withheld from them. The drill-down dialog is gated the same way
+ * by construction: it only ever opens from a card/bar that `showRevenue`
+ * itself already hid, and its endpoint is `requireSuperAdmin` regardless.
  */
 export function AdminOverview({ showRevenue = true }: { showRevenue?: boolean }) {
   const { lang } = useLanguage();
@@ -19,6 +23,7 @@ export function AdminOverview({ showRevenue = true }: { showRevenue?: boolean })
   const { data: stats, isLoading } = useAdminGetStats();
   const breakdown = stats?.revenueBreakdown ?? { bots: 0, plugins: 0, other: 0 };
   const nf = (n: number) => n.toLocaleString(fa ? "fa-IR" : "en-US");
+  const [drilldown, setDrilldown] = useState<RevenueDrilldownFilter>(null);
 
   if (isLoading) {
     return (
@@ -32,23 +37,44 @@ export function AdminOverview({ showRevenue = true }: { showRevenue?: boolean })
   // «کل پیام‌ها» حذف شد: منبعش `bots.message_count` بود، ستونی که هیچ‌جای این
   // استک نوشته نمی‌شود — پس برای همیشه و برای همه صفر بود. کارت داشبورد
   // کاربر هم به همین دلیل قبلاً حذف شده بود.
-  const cards = [
+  //
+  // `onClick` فقط روی کارت‌های پول است — تعداد کاربر/بات «درآمد» نیست و
+  // اندپوینتِ drill-down هم چیزی برایشان ندارد.
+  const cards: Array<{ label: string; value: string; icon: typeof Users; onClick?: () => void }> = [
     { label: fa ? "کل کاربران" : "Total Users", value: nf(stats.totalUsers), icon: Users },
     { label: fa ? "کاربران فعال" : "Active Users", value: nf(stats.activeUsers), icon: Activity },
     { label: fa ? "کاربران جدید امروز" : "New Users Today", value: nf(stats.newUsersToday), icon: UserPlus },
     { label: fa ? "کل ربات‌ها" : "Total Bots", value: nf(stats.totalBots), icon: Bot },
     ...(showRevenue
       ? [
-          { label: fa ? "درآمد کل" : "Total Revenue", value: formatToman(stats.totalRevenue, lang), icon: Wallet },
+          {
+            label: fa ? "درآمد کل" : "Total Revenue",
+            value: formatToman(stats.totalRevenue, lang),
+            icon: Wallet,
+            onClick: () => setDrilldown({ title: fa ? "درآمد کل" : "Total Revenue" }),
+          },
           // تفکیک، چون سؤال واقعی «از فروش بات چقدر درآمد داشتم» است و یک
           // عدد کل جوابش را نمی‌دهد.
-          { label: fa ? "درآمد فروش ربات" : "Bot sales", value: formatToman(breakdown.bots, lang), icon: Bot },
-          { label: fa ? "درآمد پلاگین" : "Plugin sales", value: formatToman(breakdown.plugins, lang), icon: Package },
+          {
+            label: fa ? "درآمد فروش ربات" : "Bot sales",
+            value: formatToman(breakdown.bots, lang),
+            icon: Bot,
+            onClick: () => setDrilldown({ kind: "bot", title: fa ? "درآمد فروش ربات" : "Bot sales" }),
+          },
+          {
+            label: fa ? "درآمد پلاگین" : "Plugin sales",
+            value: formatToman(breakdown.plugins, lang),
+            icon: Package,
+            onClick: () => setDrilldown({ kind: "plugin", title: fa ? "درآمد پلاگین" : "Plugin sales" }),
+          },
         ]
       : []),
   ];
 
-  const revenue = showRevenue ? stats.revenueByMonth ?? [] : [];
+  // بک‌اند حالا `key` (`YYYY-MM`) هم می‌فرستد — برچسبِ نمایشیِ «Jan» برای
+  // دوازده ماهِ متفاوت یکتا نیست، پس کلیک روی یک ستون از همین کلید می‌فهمد
+  // کدام ماه را از drill-down بخواهد.
+  const revenue = (showRevenue ? stats.revenueByMonth ?? [] : []) as Array<{ month: string; key?: string; revenue: number }>;
   const plans = stats.planBreakdown ?? [];
   const subscribers = plans.reduce((acc, p) => acc + (p.count ?? 0), 0);
 
@@ -56,7 +82,14 @@ export function AdminOverview({ showRevenue = true }: { showRevenue?: boolean })
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((c) => (
-          <Card key={c.label}>
+          <Card
+            key={c.label}
+            onClick={c.onClick}
+            className={c.onClick ? "cursor-pointer transition-colors hover:border-primary/50" : undefined}
+            role={c.onClick ? "button" : undefined}
+            tabIndex={c.onClick ? 0 : undefined}
+            onKeyDown={c.onClick ? (e) => (e.key === "Enter" || e.key === " ") && c.onClick!() : undefined}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">{c.label}</CardTitle>
               <c.icon className="h-4 w-4 text-muted-foreground" />
@@ -71,6 +104,9 @@ export function AdminOverview({ showRevenue = true }: { showRevenue?: boolean })
           <Card className="lg:col-span-2">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">{fa ? "درآمد ماهانه" : "Revenue by month"}</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                {fa ? "برای دیدن جزئیاتِ یک ماه، روی ستونش کلیک کنید." : "Click a bar to see that month's transactions."}
+              </p>
             </CardHeader>
             <CardContent>
               <div className="h-64 w-full" dir="ltr">
@@ -83,7 +119,20 @@ export function AdminOverview({ showRevenue = true }: { showRevenue?: boolean })
                       contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                       formatter={(v: number) => formatToman(v, lang)}
                     />
-                    <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="revenue"
+                      fill="hsl(var(--primary))"
+                      radius={[4, 4, 0, 0]}
+                      cursor="pointer"
+                      onClick={(entry: any) =>
+                        setDrilldown({
+                          month: entry?.key,
+                          title: fa ? `درآمد ${entry?.month}` : `Revenue — ${entry?.month}`,
+                        })
+                      }
+                    >
+                      {revenue.map((r) => <Cell key={r.key ?? r.month} />)}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -126,6 +175,8 @@ export function AdminOverview({ showRevenue = true }: { showRevenue?: boolean })
           </CardContent>
         </Card>
       </div>
+
+      <RevenueDrilldown filter={drilldown} onClose={() => setDrilldown(null)} />
     </div>
   );
 }

@@ -21,6 +21,7 @@ const plansSrc = read("../src/routes/plans.ts");
 const walletSrc = read("../src/routes/wallet.ts");
 const botsSrc = read("../src/routes/bots.ts");
 const libWalletSrc = read("../src/lib/wallet.ts");
+const adminRevenueSrc = read("../src/lib/adminRevenue.ts");
 
 // ─── درآمد ──────────────────────────────────────────────────────────────────
 
@@ -31,15 +32,23 @@ test("درآمد از پرداخت‌های واقعی می‌آید، نه از
   // `wallet_transactions` است اصلاً نمی‌دید. حالا هم خریدِ بات و هم
   // ارتقا/تمدیدِ پلن هر دو از همان `walletTransactionsTable` کسر می‌شوند، پس
   // این دو منبع همان چیزی‌اند که واقعاً پرداخت شده.
-  assert.match(adminSrc, /paymentsTable/, "فیش‌های تأییدشده باید شمرده شوند");
-  assert.match(adminSrc, /walletTransactionsTable/, "خرج کیف پول باید شمرده شود");
+  //
+  // Phase 35: این محاسبه از `routes/admin.ts` به `lib/adminRevenue.ts` منتقل
+  // شد تا `GET /admin/revenue-details` (drill-down) هم همان منبعِ درآمد را
+  // بخواند، نه یک کپیِ دومی که می‌توانست با کارت‌های جمع‌شده فرق کند. پس
+  // اینجا `lib/adminRevenue.ts` چک می‌شود.
+  assert.match(adminRevenueSrc, /paymentsTable/, "فیش‌های تأییدشده باید شمرده شوند");
+  assert.match(adminRevenueSrc, /walletTransactionsTable/, "خرج کیف پول باید شمرده شود");
   assert.match(adminSrc, /revenueBreakdown/, "تفکیک بات/پلاگین باید برگردد");
 
   // فقط پولِ تأییدشده
-  assert.match(adminSrc, /eq\(paymentsTable\.status, "approved"\)/);
-  assert.match(adminSrc, /eq\(walletTransactionsTable\.status, "approved"\)/);
+  assert.match(adminRevenueSrc, /eq\(paymentsTable\.status, "approved"\)/);
+  assert.match(adminRevenueSrc, /eq\(walletTransactionsTable\.status, "approved"\)/);
   // و فقط خرج، نه شارژ — وگرنه شارژ و خرجِ همان پول دو بار شمرده می‌شد.
-  assert.match(adminSrc, /eq\(walletTransactionsTable\.type, "spend"\)/);
+  assert.match(adminRevenueSrc, /eq\(walletTransactionsTable\.type, "spend"\)/);
+
+  // `admin.ts` دیگر پیاده‌سازیِ خودش را ندارد — از `lib/adminRevenue.ts` می‌آید.
+  assert.match(adminSrc, /from ["']\.\.\/lib\/adminRevenue\.js["']/, "admin.ts باید از lib/adminRevenue وارد کند، نه دوباره پیاده‌سازی کند");
 });
 
 test("«کل پیام‌ها» دیگر برنمی‌گردد", () => {

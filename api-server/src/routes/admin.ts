@@ -2,13 +2,14 @@ import { logger } from "../lib/logger";
 import { Router } from "express";
 import {
   db, usersTable, botsTable, announcementsTable, userPlansTable, plansTable,
-  pendingRegistrationsTable, paymentsTable, walletTransactionsTable,
+  pendingRegistrationsTable,
 } from "@workspace/db";
-import { eq, and, gte, sql, desc, count, lt } from "drizzle-orm";
+import { eq, and, gte, sql, desc, count, lt, inArray } from "drizzle-orm";
 import crypto from "crypto";
-import { requireAdmin, requireAuth } from "./auth";
+import { requireAdmin, requireAuth, requireSuperAdmin } from "./auth";
 import { syncUserUpsert, syncUserDelete } from "../lib/sheetsSync";
 import { createNotificationsBulk, severityForAnnouncementType } from "../lib/notify";
+import { getRevenueEntries, sumRevenue, type RevenueKind } from "../lib/adminRevenue.js";
 
 const router = Router();
 
@@ -192,53 +193,26 @@ router.get("/admin/stats", requireAdmin, async (req: any, res) => {
      * (شارژ کیف پول عمداً شمرده نمی‌شود — پولی که هنوز خرج نشده فروش نیست، و
      * با خرجش دوباره شمرده می‌شد.)
      */
-    const [approvedPayments, walletSpends] = await Promise.all([
-      db
-        .select({ amount: paymentsTable.amount, botId: paymentsTable.botId, createdAt: paymentsTable.createdAt })
-        .from(paymentsTable)
-        .where(eq(paymentsTable.status, "approved")),
-      db
-        .select({ amount: walletTransactionsTable.amount, note: walletTransactionsTable.reviewNote, createdAt: walletTransactionsTable.createdAt })
-        .from(walletTransactionsTable)
-        .where(and(eq(walletTransactionsTable.type, "spend"), eq(walletTransactionsTable.status, "approved"))),
-    ]);
+    const earnings = await getRevenueEntries();
 
-    /** هر درآمد، با تاریخ و دسته‌اش — تا هم جمع کل و هم تفکیک از یک منبع بیاید. */
-    const earnings: Array<{ amount: number; at: Date; kind: "bot" | "plugin" | "other" }> = [
-      // فیشِ دارای `bot_id` یعنی خرید بات؛ بدون آن، یک پرداخت عمومی است.
-      ...approvedPayments.map(p => ({
-        amount: p.amount ?? 0,
-        at: p.createdAt,
-        kind: (p.botId ? "bot" : "other") as "bot" | "other",
-      })),
-      // یادداشتِ خرج را همان جایی می‌نویسد که پول کم می‌شود
-      // (`routes/bots.ts::deductWallet`): «Bot purchase: …» یا «Plugin: …».
-      ...walletSpends.map(s => ({
-        amount: s.amount ?? 0,
-        at: s.createdAt,
-        kind: (s.note?.startsWith("Bot purchase:")
-          ? "bot"
-          : s.note?.startsWith("Plugin:")
-            ? "plugin"
-            : "other") as "bot" | "plugin" | "other",
-      })),
-    ];
-
-    const sum = (rows: Array<{ amount: number }>) => rows.reduce((acc, r) => acc + r.amount, 0);
-    const totalRevenue = sum(earnings);
+    const totalRevenue = sumRevenue(earnings);
     const revenueBreakdown = {
-      bots: sum(earnings.filter(e => e.kind === "bot")),
-      plugins: sum(earnings.filter(e => e.kind === "plugin")),
-      other: sum(earnings.filter(e => e.kind === "other")),
+      bots: sumRevenue(earnings.filter(e => e.kind === "bot")),
+      plugins: sumRevenue(earnings.filter(e => e.kind === "plugin")),
+      other: sumRevenue(earnings.filter(e => e.kind === "other")),
     };
 
     const now = new Date();
+    // Phase 35: هر ماه یک `key` (`YYYY-MM`) هم می‌گیرد — برچسبِ نمایشی («Jan»)
+    // برای دوازده ماهِ متفاوت یکتا نیست، پس کلیک روی یک ستون نمی‌تواند فقط از
+    // روی برچسب بفهمد کدام ماه را از سرور بخواهد.
     const revenueByMonth = Array.from({ length: 6 }, (_, i) => {
       const from = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
       const to = new Date(now.getFullYear(), now.getMonth() - (5 - i) + 1, 1);
       return {
         month: from.toLocaleString("default", { month: "short" }),
-        revenue: sum(earnings.filter(e => e.at >= from && e.at < to)),
+        key: `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}`,
+        revenue: sumRevenue(earnings.filter(e => e.at >= from && e.at < to)),
       };
     });
 
@@ -280,6 +254,82 @@ router.get("/admin/stats", requireAdmin, async (req: any, res) => {
     });
   } catch (err) {
     logger.error({ err }, "Admin stats error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+const REVENUE_KINDS: RevenueKind[] = ["bot", "plugin", "other"];
+
+/**
+ * GET /api/admin/revenue-details — Phase 35: the number on a revenue card
+ * ("Bot sales: 4,200,000 Toman") used to be a dead end — an admin who wanted
+ * to know *which* sales made up that figure had no way to find out short of
+ * a database query. This is the itemized list behind any of the aggregate
+ * numbers in `GET /admin/stats`: the whole thing (`kind` and `month` both
+ * omitted), one category (`?kind=bot|plugin|other`), one month
+ * (`?month=YYYY-MM`, matching the `key` field `revenueByMonth` now carries),
+ * or both together.
+ *
+ * `requireSuperAdmin`, not `requireAdmin`: the aggregate cards are already
+ * withheld from plain admins on the frontend (`AdminOverview`'s
+ * `showRevenue`) because revenue is super-admin information — an itemized
+ * list naming which user paid how much is strictly more sensitive than the
+ * sum, so it gets at least the same gate.
+ */
+router.get("/admin/revenue-details", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const kindParam = typeof req.query.kind === "string" ? req.query.kind : undefined;
+    const kind = REVENUE_KINDS.includes(kindParam as RevenueKind) ? (kindParam as RevenueKind) : undefined;
+    const monthParam = typeof req.query.month === "string" ? req.query.month : undefined;
+    const monthMatch = monthParam && /^(\d{4})-(\d{2})$/.exec(monthParam);
+
+    let entries = await getRevenueEntries();
+    if (kind) entries = entries.filter((e) => e.kind === kind);
+    if (monthMatch) {
+      const year = Number(monthMatch[1]);
+      const monthIndex = Number(monthMatch[2]) - 1;
+      const from = new Date(year, monthIndex, 1);
+      const to = new Date(year, monthIndex + 1, 1);
+      entries = entries.filter((e) => e.at >= from && e.at < to);
+    }
+    entries.sort((a, b) => b.at.getTime() - a.at.getTime());
+
+    const total = sumRevenue(entries);
+    // یک صفحه‌ی ثابت کافی است — این یک دیالوگِ توضیحی است، نه یک صفحه‌ی
+    // حسابداری با صفحه‌بندی؛ لیست‌های بزرگ‌تر همچنان در جمعِ کارت درست‌اند.
+    const page = entries.slice(0, 200);
+
+    const userIds = [...new Set(page.map((e) => e.userId))];
+    const botIds = [...new Set(page.map((e) => e.botId).filter((id): id is string => !!id))];
+    const [users, bots] = await Promise.all([
+      userIds.length
+        ? db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email }).from(usersTable).where(inArray(usersTable.id, userIds))
+        : Promise.resolve([]),
+      botIds.length
+        ? db.select({ id: botsTable.id, name: botsTable.name }).from(botsTable).where(inArray(botsTable.id, botIds))
+        : Promise.resolve([]),
+    ]);
+    const userMap = new Map(users.map((u) => [u.id, u]));
+    const botMap = new Map(bots.map((b) => [b.id, b]));
+
+    res.json({
+      total,
+      count: entries.length,
+      truncated: entries.length > page.length,
+      entries: page.map((e) => ({
+        id: e.id,
+        amount: e.amount,
+        at: e.at.toISOString(),
+        kind: e.kind,
+        source: e.source,
+        userName: userMap.get(e.userId)?.name ?? null,
+        userEmail: userMap.get(e.userId)?.email ?? null,
+        botName: e.botId ? (botMap.get(e.botId)?.name ?? null) : null,
+        note: e.note,
+      })),
+    });
+  } catch (err) {
+    logger.error({ err }, "Admin revenue details error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
