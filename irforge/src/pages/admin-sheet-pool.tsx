@@ -29,8 +29,16 @@ type SheetEntry = {
   assignedBotId: string | null;
   assignedBotName?: string | null;
   assignedBotOwnerId?: string | null;
+  assignedBotOwnerName?: string | null;
+  assignedBotOwnerUsername?: string | null;
   createdAt: string;
 };
+
+/** Prefer the owner's @username — never the raw user id (IRFORGE_PROMPT_V3 Phase 43). */
+function ownerLabel(entry: SheetEntry): string | null {
+  if (entry.assignedBotOwnerUsername) return `@${entry.assignedBotOwnerUsername}`;
+  return entry.assignedBotOwnerName ?? null;
+}
 
 const sheetUrl = (id: string) => `https://docs.google.com/spreadsheets/d/${id}`;
 
@@ -243,15 +251,15 @@ export default function AdminSheetPool() {
                 <span className="block truncate font-mono text-xs text-muted-foreground" dir="ltr" title={s.sheetId}>
                   {s.sheetId}
                 </span>
-                {s.status === "assigned" && (s.assignedBotName || s.assignedBotOwnerId) && (
+                {s.status === "assigned" && (s.assignedBotName || ownerLabel(s)) && (
                   <span className="mt-0.5 block truncate text-xs" dir="ltr">
                     {s.assignedBotName && (
                       <span className="font-medium text-foreground">{s.assignedBotName}</span>
                     )}
-                    {s.assignedBotOwnerId && (
-                      <span className="ms-1.5 font-mono text-muted-foreground">
+                    {ownerLabel(s) && (
+                      <span className="ms-1.5 text-muted-foreground">
                         {fa ? "مالک: " : "owner: "}
-                        {s.assignedBotOwnerId}
+                        {ownerLabel(s)}
                       </span>
                     )}
                   </span>

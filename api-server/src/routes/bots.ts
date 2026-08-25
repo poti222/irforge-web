@@ -64,6 +64,7 @@ import { marketplaceItemIdFor } from "../lib/marketplaceSync.js";
 import { getUserPlanLimits, countUserBots } from "../lib/planLimits.js";
 import { deductWallet, InsufficientBalanceError } from "../lib/wallet.js";
 import { verifyCaptchaToken } from "../lib/captchaVerify.js";
+import { buildSheetPoolView } from "../lib/sheetPoolView.js";
 
 const router = Router();
 
@@ -1593,26 +1594,26 @@ router.get("/sheet-pool", requireSuperAdmin, async (req: any, res) => {
     const entries = await db.select().from(sheetPoolTable);
 
     const botIds = [...new Set(entries.map((e) => e.assignedBotId).filter((id): id is string => !!id))];
-    const botsById = new Map<string, { name: string; userId: string }>();
-    if (botIds.length > 0) {
-      const rows = await db
-        .select({ id: botsTable.id, name: botsTable.name, userId: botsTable.userId })
-        .from(botsTable)
-        .where(inArray(botsTable.id, botIds));
-      for (const b of rows) botsById.set(b.id, { name: b.name, userId: b.userId });
-    }
+    const botRows = botIds.length > 0
+      ? await db
+          .select({ id: botsTable.id, name: botsTable.name, userId: botsTable.userId })
+          .from(botsTable)
+          .where(inArray(botsTable.id, botIds))
+      : [];
 
-    res.json(
-      entries.map((e) => ({
-        id: e.id,
-        sheetId: e.sheetId,
-        status: e.status,
-        assignedBotId: e.assignedBotId,
-        assignedBotName: e.assignedBotId ? botsById.get(e.assignedBotId)?.name ?? null : null,
-        assignedBotOwnerId: e.assignedBotId ? botsById.get(e.assignedBotId)?.userId ?? null : null,
-        createdAt: e.createdAt.toISOString(),
-      }))
-    );
+    // IRFORGE_PROMPT_V3 Phase 43 — the panel used to show the owner's raw
+    // user id (a UUID, meaningless to a human) next to each assigned sheet.
+    // A super admin recognizes a person by their Telegram @username, not an
+    // opaque id, so resolve it here rather than making the frontend guess.
+    const ownerIds = [...new Set(botRows.map((b) => b.userId))];
+    const ownerRows = ownerIds.length > 0
+      ? await db
+          .select({ id: usersTable.id, name: usersTable.name, telegramUsername: usersTable.telegramUsername })
+          .from(usersTable)
+          .where(inArray(usersTable.id, ownerIds))
+      : [];
+
+    res.json(buildSheetPoolView(entries, botRows, ownerRows));
   } catch (err) {
     logger.error({ err }, "List sheet pool error");
     res.status(500).json({ error: "Internal server error" });
