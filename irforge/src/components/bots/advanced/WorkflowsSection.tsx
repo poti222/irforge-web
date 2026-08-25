@@ -43,7 +43,41 @@ type Catalog = {
     requiresPlugin: string | null;
     available: boolean;
   }>;
+  objects: Array<{ id: string; name: string; slug: string; fields: Array<{ name: string; label: string; type: string }> }>;
+  fieldSuggestions: Record<string, Array<{ path: string; label: string }>>;
 };
+
+const CUSTOM_FIELD = "__custom__";
+
+/**
+ * The dotted-path options worth suggesting for a condition's `field`, given
+ * the workflow's own trigger event (IRFORGE_PROMPT_V3 Phase 41).
+ *
+ * Before this, `field` was pure free text — the bot admin had to already
+ * know the event payload's shape (e.g. "record.status", "wallet.balance")
+ * from reading source, since nothing here said what was actually available.
+ * `event.object.*` conditions run against the bot's *own* dynamically
+ * defined Objects, so those options come from `catalog.objects` (real field
+ * names/labels, not a guess); every other event's options are the static,
+ * source-derived `catalog.fieldSuggestions` (see lib/workflowCatalog.ts).
+ */
+function fieldOptionsFor(
+  catalog: Catalog | undefined,
+  eventType: string | undefined,
+  objectSlugLabel: string
+): Array<{ value: string; label: string }> {
+  if (!catalog || !eventType) return [];
+  if (eventType.startsWith("event.object.")) {
+    const options: Array<{ value: string; label: string }> = [{ value: "object_slug", label: objectSlugLabel }];
+    for (const obj of catalog.objects) {
+      for (const f of obj.fields) {
+        options.push({ value: `record.${f.name}`, label: `${obj.name} → ${f.label}` });
+      }
+    }
+    return options;
+  }
+  return (catalog.fieldSuggestions[eventType] ?? []).map((f) => ({ value: f.path, label: f.label }));
+}
 
 type Run = {
   id: string;
@@ -113,6 +147,11 @@ function WorkflowEditor({
   });
 
   const actionMeta = (type: string) => catalog?.actions.find((a) => a.type === type);
+  const conditionFieldOptions = fieldOptionsFor(
+    catalog,
+    draft.trigger.type === "event" ? String(draft.trigger.config.event ?? "") : undefined,
+    t.conditionFieldObjectSlug
+  );
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -191,12 +230,36 @@ function WorkflowEditor({
           <CardDescription>{t.stepConditionsDesc}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {draft.conditions.map((condition, i) => (
-            <div key={i} className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto]">
-              <Input
-                dir="ltr" placeholder={t.conditionField} value={condition.field}
-                onChange={(e) => setDraft((p) => ({ ...p, conditions: p.conditions.map((c, j) => (j === i ? { ...c, field: e.target.value } : c)) }))}
-              />
+          {draft.conditions.map((condition, i) => {
+            const isKnownField = conditionFieldOptions.some((o) => o.value === condition.field);
+            const showCustomField = conditionFieldOptions.length === 0 || !isKnownField;
+            return (
+            <div key={i} className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-start">
+              <div className="space-y-1.5">
+                {conditionFieldOptions.length > 0 && (
+                  <Select
+                    value={isKnownField ? condition.field : CUSTOM_FIELD}
+                    onValueChange={(v) =>
+                      setDraft((p) => ({
+                        ...p,
+                        conditions: p.conditions.map((c, j) => (j === i ? { ...c, field: v === CUSTOM_FIELD ? "" : v } : c)),
+                      }))
+                    }
+                  >
+                    <SelectTrigger><SelectValue placeholder={t.conditionFieldPick} /></SelectTrigger>
+                    <SelectContent>
+                      {conditionFieldOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                      <SelectItem value={CUSTOM_FIELD}>{t.conditionFieldCustom}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+                {showCustomField && (
+                  <Input
+                    dir="ltr" placeholder={t.conditionField} value={condition.field}
+                    onChange={(e) => setDraft((p) => ({ ...p, conditions: p.conditions.map((c, j) => (j === i ? { ...c, field: e.target.value } : c)) }))}
+                  />
+                )}
+              </div>
               <Select
                 value={condition.operator}
                 onValueChange={(v) => setDraft((p) => ({ ...p, conditions: p.conditions.map((c, j) => (j === i ? { ...c, operator: v } : c)) }))}
@@ -217,7 +280,8 @@ function WorkflowEditor({
                 <Trash2 className="size-4 text-destructive" />
               </Button>
             </div>
-          ))}
+            );
+          })}
           <Button
             variant="outline" size="sm"
             onClick={() => setDraft((p) => ({ ...p, conditions: [...p.conditions, { field: "", operator: "eq", value: "" }] }))}
