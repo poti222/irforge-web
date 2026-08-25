@@ -264,7 +264,16 @@
     "recentActivity": "Последние действия",
     "noActivityTitle": "Пока нет активности",
     "noActivityDesc": "Создайте своего первого бота, чтобы увидеть здесь активность.",
-    "createFirstBot": "Создать первого бота"
+    "createFirstBot": "Создать первого бота",
+    "attentionAction": "Управлять",
+    "attentionExpired": "Пробный период закончился",
+    "attentionTrialEndingSoon": "Пробный период заканчивается через {n} дн.",
+    "attentionError": "Этот бот в состоянии ошибки",
+    "attentionPaymentRejected": "Платёж отклонён",
+    "attentionPendingPayment": "Ожидает подтверждения платежа",
+    "yourBots": "Ваши боты",
+    "viewAllBots": "Все боты",
+    "noUsername": "Без имени пользователя"
   },
   "bots": {
     "title": "Мои боты",

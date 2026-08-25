@@ -264,7 +264,16 @@
     "recentActivity": "النشاط الأخير",
     "noActivityTitle": "لا يوجد نشاط بعد",
     "noActivityDesc": "أنشئ أول بوت لك لترى النشاط هنا.",
-    "createFirstBot": "أنشئ أول بوت لك"
+    "createFirstBot": "أنشئ أول بوت لك",
+    "attentionAction": "إدارة",
+    "attentionExpired": "انتهت الفترة التجريبية",
+    "attentionTrialEndingSoon": "تنتهي الفترة التجريبية خلال {n} أيام",
+    "attentionError": "هذا البوت في حالة خطأ",
+    "attentionPaymentRejected": "تم رفض الدفع",
+    "attentionPendingPayment": "بانتظار الموافقة على الدفع",
+    "yourBots": "بوتاتك",
+    "viewAllBots": "عرض كل البوتات",
+    "noUsername": "بدون معرّف"
   },
   "bots": {
     "title": "بوتاتي",

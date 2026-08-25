@@ -264,7 +264,16 @@
     "recentActivity": "Recent Activity",
     "noActivityTitle": "No activity yet",
     "noActivityDesc": "Create your first bot to see activity here.",
-    "createFirstBot": "Create your first bot"
+    "createFirstBot": "Create your first bot",
+    "attentionAction": "Manage",
+    "attentionExpired": "Trial has expired",
+    "attentionTrialEndingSoon": "Trial ends in {n} days",
+    "attentionError": "This bot is in an error state",
+    "attentionPaymentRejected": "Payment rejected",
+    "attentionPendingPayment": "Awaiting payment approval",
+    "yourBots": "Your Bots",
+    "viewAllBots": "View all bots",
+    "noUsername": "No username"
   },
   "bots": {
     "title": "My Bots",

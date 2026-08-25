@@ -264,7 +264,16 @@
     "recentActivity": "Son Etkinlikler",
     "noActivityTitle": "Henüz etkinlik yok",
     "noActivityDesc": "Etkinlikleri burada görmek için ilk botunuzu oluşturun.",
-    "createFirstBot": "İlk botunuzu oluşturun"
+    "createFirstBot": "İlk botunuzu oluşturun",
+    "attentionAction": "Yönet",
+    "attentionExpired": "Deneme süresi doldu",
+    "attentionTrialEndingSoon": "Deneme süresi {n} gün içinde bitiyor",
+    "attentionError": "Bu bot hata durumunda",
+    "attentionPaymentRejected": "Ödeme reddedildi",
+    "attentionPendingPayment": "Ödeme onayı bekleniyor",
+    "yourBots": "Botlarınız",
+    "viewAllBots": "Tüm botları görüntüle",
+    "noUsername": "Kullanıcı adı yok"
   },
   "bots": {
     "title": "Botlarım",

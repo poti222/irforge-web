@@ -1,5 +1,5 @@
-import { useGetDashboardStats, useGetDashboardActivity, customFetch } from "@workspace/api-client-react";
-import type { ActivityItem, ActivityItemType } from "@workspace/api-client-react";
+import { useGetDashboardStats, useGetDashboardActivity, useListBots, customFetch } from "@workspace/api-client-react";
+import type { ActivityItem, ActivityItemType, Bot as BotType } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MotionCard } from "@/components/ui/motion-card";
@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   Bot, Users, MessageSquare, Activity, Plus, Wallet,
   Rocket, Blocks, UserPlus, ArrowUpCircle, Terminal,
-  ArrowUpRight, ArrowDownRight, Minus, Megaphone, type LucideIcon,
+  ArrowUpRight, ArrowDownRight, Minus, Megaphone, AlertTriangle, Clock,
+  CreditCard, ArrowRight, type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MotionButton } from "@/components/ui/motion-button";
@@ -16,10 +17,11 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useLanguage, type Lang } from "@/hooks/use-language";
 import { useMotionDirection } from "@/hooks/use-motion-direction";
 import { formatToman } from "@/lib/format";
-import { useT } from "@/hooks/use-translation";
+import { useT, type LocaleShape } from "@/hooks/use-translation";
 import { TrialWarningDialog } from "@/components/dashboard/trial-warning-dialog";
 import { UpdateDialog } from "@/components/updates/UpdateDialog";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
+import { botsNeedingAttention, type AttentionReason } from "@/lib/dashboard-attention";
 
 // P7: map each activity type to a distinct icon (sane default for unknowns).
 const ACTIVITY_ICONS: Record<ActivityItemType, LucideIcon> = {
@@ -52,6 +54,19 @@ function TrendBadge({ change, lang, suffix }: { change: number; lang: Lang; suff
   );
 }
 
+/** The reason text shown in a "needs attention" row. */
+function attentionReasonText(reason: AttentionReason, bot: BotType, t: LocaleShape["dashboard"]): string {
+  if (reason === "trialEndingSoon") {
+    return t.attentionTrialEndingSoon.replace("{n}", String(bot.trialDaysLeft ?? 0));
+  }
+  return {
+    expired: t.attentionExpired,
+    error: t.attentionError,
+    paymentRejected: t.attentionPaymentRejected,
+    pendingPayment: t.attentionPendingPayment,
+  }[reason];
+}
+
 type DashboardAnnouncement = { id: string; title: string; message: string; type: string; createdAt: string };
 
 const ANNOUNCEMENT_STYLES: Record<string, string> = {
@@ -61,6 +76,28 @@ const ANNOUNCEMENT_STYLES: Record<string, string> = {
   error: "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300",
 };
 
+// P49: "needs attention" — the one thing the old, readout-only dashboard
+// never surfaced: which of your bots actually needs you to do something.
+// Reuses the same warning/error color language as ANNOUNCEMENT_STYLES above.
+const ATTENTION_ICONS: Record<AttentionReason, LucideIcon> = {
+  expired: AlertTriangle,
+  trialEndingSoon: Clock,
+  error: AlertTriangle,
+  paymentRejected: CreditCard,
+  pendingPayment: CreditCard,
+};
+
+const ATTENTION_STYLES: Record<AttentionReason, string> = {
+  expired: "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300",
+  trialEndingSoon: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  error: "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300",
+  paymentRejected: "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300",
+  pendingPayment: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+};
+
+/** Bots shown at once in the "your bots" quick-access grid before it hands off to /bots. */
+const QUICK_ACCESS_BOT_LIMIT = 6;
+
 export default function Dashboard() {
   usePrivatePageTitle(useT("pageTitles").dashboard);
   const { lang } = useLanguage();
@@ -69,6 +106,8 @@ export default function Dashboard() {
   const dir = useMotionDirection();
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: activity, isLoading: activityLoading } = useGetDashboardActivity();
+  const { data: bots } = useListBots();
+  const attentionItems = botsNeedingAttention(bots ?? []);
   // R5b: surface platform announcements created in the admin panel.
   // عمداً حالت خطا ندارد: اگر این کوئری شکست بخورد نوار اعلان‌ها فقط پنهان
   // می‌ماند و هیچ توستی به کاربر نشان داده نمی‌شود — یک بنر تزئینی نباید
@@ -135,6 +174,35 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* P49: the one thing a status readout never had — which of your bots
+          actually needs you to act, right now, independent of whether the
+          one-time trial-warning dialog above was ever seen or dismissed. */}
+      {attentionItems.length > 0 && (
+        <div className="space-y-2">
+          {attentionItems.map(({ bot, reason }) => {
+            const Icon = ATTENTION_ICONS[reason];
+            const href = reason === "expired" || reason === "trialEndingSoon" ? "/buy-bot" : `/bots/${bot.id}`;
+            return (
+              <div
+                key={bot.id}
+                className={`flex flex-wrap items-center gap-3 rounded-lg border p-3 ${ATTENTION_STYLES[reason]}`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate">{bot.name}</p>
+                  <p className="text-sm opacity-90">{attentionReasonText(reason, bot, t)}</p>
+                </div>
+                <Button asChild size="sm" variant="outline" className="shrink-0 bg-background/60">
+                  <Link href={href}>
+                    {t.attentionAction} <ArrowRight className="ms-1.5 h-3.5 w-3.5 rtl-flip" />
+                  </Link>
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {statsLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {[1, 2, 3, 4, 5].map((i) => (
@@ -160,6 +228,57 @@ export default function Dashboard() {
           ))}
         </div>
       ) : null}
+
+      {/* P49: a direct jump-off point into bot management, not just a count
+          of how many exist — the missing piece that made this page a
+          readout instead of a workspace. */}
+      {bots && bots.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>{t.yourBots}</CardTitle>
+            {bots.length > QUICK_ACCESS_BOT_LIMIT && (
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/bots">
+                  {t.viewAllBots} <ArrowRight className="ms-1.5 h-3.5 w-3.5 rtl-flip" />
+                </Link>
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {bots.slice(0, QUICK_ACCESS_BOT_LIMIT).map((bot) => (
+                <Link
+                  key={bot.id}
+                  href={`/bots/${bot.id}`}
+                  className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:border-primary/50 hover:bg-accent/50"
+                >
+                  {bot.avatar ? (
+                    <img
+                      src={bot.avatar}
+                      alt=""
+                      loading="lazy"
+                      className="size-9 shrink-0 rounded-lg border border-border object-cover"
+                    />
+                  ) : (
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <Bot className="h-4.5 w-4.5" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{bot.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {bot.username ? `@${bot.username}` : t.noUsername}
+                    </p>
+                  </div>
+                  <Badge variant={bot.status === "active" ? "default" : "secondary"} className="shrink-0">
+                    {bot.status}
+                  </Badge>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">

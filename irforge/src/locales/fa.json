@@ -264,7 +264,16 @@
     "recentActivity": "فعالیت‌های اخیر",
     "noActivityTitle": "هنوز فعالیتی نیست",
     "noActivityDesc": "اولین ربات خود را بسازید تا اینجا فعالیت‌ها را ببینید.",
-    "createFirstBot": "ساخت اولین ربات"
+    "createFirstBot": "ساخت اولین ربات",
+    "attentionAction": "مدیریت",
+    "attentionExpired": "تریال تمام شده",
+    "attentionTrialEndingSoon": "{n} روز تا پایان تریال مانده",
+    "attentionError": "این بات در وضعیت خطاست",
+    "attentionPaymentRejected": "پرداخت رد شد",
+    "attentionPendingPayment": "در انتظار تأیید پرداخت",
+    "yourBots": "بات‌های شما",
+    "viewAllBots": "مشاهده همه بات‌ها",
+    "noUsername": "بدون آیدی"
   },
   "bots": {
     "title": "ربات‌های من",
