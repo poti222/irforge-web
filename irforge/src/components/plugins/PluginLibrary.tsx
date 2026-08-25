@@ -13,6 +13,7 @@
  * پلاگین‌های هر بات — با `scopeBotId` که آن بات را پیش‌فرضِ انتخابگر می‌کند.
  */
 import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { Link } from "wouter";
 import {
   ArrowLeft, ArrowRight, Blocks, Check, Info, Loader2, MoveRight, ShoppingCart, Trash2,
@@ -39,6 +40,13 @@ import {
   usePluginLicences, useMoveLicence, useBuyPluginForBots, useRemoveLicence,
   type LicencedPlugin, type LicenceBot,
 } from "@/hooks/use-plugin-licences";
+
+// P51: a light entrance stagger for the three plugin grids below, so the
+// library doesn't just snap into place the way a static list does elsewhere
+// in the app. Safe to leave unconditional — MotionConfig at the app root
+// (Phase 50) already turns this off for prefers-reduced-motion.
+const GRID_CONTAINER = { show: { transition: { staggerChildren: 0.04 } } };
+const GRID_ITEM = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.2 } } };
 
 function errMessage(err: any, fallback: string): string {
   return err?.data?.error ?? err?.message ?? fallback;
@@ -474,11 +482,13 @@ export function PluginLibrary({
               {t.ownedEmpty}
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <motion.div className="grid gap-3 sm:grid-cols-2" initial="hidden" animate="show" variants={GRID_CONTAINER}>
               {owned.map((plugin) => (
-                <OwnedCard key={plugin.id} plugin={plugin} bots={data.bots} />
+                <motion.div key={plugin.id} variants={GRID_ITEM}>
+                  <OwnedCard plugin={plugin} bots={data.bots} />
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           )}
         </section>
       )}
@@ -487,11 +497,13 @@ export function PluginLibrary({
         <section>
           <h3 className="mb-1 text-base font-semibold">{t.elsewhereTitle}</h3>
           <p className="mb-3 text-sm text-muted-foreground">{t.elsewhereDesc}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <motion.div className="grid gap-3 sm:grid-cols-2" initial="hidden" animate="show" variants={GRID_CONTAINER}>
             {elsewhere.map((plugin) => (
-              <ElsewhereCard key={plugin.id} plugin={plugin} scopeBotId={scopeBotId} />
+              <motion.div key={plugin.id} variants={GRID_ITEM}>
+                <ElsewhereCard plugin={plugin} scopeBotId={scopeBotId} />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </section>
       )}
 
@@ -509,11 +521,13 @@ export function PluginLibrary({
             {t.availableEmpty}
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <motion.div className="grid gap-3 sm:grid-cols-2" initial="hidden" animate="show" variants={GRID_CONTAINER}>
             {available.map((plugin) => (
-              <AvailableCard key={plugin.id} plugin={plugin} bots={data.bots} scopeBotId={scopeBotId} />
+              <motion.div key={plugin.id} variants={GRID_ITEM}>
+                <AvailableCard plugin={plugin} bots={data.bots} scopeBotId={scopeBotId} />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </section>
 
