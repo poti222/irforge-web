@@ -56,6 +56,29 @@ function loadTemplate() {
 const template = loadTemplate();
 
 /**
+ * IRFORGE_PROMPT_V3 Phase 47 — a stable, un-prerendered copy of the shell,
+ * shipped into dist/ for api-server/src/app.ts's catch-all to serve on any
+ * app route that isn't one of the pages this script prerenders (/dashboard,
+ * /bots/:id, /admin, ...).
+ *
+ * Before this file existed, that catch-all fell back to dist/index.html (or
+ * dist/<lang>/index.html) — which this same script has just overwritten
+ * with the fully rendered LANDING PAGE. Refreshing /dashboard therefore
+ * painted the landing page's hero, pricing teaser and footer for one frame
+ * before React hydrated, read the real URL, and swapped in the actual
+ * route — a flash of an entirely different page, not just a blank one.
+ *
+ * app-shell.html is safe to reuse for every language and every app route
+ * unchanged: index.html's own inline script (see irforge/index.html) already
+ * reads `lang`/`dir` from the current URL before first paint, and every app
+ * page sets its own <title> client-side via useSEO() — there is no
+ * per-language or per-route content baked into this file for that inline
+ * script to contradict.
+ */
+const shellPath = join(distDir, "app-shell.html");
+writeFileSync(shellPath, template, "utf8");
+
+/**
  * Locale chunks, by language.
  *
  * NOTE [perf]: the five locale JSON files (744 kB combined) used to be bundled
@@ -489,6 +512,7 @@ for (const { lang, route } of pages) {
   );
 }
 console.log(`\nprerendered ${pages.length} pages (${(bytes / 1024).toFixed(0)} kB total)`);
+console.log(`app-shell.html: ${(Buffer.byteLength(readFileSync(shellPath)) / 1024).toFixed(1)} kB (served for non-prerendered app routes)`);
 
 const urls = writeSitemap();
 console.log(`sitemap.xml: ${urls} URLs`);

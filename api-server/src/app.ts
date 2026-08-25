@@ -115,10 +115,6 @@ app.use("/api", router);
 // dist/index.cjs lives at api-server/dist/, frontend is at irforge/dist
 const frontendDist = path.resolve(currentDir, "../../irforge/dist");
 
-// Language prefixes that the frontend build prerenders into their own folders
-// (fa is the root language and has no prefix).
-const LANG_PREFIXES = new Set(["en", "ar", "tr", "ru"]);
-
 // `redirect: false`: without it, a request for /docs — which is now a real
 // directory in dist — gets a 301 to /docs/, changing the canonical URL of an
 // already-indexed page. We resolve extension-less paths ourselves below
@@ -177,21 +173,26 @@ function prerenderedFor(urlPath: string): string | null {
   return existsSync(candidate) ? candidate : null;
 }
 
+// IRFORGE_PROMPT_V3 Phase 47 — a dedicated, never-prerendered shell (built by
+// scripts/ssg.mjs) for any URL that isn't one of the pages that script
+// actually prerenders. dist/index.html and dist/<lang>/index.html are NOT
+// substitutes for this: ssg.mjs overwrites both with the fully rendered
+// landing page for that language, so serving either one for, say, a
+// refreshed /dashboard painted the landing page's hero and pricing teaser
+// for a frame before React hydrated and swapped in the real route. The
+// shell needs no per-language variant — index.html's own inline script
+// already sets `lang`/`dir` from the current URL before first paint, and
+// every app page sets its own <title> client-side via useSEO().
+const appShellPath = path.join(frontendDist, "app-shell.html");
+
 app.get("/{*splat}", (req, res) => {
   // 1. an exact prerendered page for this URL (/, /docs, /en, /en/docs, ...)
   const exact = prerenderedFor(req.path);
   if (exact) return res.sendFile(exact);
 
-  // 2. an app route under a language prefix (/en/dashboard): serve that
-  //    language's shell so the SPA boots in the right language and direction
-  const first = req.path.split("/").filter(Boolean)[0];
-  if (first && LANG_PREFIXES.has(first)) {
-    const shell = path.join(frontendDist, first, "index.html");
-    if (existsSync(shell)) return res.sendFile(shell);
-  }
-
-  // 3. everything else: the root-language shell
-  res.sendFile(path.join(frontendDist, "index.html"));
+  // 2. everything else is an app route (/dashboard, /en/bots/:id, ...):
+  //    the neutral shell, never the landing page.
+  res.sendFile(appShellPath);
 });
 
 export default app;

@@ -50,23 +50,17 @@ export const INLINE_SCRIPTS = {
         html.setAttribute("dir", RTL.indexOf(lang) !== -1 ? "rtl" : "ltr");
       })();
     `,
-  /** irforge/index.html — sets the .dark class before paint (no white flash). */
+  /** irforge/index.html — sets the .dark class before paint (no flash). */
   themeFlash: `
       (function () {
         try {
           var stored = localStorage.getItem("theme");
-          var theme = stored || "dark"; // defaultTheme="dark" مثل App.tsx
-          if (theme === "dark") {
+          if (stored === "dark") {
             document.documentElement.classList.add("dark");
-          } else if (theme === "system") {
-            if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-              document.documentElement.classList.add("dark");
-            }
           }
-          // "light" → کلاس اضافه نمی‌کنیم، پیش‌فرض سفیده
+          // ذخیره‌نشده، یا "light" → کلاس اضافه نمی‌شود، پیش‌فرض سفیده
         } catch (e) {
-          // localStorage بلاک شده — dark پیش‌فرض
-          document.documentElement.classList.add("dark");
+          // localStorage بلاک شده — light پیش‌فرض، بدون کلاس
         }
       })();
     `,
@@ -74,12 +68,12 @@ export const INLINE_SCRIPTS = {
    * next-themes' own injected anti-flash script (minified by its own build,
    * not by ours) — captured verbatim from a production build's output.
    * Its argument list encodes this app's ThemeProvider props: attribute
-   * "class", storageKey "theme", defaultTheme "dark", forcedTheme null,
-   * themes ["light","dark"], value-mapping null, enableSystem true,
+   * "class", storageKey "theme", defaultTheme "light", forcedTheme null,
+   * themes ["light","dark"], value-mapping null, enableSystem false,
    * enableColorScheme true. Changing any of those props changes this text
    * (and therefore its hash) — test/csp.test.mjs catches the drift.
    */
-  nextThemesInjected: `((e,i,s,u,m,a,l,h)=>{let d=document.documentElement,w=["light","dark"];function p(n){(Array.isArray(e)?e:[e]).forEach(y=>{let k=y==="class",S=k&&a?m.map(f=>a[f]||f):m;k?(d.classList.remove(...S),d.classList.add(a&&a[n]?a[n]:n)):d.setAttribute(y,n)}),R(n)}function R(n){h&&w.includes(n)&&(d.style.colorScheme=n)}function c(){return window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}if(u)p(u);else try{let n=localStorage.getItem(i)||s,y=l&&n==="system"?c():n;p(y)}catch(n){}})("class","theme","dark",null,["light","dark"],null,true,true)`,
+  nextThemesInjected: `((e,i,s,u,m,a,l,h)=>{let d=document.documentElement,w=["light","dark"];function p(n){(Array.isArray(e)?e:[e]).forEach(y=>{let k=y==="class",S=k&&a?m.map(f=>a[f]||f):m;k?(d.classList.remove(...S),d.classList.add(a&&a[n]?a[n]:n)):d.setAttribute(y,n)}),R(n)}function R(n){h&&w.includes(n)&&(d.style.colorScheme=n)}function c(){return window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}if(u)p(u);else try{let n=localStorage.getItem(i)||s,y=l&&n==="system"?c():n;p(y)}catch(n){}})("class","theme","light",null,["light","dark"],null,false,true)`,
 } as const;
 
 export function scriptHash(source: string): string {
