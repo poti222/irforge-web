@@ -46,6 +46,8 @@ import botPluginsRouter from "./botPlugins.js";
 import botPluginDataRouter from "./botPluginData.js";
 // لایسنس پلاگین‌ها: نمای حساب‌محور + انتقال بین بات‌ها
 import pluginLicencesRouter from "./pluginLicences.js";
+// یادداشتِ انتشارِ هر نسخه‌ی پلاگین — نگاه کن lib/marketplaceSync.ts هم
+import pluginReleaseNotesRouter from "./pluginReleaseNotes.js";
 import botObjectsRouter from "./botObjects.js";
 import botRelationsRouter from "./botRelations.js";
 import botWorkflowsRouter from "./botWorkflows.js";
@@ -108,6 +110,7 @@ router.use(botPluginsRouter);
 router.use(botPluginDataRouter);
 // باید قبل از botsRouter نباشد؛ مسیرهایش زیر /plugin-licences است و تعارضی ندارد.
 router.use(pluginLicencesRouter);
+router.use(pluginReleaseNotesRouter);
 router.use(botObjectsRouter);
 router.use(botRelationsRouter);
 router.use(botWorkflowsRouter);

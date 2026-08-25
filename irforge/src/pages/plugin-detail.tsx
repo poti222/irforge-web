@@ -17,7 +17,7 @@
  */
 import { Link, useParams } from "wouter";
 import {
-  ArrowLeft, ArrowRight, Blocks, Check, Info, Loader2, MoveRight, ShoppingCart, Table2,
+  ArrowLeft, ArrowRight, Blocks, Check, Info, Loader2, MoveRight, ShoppingCart, Table2, History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
@@ -43,6 +45,8 @@ function errMessage(err: any, fallback: string): string {
   return err?.data?.error ?? err?.message ?? fallback;
 }
 
+type ReleaseNote = { id: string; version: string; title: string; body: string; createdAt: string };
+
 export default function PluginDetail() {
   const { pluginId } = useParams<{ pluginId: string }>();
   const t = useT("botPlugins");
@@ -53,6 +57,11 @@ export default function PluginDetail() {
   const { toast } = useToast();
 
   const { data, isLoading, error } = usePluginLicences();
+  const { data: releaseNotes } = useQuery({
+    queryKey: ["plugin-release-notes", pluginId],
+    queryFn: () => customFetch<ReleaseNote[]>(`/api/plugins/${pluginId}/release-notes`),
+    enabled: Boolean(pluginId),
+  });
   const buy = useBuyPluginForBots();
   const move = useMoveLicence();
   const [selectedBotIds, setSelectedBotIds] = useState<string[]>([]);
@@ -320,6 +329,30 @@ export default function PluginDetail() {
           )}
         </CardContent>
       </Card>
+
+      {releaseNotes && releaseNotes.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <History className="size-4 text-muted-foreground" /> {t.releaseNotesTitle}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {releaseNotes.map((note) => (
+              <div key={note.id} className="space-y-1 border-b pb-3 last:border-0 last:pb-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" dir="ltr">v{note.version}</Badge>
+                  <span className="text-sm font-medium">{note.title}</span>
+                  <span className="ms-auto text-xs text-muted-foreground">
+                    {new Date(note.createdAt).toLocaleDateString(fa ? "fa-IR" : "en-US")}
+                  </span>
+                </div>
+                <p className="whitespace-pre-line text-sm text-muted-foreground">{note.body}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

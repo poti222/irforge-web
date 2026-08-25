@@ -1928,6 +1928,7 @@
     "manage": "Yönet",
     "details": "Ayrıntılar",
     "detailsTitle": "Eklenti",
+    "releaseNotesTitle": "Sürüm notları",
     "removeFromBot": "Bottan kaldır",
     "removeFromBotTitle": "Bu eklenti bottan kaldırılsın mı?",
     "removeFromBotWarning": "Eklenti bu bottan kaldırılır ve bölümü kaybolur. E-tabloya yazılmış veriler kalır. Ücret geri ödenmez — başka bir botta kullanmak istiyorsanız kaldırmak yerine taşıyın.",

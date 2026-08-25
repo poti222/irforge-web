@@ -20,7 +20,8 @@ import { UpdatesManager, ADMIN_UPDATES_KEY } from "@/components/admin/UpdatesMan
 import { PendingRegistrations, PENDING_REGISTRATIONS_KEY } from "@/components/admin/PendingRegistrations";
 import { DiscountsManager } from "@/components/admin/DiscountsManager";
 import { SupportLinksSettings, ADMIN_SUPPORT_LINKS_KEY } from "@/components/admin/SupportLinksSettings";
-import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, Percent, Sparkles, UserPlus, LifeBuoy } from "lucide-react";
+import { PluginReleaseNotesManager, ADMIN_PLUGIN_RELEASE_NOTES_KEY } from "@/components/admin/PluginReleaseNotesManager";
+import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, Percent, Sparkles, UserPlus, LifeBuoy, Blocks } from "lucide-react";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
 
@@ -35,6 +36,7 @@ const TAB_KEYS: Record<string, QueryKey[]> = {
   plans: [ADMIN_PLANS_KEY, getListPlansQueryKey()],
   announcements: [getListAnnouncementsQueryKey()],
   updates: [ADMIN_UPDATES_KEY],
+  pluginReleaseNotes: [ADMIN_PLUGIN_RELEASE_NOTES_KEY],
   pending: [PENDING_REGISTRATIONS_KEY],
   discounts: [["admin-discounts"]],
   settings: [ADMIN_SUPPORT_LINKS_KEY],
@@ -84,6 +86,7 @@ export default function Admin() {
           {isSuperAdmin && <TabsTrigger value="plans"><Package className="me-2 h-4 w-4" /> {fa ? "پلن‌ها" : "Plans"}</TabsTrigger>}
           <TabsTrigger value="announcements"><Megaphone className="me-2 h-4 w-4" /> {fa ? "اعلان‌ها" : "Announcements"}</TabsTrigger>
           <TabsTrigger value="updates"><Sparkles className="me-2 h-4 w-4" /> {fa ? "آپدیت‌ها" : "Updates"}</TabsTrigger>
+          {isSuperAdmin && <TabsTrigger value="pluginReleaseNotes"><Blocks className="me-2 h-4 w-4" /> {fa ? "یادداشتِ پلاگین‌ها" : "Plugin notes"}</TabsTrigger>}
           <TabsTrigger value="pending"><UserPlus className="me-2 h-4 w-4" /> {fa ? "ثبت‌نام‌های ناتمام" : "Pending signups"}</TabsTrigger>
           {isSuperAdmin && <TabsTrigger value="discounts"><Percent className="me-2 h-4 w-4" /> {fa ? "تخفیف‌ها" : "Discounts"}</TabsTrigger>}
           {isSuperAdmin && <TabsTrigger value="settings"><LifeBuoy className="me-2 h-4 w-4" /> {fa ? "تنظیمات سایت" : "Site settings"}</TabsTrigger>}
@@ -97,6 +100,7 @@ export default function Admin() {
         <TabsContent value="announcements"><AnnouncementsManager /></TabsContent>
         {/* مثل اعلان‌ها برای admin و super_admin هر دو باز است (روت‌های سرور requireAdmin هستند). */}
         <TabsContent value="updates"><UpdatesManager /></TabsContent>
+        {isSuperAdmin && <TabsContent value="pluginReleaseNotes"><PluginReleaseNotesManager /></TabsContent>}
         <TabsContent value="pending"><PendingRegistrations /></TabsContent>
         {isSuperAdmin && <TabsContent value="discounts"><DiscountsManager /></TabsContent>}
         {isSuperAdmin && <TabsContent value="settings"><SupportLinksSettings /></TabsContent>}

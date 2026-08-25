@@ -1928,6 +1928,7 @@
     "manage": "Manage",
     "details": "Details",
     "detailsTitle": "Plugin",
+    "releaseNotesTitle": "Release notes",
     "removeFromBot": "Uninstall",
     "removeFromBotTitle": "Uninstall this plugin from the bot?",
     "removeFromBotWarning": "The plugin is removed from this bot and its section disappears. Data already written to the spreadsheet stays. There's no refund — to use it on a different bot, move it instead of uninstalling.",

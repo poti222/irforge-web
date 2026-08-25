@@ -21,7 +21,7 @@
  * می‌کند و ردیف نبوده را می‌سازد. `installCount` و `rating` **دست‌نخورده**
  * می‌مانند — آن‌ها داده‌ی واقعیِ سایت‌اند، نه چیزی که از مانیفست بیاید.
  */
-import { db, marketplaceItemsTable } from "@workspace/db";
+import { db, marketplaceItemsTable, installedPluginsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { getPluginCatalog, type PluginManifest } from "./pluginCatalog.js";
 import { pluginPrice } from "./pluginPricing.js";
@@ -110,7 +110,7 @@ export async function syncPluginMarketplaceItems(): Promise<SyncResult> {
 
     try {
       const [existing] = await db
-        .select({ id: marketplaceItemsTable.id })
+        .select({ id: marketplaceItemsTable.id, version: marketplaceItemsTable.version })
         .from(marketplaceItemsTable)
         .where(eq(marketplaceItemsTable.id, id))
         .limit(1);
@@ -120,6 +120,19 @@ export async function syncPluginMarketplaceItems(): Promise<SyncResult> {
         // خودِ سایت‌اند و یک sync نباید صفرشان کند.
         await db.update(marketplaceItemsTable).set(values).where(eq(marketplaceItemsTable.id, id));
         result.updated += 1;
+
+        // Phase 38: نسخه‌ی `installed_plugins` تا امروز فقط موقع خرید نوشته
+        // می‌شد و برای همیشه همان می‌ماند — یعنی صفحه‌ی پلاگین همیشه نسخه‌ی
+        // خریدِ اول را نشان می‌داد، حتی سال‌ها بعد از این‌که بات نسخه‌ی
+        // جدیدتری اجرا می‌کرد. کدِ واقعیِ روی بات همیشه آخرین نسخه است (بات
+        // فایل‌های پلاگینِ خودش را اجرا می‌کند، نه چیزی که این ردیف می‌گوید)،
+        // پس این فقط تصحیحِ یک متادیتای نمایشی است، نه تغییرِ رفتار.
+        if (existing.version !== values.version) {
+          await db
+            .update(installedPluginsTable)
+            .set({ version: values.version })
+            .where(eq(installedPluginsTable.marketplaceItemId, id));
+        }
       } else {
         await db.insert(marketplaceItemsTable).values({ id, ...values });
         result.created += 1;
