@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -346,10 +347,8 @@ export function CreateBotDialog({ open, onOpenChange, onSuccess }: CreateBotDial
               {/* مبلغ واریزی */}
               <div className="space-y-1.5">
                 <Label htmlFor="payment-amount">مبلغ واریزی (تومان)</Label>
-                <Input
+                <AmountInput
                   id="payment-amount"
-                  type="number"
-                  dir="ltr"
                   placeholder="مثلاً: ۱۵۰۰۰۰"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}

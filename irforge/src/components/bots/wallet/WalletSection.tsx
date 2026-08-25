@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -76,7 +77,7 @@ function AmountAction({
     <div className="flex flex-wrap items-end gap-2 rounded-md border p-2">
       <div className="space-y-1">
         <Label className="text-xs">{t.fieldAmount}</Label>
-        <Input type="number" dir="ltr" className="w-32" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <AmountInput className="w-32" value={amount} onChange={(e) => setAmount(e.target.value)} />
       </div>
       <div className="space-y-1">
         <Label className="text-xs">{t.fieldReason}</Label>
@@ -253,7 +254,7 @@ function OrderTab({ botId }: { botId: string }) {
           </div>
           <div className="space-y-1">
             <Label>{t.fieldAmount}</Label>
-            <Input type="number" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <AmountInput value={amount} onChange={(e) => setAmount(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label>{t.fieldReason}</Label>

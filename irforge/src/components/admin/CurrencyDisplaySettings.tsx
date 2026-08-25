@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, Loader2, Save, Coins } from "lucide-react";
+import { AmountInput } from "@/components/ui/amount-input";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { CURRENCY_DISPLAY_QUERY_KEY, type CurrencyDisplaySettings, type CurrencyRate } from "@/config/currency";
@@ -137,9 +138,9 @@ export function CurrencyDisplaySettings() {
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor={`rate-${row._id}`} className="text-xs">{fa ? "تومان به ازای یک واحد" : "Toman per unit"}</Label>
-                  <Input
-                    id={`rate-${row._id}`} dir="ltr" type="number" min={0} placeholder="60000"
-                    value={row.tomanPerUnit || ""}
+                  <AmountInput
+                    id={`rate-${row._id}`} placeholder="60000"
+                    value={String(row.tomanPerUnit || "")}
                     onChange={(e) => patchRow(row._id, { tomanPerUnit: Number(e.target.value) })}
                   />
                 </div>

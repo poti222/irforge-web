@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, Save, RotateCcw, ArrowRight, AlertTriangle, Home, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -352,9 +353,9 @@ export function PanelEditor({
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="pe-price">{t.settingPrice}</Label>
-                      <Input
-                        id="pe-price" type="number" min={0} dir="ltr"
-                        value={Number(settings.price ?? 0)}
+                      <AmountInput
+                        id="pe-price"
+                        value={String(settings.price ?? 0)}
                         onChange={(e) => setSetting("price", Number(e.target.value))}
                       />
                     </div>

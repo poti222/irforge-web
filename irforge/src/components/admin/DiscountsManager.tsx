@@ -3,6 +3,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -246,12 +247,8 @@ export function DiscountsManager() {
               <Label htmlFor="disc-value">
                 {kind === "percent" ? (fa ? "درصد (۱ تا ۱۰۰)" : "Percent (1–100)") : (fa ? "مبلغ (تومان)" : "Amount (Toman)")}
               </Label>
-              <Input
+              <AmountInput
                 id="disc-value"
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={kind === "percent" ? 100 : undefined}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
               />

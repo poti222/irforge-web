@@ -15,6 +15,7 @@ import type { Bot } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Save, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -95,9 +96,9 @@ function LoyaltySettingsCard({ bot }: { bot: Bot }) {
             <Label htmlFor="ly-currency-per-point">
               {fa ? "هر چند تومان = ۱ امتیاز" : "Currency per point"}
             </Label>
-            <Input
-              id="ly-currency-per-point" type="number" min={1} dir="ltr"
-              value={draft.currencyPerPoint}
+            <AmountInput
+              id="ly-currency-per-point"
+              value={String(draft.currencyPerPoint)}
               onChange={(e) => patch({ currencyPerPoint: Number(e.target.value) || 0 })}
             />
           </div>
@@ -113,9 +114,9 @@ function LoyaltySettingsCard({ bot }: { bot: Bot }) {
             <Label htmlFor="ly-redeem-value">
               {fa ? "ارزش هر امتیاز موقع تبدیل (تومان)" : "Redeem value per point"}
             </Label>
-            <Input
-              id="ly-redeem-value" type="number" min={0} dir="ltr"
-              value={draft.redeemValue}
+            <AmountInput
+              id="ly-redeem-value"
+              value={String(draft.redeemValue)}
               onChange={(e) => patch({ redeemValue: Number(e.target.value) || 0 })}
             />
           </div>

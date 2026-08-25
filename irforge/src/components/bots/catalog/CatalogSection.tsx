@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -228,7 +229,7 @@ function OptionEditor({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>{t.fieldOptionPrice}</Label>
-              <Input type="number" dir="ltr" value={price} onChange={(e) => setPrice(e.target.value)} />
+              <AmountInput value={price} onChange={(e) => setPrice(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>{t.fieldOptionSortOrder}</Label>
@@ -478,7 +479,7 @@ function ItemEditor({
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label>{t.fieldPrice}</Label>
-              <Input type="number" dir="ltr" value={price} onChange={(e) => setPrice(e.target.value)} />
+              <AmountInput value={price} onChange={(e) => setPrice(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>{t.fieldCurrency}</Label>
@@ -486,7 +487,7 @@ function ItemEditor({
             </div>
             <div className="space-y-1">
               <Label>{t.fieldCompareAtPrice}</Label>
-              <Input type="number" dir="ltr" value={compareAtPrice} onChange={(e) => setCompareAtPrice(e.target.value)} />
+              <AmountInput value={compareAtPrice} onChange={(e) => setCompareAtPrice(e.target.value)} />
             </div>
           </div>
 

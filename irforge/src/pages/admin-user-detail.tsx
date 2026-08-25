@@ -5,6 +5,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -449,8 +450,8 @@ export default function AdminUserDetail() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>{fa ? "مبلغ (تومان)" : "Amount (Toman)"}</Label>
-                  <Input
-                    type="number" dir="ltr" min="1" value={walletAmount}
+                  <AmountInput
+                    value={walletAmount}
                     onChange={(e) => setWalletAmount(e.target.value)}
                     className="w-40"
                   />
