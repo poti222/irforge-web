@@ -42,6 +42,18 @@ interface AdminUser {
   profileComplete: boolean; createdAt: string; lastLogin: string | null;
 }
 
+interface AdminUserBilling {
+  walletBalance: number;
+  planId: string;
+  planName: string;
+  planStatus: string;
+  planExpiresAt: string | null;
+}
+
+interface AdminPlan {
+  id: string; name: string; price: number; interval: string;
+}
+
 export default function AdminUserDetail() {
   const { id } = useParams<{ id: string }>();
   const { lang } = useLanguage();
@@ -55,18 +67,28 @@ export default function AdminUserDetail() {
   const [phone, setPhone] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [reason, setReason] = useState("");
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("__free__");
+  const [durationDays, setDurationDays] = useState("");
+  const [walletDirection, setWalletDirection] = useState<"credit" | "debit">("credit");
+  const [walletAmount, setWalletAmount] = useState("");
 
   const key = ["admin-user", id];
   const { data, isLoading } = useQuery({
     queryKey: key,
     queryFn: async () => {
-      const r = await customFetch<{ user: AdminUser; activity: any }>(
+      const r = await customFetch<{ user: AdminUser; activity: any; billing: AdminUserBilling }>(
         `/api/superadmin/users/${id}`,
       );
       setName(r.user.name); setEmail(r.user.email); setPhone(r.user.phone ?? "");
+      setSelectedPlanId(r.billing.planId === "free" ? "__free__" : r.billing.planId);
       return r;
     },
     enabled: Boolean(id),
+  });
+
+  const { data: plans } = useQuery({
+    queryKey: ["admin-plans"],
+    queryFn: () => customFetch<AdminPlan[]>("/api/admin/plans"),
   });
 
   const { data: audit } = useQuery({
@@ -156,8 +178,37 @@ export default function AdminUserDetail() {
     onError,
   });
 
+  const changePlan = useMutation({
+    mutationFn: () =>
+      customFetch(`/api/superadmin/users/${id}/plan`, {
+        method: "POST",
+        body: JSON.stringify({
+          planId: selectedPlanId === "__free__" ? null : selectedPlanId,
+          durationDays: durationDays.trim() ? Number(durationDays) : null,
+          reason,
+        }),
+      }),
+    onSuccess: () => { invalidate(); toast({ title: fa ? "پلن تغییر کرد" : "Plan changed" }); },
+    onError,
+  });
+
+  const adjustWallet = useMutation({
+    mutationFn: () =>
+      customFetch(`/api/superadmin/users/${id}/wallet-adjust`, {
+        method: "POST",
+        body: JSON.stringify({ direction: walletDirection, amount: Number(walletAmount), reason }),
+      }),
+    onSuccess: () => {
+      invalidate();
+      setWalletAmount("");
+      toast({ title: fa ? "کیف پول به‌روزرسانی شد" : "Wallet updated" });
+    },
+    onError,
+  });
+
   const reasonTooShort = reason.trim().length < 5;
   const u = data?.user;
+  const billing = data?.billing;
 
   if (isLoading || !u) {
     return <div className="mx-auto max-w-3xl p-6"><div className="h-40 animate-pulse rounded-md bg-muted" /></div>;
@@ -190,6 +241,7 @@ export default function AdminUserDetail() {
           <TabsTrigger value="identity">{fa ? "هویت" : "Identity"}</TabsTrigger>
           <TabsTrigger value="telegram">Telegram</TabsTrigger>
           <TabsTrigger value="account">{fa ? "حساب" : "Account"}</TabsTrigger>
+          <TabsTrigger value="billing">{fa ? "پلن و کیف پول" : "Plan & Wallet"}</TabsTrigger>
           <TabsTrigger value="security">{fa ? "امنیت" : "Security"}</TabsTrigger>
           <TabsTrigger value="audit">{fa ? "ممیزی" : "Audit"}</TabsTrigger>
         </TabsList>
@@ -316,6 +368,106 @@ export default function AdminUserDetail() {
                 {fa ? "تیکت‌ها" : "Tickets"}: {data.activity.ticketCount} ·{" "}
                 {fa ? "نشست‌ها" : "Sessions"}: {data.activity.sessionCount}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="billing" className="space-y-4">
+          {/*
+            هر دو اقدام اینجا — override پلن و شارژ/کسرِ دستیِ کیف‌پول — کاملاً
+            جدا از مسیرِ خودِ کاربر است (`routes/plans.ts`، `routes/wallet.ts`):
+            بدون کسرِ کیف‌پول، بدون تأیید فیش. برای اصلاحِ اشتباه یا
+            حسن‌نیتِ پشتیبانی است، نه یک خرید.
+          */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">{fa ? "پلن" : "Plan"}</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted-foreground">{fa ? "پلن فعلی:" : "Current plan:"}</span>
+                <Badge variant="secondary">{billing?.planName}</Badge>
+                <Badge variant={billing?.planStatus === "active" ? "default" : "outline"}>{billing?.planStatus}</Badge>
+                {billing?.planExpiresAt && (
+                  <span className="text-xs text-muted-foreground">
+                    {fa ? "تا " : "Until "}{new Date(billing.planExpiresAt).toLocaleDateString(fa ? "fa-IR" : "en-US")}
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>{fa ? "پلن جدید" : "New plan"}</Label>
+                <Select value={selectedPlanId} onValueChange={setSelectedPlanId} disabled={reasonTooShort}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__free__">{fa ? "رایگان (بدون پلن)" : "Free (no plan)"}</SelectItem>
+                    {(plans ?? []).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedPlanId !== "__free__" && (
+                <div className="space-y-1.5">
+                  <Label>{fa ? "مدت (روز، اختیاری — خالی یعنی بدون انقضا)" : "Duration (days, optional — empty means no expiry)"}</Label>
+                  <Input
+                    type="number" dir="ltr" min="1" value={durationDays}
+                    onChange={(e) => setDurationDays(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <Button onClick={() => changePlan.mutate()} disabled={reasonTooShort || changePlan.isPending}>
+                {changePlan.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+                {fa ? "اعمالِ پلن" : "Apply plan"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                {fa
+                  ? "این کار هیچ پولی از کیف پول کم نمی‌کند — یک override اداری است."
+                  : "This never charges the wallet — it's an administrative override."}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">{fa ? "کیف پول" : "Wallet"}</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-sm">
+                <span className="text-muted-foreground">{fa ? "موجودی فعلی:" : "Current balance:"}</span>{" "}
+                <span className="font-semibold">{billing?.walletBalance?.toLocaleString(fa ? "fa-IR" : "en-US")}</span>
+              </div>
+
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="space-y-1.5">
+                  <Label>{fa ? "نوع" : "Direction"}</Label>
+                  <Select value={walletDirection} onValueChange={(v) => setWalletDirection(v as "credit" | "debit")} disabled={reasonTooShort}>
+                    <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="credit">{fa ? "شارژ" : "Credit"}</SelectItem>
+                      <SelectItem value="debit">{fa ? "کسر" : "Debit"}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>{fa ? "مبلغ (تومان)" : "Amount (Toman)"}</Label>
+                  <Input
+                    type="number" dir="ltr" min="1" value={walletAmount}
+                    onChange={(e) => setWalletAmount(e.target.value)}
+                    className="w-40"
+                  />
+                </div>
+                <Button
+                  onClick={() => adjustWallet.mutate()}
+                  disabled={reasonTooShort || adjustWallet.isPending || !walletAmount || Number(walletAmount) <= 0}
+                >
+                  {adjustWallet.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+                  {fa ? "اعمال" : "Apply"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {fa
+                  ? "کسر نمی‌تواند موجودی را منفی کند — اگر ناکافی باشد رد می‌شود."
+                  : "A debit can never take the balance negative — it's rejected if insufficient."}
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

@@ -25,7 +25,11 @@ export type AuditAction =
   | "bot_purged"
   // IRFORGE_PROMPT_V3 Phase 16 — mainbot's ticket-created/escalated call.
   | "ticket_created_notified"
-  | "ticket_escalated_notified";
+  | "ticket_escalated_notified"
+  // IRFORGE_PROMPT_V3 Phase 36 — super admin directly adjusting a user's
+  // account-level plan or wallet balance (routes/superAdminUsers.ts).
+  | "plan_changed"
+  | "wallet_adjusted";
 
 export async function writeAudit(input: {
   actorUserId: string;

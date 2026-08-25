@@ -35,6 +35,7 @@ test("auditActionLabel covers every action the backend can emit", () => {
     "telegram_reset", "password_set", "identity_updated", "role_changed",
     "status_changed", "sessions_revoked", "impersonation_started",
     "bot_purged", "ticket_created_notified", "ticket_escalated_notified",
+    "plan_changed", "wallet_adjusted",
   ];
   for (const action of actions) {
     assert.notEqual(auditActionLabel(action, true), action, `${action} (fa) should have a real label`);
@@ -112,6 +113,39 @@ test("ticket_created_notified shows the ticket id", () => {
 test("ticket_escalated_notified shows the ticket id", () => {
   const detail = describeAuditDetail("ticket_escalated_notified", { ticketId: 42 }, false);
   assert.equal(detail, "Ticket #42");
+});
+
+test("plan_changed shows the previous and new plan", () => {
+  const detail = describeAuditDetail("plan_changed", { from: "free", to: "gold" }, true);
+  assert.equal(detail, "از پلن «free» به «gold»");
+});
+
+test("plan_changed with a duration appends the day count", () => {
+  const detail = describeAuditDetail("plan_changed", { from: "free", to: "gold", durationDays: 30 }, false);
+  assert.equal(detail, 'From plan "free" to "gold" (30 days)');
+});
+
+test("plan_changed with no previous plan still shows the new one", () => {
+  const detail = describeAuditDetail("plan_changed", { to: "gold" }, false);
+  assert.equal(detail, 'New plan: "gold"');
+});
+
+test("plan_changed with no target plan returns null", () => {
+  assert.equal(describeAuditDetail("plan_changed", {}, true), null);
+});
+
+test("wallet_adjusted (credit) shows the credited amount", () => {
+  const detail = describeAuditDetail("wallet_adjusted", { direction: "credit", amount: 50000 }, true);
+  assert.equal(detail, "۵۰٬۰۰۰ تومان شارژ شد");
+});
+
+test("wallet_adjusted (debit) shows the debited amount in English", () => {
+  const detail = describeAuditDetail("wallet_adjusted", { direction: "debit", amount: 20000 }, false);
+  assert.equal(detail, "Debited 20,000 Toman");
+});
+
+test("wallet_adjusted with an unknown direction returns null", () => {
+  assert.equal(describeAuditDetail("wallet_adjusted", { direction: "refund", amount: 1 }, true), null);
 });
 
 test("an unknown action returns null instead of throwing", () => {

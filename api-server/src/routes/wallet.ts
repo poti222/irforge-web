@@ -8,6 +8,7 @@ import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { createNotification, formatTomanFa } from "../lib/notify";
 import { getPaymentMethods, setPaymentMethods } from "../lib/platformSettings";
+import { ensureWallet } from "../lib/wallet.js";
 
 const router = Router();
 
@@ -20,19 +21,6 @@ function requireSuperAdmin(req: any, res: any, next: any) {
     }
     next();
   });
-}
-
-async function ensureWallet(userId: string) {
-  const [existing] = await db.select().from(walletsTable).where(eq(walletsTable.userId, userId)).limit(1);
-  if (existing) return existing;
-  try {
-    const [created] = await db.insert(walletsTable)
-      .values({ id: crypto.randomUUID(), userId, balance: 0 }).returning();
-    return created;
-  } catch {
-    const [w] = await db.select().from(walletsTable).where(eq(walletsTable.userId, userId)).limit(1);
-    return w;
-  }
 }
 
 function formatTx(t: any) {

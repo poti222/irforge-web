@@ -27,7 +27,10 @@ export type AuditAction =
   | "impersonation_started"
   | "bot_purged"
   | "ticket_created_notified"
-  | "ticket_escalated_notified";
+  | "ticket_escalated_notified"
+  // IRFORGE_PROMPT_V3 Phase 36 — super admin directly adjusting a user's plan/wallet.
+  | "plan_changed"
+  | "wallet_adjusted";
 
 const ACTION_LABELS: Record<AuditAction, { fa: string; en: string }> = {
   telegram_reset:          { fa: "قطع اتصال تلگرام",        en: "Telegram unlinked" },
@@ -40,6 +43,8 @@ const ACTION_LABELS: Record<AuditAction, { fa: string; en: string }> = {
   bot_purged:              { fa: "حذف کامل بات",             en: "Bot purged" },
   ticket_created_notified: { fa: "اطلاع‌رسانی تیکت جدید",    en: "New ticket notified" },
   ticket_escalated_notified: { fa: "اطلاع‌رسانی تیکت فوری",  en: "Escalated ticket notified" },
+  plan_changed:            { fa: "تغییر پلن",                en: "Plan changed" },
+  wallet_adjusted:         { fa: "تعدیل کیف پول",            en: "Wallet adjusted" },
 };
 
 const FIELD_LABELS: Record<string, { fa: string; en: string }> = {
@@ -143,6 +148,29 @@ export function describeAuditDetail(
       const ticketId = m.ticketId != null ? String(m.ticketId) : null;
       if (!ticketId) return null;
       return fa ? `تیکت #${ticketId}` : `Ticket #${ticketId}`;
+    }
+
+    case "plan_changed": {
+      const from = typeof m.from === "string" ? m.from : null;
+      const to = typeof m.to === "string" ? m.to : null;
+      if (!to) return null;
+      const duration = typeof m.durationDays === "number" ? m.durationDays : null;
+      const base = from
+        ? fa ? `از پلن «${from}» به «${to}»` : `From plan "${from}" to "${to}"`
+        : fa ? `پلن جدید: «${to}»` : `New plan: "${to}"`;
+      if (!duration) return base;
+      return `${base} ${fa ? `(${duration} روز)` : `(${duration} day${duration === 1 ? "" : "s"})`}`;
+    }
+
+    case "wallet_adjusted": {
+      const direction = m.direction === "credit" || m.direction === "debit" ? m.direction : null;
+      const amount = typeof m.amount === "number" ? m.amount : null;
+      if (!direction || amount === null) return null;
+      const amountFa = amount.toLocaleString("fa-IR");
+      const amountEn = amount.toLocaleString("en-US");
+      return direction === "credit"
+        ? fa ? `${amountFa} تومان شارژ شد` : `Credited ${amountEn} Toman`
+        : fa ? `${amountFa} تومان کسر شد` : `Debited ${amountEn} Toman`;
     }
 
     default:
