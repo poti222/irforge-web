@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { PublicFooter } from "@/components/layout/public-footer";
+import { PublicPageControls } from "@/components/layout/public-page-controls";
 import { Check, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,13 +57,16 @@ export default function Pricing() {
   return (
     <>
       <div className="mx-auto max-w-4xl space-y-10 px-4 py-8">
-        <nav aria-label={t.breadcrumbLabel} className="text-sm text-muted-foreground">
-          <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <li><Link href="/" className="hover:text-foreground">{seo.navHome}</Link></li>
-            <li aria-hidden="true">/</li>
-            <li className="text-foreground">{seo.navPricing}</li>
-          </ol>
-        </nav>
+        <div className="flex items-center justify-between gap-3">
+          <nav aria-label={t.breadcrumbLabel} className="min-w-0 text-sm text-muted-foreground">
+            <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <li><Link href="/" className="hover:text-foreground">{seo.navHome}</Link></li>
+              <li aria-hidden="true">/</li>
+              <li className="text-foreground">{seo.navPricing}</li>
+            </ol>
+          </nav>
+          <PublicPageControls />
+        </div>
 
         <header className="space-y-3">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{t.title}</h1>

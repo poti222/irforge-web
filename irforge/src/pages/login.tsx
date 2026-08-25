@@ -13,6 +13,7 @@ import { useSEO } from "@/hooks/use-seo";
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
 import { BrandLogo } from "@/components/layout/brand-home";
+import { PublicPageControls } from "@/components/layout/public-page-controls";
 import { CodeInput } from "@/components/auth/CodeInput";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
@@ -352,6 +353,7 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
+      <PublicPageControls className="fixed end-4 top-4 z-10" />
       <div className="w-full max-w-md space-y-6">
         <div className="flex justify-center">
           <BrandLogo href="/" />

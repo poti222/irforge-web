@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { PublicFooter } from "@/components/layout/public-footer";
+import { PublicPageControls } from "@/components/layout/public-page-controls";
 import { ChevronDown, Clock, Send, ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -65,15 +66,18 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
     <>
     <div className="mx-auto max-w-3xl space-y-10 px-4 py-8">
       {/* Breadcrumb trail, mirroring the BreadcrumbList in the page's JSON-LD. */}
-      <nav aria-label={t.breadcrumbLabel} className="text-sm text-muted-foreground">
-        <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <li><Link href="/" className="hover:text-foreground">{seo.navHome}</Link></li>
-          <li aria-hidden="true">/</li>
-          <li><Link href="/learn" className="hover:text-foreground">{seo.navLearnHub}</Link></li>
-          <li aria-hidden="true">/</li>
-          <li className="text-foreground">{seo[entry.navKey]}</li>
-        </ol>
-      </nav>
+      <div className="flex items-center justify-between gap-3">
+        <nav aria-label={t.breadcrumbLabel} className="min-w-0 text-sm text-muted-foreground">
+          <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <li><Link href="/" className="hover:text-foreground">{seo.navHome}</Link></li>
+            <li aria-hidden="true">/</li>
+            <li><Link href="/learn" className="hover:text-foreground">{seo.navLearnHub}</Link></li>
+            <li aria-hidden="true">/</li>
+            <li className="text-foreground">{seo[entry.navKey]}</li>
+          </ol>
+        </nav>
+        <PublicPageControls />
+      </div>
 
       <header className="space-y-4">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{article.h1}</h1>

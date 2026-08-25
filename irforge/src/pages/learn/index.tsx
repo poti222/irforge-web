@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { PublicFooter } from "@/components/layout/public-footer";
+import { PublicPageControls } from "@/components/layout/public-page-controls";
 import { BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/hooks/use-language";
@@ -26,13 +27,16 @@ export default function LearnHub() {
   return (
     <>
     <div className="mx-auto max-w-3xl space-y-8 px-4 py-8">
-      <nav aria-label={t.breadcrumbLabel} className="text-sm text-muted-foreground">
-        <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <li><Link href="/" className="hover:text-foreground">{seo.navHome}</Link></li>
-          <li aria-hidden="true">/</li>
-          <li className="text-foreground">{seo.navLearnHub}</li>
-        </ol>
-      </nav>
+      <div className="flex items-center justify-between gap-3">
+        <nav aria-label={t.breadcrumbLabel} className="min-w-0 text-sm text-muted-foreground">
+          <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <li><Link href="/" className="hover:text-foreground">{seo.navHome}</Link></li>
+            <li aria-hidden="true">/</li>
+            <li className="text-foreground">{seo.navLearnHub}</li>
+          </ol>
+        </nav>
+        <PublicPageControls />
+      </div>
 
       <header className="space-y-3">
         <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight sm:text-4xl">
