@@ -21,6 +21,7 @@ import { PendingRegistrations, PENDING_REGISTRATIONS_KEY } from "@/components/ad
 import { DiscountsManager } from "@/components/admin/DiscountsManager";
 import { SupportLinksSettings, ADMIN_SUPPORT_LINKS_KEY } from "@/components/admin/SupportLinksSettings";
 import { CurrencyDisplaySettings, ADMIN_CURRENCY_DISPLAY_KEY } from "@/components/admin/CurrencyDisplaySettings";
+import { CaptchaSettings, ADMIN_CAPTCHA_KEY } from "@/components/admin/CaptchaSettings";
 import { PluginReleaseNotesManager, ADMIN_PLUGIN_RELEASE_NOTES_KEY } from "@/components/admin/PluginReleaseNotesManager";
 import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, Percent, Sparkles, UserPlus, LifeBuoy, Blocks } from "lucide-react";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
@@ -40,7 +41,7 @@ const TAB_KEYS: Record<string, QueryKey[]> = {
   pluginReleaseNotes: [ADMIN_PLUGIN_RELEASE_NOTES_KEY],
   pending: [PENDING_REGISTRATIONS_KEY],
   discounts: [["admin-discounts"]],
-  settings: [ADMIN_SUPPORT_LINKS_KEY, ADMIN_CURRENCY_DISPLAY_KEY],
+  settings: [ADMIN_SUPPORT_LINKS_KEY, ADMIN_CURRENCY_DISPLAY_KEY, ADMIN_CAPTCHA_KEY],
 };
 
 export default function Admin() {
@@ -108,6 +109,7 @@ export default function Admin() {
           <TabsContent value="settings" className="space-y-4">
             <SupportLinksSettings />
             <CurrencyDisplaySettings />
+            <CaptchaSettings />
           </TabsContent>
         )}
       </Tabs>

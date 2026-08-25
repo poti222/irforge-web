@@ -63,6 +63,7 @@ import { getPluginCatalog } from "../lib/pluginCatalog.js";
 import { marketplaceItemIdFor } from "../lib/marketplaceSync.js";
 import { getUserPlanLimits, countUserBots } from "../lib/planLimits.js";
 import { deductWallet, InsufficientBalanceError } from "../lib/wallet.js";
+import { verifyCaptchaToken } from "../lib/captchaVerify.js";
 
 const router = Router();
 
@@ -662,6 +663,13 @@ router.post("/bots", requireAuth, perUserRateLimit("bot_create", 10, 60 * 60 * 1
 
 router.post("/bots/trial", requireAuth, perUserRateLimit("bot_create", 10, 60 * 60 * 1000), async (req: any, res) => {
   try {
+    // IRFORGE_PROMPT_V3 Phase 42 — a free, one-per-account trial bot is
+    // exactly the kind of action a script can hammer for free; a no-op when
+    // the captcha gate isn't configured/enabled (lib/captchaVerify.ts).
+    if (!(await verifyCaptchaToken(req.body?.captchaToken, clientIp(req)))) {
+      res.status(400).json({ error: "Captcha verification failed", code: "captcha_failed" });
+      return;
+    }
     const { name, token } = req.body ?? {};
     if (!name?.trim() || !token?.trim()) {
       res.status(400).json({ error: "نام و توکن بات الزامی است" });

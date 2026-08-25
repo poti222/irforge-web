@@ -39,7 +39,8 @@ import {
 } from "../lib/email";
 import { hashPassword } from "../lib/password";
 import { syncSessionUpsert, syncUserUpsert } from "../lib/sheetsSync";
-import { authRateLimit } from "../middleware/rateLimit";
+import { authRateLimit, clientIp } from "../middleware/rateLimit";
+import { verifyCaptchaToken } from "../lib/captchaVerify";
 import { hashSessionToken, hashUserAgent } from "../lib/sessionToken";
 import {
   MAX_CODE_ATTEMPTS,
@@ -139,6 +140,13 @@ class TakenError extends Error {
 // درست است. آن مسئله را نسازید.
 router.post("/auth/register/start", authRateLimit("register_start"), async (req, res) => {
   try {
+    // IRFORGE_PROMPT_V3 Phase 42 — a no-op when the captcha gate isn't
+    // configured/enabled; see lib/captchaVerify.ts. Checked before any DB
+    // work, same as the rate limit above it.
+    if (!(await verifyCaptchaToken(req.body?.captchaToken, clientIp(req)))) {
+      res.status(400).json({ error: "Captcha verification failed", code: "captcha_failed" });
+      return;
+    }
     const firstName = requireText(req.body?.firstName, "First name", NAME_MAX);
     const lastName = requireText(req.body?.lastName, "Last name", NAME_MAX);
     const emailRaw = requireText(req.body?.email, "Email", EMAIL_MAX);
@@ -262,6 +270,11 @@ router.post("/auth/register/start", authRateLimit("register_start"), async (req,
 // of two-step ("identity" then "telegram_pending" then "code_sent").
 router.post("/auth/register/email/start", authRateLimit("register_start"), async (req, res) => {
   try {
+    // IRFORGE_PROMPT_V3 Phase 42 — see the /register/start handler above.
+    if (!(await verifyCaptchaToken(req.body?.captchaToken, clientIp(req)))) {
+      res.status(400).json({ error: "Captcha verification failed", code: "captcha_failed" });
+      return;
+    }
     const firstName = requireText(req.body?.firstName, "First name", NAME_MAX);
     const lastName = requireText(req.body?.lastName, "Last name", NAME_MAX);
     const emailRaw = requireText(req.body?.email, "Email", EMAIL_MAX);

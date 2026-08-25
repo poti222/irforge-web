@@ -2625,6 +2625,10 @@
     "tomanOnly": "Sadece Toman",
     "switchAria": "Görüntülenen para birimini değiştir"
   },
+  "captcha": {
+    "loadError": "Güvenlik kontrolü yüklenemedi — lütfen sayfayı yenileyin.",
+    "required": "Devam etmeden önce lütfen güvenlik kontrolünü tamamlayın."
+  },
   "botPluginData": {
     "loading": "Yükleniyor…",
     "errorGeneric": "Bir hata oluştu. Lütfen tekrar deneyin.",

@@ -340,3 +340,74 @@ export async function setCurrencyDisplay(
     });
   return value;
 }
+
+// ─── captcha (فاز ۴۲) ────────────────────────────────────────────────────────
+//
+// ⚠️ برخلاف بقیه‌ی این فایل: اینجا فقط چیزی که واقعاً امن است برای کلاینت
+// نگه‌داری می‌شود — `enabled` و `siteKey`ی Cloudflare Turnstile، که خودِ
+// Turnstile هم آن‌ها را public طراحی کرده (باید داخل اسکریپت ویجت در مرورگر
+// جاسازی شوند). کلید مخفی (`TURNSTILE_SECRET_KEY`) هرگز اینجا نمی‌آید و هرگز
+// از پنل ادمین قابل تنظیم/خواندن نیست — طبق هشدار بالای فایل، مثل بقیه‌ی
+// رازهای واقعی این پروژه (JWT secret، اعتبارنامه‌ی دیتابیس) فقط env است؛
+// نگاه کن lib/captchaVerify.ts.
+
+export const CAPTCHA_KEY = "captcha";
+
+export type CaptchaSettings = {
+  enabled: boolean;
+  /** Cloudflare Turnstile site key — عمومی به‌طراحی، نه یک راز. */
+  siteKey: string;
+};
+
+function fromEnvCaptcha(): CaptchaSettings {
+  return {
+    enabled: process.env.CAPTCHA_ENABLED === "true",
+    siteKey: process.env.TURNSTILE_SITE_KEY ?? "",
+  };
+}
+
+function mergeCaptcha(raw: unknown): CaptchaSettings {
+  const fallback = fromEnvCaptcha();
+  if (!raw || typeof raw !== "object") return fallback;
+  const value = raw as any;
+  return {
+    enabled: typeof value.enabled === "boolean" ? value.enabled : fallback.enabled,
+    siteKey: typeof value.siteKey === "string" ? value.siteKey.trim().slice(0, 200) : fallback.siteKey,
+  };
+}
+
+/**
+ * هیچ‌وقت `enabled: true` بدون یک `siteKey` واقعی برنمی‌گرداند — یک گیت روشن
+ * بدون کلید یعنی ویجت هیچ‌وقت رندر نمی‌شود و کاربر واقعی هم گیر می‌کند، دقیقاً
+ * همان چیزی که `lib/captchaVerify.ts` با «تنظیم‌نشده یعنی رد نکن» می‌خواهد
+ * جلویش را بگیرد.
+ */
+export async function getCaptchaSettings(): Promise<CaptchaSettings> {
+  try {
+    const [row] = await db
+      .select()
+      .from(platformSettingsTable)
+      .where(eq(platformSettingsTable.key, CAPTCHA_KEY))
+      .limit(1);
+    const merged = row ? mergeCaptcha(JSON.parse(row.value)) : fromEnvCaptcha();
+    return merged.enabled && merged.siteKey ? merged : { enabled: false, siteKey: merged.siteKey };
+  } catch (err) {
+    logger.warn({ err }, "getCaptchaSettings failed — falling back to disabled");
+    return { enabled: false, siteKey: "" };
+  }
+}
+
+export async function setCaptchaSettings(
+  input: unknown,
+  updatedBy: string,
+): Promise<CaptchaSettings> {
+  const value = mergeCaptcha(input);
+  await db
+    .insert(platformSettingsTable)
+    .values({ key: CAPTCHA_KEY, value: JSON.stringify(value), updatedBy })
+    .onConflictDoUpdate({
+      target: platformSettingsTable.key,
+      set: { value: JSON.stringify(value), updatedBy, updatedAt: new Date() },
+    });
+  return value;
+}

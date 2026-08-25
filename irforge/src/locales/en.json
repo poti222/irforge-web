@@ -2625,6 +2625,10 @@
     "tomanOnly": "Toman only",
     "switchAria": "Switch display currency"
   },
+  "captcha": {
+    "loadError": "Couldn't load the security check — please refresh the page.",
+    "required": "Please complete the security check before continuing."
+  },
   "botPluginData": {
     "loading": "Loading…",
     "errorGeneric": "Something went wrong. Please try again.",

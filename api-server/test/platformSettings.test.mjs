@@ -274,3 +274,79 @@ test("currency_display: کدِ تکراری فقط یک‌بار می‌ماند
   assert.equal(saved.rates.length, 1);
   assert.equal(saved.rates[0].label, "اول");
 });
+
+// ─── captcha (فاز ۴۲) ────────────────────────────────────────────────────────
+
+test("captcha: بدون ردیف و بدون env → غیرفعال، بدون siteKey", async () => {
+  delete process.env.CAPTCHA_ENABLED;
+  delete process.env.TURNSTILE_SITE_KEY;
+  installDb(null);
+
+  const settings = await mod.getCaptchaSettings();
+  assert.equal(settings.enabled, false);
+  assert.equal(settings.siteKey, "");
+});
+
+test("captcha: env می‌تواند پیش از اولین ذخیره‌ی پنل هم گیت را روشن کند", async () => {
+  process.env.CAPTCHA_ENABLED = "true";
+  process.env.TURNSTILE_SITE_KEY = "0x4AAAAAAA_env";
+  installDb(null);
+
+  const settings = await mod.getCaptchaSettings();
+  assert.equal(settings.enabled, true);
+  assert.equal(settings.siteKey, "0x4AAAAAAA_env");
+  delete process.env.CAPTCHA_ENABLED;
+  delete process.env.TURNSTILE_SITE_KEY;
+});
+
+test("captcha: ردیفِ ذخیره‌شده روی env سوار می‌شود", async () => {
+  process.env.TURNSTILE_SITE_KEY = "env_key";
+  installDb(fakeRow(mod.CAPTCHA_KEY, { enabled: true, siteKey: "stored_key" }));
+
+  const settings = await mod.getCaptchaSettings();
+  assert.equal(settings.enabled, true);
+  assert.equal(settings.siteKey, "stored_key");
+  delete process.env.TURNSTILE_SITE_KEY;
+});
+
+test("captcha: هرگز enabled=true بدون یک siteKey واقعی برنمی‌گرداند", async () => {
+  installDb(fakeRow(mod.CAPTCHA_KEY, { enabled: true, siteKey: "" }));
+
+  const settings = await mod.getCaptchaSettings();
+  assert.equal(settings.enabled, false, "بدون کلید، گیت هیچ‌وقت واقعاً روشن نیست");
+});
+
+test("captcha: خطای دیتابیس → غیرفعال، بدون throw", async () => {
+  installDb(() => { throw new Error("ECONNREFUSED"); });
+
+  const settings = await mod.getCaptchaSettings();
+  assert.equal(settings.enabled, false);
+  assert.equal(settings.siteKey, "");
+});
+
+test("captcha: setCaptchaSettings مقدارها را ذخیره می‌کند و کلیدِ درست را برمی‌گرداند", async () => {
+  const inserted = installDb(null);
+
+  const saved = await mod.setCaptchaSettings({ enabled: true, siteKey: "0x4AAAAAAA_new" }, "admin_1");
+
+  assert.equal(saved.enabled, true);
+  assert.equal(saved.siteKey, "0x4AAAAAAA_new");
+  assert.equal(inserted[0].value.key, mod.CAPTCHA_KEY);
+});
+
+test("captcha: setCaptchaSettings هیچ فیلدِ secretKeyـی را نمی‌پذیرد یا ذخیره نمی‌کند", async () => {
+  installDb(null);
+
+  const saved = await mod.setCaptchaSettings(
+    { enabled: true, siteKey: "0x4AAAAAAA", secretKey: "0xSECRET_should_never_persist" },
+    "admin_1",
+  );
+
+  assert.equal("secretKey" in saved, false);
+});
+
+test("captcha: siteKey طولانی به سقفِ طول برش می‌خورد", async () => {
+  installDb(null);
+  const saved = await mod.setCaptchaSettings({ enabled: false, siteKey: "x".repeat(500) }, "admin_1");
+  assert.equal(saved.siteKey.length, 200);
+});
