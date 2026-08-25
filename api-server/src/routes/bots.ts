@@ -63,6 +63,7 @@ import { botUserStats, type BotUserStats } from "../lib/botStats";
 import { resolvePurchasePrice } from "../lib/pluginPricing.js";
 import { getPluginCatalog } from "../lib/pluginCatalog.js";
 import { marketplaceItemIdFor } from "../lib/marketplaceSync.js";
+import { getUserPlanLimits, countUserBots } from "../lib/planLimits.js";
 
 const router = Router();
 
@@ -617,6 +618,21 @@ router.post("/bots", requireAuth, perUserRateLimit("bot_create", 10, 60 * 60 * 1
       return;
     }
 
+    // سقفِ تعداد بات — از پلنِ فعلیِ کاربر (`plansTable`/`userPlansTable`).
+    // فقط ساختِ بات جدید را می‌بندد؛ بات‌های موجودِ کاربر دست‌نخورده می‌مانند
+    // حتی اگر از سقفِ یک پلنِ پایین‌تر بیشتر باشند (grandfather-safe).
+    const [planLimits, currentBotCount] = await Promise.all([
+      getUserPlanLimits(req.userId),
+      countUserBots(req.userId),
+    ]);
+    if (currentBotCount >= planLimits.maxBots) {
+      res.status(403).json({
+        error: `پلن فعلی شما حداکثر ${planLimits.maxBots} بات را پشتیبانی می‌کند. برای ساخت بات بیشتر، پلن خود را ارتقا دهید.`,
+        code: "bot_limit_reached",
+      });
+      return;
+    }
+
     const botId = crypto.randomUUID();
     const paymentId = crypto.randomUUID();
 
@@ -712,6 +728,18 @@ router.post("/bots/trial", requireAuth, perUserRateLimit("bot_create", 10, 60 * 
     }
     if (user.hasUsedTrial) {
       res.status(409).json({ error: "تو قبلاً از تریال رایگان استفاده کرده‌ای" });
+      return;
+    }
+
+    const [planLimits, currentBotCount] = await Promise.all([
+      getUserPlanLimits(req.userId),
+      countUserBots(req.userId),
+    ]);
+    if (currentBotCount >= planLimits.maxBots) {
+      res.status(403).json({
+        error: `پلن فعلی شما حداکثر ${planLimits.maxBots} بات را پشتیبانی می‌کند. برای شروع تریال، ابتدا یک بات را حذف کن یا پلن خود را ارتقا بده.`,
+        code: "bot_limit_reached",
+      });
       return;
     }
 
