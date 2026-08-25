@@ -103,25 +103,28 @@
     <!--
       FIX [1.3]: Anti-flash theme script — باید قبل از هر چیز اجرا بشه.
       next-themes تم رو از localStorage می‌خونه ولی قبل از hydrate کلاس
-      .dark روی <html> نیست → فلش سفید. این اسکریپت بلافاصله کلاس درست
+      .dark روی <html> نیست → فلش. این اسکریپت بلافاصله کلاس درست
       رو ست می‌کنه تا فلش نباشه.
+
+      IRFORGE_PROMPT_V3 Phase 46 — پیش‌فرض حالا "light" است، نه "dark"
+      (App.tsx: defaultTheme="light", enableSystem={false}). این دو
+      همیشه باید دقیقاً یکی باشند: پیش‌فرضِ اینجا فقط برای رنگِ اولین
+      پینت پیش از hydrate است، ولی اگر با defaultTheme خودِ
+      ThemeProvider جور نباشد، دقیقاً همان فلش را برعکس دوباره می‌سازد —
+      یک‌بار قبل از hydrate یک تم، یک‌بار بعدش یکی دیگر. دیگر شاخه‌ی
+      "system" هم لازم نیست: enableSystem خاموش است و تنها کنترلِ تمِ
+      اپ (ThemeToggleButton) هیچ‌وقت "system" را ست نمی‌کند.
     -->
     <script>
       (function () {
         try {
           var stored = localStorage.getItem("theme");
-          var theme = stored || "dark"; // defaultTheme="dark" مثل App.tsx
-          if (theme === "dark") {
+          if (stored === "dark") {
             document.documentElement.classList.add("dark");
-          } else if (theme === "system") {
-            if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-              document.documentElement.classList.add("dark");
-            }
           }
-          // "light" → کلاس اضافه نمی‌کنیم، پیش‌فرض سفیده
+          // ذخیره‌نشده، یا "light" → کلاس اضافه نمی‌شود، پیش‌فرض سفیده
         } catch (e) {
-          // localStorage بلاک شده — dark پیش‌فرض
-          document.documentElement.classList.add("dark");
+          // localStorage بلاک شده — light پیش‌فرض، بدون کلاس
         }
       })();
     </script>

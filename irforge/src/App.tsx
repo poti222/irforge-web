@@ -284,8 +284,18 @@ function App({ ssrPath }: { ssrPath?: string } = {}) {
   // (/en/dashboard) — robots.txt disallows both the bare and prefixed forms.
   const base = import.meta.env.BASE_URL.replace(/\/$/, "") + langPrefix(lang);
 
+  // IRFORGE_PROMPT_V3 Phase 46 — light is the default for a first-time
+  // visitor, not dark. `enableSystem` is off on purpose: the only theme
+  // control in the app is ThemeToggleButton's two-state sun/moon toggle
+  // (see hooks/use-theme-sweep.ts) — there is no "match my OS" option
+  // anywhere in the UI, so leaving it on would just let a visitor's OS
+  // dark-mode setting silently override this default on their very first
+  // visit, which is exactly what this phase exists to stop. A theme a
+  // visitor explicitly picks via the toggle is unaffected either way:
+  // next-themes persists it to localStorage (key "theme") and that
+  // stored choice always wins over defaultTheme on every later visit.
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
