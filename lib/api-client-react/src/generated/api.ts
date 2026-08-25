@@ -44,6 +44,7 @@ import type {
   MarketplaceItem,
   PasswordChange,
   Plan,
+  PlanChangeResult,
   PluginInstallInput,
   ProfileUpdate,
   RegisterInput,
@@ -2164,9 +2165,9 @@ export const getSubscribeToPlanUrl = () => {
 /**
  * @summary Subscribe to a plan
  */
-export const subscribeToPlan = async (subscribeInput: SubscribeInput, options?: RequestInit): Promise<UserPlan> => {
+export const subscribeToPlan = async (subscribeInput: SubscribeInput, options?: RequestInit): Promise<PlanChangeResult> => {
 
-  return customFetch<UserPlan>(getSubscribeToPlanUrl(),
+  return customFetch<PlanChangeResult>(getSubscribeToPlanUrl(),
   {
     ...options,
     method: 'POST',

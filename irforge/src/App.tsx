@@ -58,6 +58,7 @@ const PluginDetail = lazy(() => import("@/pages/plugin-detail"));
 const Invoices = lazy(() => import("@/pages/invoices"));
 const Tickets = lazy(() => import("@/pages/tickets"));
 const WalletPage = lazy(() => import("@/pages/wallet"));
+const Plans = lazy(() => import("@/pages/plans"));
 const Profile = lazy(() => import("@/pages/profile"));
 const Admin = lazy(() => import("@/pages/admin"));
 
@@ -208,6 +209,7 @@ function Router() {
       <Route path="/invoices"><ProtectedRoute component={Invoices} /></Route>
       <Route path="/tickets"><ProtectedRoute component={Tickets} /></Route>
       <Route path="/wallet"><ProtectedRoute component={WalletPage} /></Route>
+      <Route path="/plans"><ProtectedRoute component={Plans} /></Route>
       <Route path="/support"><ProtectedRoute component={Support} /></Route>
       <Route path="/notifications"><ProtectedRoute component={Notifications} /></Route>
       <Route path="/notifications/:id"><ProtectedRoute component={NotificationDetail} /></Route>

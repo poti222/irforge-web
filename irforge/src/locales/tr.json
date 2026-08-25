@@ -248,7 +248,8 @@
     "admin": "Yönetim paneli",
     "buyBot": "Bot satın al",
     "checkout": "Ödeme",
-    "botWorkspace": "Bot çalışma alanı"
+    "botWorkspace": "Bot çalışma alanı",
+    "plans": "Planlar"
   },
   "dashboard": {
     "title": "Panel",
@@ -2578,6 +2579,36 @@
     "expired": "Bu planın süresi doldu.",
     "graceWarning": "Aboneliğinizin süresi doldu — ek süre içindesiniz. Ücretli özellikleri korumak için en kısa zamanda yenileyin.",
     "upgradeCta": "Planları görüntüle"
+  },
+  "plans": {
+    "title": "Planlar",
+    "subtitle": "Bot ve ücretsiz eklenti sınırınızı artırmak için hesap planınızı seçin veya değiştirin.",
+    "loading": "Planlar yükleniyor…",
+    "currentBadge": "Mevcut plan",
+    "popularBadge": "En popüler",
+    "perMonth": "/ ay",
+    "perYear": "/ yıl",
+    "free": "Ücretsiz",
+    "maxBots": "{n} bot",
+    "maxPlugins": "{n} ücretsiz eklenti",
+    "statusActive": "Aktif",
+    "statusExpired": "Süresi doldu",
+    "statusTrial": "Deneme",
+    "statusCancelled": "İptal edildi",
+    "expiresOn": "{date} tarihine kadar",
+    "walletBalance": "Cüzdan bakiyesi: {amount}",
+    "ctaCurrent": "Mevcut planınız",
+    "ctaSubscribe": "Abone ol",
+    "ctaUpgrade": "Yükselt",
+    "ctaDowngrade": "Bu plana geç",
+    "ctaRenew": "Yenile",
+    "insufficientTitle": "Cüzdan bakiyesi yetersiz",
+    "insufficientDesc": "Önce cüzdanınızı yükleyin, sonra tekrar deneyin.",
+    "errorTitle": "Bir şeyler ters gitti",
+    "successSubscribe": "\"{plan}\" planına abone olundu.",
+    "successUpgrade": "\"{plan}\" planına yükseltildi.",
+    "successDowngrade": "\"{plan}\" planına geçildi.",
+    "successRenew": "\"{plan}\" yenilendi."
   },
   "botPluginData": {
     "loading": "Yükleniyor…",

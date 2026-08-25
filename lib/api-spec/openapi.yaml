@@ -585,7 +585,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserPlan"
+                $ref: "#/components/schemas/PlanChangeResult"
 
   # Themes
   /themes:
@@ -1239,7 +1239,7 @@ components:
 
     UserPlan:
       type: object
-      required: [planId, planName, status, expiresAt]
+      required: [planId, planName, status, expiresAt, maxBots, maxPlugins]
       properties:
         planId:
           type: string
@@ -1252,6 +1252,10 @@ components:
           type: ["string", "null"]
         renewsAt:
           type: ["string", "null"]
+        maxBots:
+          type: integer
+        maxPlugins:
+          type: integer
 
     SubscribeInput:
       type: object
@@ -1259,6 +1263,22 @@ components:
       properties:
         planId:
           type: string
+
+    # Phase 34: what POST /plans/subscribe actually did — a plain UserPlan
+    # doesn't say whether this was a fresh subscribe, an upgrade (charged
+    # immediately), a downgrade (free, takes the remaining paid period), or a
+    # renewal (extends from the current expiry, not from now).
+    PlanChangeResult:
+      allOf:
+        - $ref: "#/components/schemas/UserPlan"
+        - type: object
+          required: [action, charged]
+          properties:
+            action:
+              type: string
+              enum: [subscribe, upgrade, downgrade, renew]
+            charged:
+              type: integer
 
     # Themes
     Theme:

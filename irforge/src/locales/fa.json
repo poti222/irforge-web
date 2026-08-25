@@ -248,7 +248,8 @@
     "admin": "پنل مدیریت",
     "buyBot": "خرید بات",
     "checkout": "تسویه حساب",
-    "botWorkspace": "مدیریت بات"
+    "botWorkspace": "مدیریت بات",
+    "plans": "پلن‌ها"
   },
   "dashboard": {
     "title": "داشبورد",
@@ -2578,6 +2579,36 @@
     "expired": "این پلن منقضی شده است.",
     "graceWarning": "اشتراک شما منقضی شده — در دورهٔ مهلت هستید. برای حفظ قابلیت‌های پولی، هرچه زودتر تمدید کنید.",
     "upgradeCta": "مشاهدهٔ پلن‌ها"
+  },
+  "plans": {
+    "title": "پلن‌ها",
+    "subtitle": "پلن اشتراک حساب خود را برای افزایش سقف تعداد بات و پلاگین رایگان انتخاب یا تغییر دهید.",
+    "loading": "در حال بارگذاری پلن‌ها…",
+    "currentBadge": "پلن فعلی",
+    "popularBadge": "محبوب‌ترین",
+    "perMonth": "/ ماه",
+    "perYear": "/ سال",
+    "free": "رایگان",
+    "maxBots": "{n} بات",
+    "maxPlugins": "{n} پلاگین رایگان",
+    "statusActive": "فعال",
+    "statusExpired": "منقضی‌شده",
+    "statusTrial": "آزمایشی",
+    "statusCancelled": "لغوشده",
+    "expiresOn": "تا {date}",
+    "walletBalance": "موجودی کیف پول: {amount}",
+    "ctaCurrent": "پلن فعلی شما",
+    "ctaSubscribe": "شروع اشتراک",
+    "ctaUpgrade": "ارتقا",
+    "ctaDowngrade": "تغییر به این پلن",
+    "ctaRenew": "تمدید",
+    "insufficientTitle": "موجودی کیف پول کافی نیست",
+    "insufficientDesc": "ابتدا کیف پول خود را شارژ کنید و دوباره تلاش کنید.",
+    "errorTitle": "خطایی رخ داد",
+    "successSubscribe": "اشتراک «{plan}» فعال شد.",
+    "successUpgrade": "پلن شما به «{plan}» ارتقا یافت.",
+    "successDowngrade": "پلن شما به «{plan}» تغییر کرد.",
+    "successRenew": "پلن «{plan}» تمدید شد."
   },
   "botPluginData": {
     "loading": "در حال بارگذاری…",

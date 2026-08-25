@@ -73,7 +73,7 @@ export function BotPlanCard({ bot }: { bot: Bot }) {
           {t.title}
           <Badge variant={statusVariant(data.status, data.inGrace)}>{statusLabel}</Badge>
           <Button variant="outline" size="sm" className="ms-auto" asChild>
-            <Link href="/pricing">
+            <Link href="/plans">
               <ArrowUpCircle className="me-1.5 size-4" /> {t.upgradeCta}
             </Link>
           </Button>

@@ -5,6 +5,10 @@ import { eq, and, count } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth, requireAdmin, requireSuperAdmin } from "./auth";
 import { syncOrderUpsert } from "../lib/sheetsSync";
+import { deductWallet } from "../lib/wallet.js";
+import { createNotification, formatTomanFa } from "../lib/notify.js";
+import { FREE_PLAN_LIMITS } from "../lib/planLimits.js";
+import { decidePlanChange } from "../lib/planChange.js";
 
 const router = Router();
 
@@ -55,24 +59,40 @@ router.get("/plans", requireAuth, async (req: any, res) => {
 // GET /api/plans/current
 router.get("/plans/current", requireAuth, async (req: any, res) => {
   try {
-    const userPlans = await db.select().from(userPlansTable).where(eq(userPlansTable.userId, req.userId)).limit(1);
-    if (!userPlans[0]) {
+    const [up] = await db.select().from(userPlansTable).where(eq(userPlansTable.userId, req.userId)).limit(1);
+    if (!up) {
       res.json({
         planId: "free",
         planName: "Free",
         status: "active",
         expiresAt: null,
         renewsAt: null,
+        maxBots: FREE_PLAN_LIMITS.maxBots,
+        maxPlugins: FREE_PLAN_LIMITS.maxPlugins,
       });
       return;
     }
-    const up = userPlans[0];
+
+    const now = new Date();
+    // ردیف می‌تواند «active» بماند در حالی که تاریخِ انقضایش گذشته — همان
+    // چیزی که `lib/planLimits.ts` هم لازو می‌شمرد. اینجا هم همان قانون
+    // اعمال می‌شود تا صفحه‌ی پلن با چیزی که واقعاً اعمال می‌شود (سقفِ بات/
+    // پلاگین) یکی بگوید، نه یک وضعیتِ خوش‌بینانه‌ی جدا.
+    const expired = up.status === "active" && up.expiresAt !== null && up.expiresAt < now;
+    const effectiveStatus = expired ? "expired" : up.status;
+
+    const [plan] = expired
+      ? []
+      : await db.select().from(plansTable).where(eq(plansTable.id, up.planId)).limit(1);
+
     res.json({
       planId: up.planId,
       planName: up.planName,
-      status: up.status,
+      status: effectiveStatus,
       expiresAt: up.expiresAt?.toISOString() ?? null,
       renewsAt: up.renewsAt?.toISOString() ?? null,
+      maxBots: expired ? FREE_PLAN_LIMITS.maxBots : (plan?.maxBots ?? FREE_PLAN_LIMITS.maxBots),
+      maxPlugins: expired ? FREE_PLAN_LIMITS.maxPlugins : (plan?.maxPlugins ?? FREE_PLAN_LIMITS.maxPlugins),
     });
   } catch (err) {
     logger.error({ err }, "Get current plan error");
@@ -80,26 +100,73 @@ router.get("/plans/current", requireAuth, async (req: any, res) => {
   }
 });
 
-// POST /api/plans/subscribe
+/**
+ * POST /api/plans/subscribe — اشتراک/ارتقا/تنزل/تمدیدِ پلن، همه از یک مسیر.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * تا امروز این مسیر مجانی بود: هیچ کسری از کیف‌پول نبود، پس هرکسی می‌توانست
+ * با یک `POST` مستقیم به گران‌ترین پلن «مشترک» شود. حالا تفاوتش با پلنِ فعلی
+ * تعیین می‌کند چه اتفاقی می‌افتد — چهار حالت، بدون هیچ صف‌بندی/زمان‌بندیِ
+ * جداگانه (این محصول پرداختِ خودکار/تکرارشونده ندارد؛ هر تغییرِ پلن یک کلیکِ
+ * صریح از طرف کاربر است):
+ *
+ *   - **پلنِ رایگان** (`price <= 0`): بدون کسر، بدون تاریخ انقضا — این معادلِ
+ *     «لغو اشتراک» است.
+ *   - **تمدید** (همان پلنِ فعلیِ فعال): کیف‌پول کسر می‌شود؛ اگر مهلتِ فعلی هنوز
+ *     تمام نشده، دوره‌ی جدید از *همان تاریخِ انقضا* جلو می‌رود (نه از الان) —
+ *     وگرنه تمدیدِ زودهنگام روزهای پرداخت‌شده را دور می‌ریخت.
+ *   - **تنزل** (پلنِ فعلی فعال است و پلنِ جدید ارزان‌تر یا هم‌قیمت است):
+ *     بدون کسر، فوری اعمال می‌شود، ولی تاریخِ انقضا/تمدیدِ فعلی دست‌نخورده
+ *     می‌ماند — کاربر برای باقیِ دوره‌ای که قبلاً پرداخته سقفِ پایین‌تر را
+ *     می‌گیرد، نه اینکه دوباره برایش پول از او کم شود.
+ *   - **ارتقا / اشتراکِ تازه** (پلنِ فعلی وجود ندارد/منقضی شده/ارزان‌تر است و
+ *     پلنِ جدید گران‌تر است): کیف‌پول به‌اندازه‌ی قیمتِ کاملِ پلنِ جدید کسر
+ *     می‌شود، دوره‌ای تازه از همین الان شروع می‌شود.
+ */
 router.post("/plans/subscribe", requireAuth, async (req: any, res) => {
   try {
     const { planId } = req.body;
-    const plans = await db.select().from(plansTable).where(eq(plansTable.id, planId)).limit(1);
-    if (!plans[0]) {
+    const [plan] = await db.select().from(plansTable).where(eq(plansTable.id, planId)).limit(1);
+    if (!plan) {
       res.status(404).json({ error: "Plan not found" });
       return;
     }
-    const plan = plans[0];
-    const expiresAt = new Date();
-    expiresAt.setMonth(expiresAt.getMonth() + (plan.interval === "yearly" ? 12 : 1));
-    const renewsAt = new Date(expiresAt);
 
-    // Update or insert user plan
-    const existing = await db.select().from(userPlansTable).where(eq(userPlansTable.userId, req.userId)).limit(1);
+    const now = new Date();
+    const [existing] = await db.select().from(userPlansTable).where(eq(userPlansTable.userId, req.userId)).limit(1);
+    const currentActive = Boolean(existing && existing.status === "active" && (!existing.expiresAt || existing.expiresAt > now));
+
+    let currentPrice = 0;
+    if (currentActive) {
+      const [currentPlan] = await db.select().from(plansTable).where(eq(plansTable.id, existing!.planId)).limit(1);
+      currentPrice = currentPlan?.price ?? 0;
+    }
+
+    const { action, charge, nextExpiresAt, nextRenewsAt } = decidePlanChange(
+      { id: plan.id, price: plan.price, interval: plan.interval },
+      existing ?? null,
+      currentPrice,
+      now,
+    );
+
+    if (charge > 0) {
+      const ok = await deductWallet(req.userId, charge, `Plan ${action}: ${plan.name}`);
+      if (!ok) {
+        await createNotification({
+          userId: req.userId,
+          type: "purchase_failed",
+          severity: "warning",
+          title: "تغییر پلن ناموفق بود",
+          message: `موجودی کیف پول برای ${action === "renew" ? "تمدید" : "ارتقای"} پلن «${plan.name}» به مبلغ ${formatTomanFa(charge)} کافی نبود.`,
+        });
+        res.status(400).json({ error: "Insufficient wallet balance", code: "insufficient" });
+        return;
+      }
+    }
+
     let userPlan;
-    if (existing[0]) {
+    if (existing) {
       [userPlan] = await db.update(userPlansTable)
-        .set({ planId, planName: plan.name, status: "active", expiresAt, renewsAt })
+        .set({ planId, planName: plan.name, status: "active", expiresAt: nextExpiresAt, renewsAt: nextRenewsAt })
         .where(eq(userPlansTable.userId, req.userId))
         .returning();
     } else {
@@ -109,12 +176,22 @@ router.post("/plans/subscribe", requireAuth, async (req: any, res) => {
         planId,
         planName: plan.name,
         status: "active",
-        expiresAt,
-        renewsAt,
+        expiresAt: nextExpiresAt,
+        renewsAt: nextRenewsAt,
       }).returning();
     }
     // Update user's plan field
     await db.update(usersTable).set({ plan: planId }).where(eq(usersTable.id, req.userId));
+
+    if (charge > 0) {
+      await createNotification({
+        userId: req.userId,
+        type: "purchase_success",
+        severity: "info",
+        title: action === "renew" ? "پلن تمدید شد" : "پلن ارتقا یافت",
+        message: `پلن «${plan.name}» به مبلغ ${formatTomanFa(charge)} از کیف پول پرداخت شد.`,
+      });
+    }
 
     // Sync to Google Sheets
     syncOrderUpsert({ id: userPlan.id, userId: req.userId, planId: userPlan.planId, planName: userPlan.planName, status: userPlan.status, expiresAt: userPlan.expiresAt, renewsAt: userPlan.renewsAt, createdAt: userPlan.createdAt ?? new Date() });
@@ -125,6 +202,8 @@ router.post("/plans/subscribe", requireAuth, async (req: any, res) => {
       status: userPlan.status,
       expiresAt: userPlan.expiresAt?.toISOString() ?? null,
       renewsAt: userPlan.renewsAt?.toISOString() ?? null,
+      action,
+      charged: charge,
     });
   } catch (err) {
     logger.error({ err }, "Subscribe to plan error");

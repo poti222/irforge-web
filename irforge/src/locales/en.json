@@ -248,7 +248,8 @@
     "admin": "Admin panel",
     "buyBot": "Buy a bot",
     "checkout": "Checkout",
-    "botWorkspace": "Bot workspace"
+    "botWorkspace": "Bot workspace",
+    "plans": "Plans"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -2578,6 +2579,36 @@
     "expired": "This plan has expired.",
     "graceWarning": "Your subscription has expired — you're in the grace period. Renew soon to keep your paid features.",
     "upgradeCta": "View plans"
+  },
+  "plans": {
+    "title": "Plans",
+    "subtitle": "Choose or change your account plan to raise your bot and free-plugin limits.",
+    "loading": "Loading plans…",
+    "currentBadge": "Current plan",
+    "popularBadge": "Most popular",
+    "perMonth": "/month",
+    "perYear": "/year",
+    "free": "Free",
+    "maxBots": "{n} bots",
+    "maxPlugins": "{n} free plugins",
+    "statusActive": "Active",
+    "statusExpired": "Expired",
+    "statusTrial": "Trial",
+    "statusCancelled": "Canceled",
+    "expiresOn": "Until {date}",
+    "walletBalance": "Wallet balance: {amount}",
+    "ctaCurrent": "Your current plan",
+    "ctaSubscribe": "Subscribe",
+    "ctaUpgrade": "Upgrade",
+    "ctaDowngrade": "Switch to this plan",
+    "ctaRenew": "Renew",
+    "insufficientTitle": "Insufficient wallet balance",
+    "insufficientDesc": "Top up your wallet first, then try again.",
+    "errorTitle": "Something went wrong",
+    "successSubscribe": "Subscribed to \"{plan}\".",
+    "successUpgrade": "Upgraded to \"{plan}\".",
+    "successDowngrade": "Switched to \"{plan}\".",
+    "successRenew": "\"{plan}\" renewed."
   },
   "botPluginData": {
     "loading": "Loading…",

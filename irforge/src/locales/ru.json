@@ -248,7 +248,8 @@
     "admin": "Админ-панель",
     "buyBot": "Купить бота",
     "checkout": "Оформление",
-    "botWorkspace": "Рабочая область бота"
+    "botWorkspace": "Рабочая область бота",
+    "plans": "Тарифы"
   },
   "dashboard": {
     "title": "Панель управления",
@@ -2578,6 +2579,36 @@
     "expired": "Этот тариф истёк.",
     "graceWarning": "Ваша подписка истекла — вы в льготном периоде. Продлите её как можно скорее, чтобы сохранить платные функции.",
     "upgradeCta": "Посмотреть тарифы"
+  },
+  "plans": {
+    "title": "Тарифы",
+    "subtitle": "Выберите или измените тарифный план аккаунта, чтобы увеличить лимиты ботов и бесплатных плагинов.",
+    "loading": "Загрузка тарифов…",
+    "currentBadge": "Текущий тариф",
+    "popularBadge": "Популярный",
+    "perMonth": "/ мес.",
+    "perYear": "/ год",
+    "free": "Бесплатно",
+    "maxBots": "{n} ботов",
+    "maxPlugins": "{n} бесплатных плагинов",
+    "statusActive": "Активен",
+    "statusExpired": "Истёк",
+    "statusTrial": "Пробный",
+    "statusCancelled": "Отменён",
+    "expiresOn": "до {date}",
+    "walletBalance": "Баланс кошелька: {amount}",
+    "ctaCurrent": "Ваш текущий тариф",
+    "ctaSubscribe": "Подключить",
+    "ctaUpgrade": "Улучшить",
+    "ctaDowngrade": "Перейти на этот тариф",
+    "ctaRenew": "Продлить",
+    "insufficientTitle": "Недостаточно средств на кошельке",
+    "insufficientDesc": "Пополните кошелёк и попробуйте снова.",
+    "errorTitle": "Что-то пошло не так",
+    "successSubscribe": "Оформлена подписка на «{plan}».",
+    "successUpgrade": "Тариф изменён на «{plan}».",
+    "successDowngrade": "Тариф изменён на «{plan}».",
+    "successRenew": "Тариф «{plan}» продлён."
   },
   "botPluginData": {
     "loading": "Загрузка…",

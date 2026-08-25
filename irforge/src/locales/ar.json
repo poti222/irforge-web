@@ -248,7 +248,8 @@
     "admin": "لوحة الإدارة",
     "buyBot": "شراء بوت",
     "checkout": "الدفع",
-    "botWorkspace": "مساحة عمل البوت"
+    "botWorkspace": "مساحة عمل البوت",
+    "plans": "الخطط"
   },
   "dashboard": {
     "title": "لوحة التحكم",
@@ -2578,6 +2579,36 @@
     "expired": "انتهت صلاحية هذه الخطة.",
     "graceWarning": "انتهى اشتراكك — أنت الآن في فترة السماح. جدّده قريبًا للحفاظ على الميزات المدفوعة.",
     "upgradeCta": "عرض الخطط"
+  },
+  "plans": {
+    "title": "الخطط",
+    "subtitle": "اختر أو غيّر خطة اشتراك حسابك لزيادة الحد الأقصى لعدد البوتات والإضافات المجانية.",
+    "loading": "جارٍ تحميل الخطط…",
+    "currentBadge": "الخطة الحالية",
+    "popularBadge": "الأكثر شيوعًا",
+    "perMonth": "/ شهر",
+    "perYear": "/ سنة",
+    "free": "مجاني",
+    "maxBots": "{n} بوت",
+    "maxPlugins": "{n} إضافة مجانية",
+    "statusActive": "نشطة",
+    "statusExpired": "منتهية",
+    "statusTrial": "تجريبية",
+    "statusCancelled": "ملغاة",
+    "expiresOn": "حتى {date}",
+    "walletBalance": "رصيد المحفظة: {amount}",
+    "ctaCurrent": "خطتك الحالية",
+    "ctaSubscribe": "اشترك",
+    "ctaUpgrade": "ترقية",
+    "ctaDowngrade": "التبديل إلى هذه الخطة",
+    "ctaRenew": "تجديد",
+    "insufficientTitle": "رصيد المحفظة غير كافٍ",
+    "insufficientDesc": "اشحن محفظتك أولاً ثم حاول مرة أخرى.",
+    "errorTitle": "حدث خطأ ما",
+    "successSubscribe": "تم الاشتراك في «{plan}».",
+    "successUpgrade": "تمت الترقية إلى «{plan}».",
+    "successDowngrade": "تم التبديل إلى «{plan}».",
+    "successRenew": "تم تجديد «{plan}»."
   },
   "botPluginData": {
     "loading": "جارٍ التحميل…",
