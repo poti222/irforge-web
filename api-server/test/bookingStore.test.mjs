@@ -21,6 +21,27 @@ const store = await import("../src/lib/bookingStore.ts");
 
 const SID = "SHEET_TEST_BOOKING";
 
+/**
+ * availabilityForRange() filters out anything at or before "now" (minute
+ * precision — see bookingStore.ts's `nowMinute`), so a hardcoded calendar
+ * date decays into a false failure the moment real time passes it — exactly
+ * what happened to "2026-08-25" here. A Tuesday at least a week out is
+ * never "already passed" no matter which real-world day/hour this suite runs.
+ */
+function nextTuesday(minDaysAhead = 7) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + minDaysAhead);
+  while (d.getUTCDay() !== 2) d.setUTCDate(d.getUTCDate() + 1); // Sunday=0 ... Tuesday=2
+  return d.toISOString().slice(0, 10);
+}
+
+const TEST_DATE = nextTuesday();
+const TEST_DATE_NEXT_DAY = (() => {
+  const d = new Date(`${TEST_DATE}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+})();
+
 /** Same in-memory fake sheet as botPanels.test.mjs, minus the parts this
  * file doesn't need. */
 function installSheet(initial = {}) {
@@ -139,31 +160,31 @@ test("availabilityForRange reflects the saved schedule for each date in range", 
     week: { tuesday: [{ from: "09:00", to: "11:00" }] },
     slot_minutes: 60,
   });
-  const slots = await store.availabilityForRange(SID, "2026-08-25", 2); // Tue, Wed
+  const slots = await store.availabilityForRange(SID, TEST_DATE, 2); // Tue, Wed
   assert.deepEqual(
-    slots["2026-08-25"].map((s) => s.start),
-    ["2026-08-25T09:00", "2026-08-25T10:00"],
+    slots[TEST_DATE].map((s) => s.start),
+    [`${TEST_DATE}T09:00`, `${TEST_DATE}T10:00`],
   );
-  assert.deepEqual(slots["2026-08-26"], []); // Wednesday not in the week schedule
+  assert.deepEqual(slots[TEST_DATE_NEXT_DAY], []); // Wednesday not in the week schedule
 });
 
 test("availabilityForRange honors a closed exception on one date only", async () => {
   installSheet();
   await store.saveSchedule(SID, { week: { tuesday: [{ from: "09:00", to: "11:00" }] }, slot_minutes: 60 });
-  await store.setException(SID, "2026-08-25", { closed: true });
-  const slots = await store.availabilityForRange(SID, "2026-08-25", 1);
-  assert.deepEqual(slots["2026-08-25"], []);
+  await store.setException(SID, TEST_DATE, { closed: true });
+  const slots = await store.availabilityForRange(SID, TEST_DATE, 1);
+  assert.deepEqual(slots[TEST_DATE], []);
 });
 
 test("availabilityForRange excludes seats already booked on an existing slot row", async () => {
   installSheet({
     booking_slots: {
-      slot_1: { starts_at: "2026-08-25T09:00", capacity: 1, booked_count: 1, is_active: true },
+      slot_1: { starts_at: `${TEST_DATE}T09:00`, capacity: 1, booked_count: 1, is_active: true },
     },
   });
   await store.saveSchedule(SID, { week: { tuesday: [{ from: "09:00", to: "10:00" }] }, slot_minutes: 60 });
-  const slots = await store.availabilityForRange(SID, "2026-08-25", 1);
-  assert.deepEqual(slots["2026-08-25"], []); // fully booked -> hidden
+  const slots = await store.availabilityForRange(SID, TEST_DATE, 1);
+  assert.deepEqual(slots[TEST_DATE], []); // fully booked -> hidden
 });
 
 test("availabilityForRange rejects a malformed start date", async () => {
