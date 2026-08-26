@@ -160,6 +160,35 @@ export async function resolveBotSheet(userId: string, botId: string): Promise<Re
   return { botId: bot.id, spreadsheetId: bot.sheetId, botName: bot.name, isSuperAdmin };
 }
 
+/**
+ * جهتِ برعکسِ `resolveBotSheet`: از spreadsheetId به بات.
+ *
+ * IRFORGE_PROMPT_V3 Phase 16 — برای اندپوینت‌های داخلیِ «بات به سایت زنگ
+ * می‌زند» که فقط همین شناسه را دارند، نه UUID سایت (`bots.id`). دقیقاً
+ * همین نبود یک نگاشتِ برعکس، همان گاف مستندشده‌ی
+ * `utils/expiry_worker.py::_purge_on_website` سمت بات است — این اندپوینت
+ * از اول به‌جای شناسه‌ی اشتباه، همین را می‌گیرد.
+ */
+export async function resolveBotBySpreadsheetId(
+  spreadsheetId: string,
+): Promise<{ botId: string; ownerUserId: string } | null> {
+  const [bot] = await db
+    .select({ id: botsTable.id, userId: botsTable.userId })
+    .from(botsTable)
+    .where(eq(botsTable.sheetId, spreadsheetId))
+    .limit(1);
+  return bot ? { botId: bot.id, ownerUserId: bot.userId } : null;
+}
+
+/** صاحبِ بات + هر مدیری که با کد ادمین دسترسیِ مدیریت گرفته (`bot_managers`). */
+export async function getBotOwnerAndManagerIds(botId: string, ownerUserId: string): Promise<string[]> {
+  const managers = await db
+    .select({ userId: botManagersTable.userId })
+    .from(botManagersTable)
+    .where(eq(botManagersTable.botId, botId));
+  return [...new Set([ownerUserId, ...managers.map((m) => m.userId)])];
+}
+
 // ─── entityهای عمومی (کلید = id) ────────────────────────────────────────────
 
 export type EntityRow<T> = { key: string; value: T };

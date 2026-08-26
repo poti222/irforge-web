@@ -1,9 +1,14 @@
 /**
- * LanguageSection.tsx — زبان بات و جدول ترجمه‌ی رشته‌ها (فاز ۲۱).
+ * LanguageSection.tsx — زبان بات و جدول ترجمه‌ی رشته‌ها (فاز ۲۱، پولی‌شدن در فاز ۲۲).
  *
- * دو چیز که این صفحه صادقانه می‌گوید به‌جای اینکه پنهانشان کند:
- *  - هسته‌ی بات فقط `fa` و `en` را ثبت می‌کند. بقیه‌ی زبان‌ها قابل انتخاب‌اند
- *    ولی تا وقتی رشته‌هایشان وارد نشود، بات متن انگلیسی نشان می‌دهد.
+ * چیزهایی که این صفحه صادقانه می‌گوید به‌جای اینکه پنهانشان کند:
+ *  - هر پنج زبان در هسته‌ی بات ثبت شده‌اند (بر خلاف نسخه‌ی قبلیِ این کامنت) —
+ *    ولی سه‌تای آخر (`paidLanguages`) نیازمند `multi_language` در پلن بات‌اند،
+ *    دقیقاً همان feature key که `handlers/panel_builder.py` سمت بات برای
+ *    «panel_builder» چک می‌کند. فارسی/انگلیسی همیشه رایگان‌اند.
+ *  - این قفل فقط UX است، نه امنیت: اگر کسی زبانِ قفل را انتخاب کند یا رشته‌ای
+ *    برایش ذخیره/ترجمه کند، سرور (`routes/botLanguage.ts`) دوباره چک می‌کند و
+ *    با ۴۰۲ رد می‌کند — همان چیزی که toast خطای عمومی زیر نشان می‌دهد.
  *  - رشته‌ها در تب‌های `text_keys`/`text_values` زندگی می‌کنند و lazy ساخته
  *    می‌شوند؛ خالی بودنشان یعنی «هنوز چیزی ثبت نشده»، نه خطا.
  */
@@ -11,7 +16,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
-import { Loader2, Search, RotateCcw, Save, Info, Languages } from "lucide-react";
+import { Loader2, Search, RotateCcw, Save, Lock, Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,8 +30,9 @@ import { useToast } from "@/hooks/use-toast";
 
 type LanguageInfo = {
   language: string;
-  coreLanguages: string[];
-  otherLanguages: string[];
+  freeLanguages: string[];
+  paidLanguages: string[];
+  multiLanguageUnlocked: boolean;
   fallbackLanguage: string;
   /** آیا سرویس ترجمه روی سرور تنظیم شده؟ اگر نه، دکمه اصلاً نشان داده نمی‌شود. */
   translateAvailable?: boolean;
@@ -71,20 +77,20 @@ export function LanguageSection({ bot }: { bot: Bot }) {
 
   const setLanguage = useMutation({
     mutationFn: (next: string) =>
-      customFetch<{ language: string; warning: string | null }>(`/api/bots/${bot.id}/language`, {
+      customFetch<{ language: string }>(`/api/bots/${bot.id}/language`, {
         method: "PUT",
         body: JSON.stringify({ language: next }),
       }),
-    onSuccess: (result) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: infoKey });
-      toast(
-        result.warning
-          ? { title: t.languageSaved, description: result.warning }
-          : { title: t.languageSaved }
-      );
+      toast({ title: t.languageSaved });
     },
     onError: (err: any) =>
-      toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
+      toast({
+        variant: "destructive",
+        title: errCode(err) === "plan_upgrade_required" ? t.upgradeRequired : t.errorGeneric,
+        description: errMessage(err, t.errorGeneric),
+      }),
   });
 
   /**
@@ -135,7 +141,11 @@ export function LanguageSection({ bot }: { bot: Bot }) {
       toast({ title: t.stringSaved });
     },
     onError: (err: any) =>
-      toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
+      toast({
+        variant: "destructive",
+        title: errCode(err) === "plan_upgrade_required" ? t.upgradeRequired : t.errorGeneric,
+        description: errMessage(err, t.errorGeneric),
+      }),
   });
 
   const resetString = useMutation({
@@ -160,7 +170,9 @@ export function LanguageSection({ bot }: { bot: Bot }) {
     );
   }
 
-  const allLanguages = [...info.coreLanguages, ...info.otherLanguages];
+  const allLanguages = [...info.freeLanguages, ...info.paidLanguages];
+  const isPaidLanguage = (code: string) => info.paidLanguages.includes(code);
+  const isLocked = (code: string) => isPaidLanguage(code) && !info.multiLanguageUnlocked;
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -178,16 +190,23 @@ export function LanguageSection({ bot }: { bot: Bot }) {
                 {allLanguages.map((code) => (
                   <SelectItem key={code} value={code}>
                     {(t[`lang_${code}` as keyof typeof t] as string) ?? code}
-                    {!info.coreLanguages.includes(code) ? ` — ${t.notInCore}` : ""}
+                    {isLocked(code) ? ` — 🔒 ${t.paidLanguageBadge}` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <p className="flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-            <Info className="mt-0.5 size-3.5 shrink-0" />
-            <span>{t.coreLanguagesNotice.replace("{langs}", info.coreLanguages.join("، "))}</span>
-          </p>
+          {info.paidLanguages.length > 0 && !info.multiLanguageUnlocked && (
+            <p className="flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-500/40 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              <Lock className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                {t.paidLanguagesNotice.replace(
+                  "{langs}",
+                  info.paidLanguages.map((c) => (t[`lang_${c}` as keyof typeof t] as string) ?? c).join("، ")
+                )}
+              </span>
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -209,7 +228,10 @@ export function LanguageSection({ bot }: { bot: Bot }) {
               <SelectTrigger className="w-auto min-w-28"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {allLanguages.map((code) => (
-                  <SelectItem key={code} value={code}>{(t[`lang_${code}` as keyof typeof t] as string) ?? code}</SelectItem>
+                  <SelectItem key={code} value={code}>
+                    {(t[`lang_${code}` as keyof typeof t] as string) ?? code}
+                    {isLocked(code) ? " 🔒" : ""}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

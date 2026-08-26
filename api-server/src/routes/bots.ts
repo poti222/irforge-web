@@ -30,8 +30,6 @@ import {
   paymentsTable,
   sheetPoolTable,
   usersTable,
-  walletsTable,
-  walletTransactionsTable,
 } from "@workspace/db";
 import { eq, ne, gte, and, or, exists, sql, desc, inArray } from "drizzle-orm";
 import { reserveDiscount, DiscountCodeError, type DiscountReservation } from "../lib/discountStore";
@@ -63,6 +61,10 @@ import { botUserStats, type BotUserStats } from "../lib/botStats";
 import { resolvePurchasePrice } from "../lib/pluginPricing.js";
 import { getPluginCatalog } from "../lib/pluginCatalog.js";
 import { marketplaceItemIdFor } from "../lib/marketplaceSync.js";
+import { getUserPlanLimits, countUserBots } from "../lib/planLimits.js";
+import { deductWallet, InsufficientBalanceError } from "../lib/wallet.js";
+import { verifyCaptchaToken } from "../lib/captchaVerify.js";
+import { buildSheetPoolView } from "../lib/sheetPoolView.js";
 
 const router = Router();
 
@@ -367,45 +369,6 @@ async function backfillBotIdentityIfStale<T extends { id: string; token: string;
   return { ...bot, ...update };
 }
 
-/**
- * Z6: deduct from a user's wallet for a cart purchase. Returns false when the
- * balance can't cover it. A zero/negative amount (e.g. a free plugin, or a
- * discount code that zeroed the order) is a no-op that succeeds. Funds are
- * considered verified, so it records an approved spend.
- *
- * `executor` defaults to the module-level `db` but accepts a `db.transaction`
- * callback's `tx` too — Phase 11's discount-code purchase needs the balance
- * check, the deduction, and the discount-code row update to commit or roll
- * back together.
- */
-async function deductWallet(userId: string, amount: number, note: string, executor: any = db): Promise<boolean> {
-  const amt = Math.round(Number(amount) || 0);
-  if (amt <= 0) return true;
-
-  /**
-   * کسر **مشروط**، در یک دستور.
-   *
-   * قبلاً موجودی خوانده می‌شد، با مبلغ مقایسه می‌شد، و بعد
-   * `موجودیِ خوانده‌شده − مبلغ` نوشته می‌شد. دو خریدِ هم‌زمان هر دو همان
-   * موجودی را می‌خواندند، هر دو از چک رد می‌شدند، و کاربر با موجودی ۱۰ هزار
-   * دو بات ۱۰ هزاری می‌خرید — یا یکی از کسرها کلاً گم می‌شد.
-   *
-   * حالا شرط داخل `WHERE` است: اگر موجودی کافی نباشد هیچ ردیفی برنمی‌گردد
-   * و همان‌جا `false` می‌دهیم. دیتابیس داور است، نه فاصله‌ی بین دو کوئری.
-   */
-  const updated = await executor
-    .update(walletsTable)
-    .set({ balance: sql`${walletsTable.balance} - ${amt}` })
-    .where(and(eq(walletsTable.userId, userId), gte(walletsTable.balance, amt)))
-    .returning();
-  if (updated.length === 0) return false;
-
-  await executor.insert(walletTransactionsTable).values({
-    id: crypto.randomUUID(), userId, type: "spend", amount: amt, status: "approved", reviewNote: note,
-  });
-  return true;
-}
-
 // ─── Discount-code application (Phase 11) ───────────────────────────────────
 // Shared by any wallet purchase that accepts an optional discount code.
 // Discount data lives only in Google Sheets now (see lib/discountStore.ts),
@@ -420,11 +383,6 @@ async function deductWallet(userId: string, amount: number, note: string, execut
 //      code's usedCount actually increment and get audit-logged.
 //      On failure it calls reservation.release() — the code is left
 //      completely untouched, so a failed purchase can never burn a use.
-
-/** Thrown inside a purchase transaction to signal a clean rollback — the wallet
- *  balance couldn't cover the (possibly discounted) total. Discount-code
- *  release (not commit) happens in the route's catch block for this case. */
-class InsufficientBalanceError extends Error {}
 
 // ─── Registry reconciliation ──────────────────────────────────────────────────
 // FIX: Google Sheets (registry `tenants` tab) is now the real source of truth
@@ -617,6 +575,21 @@ router.post("/bots", requireAuth, perUserRateLimit("bot_create", 10, 60 * 60 * 1
       return;
     }
 
+    // سقفِ تعداد بات — از پلنِ فعلیِ کاربر (`plansTable`/`userPlansTable`).
+    // فقط ساختِ بات جدید را می‌بندد؛ بات‌های موجودِ کاربر دست‌نخورده می‌مانند
+    // حتی اگر از سقفِ یک پلنِ پایین‌تر بیشتر باشند (grandfather-safe).
+    const [planLimits, currentBotCount] = await Promise.all([
+      getUserPlanLimits(req.userId),
+      countUserBots(req.userId),
+    ]);
+    if (currentBotCount >= planLimits.maxBots) {
+      res.status(403).json({
+        error: `پلن فعلی شما حداکثر ${planLimits.maxBots} بات را پشتیبانی می‌کند. برای ساخت بات بیشتر، پلن خود را ارتقا دهید.`,
+        code: "bot_limit_reached",
+      });
+      return;
+    }
+
     const botId = crypto.randomUUID();
     const paymentId = crypto.randomUUID();
 
@@ -691,6 +664,13 @@ router.post("/bots", requireAuth, perUserRateLimit("bot_create", 10, 60 * 60 * 1
 
 router.post("/bots/trial", requireAuth, perUserRateLimit("bot_create", 10, 60 * 60 * 1000), async (req: any, res) => {
   try {
+    // IRFORGE_PROMPT_V3 Phase 42 — a free, one-per-account trial bot is
+    // exactly the kind of action a script can hammer for free; a no-op when
+    // the captcha gate isn't configured/enabled (lib/captchaVerify.ts).
+    if (!(await verifyCaptchaToken(req.body?.captchaToken, clientIp(req)))) {
+      res.status(400).json({ error: "Captcha verification failed", code: "captcha_failed" });
+      return;
+    }
     const { name, token } = req.body ?? {};
     if (!name?.trim() || !token?.trim()) {
       res.status(400).json({ error: "نام و توکن بات الزامی است" });
@@ -712,6 +692,18 @@ router.post("/bots/trial", requireAuth, perUserRateLimit("bot_create", 10, 60 * 
     }
     if (user.hasUsedTrial) {
       res.status(409).json({ error: "تو قبلاً از تریال رایگان استفاده کرده‌ای" });
+      return;
+    }
+
+    const [planLimits, currentBotCount] = await Promise.all([
+      getUserPlanLimits(req.userId),
+      countUserBots(req.userId),
+    ]);
+    if (currentBotCount >= planLimits.maxBots) {
+      res.status(403).json({
+        error: `پلن فعلی شما حداکثر ${planLimits.maxBots} بات را پشتیبانی می‌کند. برای شروع تریال، ابتدا یک بات را حذف کن یا پلن خود را ارتقا بده.`,
+        code: "bot_limit_reached",
+      });
       return;
     }
 
@@ -1602,26 +1594,26 @@ router.get("/sheet-pool", requireSuperAdmin, async (req: any, res) => {
     const entries = await db.select().from(sheetPoolTable);
 
     const botIds = [...new Set(entries.map((e) => e.assignedBotId).filter((id): id is string => !!id))];
-    const botsById = new Map<string, { name: string; userId: string }>();
-    if (botIds.length > 0) {
-      const rows = await db
-        .select({ id: botsTable.id, name: botsTable.name, userId: botsTable.userId })
-        .from(botsTable)
-        .where(inArray(botsTable.id, botIds));
-      for (const b of rows) botsById.set(b.id, { name: b.name, userId: b.userId });
-    }
+    const botRows = botIds.length > 0
+      ? await db
+          .select({ id: botsTable.id, name: botsTable.name, userId: botsTable.userId })
+          .from(botsTable)
+          .where(inArray(botsTable.id, botIds))
+      : [];
 
-    res.json(
-      entries.map((e) => ({
-        id: e.id,
-        sheetId: e.sheetId,
-        status: e.status,
-        assignedBotId: e.assignedBotId,
-        assignedBotName: e.assignedBotId ? botsById.get(e.assignedBotId)?.name ?? null : null,
-        assignedBotOwnerId: e.assignedBotId ? botsById.get(e.assignedBotId)?.userId ?? null : null,
-        createdAt: e.createdAt.toISOString(),
-      }))
-    );
+    // IRFORGE_PROMPT_V3 Phase 43 — the panel used to show the owner's raw
+    // user id (a UUID, meaningless to a human) next to each assigned sheet.
+    // A super admin recognizes a person by their Telegram @username, not an
+    // opaque id, so resolve it here rather than making the frontend guess.
+    const ownerIds = [...new Set(botRows.map((b) => b.userId))];
+    const ownerRows = ownerIds.length > 0
+      ? await db
+          .select({ id: usersTable.id, name: usersTable.name, telegramUsername: usersTable.telegramUsername })
+          .from(usersTable)
+          .where(inArray(usersTable.id, ownerIds))
+      : [];
+
+    res.json(buildSheetPoolView(entries, botRows, ownerRows));
   } catch (err) {
     logger.error({ err }, "List sheet pool error");
     res.status(500).json({ error: "Internal server error" });

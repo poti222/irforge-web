@@ -26,7 +26,7 @@ export type CapturedContent = {
   deepLink: string | null;
 };
 
-type SessionKind = "broadcast" | "panel_media" | "command_media";
+type SessionKind = "broadcast" | "panel_media" | "command_media" | "drip_media";
 
 /** هر ۲ ثانیه — یک تعامل زنده است، کاربر جلوی صفحه منتظر ایستاده. */
 const POLL_MS = 2000;

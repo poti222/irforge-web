@@ -6,18 +6,24 @@
  * (`SHEETS_DATA_ID`, تب `bot_settings`, کلید = botId) — یعنی یک منبع سومِ
  * موازی که بات هرگز نمی‌خواندش. (ممیزی فاز ۰، بخش ب، مورد ۳.)
  *
- * دو واقعیتِ کد که با متن پرامپت فرق دارند:
+ * یک واقعیتِ کد که با نسخه‌ی قدیمی این فایل فرق دارد: **هسته هر پنج زبان را
+ * ثبت می‌کند** (`utils/i18n.py::LANGUAGES`) — نسخه‌ی قبلی این فایل فکر
+ * می‌کرد فقط fa/en ثبت شده و بقیه به انگلیسی fallback می‌کنند، ولی آن
+ * محدودیت جای دیگری بود: `handlers/language.py`'s کیبورد انتخاب زبان.
  *
- *  1. **رشته‌ها در تب `languages` نیستند.** `utils/i18n.py` دو تب دارد:
- *       `text_keys`   → key ⇒ { key, category }
- *       `text_values` → "<key>:<lang>" ⇒ { key, lang, value }
- *     تب `languages` در `_SHEET_NAMES` هست ولی `t()` اصلاً نمی‌خواندش.
+ * رشته‌ها در دو تب هستند (تب `languages` در `_SHEET_NAMES` هست ولی `t()`
+ * اصلاً نمی‌خواندش):
+ *   `text_keys`   → key ⇒ { key, category }
+ *   `text_values` → "<key>:<lang>" ⇒ { key, lang, value }
  *
- *  2. **هسته فقط `fa` و `en` را ثبت می‌کند** (`utils/i18n.py:25` و
- *     `core/builtins/languages.py`)، نه پنج زبان. کدهای دیگر crash نمی‌کنند —
- *     `t()` به انگلیسی و بعد به خودِ کلید fallback می‌کند — ولی عملاً یعنی
- *     کاربر متن انگلیسی می‌بیند. API همین را صریح برمی‌گرداند تا UI بتواند
- *     تفاوت را نشان دهد، به‌جای اینکه پنج زبان را یکسان جا بزند.
+ * IRFORGE_PROMPT_V3 Phase 22 — «زبان بات به‌عنوان یک قابلیت پولی»: fa/en
+ * همیشه رایگان‌اند؛ ar/tr/ru نیازمند `multi_language` در پلن تننت هستند —
+ * دقیقاً همان feature key و همان `plan_has_feature` که
+ * `handlers/panel_builder.py` برای «panel_builder» استفاده می‌کند
+ * (`bot/utils/subscriptions.py`). هر سه روتی که یک زبانِ pay-walled را
+ * می‌نویسد یا ترجمه می‌کند، دوباره این را چک می‌کند — نه فقط `GET` که UI
+ * را قفل نشان می‌دهد — دقیقاً به همان دلیلی که `cb_set_language` سمت بات
+ * یک تپ روی کیبورد خودش را هم دوباره چک می‌کند: کلاینت قابل‌اعتماد نیست.
  */
 import { Router } from "express";
 import { requireAuth } from "./auth.js";
@@ -35,20 +41,26 @@ import {
 } from "../lib/botConfig.js";
 import { BOT_LANGUAGES } from "../lib/botTypes.js";
 import { translateTo, translateAvailable, translateProvider, TranslateError } from "../lib/translate.js";
+import { planHasFeature } from "../lib/botSubscriptions.js";
 
 const router = Router();
 const KEYS_TAB = "text_keys";
 const VALUES_TAB = "text_values";
 
-/**
- * زبان‌هایی که هسته‌ی بات می‌شناسد — آینه‌ی `i18n.LANGUAGES`.
- *
- * قبلاً فقط `fa`/`en` بود و بات هر انتخاب دیگری را بی‌صدا به فارسی
- * برمی‌گرداند. حالا هر پنج زبان در بات ثبت شده‌اند و زنجیره‌ی fallback
- * (زبان انتخابی → انگلیسی → خود کلید) رشته‌های ترجمه‌نشده را پوشش می‌دهد.
- */
-const CORE_LANGUAGES = ["fa", "en", "ar", "tr", "ru"] as const;
+/** آینه‌ی `handlers/language.py::FREE_LANGUAGES`/`PAID_LANGUAGES`. */
+const FREE_LANGUAGES = ["fa", "en"] as const;
+const PAID_LANGUAGES = ["ar", "tr", "ru"] as const;
+const MULTI_LANGUAGE_FEATURE = "multi_language";
 const FALLBACK_LANG = "en";
+
+const UPGRADE_MESSAGE =
+  "این زبان نیازمند ارتقای پلن است. برای فعال‌سازی، پلن بات را ارتقا دهید.";
+
+async function requireMultiLanguage(spreadsheetId: string, lang: string): Promise<void> {
+  if (!(PAID_LANGUAGES as readonly string[]).includes(lang)) return;
+  const unlocked = await planHasFeature(spreadsheetId, MULTI_LANGUAGE_FEATURE);
+  if (!unlocked) throw new BotConfigError(402, UPGRADE_MESSAGE, "plan_upgrade_required");
+}
 
 type TextKeyRow = { key: string; category?: string };
 type TextValueRow = { key: string; lang: string; value: string };
@@ -61,11 +73,12 @@ router.get("/bots/:botId/language", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
     const settings = await readSettings(spreadsheetId);
+    const multiLanguageUnlocked = await planHasFeature(spreadsheetId, MULTI_LANGUAGE_FEATURE);
     res.json({
       language: settings.language,
-      coreLanguages: CORE_LANGUAGES,
-      // بقیه‌ی کدها قابل ذخیره‌اند ولی بدون پلاگین، متن انگلیسی سرو می‌شود.
-      otherLanguages: BOT_LANGUAGES.filter((l) => !(CORE_LANGUAGES as readonly string[]).includes(l)),
+      freeLanguages: FREE_LANGUAGES,
+      paidLanguages: PAID_LANGUAGES,
+      multiLanguageUnlocked,
       // اگر سرویس ترجمه تنظیم نشده، UI اصلاً دکمه‌اش را نشان نمی‌دهد —
       // بهتر از دکمه‌ای که همیشه خطا می‌دهد.
       translateAvailable: translateAvailable(),
@@ -84,15 +97,10 @@ router.put("/bots/:botId/language", requireAuth, async (req: any, res) => {
     const language = String(req.body?.language ?? "").trim().toLowerCase();
     if (!(BOT_LANGUAGES as readonly string[]).includes(language))
       throw new BotConfigError(400, `زبان «${language}» پشتیبانی نمی‌شود.`, "bad_language");
+    await requireMultiLanguage(spreadsheetId, language);
 
     const settings = await patchSettings(spreadsheetId, { language });
-    res.json({
-      language: settings.language,
-      // اگر زبانی خارج از هسته انتخاب شد، صریح گفته می‌شود چه اتفاقی می‌افتد.
-      warning: (CORE_LANGUAGES as readonly string[]).includes(language)
-        ? null
-        : "این زبان در هسته‌ی بات ثبت نشده است؛ تا وقتی رشته‌هایش را خودتان وارد نکنید، بات متن انگلیسی نشان می‌دهد.",
-    });
+    res.json({ language: settings.language });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to set bot language");
   }
@@ -157,6 +165,7 @@ router.put("/bots/:botId/language/strings/:key", requireAuth, async (req: any, r
     const lang = String(req.body?.lang ?? "").toLowerCase();
     if (!(BOT_LANGUAGES as readonly string[]).includes(lang))
       throw new BotConfigError(400, `زبان «${lang}» پشتیبانی نمی‌شود.`, "bad_language");
+    await requireMultiLanguage(spreadsheetId, lang);
 
     const value = String(req.body?.value ?? "");
     if (value.length > 4000) throw new BotConfigError(400, "طول متن از ۴۰۰۰ کاراکتر بیشتر است.");
@@ -204,7 +213,7 @@ router.post("/bots/:botId/language/translate", requireAuth, async (req: any, res
   try {
     // دسترسی به بات هنوز چک می‌شود، هرچند این روت چیزی روی شیت نمی‌نویسد —
     // وگرنه هر کاربر لاگین‌شده‌ای می‌توانست از سهمیه‌ی ترجمه‌ی ما استفاده کند.
-    await resolveBotSheet(req.userId, req.params.botId);
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
 
     const text = String(req.body?.text ?? "");
     const sourceLang = String(req.body?.sourceLang ?? "").toLowerCase();
@@ -218,7 +227,19 @@ router.post("/bots/:botId/language/translate", requireAuth, async (req: any, res
     if (targetLangs.length === 0)
       throw new BotConfigError(400, "هیچ زبان مقصد معتبری داده نشده است.", "no_targets");
 
-    const results = await translateTo(text, sourceLang, targetLangs);
+    // زبان‌های pay-walled را قبل از فراخوانیِ سرویسِ ترجمه فیلتر می‌کند —
+    // هم برای اینکه سهمیه‌ی ترجمه‌مان صرف زبانی که تننت پولش را نداده نشود،
+    // هم برای همان دلیلِ «کلاینت قابل‌اعتماد نیست» که بالای فایل توضیح داده شد.
+    const multiLanguageUnlocked = await planHasFeature(spreadsheetId, MULTI_LANGUAGE_FEATURE);
+    const allowedTargets = multiLanguageUnlocked
+      ? targetLangs
+      : targetLangs.filter((l: string) => !(PAID_LANGUAGES as readonly string[]).includes(l));
+    const lockedTargets = targetLangs.filter((l: string) => !allowedTargets.includes(l));
+
+    const results = allowedTargets.length ? await translateTo(text, sourceLang, allowedTargets) : [];
+    for (const lang of lockedTargets) {
+      results.push({ lang, text: null, error: UPGRADE_MESSAGE });
+    }
     res.json({ results, provider: translateProvider() });
   } catch (err) {
     if (err instanceof TranslateError) {

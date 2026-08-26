@@ -31,6 +31,9 @@ import {
   botsTable,
   ticketsTable,
   adminAuditLogTable,
+  walletsTable,
+  userPlansTable,
+  plansTable,
 } from "@workspace/db";
 import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
@@ -40,6 +43,8 @@ import { hashPassword } from "../lib/password";
 import { writeAudit } from "../lib/audit";
 import { sendTelegramMessage } from "../lib/telegram";
 import { syncSessionDelete } from "../lib/sheetsSync";
+import { ensureWallet, creditWallet, deductWallet } from "../lib/wallet.js";
+import { createNotification, formatTomanFa } from "../lib/notify.js";
 
 const router = Router();
 
@@ -167,9 +172,28 @@ router.get("/superadmin/users/:id", requireSuperAdmin, async (req: any, res) => 
       .from(sessionsTable)
       .where(eq(sessionsTable.userId, user.id));
 
+    // Phase 36: تبِ «صورتحساب» به موجودیِ فعلی و پلنِ فعلی نیاز دارد، پس اینجا
+    // خوانده می‌شود — همان قاعده‌ی «active ولی منقضی‌شده یعنی رایگان» که
+    // `routes/plans.ts`::`GET /plans/current` هم رعایت می‌کند، تا این تب با
+    // چیزی که واقعاً روی حساب کاربر اعمال می‌شود یکی بگوید.
+    const [wallet, [userPlan]] = await Promise.all([
+      ensureWallet(user.id),
+      db.select().from(userPlansTable).where(eq(userPlansTable.userId, user.id)).limit(1),
+    ]);
+    const now = new Date();
+    const planExpired = userPlan?.status === "active" && userPlan.expiresAt !== null && userPlan.expiresAt < now;
+    const billing = {
+      walletBalance: wallet?.balance ?? 0,
+      planId: userPlan ? userPlan.planId : "free",
+      planName: userPlan ? userPlan.planName : "Free",
+      planStatus: planExpired ? "expired" : (userPlan?.status ?? "active"),
+      planExpiresAt: userPlan?.expiresAt?.toISOString() ?? null,
+    };
+
     res.json({
       user: publicUser(user),
       activity: { botCount, ticketCount, sessionCount },
+      billing,
     });
   } catch (err) {
     logger.error({ err }, "superadmin get user error");
@@ -443,6 +467,173 @@ router.post("/superadmin/users/:id/role", requireSuperAdmin, async (req: any, re
       return;
     }
     logger.error({ err }, "superadmin role error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/superadmin/users/:id/plan — Phase 36.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * تا امروز هیچ راهی نبود که پلنِ یک کاربر را از خودِ سایت درست کرد —
+ * `routes/plans.ts` فقط خودِ کاربر را می‌شناسد و همیشه از کیف پول کسر
+ * می‌کند. برای «این کاربر به‌خاطر مشکلِ پشتیبانی یک ماه پلن طلایی رایگان
+ * می‌گیرد» یا «یک اشتراکِ گیرکرده را دستی درست کن» تنها راه یک UPDATE
+ * مستقیم روی دیتابیس بود.
+ *
+ * `planId: null` یعنی بازگشت به رایگان — دقیقاً همان چیزی که نبودِ ردیف در
+ * `user_plans` یعنی (`GET /plans/current`)، پس ردیف را پاک می‌کند به‌جای
+ * اینکه به یک پلنِ ساختگیِ «free» اشاره کند. `durationDays` اختیاری است؛
+ * نبودش یعنی بدون تاریخ انقضا — یک پلنِ دستی خودش منقضی نمی‌شود مگر
+ * سوپرادمین صریحاً بگوید.
+ *
+ * برخلاف `POST /plans/subscribe`، اینجا هیچ کسری از کیف‌پول انجام نمی‌شود —
+ * این یک override اداری است، نه یک خرید.
+ */
+router.post("/superadmin/users/:id/plan", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const reason = typedReason(req.body?.reason);
+    const planId: string | null = req.body?.planId ?? null;
+    const durationDays = req.body?.durationDays != null ? Number(req.body.durationDays) : null;
+    if (durationDays !== null && (!Number.isFinite(durationDays) || durationDays <= 0)) {
+      res.status(400).json({ error: "durationDays باید عددی مثبت باشد" });
+      return;
+    }
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.params.id)).limit(1);
+    if (!user) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const [existing] = await db.select().from(userPlansTable).where(eq(userPlansTable.userId, user.id)).limit(1);
+    const fromPlanId = existing?.planId ?? "free";
+
+    if (planId === null) {
+      if (existing) await db.delete(userPlansTable).where(eq(userPlansTable.userId, user.id));
+      await db.update(usersTable).set({ plan: "free" }).where(eq(usersTable.id, user.id));
+    } else {
+      const [plan] = await db.select().from(plansTable).where(eq(plansTable.id, planId)).limit(1);
+      if (!plan) {
+        res.status(404).json({ error: "Plan not found" });
+        return;
+      }
+      const expiresAt = durationDays ? new Date(Date.now() + durationDays * 86_400_000) : null;
+      if (existing) {
+        await db.update(userPlansTable)
+          .set({ planId: plan.id, planName: plan.name, status: "active", expiresAt, renewsAt: expiresAt })
+          .where(eq(userPlansTable.userId, user.id));
+      } else {
+        await db.insert(userPlansTable).values({
+          id: crypto.randomUUID(), userId: user.id, planId: plan.id, planName: plan.name,
+          status: "active", expiresAt, renewsAt: expiresAt,
+        });
+      }
+      await db.update(usersTable).set({ plan: plan.id }).where(eq(usersTable.id, user.id));
+    }
+
+    await writeAudit({
+      actorUserId: req.userId,
+      action: "plan_changed",
+      targetUserId: user.id,
+      reason,
+      metadata: { from: fromPlanId, to: planId ?? "free", durationDays },
+    });
+
+    await createNotification({
+      userId: user.id,
+      type: "plan_adjusted",
+      severity: "info",
+      title: "پلن حساب شما تغییر کرد",
+      message: planId === null
+        ? "پلن حساب شما توسط پشتیبانی به رایگان بازگردانده شد."
+        : `پلن حساب شما توسط پشتیبانی تغییر کرد.${durationDays ? ` این پلن ${durationDays} روز فعال است.` : ""}`,
+    });
+
+    res.json({ ok: true, planId: planId ?? "free" });
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    logger.error({ err }, "superadmin plan error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/superadmin/users/:id/wallet-adjust — Phase 36.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * تا امروز تنها راهِ رسمیِ افزودن پول به کیف‌پولِ یک کاربر این بود که خودش
+ * فیش واریز بفرستد و ادمین تأییدش کند (`POST /admin/wallet-deposits/:id/
+ * approve`). برای اصلاحِ یک اشتباه، بازپرداخت، یا اعتبارِ حسن‌نیت — جایی که
+ * پولی واقعاً واریز نشده — این مسیر معنا نداشت.
+ *
+ * `type: "admin_credit"/"admin_debit"` عمداً است، نه یکی از انواعِ واریز/
+ * `spend` — `lib/adminRevenue.ts` فقط `type = "spend"` را درآمد می‌شمارد؛
+ * تصحیحِ دستیِ یک ادمین نباید در آمارِ فروش ظاهر شود.
+ *
+ * کسر با همان تابعِ اتمیِ `deductWallet` انجام می‌شود، پس نمی‌تواند موجودی
+ * را منفی کند؛ اگر ناکافی باشد ۴۰۰ برمی‌گردد، نه یک موجودیِ منفی.
+ */
+router.post("/superadmin/users/:id/wallet-adjust", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const reason = typedReason(req.body?.reason);
+    const direction = req.body?.direction;
+    if (direction !== "credit" && direction !== "debit") {
+      res.status(400).json({ error: "direction باید credit یا debit باشد" });
+      return;
+    }
+    const amount = Math.round(Number(req.body?.amount));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      res.status(400).json({ error: "amount باید عددی مثبت باشد" });
+      return;
+    }
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.params.id)).limit(1);
+    if (!user) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const note = `Admin ${direction}: ${reason}`;
+    let balance: number;
+    if (direction === "credit") {
+      balance = await creditWallet(user.id, amount, note, "admin_credit");
+    } else {
+      const ok = await deductWallet(user.id, amount, note, db, "admin_debit");
+      if (!ok) {
+        res.status(400).json({ error: "موجودی کیف پول کاربر کمتر از مبلغِ کسر است", code: "insufficient" });
+        return;
+      }
+      const wallet = await ensureWallet(user.id);
+      balance = wallet.balance;
+    }
+
+    await writeAudit({
+      actorUserId: req.userId,
+      action: "wallet_adjusted",
+      targetUserId: user.id,
+      reason,
+      metadata: { direction, amount, balance },
+    });
+
+    await createNotification({
+      userId: user.id,
+      type: direction === "credit" ? "wallet_credited" : "wallet_debited",
+      severity: "info",
+      title: direction === "credit" ? "کیف پول شما شارژ شد" : "از کیف پول شما کسر شد",
+      message: direction === "credit"
+        ? `مبلغ ${formatTomanFa(amount)} توسط پشتیبانی به کیف پول شما اضافه شد. موجودی فعلی: ${formatTomanFa(balance)}.`
+        : `مبلغ ${formatTomanFa(amount)} توسط پشتیبانی از کیف پول شما کسر شد. موجودی فعلی: ${formatTomanFa(balance)}.`,
+    });
+
+    res.json({ ok: true, balance });
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    logger.error({ err }, "superadmin wallet-adjust error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

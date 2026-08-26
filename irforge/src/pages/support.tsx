@@ -21,8 +21,7 @@ import {
   SUPPORT_CONTACTS,
   telegramUrl,
   atHandle,
-  EDUCATION_CHANNEL_URL,
-  EDUCATION_CHANNEL_HANDLE,
+  useSupportLinks,
 } from "@/config/support";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
@@ -69,6 +68,7 @@ export default function Support() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { aiBotUsername, ownerUsername, ownerLabel } = SUPPORT_CONTACTS;
+  const { educationChannelUrl, educationChannelHandle } = useSupportLinks();
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -155,12 +155,12 @@ export default function Support() {
                     : "Video walkthroughs: getting a token, your first bot, plugins and payments."}
                 </p>
                 <p className="mt-1 font-mono text-xs text-muted-foreground" dir="ltr">
-                  {EDUCATION_CHANNEL_HANDLE}
+                  {educationChannelHandle}
                 </p>
               </div>
             </div>
             <Button asChild variant="outline" size="sm" className="shrink-0 gap-2" data-testid="education-channel">
-              <a href={EDUCATION_CHANNEL_URL} target="_blank" rel="noopener noreferrer">
+              <a href={educationChannelUrl} target="_blank" rel="noopener noreferrer">
                 <Send className="size-4" />
                 {fa ? "باز کردن کانال" : "Open the channel"}
               </a>

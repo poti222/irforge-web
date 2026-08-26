@@ -393,11 +393,28 @@ export interface UserPlan {
   expiresAt: string | null;
   /** @nullable */
   renewsAt?: string | null;
+  maxBots: number;
+  maxPlugins: number;
 }
 
 export interface SubscribeInput {
   planId: string;
 }
+
+export type PlanChangeResultAction = typeof PlanChangeResultAction[keyof typeof PlanChangeResultAction];
+
+
+export const PlanChangeResultAction = {
+  subscribe: 'subscribe',
+  upgrade: 'upgrade',
+  downgrade: 'downgrade',
+  renew: 'renew',
+} as const;
+
+export type PlanChangeResult = UserPlan & {
+  action: PlanChangeResultAction;
+  charged: number;
+};
 
 export type ThemeMode = typeof ThemeMode[keyof typeof ThemeMode];
 

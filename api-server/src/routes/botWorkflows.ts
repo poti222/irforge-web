@@ -34,6 +34,9 @@ import {
   BotConfigError,
 } from "../lib/botConfig.js";
 import { nowIso, newUuid } from "../lib/botTypes.js";
+import { readSchemas } from "./botObjects.js";
+import { logger } from "../lib/logger.js";
+import { FIELD_SUGGESTIONS, objectsForCatalog } from "../lib/workflowCatalog.js";
 
 const router = Router();
 const WORKFLOWS_TAB = "workflows";
@@ -164,6 +167,18 @@ router.get("/bots/:botId/workflow-catalog", requireAuth, async (req: any, res) =
         .map(([k]) => k)
     );
 
+    // آبجکت‌های خودِ این بات — تا شرط‌ساز بتواند `record.<field>` را از روی
+    // schema واقعی پیشنهاد بدهد، نه اینکه ادمین دقیقاً همان نامی را که در
+    // ObjectsSection تعریف کرده حفظ‌کند و دستی تایپ کند. یک بات بدون هیچ
+    // آبجکتی هم باید کاتالوگ را ببیند (فقط این بخشش خالی است)، پس خطای
+    // خواندن schemaها را کل درخواست را خراب نمی‌کند.
+    let objects: ReturnType<typeof objectsForCatalog> = [];
+    try {
+      objects = objectsForCatalog(await readSchemas(spreadsheetId));
+    } catch (err) {
+      logger.warn({ err, botId: req.params.botId }, "workflow catalog: failed to read object schemas");
+    }
+
     res.json({
       triggerTypes: TRIGGER_TYPES,
       events: EVENT_NAMES,
@@ -172,6 +187,8 @@ router.get("/bots/:botId/workflow-catalog", requireAuth, async (req: any, res) =
         ...a,
         available: !a.requiresPlugin || enabled.has(a.requiresPlugin),
       })),
+      objects,
+      fieldSuggestions: FIELD_SUGGESTIONS,
     });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to read workflow catalog");

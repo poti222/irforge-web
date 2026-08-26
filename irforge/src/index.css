@@ -130,17 +130,26 @@
   --sidebar: 30 15% 96%;
   --sidebar-foreground: 20 15% 15%;
   --sidebar-border: 20 10% 88%;
-  --sidebar-primary: 25 95% 47%;
+  --sidebar-primary: 25 95% 38%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 30 15% 91%;
   --sidebar-accent-foreground: 20 15% 15%;
-  --sidebar-ring: 25 95% 47%;
+  --sidebar-ring: 25 95% 38%;
   --popover: 0 0% 100%;
   --popover-foreground: 20 15% 12%;
   --popover-border: 20 10% 90%;
 
-  /* Orange as primary */
-  --primary: 25 95% 47%;
+  /* Orange as primary.
+     NOTE [a11y]: was 47%, with white --primary-foreground text — 3.3:1 on a
+     white/off-white background either way round (white text on the orange
+     button fill, or the orange used as text on the page background), under
+     the 4.5:1 floor for normal text. 47% was tuned against the old dark
+     default (bg-primary/10 glows and orange text pop fine on a near-black
+     page), but light is now the default (see App.tsx's ThemeProvider), so
+     most first visits hit this pairing. 38% gives 4.80:1 both ways, with
+     enough margin to survive a bg-primary/10 tint sitting behind it, and
+     still reads as the same brand orange, just a shade richer. */
+  --primary: 25 95% 38%;
   --primary-foreground: 0 0% 100%;
 
   --secondary: 30 15% 93%;
@@ -152,7 +161,7 @@
   --destructive: 0 84% 45%;
   --destructive-foreground: 0 0% 100%;
   --input: 20 10% 85%;
-  --ring: 25 95% 47%;
+  --ring: 25 95% 38%;
 
   /* Orange chart palette */
   --chart-1: 25 95% 53%;

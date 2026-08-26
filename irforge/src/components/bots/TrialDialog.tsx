@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -11,8 +11,11 @@ import { AlertTriangle, Loader2, CheckCircle2, ExternalLink, Gift } from "lucide
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
+import { useT } from "@/hooks/use-translation";
 import { customFetch, getListBotsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/auth/TurnstileWidget";
+import { useCaptchaConfig } from "@/config/captcha";
 
 interface TrialDialogProps {
   open: boolean;
@@ -32,6 +35,13 @@ export function TrialDialog({ open, onOpenChange }: TrialDialogProps) {
   const [name, setName] = useState("");
   const [token, setToken] = useState("");
 
+  // IRFORGE_PROMPT_V3 Phase 42 — a free, one-per-account trial bot is
+  // exactly the kind of action worth gating against scripted abuse.
+  const captchaConfig = useCaptchaConfig();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
+  const tCaptcha = useT("captcha");
+
   const telegramLinked = Boolean(user?.telegramId);
 
   useEffect(() => {
@@ -43,6 +53,7 @@ export function TrialDialog({ open, onOpenChange }: TrialDialogProps) {
     if (!val) {
       setName("");
       setToken("");
+      setCaptchaToken(null);
       setStep("form");
     }
     onOpenChange(val);
@@ -56,15 +67,23 @@ export function TrialDialog({ open, onOpenChange }: TrialDialogProps) {
       });
       return;
     }
+    if (captchaConfig.enabled && !captchaToken) {
+      toast({ variant: "destructive", title: tCaptcha.required });
+      return;
+    }
     setSubmitting(true);
     try {
       await customFetch("/api/bots/trial", {
         method: "POST",
-        body: JSON.stringify({ name: name.trim(), token: token.trim() }),
+        body: JSON.stringify({ name: name.trim(), token: token.trim(), captchaToken }),
       });
       queryClient.invalidateQueries({ queryKey: getListBotsQueryKey() });
       setStep("success");
     } catch (err: any) {
+      // A Turnstile token is single-use — whatever failed, get a fresh one
+      // before the visitor can retry.
+      turnstileRef.current?.reset();
+      setCaptchaToken(null);
       // A 401 here always means "not actually signed in" (missing/expired
       // session token, or a guest token) — the raw "Unauthorized" from the
       // API is true but unhelpful, so surface what the user should actually
@@ -172,13 +191,27 @@ export function TrialDialog({ open, onOpenChange }: TrialDialogProps) {
                     : "Each account can only use the free trial once."}
                 </AlertDescription>
               </Alert>
+              {captchaConfig.enabled && (
+                <div className="flex justify-center">
+                  <TurnstileWidget
+                    ref={turnstileRef}
+                    siteKey={captchaConfig.siteKey}
+                    onVerify={setCaptchaToken}
+                    onExpire={() => setCaptchaToken(null)}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end sm:gap-3">
               <Button variant="outline" className="w-full sm:w-auto" onClick={() => onOpenChange(false)} disabled={submitting}>
                 {fa ? "انصراف" : "Cancel"}
               </Button>
-              <Button className="w-full sm:w-auto" onClick={handleSubmit} disabled={submitting}>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={handleSubmit}
+                disabled={submitting || (captchaConfig.enabled && !captchaToken)}
+              >
                 {submitting ? (
                   <><Loader2 className="size-4 me-2 animate-spin" /> {fa ? "در حال فعال‌سازی..." : "Starting..."}</>
                 ) : (

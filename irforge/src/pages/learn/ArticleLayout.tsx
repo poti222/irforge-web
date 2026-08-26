@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { PublicFooter } from "@/components/layout/public-footer";
+import { PublicPageControls } from "@/components/layout/public-page-controls";
 import { ChevronDown, Clock, Send, ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,7 +8,7 @@ import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
 import { useSEO } from "@/hooks/use-seo";
 import { isRtlLang } from "@/lib/i18n";
-import { EDUCATION_CHANNEL_URL, EDUCATION_CHANNEL_HANDLE } from "@/config/support";
+import { useSupportLinks } from "@/config/support";
 import {
   RELATED,
   articleFor,
@@ -45,6 +46,7 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
   const route = articleRoute(slug);
   const entry = ROUTE_SEO[route];
   const BackArrow = isRtlLang(lang) ? ArrowRight : ArrowLeft;
+  const { educationChannelUrl, educationChannelHandle } = useSupportLinks();
 
   useSEO({
     title: seo[entry.titleKey],
@@ -64,15 +66,18 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
     <>
     <div className="mx-auto max-w-3xl space-y-10 px-4 py-8">
       {/* Breadcrumb trail, mirroring the BreadcrumbList in the page's JSON-LD. */}
-      <nav aria-label={t.breadcrumbLabel} className="text-sm text-muted-foreground">
-        <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <li><Link href="/" className="hover:text-foreground">{seo.navHome}</Link></li>
-          <li aria-hidden="true">/</li>
-          <li><Link href="/learn" className="hover:text-foreground">{seo.navLearnHub}</Link></li>
-          <li aria-hidden="true">/</li>
-          <li className="text-foreground">{seo[entry.navKey]}</li>
-        </ol>
-      </nav>
+      <div className="flex items-center justify-between gap-3">
+        <nav aria-label={t.breadcrumbLabel} className="min-w-0 text-sm text-muted-foreground">
+          <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <li><Link href="/" className="hover:text-foreground">{seo.navHome}</Link></li>
+            <li aria-hidden="true">/</li>
+            <li><Link href="/learn" className="hover:text-foreground">{seo.navLearnHub}</Link></li>
+            <li aria-hidden="true">/</li>
+            <li className="text-foreground">{seo[entry.navKey]}</li>
+          </ol>
+        </nav>
+        <PublicPageControls />
+      </div>
 
       <header className="space-y-4">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{article.h1}</h1>
@@ -172,11 +177,11 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
             <h2 className="font-semibold">{t.channelTitle}</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">{t.channelBody}</p>
             <p className="font-mono text-xs text-muted-foreground" dir="ltr">
-              {EDUCATION_CHANNEL_HANDLE}
+              {educationChannelHandle}
             </p>
           </div>
           <Button asChild className="shrink-0 gap-2">
-            <a href={EDUCATION_CHANNEL_URL} target="_blank" rel="noopener noreferrer">
+            <a href={educationChannelUrl} target="_blank" rel="noopener noreferrer">
               <Send className="size-4" aria-hidden="true" />
               {t.channelCta}
             </a>

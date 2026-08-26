@@ -142,6 +142,14 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/plans"} tooltip={nav.plans}>
+                  <Link href="/plans" data-testid="nav-plans" onClick={closeMobileMenu}>
+                    <CreditCard />
+                    <span>{nav.plans}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location === "/invoices"} tooltip={nav.myInvoices}>
                   <Link href="/invoices" data-testid="nav-invoices" onClick={closeMobileMenu}>
                     <Receipt />

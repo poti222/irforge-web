@@ -1,51 +1,72 @@
 import { Link } from "wouter";
 import { PublicFooter } from "@/components/layout/public-footer";
-import { Check } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { PublicPageControls } from "@/components/layout/public-page-controls";
+import { Check, Sparkles } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useListPlans } from "@workspace/api-client-react";
+import type { Plan } from "@workspace/api-client-react";
 import { useT } from "@/hooks/use-translation";
 import { useSEO } from "@/hooks/use-seo";
+import { useLanguage } from "@/hooks/use-language";
+import { useCurrency } from "@/hooks/use-currency";
+import { formatToman, formatConvertedAmount } from "@/lib/format";
 
 /**
- * `/pricing` — the **public** plan overview.
+ * `/pricing` — the **public** subscription-plan overview.
  *
  * Distinct from `/plans`, which is the authenticated purchase flow and stays
  * private and `Disallow`ed in robots.txt. This page exists so plan information
  * is indexable at all; it does not expose the purchase flow.
  *
- * ── Why there are no numbers on this page ────────────────────────────────
- * `GET /api/plans` is behind `requireAuth` (see api-server/src/routes/plans.ts)
- * so it cannot be read at build time, and the prices themselves live in the
- * `plans` table and are edited by admins at runtime — there is no fixed price
- * in this repository to mirror into a constant.
+ * IRFORGE_PROMPT_V3 Phase 44 — this used to describe three tiers ("Trial",
+ * "Starter", "Growth") purely qualitatively, with no prices at all, because
+ * `GET /api/plans` was `requireAuth`-gated. Two problems with that, not one:
+ * the missing numbers, and those three tier names were never real — the
+ * actual `plans` table (edited from the admin panel, PlansManager.tsx) has
+ * never contained a plan named any of them. `GET /api/plans` is now public
+ * (it returns no per-user data — name/price/features/limits only), so this
+ * renders the real, current plans instead of describing fictional ones.
  *
- * Publishing a number we cannot confirm would be worse than publishing none,
- * and a `Product`/`Offer` node whose price disagrees with the real one is a
- * structured-data violation. So this page describes the tiers qualitatively,
- * and `offers` stays omitted from the `SoftwareApplication` node exactly as
- * the header comment in `lib/structured-data.ts` instructs. See SEO.md for the
- * two-step change that turns numbers on once prices are fixed.
+ * `offers` still stays out of the `SoftwareApplication` structured-data node
+ * (see lib/structured-data.ts) even though a price is visible here now: this
+ * page fetches plans client-side, but the structured data is baked into the
+ * prerendered HTML at build time — embedding a price there would drift from
+ * the live, admin-editable one the moment it changes without a redeploy,
+ * which is exactly the "schema disagrees with the real number" problem that
+ * node's own comment already warns against.
  */
 
-/** Tier shape, described without prices. Order is cheapest-first. */
-const TIER_KEYS = ["trial", "starter", "growth"] as const;
+function byPriceAscending(a: Plan, b: Plan) {
+  return a.price - b.price;
+}
 
 export default function Pricing() {
   const t = useT("pricing") as Record<string, any>;
+  const tPlans = useT("plans");
   const seo = useT("seo") as Record<string, string>;
+  const { lang } = useLanguage();
+  const { activeRate } = useCurrency();
 
   useSEO({ title: seo.pricingTitle, description: seo.pricingDescription, route: "/pricing" });
+
+  const { data: plans, isLoading: plansLoading } = useListPlans();
+  const sortedPlans = [...(plans ?? [])].sort(byPriceAscending);
 
   return (
     <>
       <div className="mx-auto max-w-4xl space-y-10 px-4 py-8">
-        <nav aria-label={t.breadcrumbLabel} className="text-sm text-muted-foreground">
-          <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <li><Link href="/" className="hover:text-foreground">{seo.navHome}</Link></li>
-            <li aria-hidden="true">/</li>
-            <li className="text-foreground">{seo.navPricing}</li>
-          </ol>
-        </nav>
+        <div className="flex items-center justify-between gap-3">
+          <nav aria-label={t.breadcrumbLabel} className="min-w-0 text-sm text-muted-foreground">
+            <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <li><Link href="/" className="hover:text-foreground">{seo.navHome}</Link></li>
+              <li aria-hidden="true">/</li>
+              <li className="text-foreground">{seo.navPricing}</li>
+            </ol>
+          </nav>
+          <PublicPageControls />
+        </div>
 
         <header className="space-y-3">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{t.title}</h1>
@@ -54,28 +75,50 @@ export default function Pricing() {
 
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">{t.tiersTitle}</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {TIER_KEYS.map((key) => (
-              <Card key={key} className="h-full">
-                <CardContent className="space-y-3 p-5">
-                  <h3 className="font-semibold">{t.tiers[key].name}</h3>
-                  <p className="text-sm leading-relaxed text-muted-foreground">
-                    {t.tiers[key].description}
-                  </p>
-                  <ul className="space-y-1.5 text-sm text-muted-foreground">
-                    {(t.tiers[key].features as string[]).map((f) => (
-                      <li key={f} className="flex gap-2">
-                        <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-                        <span>{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          {/* Stated plainly rather than hidden: the current figures live in the
-              signed-in plans screen, and this page will not guess at them. */}
+          {plansLoading ? (
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[1, 2, 3].map((i) => <div key={i} className="h-64 animate-pulse rounded-xl bg-muted" />)}
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-3">
+              {sortedPlans.map((plan) => (
+                <Card key={plan.id} className={plan.popular ? "h-full border-primary/50 shadow-sm" : "h-full"}>
+                  <CardHeader className="space-y-2 pb-3">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-lg">{plan.name}</CardTitle>
+                      {plan.popular && (
+                        <Badge variant="default" className="gap-1"><Sparkles className="size-3" /> {tPlans.popularBadge}</Badge>
+                      )}
+                    </div>
+                    <CardDescription className="text-2xl font-bold text-foreground">
+                      {plan.price > 0 ? (
+                        <>{formatToman(plan.price, lang)} <span className="text-sm font-normal text-muted-foreground">{plan.interval === "yearly" ? tPlans.perYear : tPlans.perMonth}</span></>
+                      ) : tPlans.free}
+                    </CardDescription>
+                    {plan.price > 0 && activeRate && (
+                      <p className="text-xs text-muted-foreground">{formatConvertedAmount(plan.price, activeRate, lang)}</p>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <span className="rounded-full border px-2 py-0.5">{tPlans.maxBots.replace("{n}", String(plan.maxBots))}</span>
+                      <span className="rounded-full border px-2 py-0.5">{tPlans.maxPlugins.replace("{n}", String(plan.maxPlugins))}</span>
+                    </div>
+                    {plan.features.length > 0 && (
+                      <ul className="space-y-1.5 text-sm text-muted-foreground">
+                        {plan.features.map((f) => (
+                          <li key={f} className="flex gap-2">
+                            <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
           <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
             {t.priceNote}
           </p>

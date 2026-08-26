@@ -28,6 +28,9 @@ import {
   ClipboardList,
   Send,
   Contact,
+  MapPin,
+  Store,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
@@ -56,12 +59,23 @@ import { RelationsSection } from "@/components/bots/advanced/RelationsSection";
 import { WorkflowsSection } from "@/components/bots/advanced/WorkflowsSection";
 import { LanguageSection } from "@/components/bots/language/LanguageSection";
 import { TicketsSection } from "@/components/bots/tickets/TicketsSection";
+import { BookingSection } from "@/components/bots/booking/BookingSection";
+import { AddressesSection } from "@/components/bots/addresses/AddressesSection";
+import { DripSection } from "@/components/bots/drip/DripSection";
+import { CrmSection } from "@/components/bots/crm/CrmSection";
+import { CatalogSection } from "@/components/bots/catalog/CatalogSection";
+import { WalletSection } from "@/components/bots/wallet/WalletSection";
+import { SurveySection } from "@/components/bots/survey/SurveySection";
+import { GiveawaySection } from "@/components/bots/giveaway/GiveawaySection";
+import { LoyaltySection } from "@/components/bots/loyalty/LoyaltySection";
 // سکشن عمومیِ پلاگین‌های تازه — جدول‌هایش از اسکیمای سرور ساخته می‌شوند.
 import { PluginSection } from "@/components/bots/plugins/PluginSection";
 import { BotHealthCard } from "@/components/bots/BotHealthCard";
+import { BotPlanCard } from "@/components/bots/BotPlanCard";
 import { BotAdminCodeCard } from "@/components/bots/BotAdminCodeCard";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
+import { TutorialLinksCallout } from "@/components/bots/TutorialLinksCallout";
 import type { LocaleShape } from "@/hooks/use-translation";
 
 type SectionKey =
@@ -84,11 +98,14 @@ type SectionKey =
   | "plugins"
   | "loyalty"
   | "booking"
+  | "addresses"
   | "subscriptions"
   | "giveaways"
   | "surveys"
   | "drip"
   | "crm"
+  | "catalog"
+  | "wallet"
   | "language"
   | "settings";
 
@@ -108,6 +125,17 @@ type SectionMeta = {
    * گیت واقعی سمت سرور است (`lib/pluginGate.ts`).
    */
   requiresPlugin?: string;
+  /**
+   * استثنای بالا، برای سکشن‌هایی که خاموش‌بودنِ پلاگین‌شان خودش خبری است که
+   * کاربر باید ببیند — نه یک سکشن که وجودش بی‌معناست.
+   *
+   * IRFORGE_PROMPT_V3 Phase 16 — «در را باز کن، سکشن را پنهان نکن»: تیکت‌ها
+   * برخلاف سفارش‌ها/رزرو، یک قابلیتِ همیشه-مرتبط است (هر بات ممکن است کاربر
+   * پیام بدهد)، پس به‌جای ناپدید شدن، یک CTA بزرگِ «فعال‌سازی» نشان می‌دهد —
+   * خودِ سکشن (`TicketsSection.tsx`) این تصمیم را از روی خطای
+   * `plugin_disabled` سرور می‌گیرد.
+   */
+  showWhenDisabled?: boolean;
 };
 
 type SectionGroup = {
@@ -156,6 +184,11 @@ const SECTION_GROUPS: SectionGroup[] = [
       // پرداخت‌ها از تنظیمات عمومی به اینجا منتقل شد: به همان دنیایی تعلق
       // دارد که سفارش‌ها، و پشت همان گیت است.
       { key: "payments", icon: CreditCard, labelKey: "sectionPayments", requiresPlugin: "wallet" },
+      // IRFORGE_PROMPT_V3 Phase 24 — admin-only wallet actions (balance
+      // lookup, credit/debit, freeze/unfreeze, order charge/refund, notify
+      // templates) that used to be Telegram-command-only. Same
+      // `showWhenDisabled` pattern as booking/address/crm below.
+      { key: "wallet", icon: Wallet, labelKey: "sectionWallet", requiresPlugin: "wallet", showWhenDisabled: true },
       // Deliberately still locked, and the only one left. "Discounts" means two
       // different things here: the platform's own discount codes (routes/
       // discounts.ts, site Postgres) and the bot's `discount` plugin with its
@@ -167,7 +200,15 @@ const SECTION_GROUPS: SectionGroup[] = [
       // روی این بات روشن باشد — گیت واقعی سمت سرور است (`lib/pluginGate.ts`).
       { key: "subscriptions", icon: BadgeCheck, labelKey: "sectionSubscriptions", requiresPlugin: "subscription" },
       { key: "loyalty", icon: Star, labelKey: "sectionLoyalty", requiresPlugin: "loyalty" },
-      { key: "booking", icon: CalendarClock, labelKey: "sectionBooking", requiresPlugin: "booking" },
+      // IRFORGE_PROMPT_V3 Phase 17 — همان الگوی `showWhenDisabled` تیکت
+      // (فاز ۱۶): سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA
+      // فعال‌سازی نشان می‌دهد (`BookingSection.tsx`'s plugin_disabled branch).
+      { key: "booking", icon: CalendarClock, labelKey: "sectionBooking", requiresPlugin: "booking", showWhenDisabled: true },
+      // IRFORGE_PROMPT_V3 Phase 18
+      { key: "addresses", icon: MapPin, labelKey: "sectionAddresses", requiresPlugin: "address", showWhenDisabled: true },
+      // IRFORGE_PROMPT_V3 Phase 24 — همان الگوی `showWhenDisabled`ی booking/address:
+      // سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
+      { key: "catalog", icon: Store, labelKey: "sectionCatalog", requiresPlugin: "catalog", showWhenDisabled: true },
     ],
   },
   {
@@ -175,15 +216,21 @@ const SECTION_GROUPS: SectionGroup[] = [
     labelKey: "groupComms",
     items: [
       { key: "broadcast", icon: Megaphone, labelKey: "sectionBroadcast" },
-      // تیکت‌های داخل بات امروز یک قابلیت **هسته**‌اند (`support_router` بدون
-      // شرط در main.py رجیستر می‌شود) و پلاگین تیکتی وجود ندارد. ولی تا وقتی
-      // آن پلاگین ساخته نشده، این سکشن نباید دیده شود — با ساخته‌شدنش، فقط
-      // کافی است `id` پلاگین به کاتالوگ اضافه شود و این خط خودش کار می‌کند.
-      { key: "tickets", icon: LifeBuoy, labelKey: "sectionTickets", requiresPlugin: "ticket" },
-      { key: "drip", icon: Send, labelKey: "sectionDrip", requiresPlugin: "drip" },
-      { key: "giveaways", icon: Gift, labelKey: "sectionGiveaways", requiresPlugin: "giveaway" },
-      { key: "surveys", icon: ClipboardList, labelKey: "sectionSurveys", requiresPlugin: "survey" },
-      { key: "crm", icon: Contact, labelKey: "sectionCrm", requiresPlugin: "crm" },
+      // پشتیبانیِ پایه (`handlers/support.py`) همیشه هسته و روشن است؛ پلاگین
+      // «تیکت» چیزی که از قبل کار می‌کرد را روشن/خاموش نمی‌کند، فقط صف
+      // ادمین/اولویت/SLA را روی همان داده اضافه می‌کند (IRFORGE_PROMPT_V3
+      // Phase 16). به همین دلیل `showWhenDisabled`: این سکشن هیچ‌وقت نباید
+      // ناپدید شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
+      { key: "tickets", icon: LifeBuoy, labelKey: "sectionTickets", requiresPlugin: "ticket", showWhenDisabled: true },
+      // IRFORGE_PROMPT_V3 Phase 19 — همان الگوی `showWhenDisabled`ی booking/address:
+      // سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
+      { key: "drip", icon: Send, labelKey: "sectionDrip", requiresPlugin: "drip", showWhenDisabled: true },
+      // IRFORGE_PROMPT_V3 Phase 20
+      { key: "giveaways", icon: Gift, labelKey: "sectionGiveaways", requiresPlugin: "giveaway", showWhenDisabled: true },
+      // IRFORGE_PROMPT_V3 Phase 20
+      { key: "surveys", icon: ClipboardList, labelKey: "sectionSurveys", requiresPlugin: "survey", showWhenDisabled: true },
+      // IRFORGE_PROMPT_V3 Phase 20 — همان الگوی `showWhenDisabled`ی booking/address/drip.
+      { key: "crm", icon: Contact, labelKey: "sectionCrm", requiresPlugin: "crm", showWhenDisabled: true },
     ],
   },
   {
@@ -261,9 +308,13 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
 
   const enabledPlugins = useEnabledPlugins(bot.id);
 
-  /** سکشنی که پلاگینش خاموش است اصلاً وجود ندارد. */
+  /**
+   * سکشنی که پلاگینش خاموش است اصلاً وجود ندارد — مگر `showWhenDisabled`،
+   * که به‌جای ناپدید شدن یک CTA فعال‌سازی نشان می‌دهد (فاز ۱۶).
+   */
   function visible(meta: SectionMeta): boolean {
     if (!meta.requiresPlugin) return true;
+    if (meta.showWhenDisabled) return true;
     return enabledPlugins?.has(meta.requiresPlugin) ?? false;
   }
 
@@ -271,8 +322,10 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
   const match = findSection(requested);
   // A locked section is not a valid destination either — someone with a stale
   // bookmark from a future phase shouldn't land on a blank panel. Same for a
-  // section whose plugin is off: a bookmark from when it was on must not land
-  // on a section the server will 403.
+  // section whose plugin is off and doesn't opt into `showWhenDisabled`: a
+  // bookmark from when it was on must not land on a section the server will
+  // 403. A `showWhenDisabled` section is always a valid destination — it
+  // handles its own "plugin is off" state instead of relying on this gate.
   const section: SectionKey = match && !match.locked && visible(match) ? match.key : "overview";
 
   function goTo(next: SectionKey) {
@@ -367,11 +420,14 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
           <motion.div key={section} {...anim}>
             {section === "overview" && (
               <div className="space-y-4">
+                <TutorialLinksCallout />
                 <BotIdentityCard bot={bot} />
 
                 {/* فاز ۲۴ — سلامت بات: شکست‌های بی‌صدا را قبل از اینکه کاربرِ
                     بات به آن‌ها بخورد نشان می‌دهد. */}
                 <BotHealthCard bot={bot} />
+                {/* فاز ۳۲ — پلن و اشتراک: پلنِ فعلی، قیمت، و روزهای باقی‌مانده. */}
+                <BotPlanCard bot={bot} />
                 <BotAdminCodeCard bot={bot} />
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -415,13 +471,16 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "workflows" && <WorkflowsSection bot={bot} />}
             {section === "language" && <LanguageSection bot={bot} />}
             {section === "tickets" && <TicketsSection bot={bot} />}
-            {section === "loyalty" && <PluginSection bot={bot} plugin="loyalty" />}
-            {section === "booking" && <PluginSection bot={bot} plugin="booking" />}
+            {section === "loyalty" && <LoyaltySection bot={bot} />}
+            {section === "booking" && <BookingSection bot={bot} />}
+            {section === "addresses" && <AddressesSection bot={bot} />}
             {section === "subscriptions" && <PluginSection bot={bot} plugin="subscription" />}
-            {section === "giveaways" && <PluginSection bot={bot} plugin="giveaway" />}
-            {section === "surveys" && <PluginSection bot={bot} plugin="survey" />}
-            {section === "drip" && <PluginSection bot={bot} plugin="drip" />}
-            {section === "crm" && <PluginSection bot={bot} plugin="crm" />}
+            {section === "giveaways" && <GiveawaySection bot={bot} />}
+            {section === "surveys" && <SurveySection bot={bot} />}
+            {section === "drip" && <DripSection bot={bot} />}
+            {section === "crm" && <CrmSection bot={bot} />}
+            {section === "catalog" && <CatalogSection bot={bot} />}
+            {section === "wallet" && <WalletSection bot={bot} />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}

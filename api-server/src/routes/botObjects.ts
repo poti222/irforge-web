@@ -157,7 +157,8 @@ function validateFields(value: unknown): ObjectField[] {
   }).sort((a, b) => a.order - b.order).map((f, i) => ({ ...f, order: i }));
 }
 
-async function readSchemas(spreadsheetId: string): Promise<ObjectSchema[]> {
+/** Exported for routes/botWorkflows.ts's condition-field catalog — the object schemas are the only source of truth for what an `event.object.*` payload's `record` actually contains. */
+export async function readSchemas(spreadsheetId: string): Promise<ObjectSchema[]> {
   const rows = await listEntity<ObjectSchema>(spreadsheetId, SCHEMAS_TAB);
   return rows
     .filter((r) => r.value && typeof r.value === "object")

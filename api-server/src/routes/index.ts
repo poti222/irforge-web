@@ -46,6 +46,8 @@ import botPluginsRouter from "./botPlugins.js";
 import botPluginDataRouter from "./botPluginData.js";
 // لایسنس پلاگین‌ها: نمای حساب‌محور + انتقال بین بات‌ها
 import pluginLicencesRouter from "./pluginLicences.js";
+// یادداشتِ انتشارِ هر نسخه‌ی پلاگین — نگاه کن lib/marketplaceSync.ts هم
+import pluginReleaseNotesRouter from "./pluginReleaseNotes.js";
 import botObjectsRouter from "./botObjects.js";
 import botRelationsRouter from "./botRelations.js";
 import botWorkflowsRouter from "./botWorkflows.js";
@@ -53,6 +55,20 @@ import botLanguageRouter from "./botLanguage.js";
 import botBackupRouter from "./botBackup.js";
 import botSupportTicketsRouter from "./botSupportTickets.js";
 import botHealthRouter from "./botHealth.js";
+import botSubscriptionRouter from "./botSubscription.js";
+import internalTicketNotifyRouter from "./internalTicketNotify.js";
+import bookingRouter from "./booking.js";
+import addressesRouter from "./addresses.js";
+import dripRouter from "./drip.js";
+import crmRouter from "./crm.js";
+import surveyRouter from "./survey.js";
+import giveawayRouter from "./giveaway.js";
+import supportLinksRouter from "./supportLinks.js";
+import currencyDisplayRouter from "./currencyDisplay.js";
+import captchaRouter from "./captcha.js";
+import loyaltySettingsRouter from "./loyaltySettings.js";
+import catalogRouter from "./catalog.js";
+import botWalletRouter from "./botWallet.js";
 
 const router: IRouter = Router();
 
@@ -96,6 +112,7 @@ router.use(botPluginsRouter);
 router.use(botPluginDataRouter);
 // باید قبل از botsRouter نباشد؛ مسیرهایش زیر /plugin-licences است و تعارضی ندارد.
 router.use(pluginLicencesRouter);
+router.use(pluginReleaseNotesRouter);
 router.use(botObjectsRouter);
 router.use(botRelationsRouter);
 router.use(botWorkflowsRouter);
@@ -103,5 +120,19 @@ router.use(botLanguageRouter);
 router.use(botBackupRouter);
 router.use(botSupportTicketsRouter);
 router.use(botHealthRouter);
+router.use(botSubscriptionRouter);
+router.use(internalTicketNotifyRouter);
+router.use(bookingRouter);
+router.use(addressesRouter);
+router.use(dripRouter);
+router.use(crmRouter);
+router.use(surveyRouter);
+router.use(giveawayRouter);
+router.use(supportLinksRouter);
+router.use(currencyDisplayRouter);
+router.use(captchaRouter);
+router.use(loyaltySettingsRouter);
+router.use(catalogRouter);
+router.use(botWalletRouter);
 
 export default router;

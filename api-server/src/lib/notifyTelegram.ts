@@ -66,6 +66,12 @@ export function deepLink(siteUrl: string, input: TelegramNotificationInput): str
   const { type, refId, botId } = input;
   if (type === "site_update" && refId) return `${base}/updates/${refId}`;
   if (type === "ticket_reply" || type === "ticket_closed") return refId ? `${base}/tickets/${refId}` : `${base}/tickets`;
+  // IRFORGE_PROMPT_V3 Phase 16 — تیکتِ داخلِ *بات* (نه دسک پشتیبانی سایت
+  // بالا)، پس مقصدش سکشن تیکت‌های همان بات است. قبل از فال‌بکِ عمومیِ
+  // `bot_`/`trial_` پایین‌تر، چون این تایپ‌ها با همان پیشوند هم مطابقت
+  // می‌دهند و بدون این ترتیب هرگز به شرط اختصاصی‌شان نمی‌رسیدند.
+  if (type === "bot_new_ticket" || type === "bot_ticket_escalated")
+    return botId ? `${base}/bots/${botId}?section=tickets` : `${base}/bots`;
   if (type.startsWith("deposit_") || type.startsWith("payment_")) return `${base}/wallet`;
   if (type === "purchase_success" || type === "purchase_failed" || type === "order_cancelled") return `${base}/invoices`;
   if (type.startsWith("trial_") || type.startsWith("bot_")) return botId ? `${base}/bots/${botId}` : `${base}/bots`;

@@ -5,6 +5,7 @@
  * تلگرام توکن بات را داخل خودش دارد و هرگز به مرورگر نمی‌رسد.
  */
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
@@ -23,6 +24,7 @@ import {
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
+import { formatOrderAmount } from "@/lib/order-amount";
 
 type Order = {
   order_id: string;
@@ -47,6 +49,9 @@ type OrdersPage = {
   total: number;
   counts: Record<string, number>;
   statuses: string[];
+  /** P51: the bot's own configured currency — orders live in a sheet, not a
+      Toman-only column, so a bot set up for USD has USD amounts here. */
+  currency: string;
 };
 
 function errMessage(err: any, fallback: string): string {
@@ -173,10 +178,16 @@ export function OrdersSection({ bot }: { bot: Bot }) {
                 <th className="p-2 text-start font-medium">{t.colStatus}</th>
               </tr>
             </thead>
-            <tbody>
+            <motion.tbody
+              initial="hidden"
+              animate="show"
+              variants={{ show: { transition: { staggerChildren: 0.03 } } }}
+            >
               {data.orders.map((order) => (
-                <tr
+                <motion.tr
                   key={order.order_id}
+                  variants={{ hidden: { opacity: 0, y: 4 }, show: { opacity: 1, y: 0 } }}
+                  transition={{ duration: 0.2 }}
                   className="cursor-pointer border-t hover:bg-muted/40"
                   onClick={() => { setSelected(order); setReason(order.status_reason ?? ""); }}
                 >
@@ -187,12 +198,12 @@ export function OrdersSection({ bot }: { bot: Bot }) {
                     )}
                   </td>
                   <td className="p-2" dir="ltr">{order.username || order.user_id}</td>
-                  <td className="p-2">{String(order.final_amount ?? order.amount ?? "—")}</td>
+                  <td className="p-2">{formatOrderAmount(order.final_amount ?? order.amount, data.currency, lang)}</td>
                   <td className="p-2" dir="ltr">{String(order.created_at ?? "").slice(0, 10) || "—"}</td>
                   <td className="p-2">{statusBadge(order.status ?? "pending")}</td>
-                </tr>
+                </motion.tr>
               ))}
-            </tbody>
+            </motion.tbody>
           </table>
         </div>
       )}
@@ -231,7 +242,7 @@ export function OrdersSection({ bot }: { bot: Bot }) {
                 <dt className="text-muted-foreground">{t.colUser}</dt>
                 <dd dir="ltr">{selected.username || selected.user_id}</dd>
                 <dt className="text-muted-foreground">{t.colAmount}</dt>
-                <dd>{String(selected.final_amount ?? selected.amount ?? "—")}</dd>
+                <dd>{formatOrderAmount(selected.final_amount ?? selected.amount, data.currency, lang)}</dd>
                 <dt className="text-muted-foreground">{t.colMethod}</dt>
                 <dd>{selected.method || "—"}</dd>
                 <dt className="text-muted-foreground">{t.colDate}</dt>

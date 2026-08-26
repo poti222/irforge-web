@@ -16,11 +16,18 @@ import {
  * One deliberate omission, because the alternative would be publishing a
  * claim we can't back:
  *
- *  - `offers` on SoftwareApplication. Pricing sits behind auth (/plans is
- *    disallowed in robots.txt), so there is no public price to quote.
+ *  - `offers` on SoftwareApplication. `/pricing` (public, unlike `/plans`
+ *    itself — see that page's own header comment, IRFORGE_PROMPT_V3 Phase
+ *    44) now does show a real price, but this file only runs at prerender
+ *    (build) time, while that price is fetched client-side from the
+ *    admin-editable `plans` table at *request* time. Baking today's number
+ *    into the static JSON-LD would drift from the live page the moment an
+ *    admin changes it without a redeploy — the exact "schema disagrees with
+ *    the real number" problem this omission exists to avoid in the first
+ *    place, just arriving from a different direction than "no price at all".
  *
- * It is wired up and will start emitting the moment a public price exists —
- * no schema surgery needed.
+ * Revisit only if plan prices become build-time-fixed, or this file's own
+ * data source stops being fully static.
  */
 
 /**

@@ -76,40 +76,60 @@ export function useMoveLicence() {
   });
 }
 
+export type BuyForBotsResult = {
+  botId: string;
+  botName: string;
+  ok: boolean;
+  error?: string;
+};
+
 /**
- * خرید/نصب یک پلاگین روی یک باتِ انتخاب‌شده، با پرداخت از کیف پول.
+ * خرید/نصب یک پلاگین روی **چند** بات، هرکدام جدا — سرور هیچ اندپوینتِ
+ * دسته‌ای ندارد (هر خرید یک ردیفِ `installed_plugins` و یک کسرِ کیف‌پولِ
+ * مستقلِ خودش است)، پس اینجا به‌ترتیب یکی‌یکی صدا زده می‌شود.
  *
- * بعد از خرید، پلاگین را روی همان بات هم **روشن** می‌کند. «خریده‌شده» و «روشن»
- * دو چیز جدا هستند (اولی در Postgres سایت، دومی در `__plugin_states__` شیت
- * تننت) و کسی که همین حالا پول داده انتظار ندارد پلاگینش خاموش باشد.
- *
- * این مرحله best-effort است و شکستش خرید را خراب نمی‌کند: بات مقصد ممکن است
- * هنوز شیت نداشته باشد. در آن حالت سوییچِ همان کارت سر جایش است و کاربر خودش
- * روشنش می‌کند.
+ * عمداً «همه یا هیچ» نیست: اگر موجودیِ کیف‌پول وسط راه تمام شود، باتی که تا
+ * همان لحظه خریداری شده باید خریداری‌شده بماند — لغوِ خریدهای موفق فقط به‌خاطر
+ * شکستِ یکی از باتهای بعدی هیچ فایده‌ای ندارد. نتیجه‌ی هر بات جدا برمی‌گردد
+ * تا UI بگوید دقیقاً کدام‌ها موفق و کدام‌ها ناموفق بودند.
  */
-export function useBuyPluginForBot() {
+export function useBuyPluginForBots() {
   const invalidate = useInvalidateLicences();
   return useMutation({
-    mutationFn: async ({ botId, marketplaceItemId, pluginId }: {
-      botId: string;
+    mutationFn: async ({ botIds, marketplaceItemId, pluginId, botNames }: {
+      botIds: string[];
       marketplaceItemId: string;
       pluginId?: string;
-    }) => {
-      const bought = await customFetch(`/api/bots/${botId}/plugins`, {
-        method: "POST",
-        body: JSON.stringify({ marketplaceItemId, payFromWallet: true }),
-      });
-      if (pluginId) {
+      botNames: Record<string, string>;
+    }): Promise<BuyForBotsResult[]> => {
+      const results: BuyForBotsResult[] = [];
+      for (const botId of botIds) {
         try {
-          await customFetch(`/api/bots/${botId}/plugins/${pluginId}`, {
-            method: "PATCH",
-            body: JSON.stringify({ enabled: true }),
+          await customFetch(`/api/bots/${botId}/plugins`, {
+            method: "POST",
+            body: JSON.stringify({ marketplaceItemId, payFromWallet: true }),
           });
-        } catch {
-          // شیت ندارد یا در دسترس نیست — خرید ثبت شده و سوییچ دستی باقی است.
+          if (pluginId) {
+            try {
+              await customFetch(`/api/bots/${botId}/plugins/${pluginId}`, {
+                method: "PATCH",
+                body: JSON.stringify({ enabled: true }),
+              });
+            } catch {
+              // شیت ندارد یا در دسترس نیست — خرید ثبت شده و سوییچ دستی باقی است.
+            }
+          }
+          results.push({ botId, botName: botNames[botId] ?? botId, ok: true });
+        } catch (err: any) {
+          results.push({
+            botId,
+            botName: botNames[botId] ?? botId,
+            ok: false,
+            error: err?.data?.error ?? err?.message,
+          });
         }
       }
-      return bought;
+      return results;
     },
     onSuccess: invalidate,
   });

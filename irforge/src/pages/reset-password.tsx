@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { BrandLogo } from "@/components/layout/brand-home";
+import { PublicPageControls } from "@/components/layout/public-page-controls";
 import { ArrowLeft, Loader2, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
@@ -46,6 +47,7 @@ export default function ResetPassword() {
 
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 px-4 bg-background">
+      <PublicPageControls className="fixed end-4 top-4 z-10" />
       <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
         <BrandLogo className="mb-8 hover:opacity-80 transition-opacity" />
         <h2 className="text-center text-2xl font-bold tracking-tight">

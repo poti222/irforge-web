@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -216,7 +217,7 @@ export default function Wallet() {
 
                 <div className="space-y-1.5">
                   <Label>{fa ? "مبلغ (تومان)" : "Amount (Toman)"}</Label>
-                  <Input type="number" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                  <AmountInput value={amount} onChange={(e) => setAmount(e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
                   <Label>{fa ? "فیش واریزی" : "Receipt"}</Label>
@@ -276,7 +277,7 @@ export default function Wallet() {
 
                 <div className="space-y-1.5">
                   <Label>{fa ? "مبلغ (تومان)" : "Amount (Toman)"}</Label>
-                  <Input type="number" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                  <AmountInput value={amount} onChange={(e) => setAmount(e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
                   <Label>{fa ? "هش تراکنش / آدرس کیف پول مبدأ" : "Transaction hash / sending address"}</Label>

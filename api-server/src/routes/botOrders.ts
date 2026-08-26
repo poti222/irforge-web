@@ -90,6 +90,12 @@ router.get("/bots/:botId/orders", requireAuth, async (req: any, res) => {
     // روت مستقیم هم قابل صدا زدن است.
     await requirePluginEnabled(spreadsheetId, "wallet");
     const all = await readOrders(spreadsheetId);
+    // P51: amounts on an order are whatever the bot's own settings currency
+    // is (see renderStatusMessage below, which already stamps this same
+    // value onto the Telegram notification text) — a bot configured for USD
+    // has USD amounts here, not Toman. The web UI had no way to label them
+    // until now, so a number just sat there with no unit.
+    const { currency } = await readSettings(spreadsheetId);
 
     const search = String(req.query.search ?? "").trim().toLowerCase();
     const status = String(req.query.status ?? "all");
@@ -119,6 +125,7 @@ router.get("/bots/:botId/orders", requireAuth, async (req: any, res) => {
       totalPages: Math.max(1, Math.ceil(filtered.length / limit)),
       counts,
       statuses: ORDER_STATUSES,
+      currency,
     });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to list orders");

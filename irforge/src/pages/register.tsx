@@ -14,9 +14,12 @@ import { useSEO } from "@/hooks/use-seo";
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
 import { BrandLogo } from "@/components/layout/brand-home";
+import { PublicPageControls } from "@/components/layout/public-page-controls";
 import { CodeInput } from "@/components/auth/CodeInput";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/auth/TurnstileWidget";
+import { useCaptchaConfig } from "@/config/captcha";
 import { setAuthToken } from "@/lib/auth-token";
 
 /**
@@ -143,6 +146,12 @@ export default function Register() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [editingEmail, setEditingEmail] = useState(false);
+
+  // IRFORGE_PROMPT_V3 Phase 42 — abuse gate on the free identity step.
+  const captchaConfig = useCaptchaConfig();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
+  const tCaptcha = useT("captcha");
 
   const [code, setCode] = useState("");
   const [codeInvalid, setCodeInvalid] = useState(false);
@@ -337,6 +346,10 @@ export default function Register() {
 
   async function startRegistration() {
     if (!firstName.trim() || !lastName.trim() || !email.trim()) return;
+    if (captchaConfig.enabled && !captchaToken) {
+      toast({ variant: "destructive", title: tCaptcha.required });
+      return;
+    }
     setBusy(true);
     try {
       if (method === "email") {
@@ -350,6 +363,7 @@ export default function Register() {
               lastName: lastName.trim(),
               email: email.trim(),
               locale: lang,
+              captchaToken,
             }),
           },
         );
@@ -386,6 +400,10 @@ export default function Register() {
       lastServerStepRef.current = res.step ?? null;
       setStep("telegram");
     } catch (err) {
+      // A Turnstile token is single-use — whatever failed, the one already
+      // spent (or possibly-spent) is no good for a retry.
+      turnstileRef.current?.reset();
+      setCaptchaToken(null);
       fail(err);
     } finally {
       setBusy(false);
@@ -504,6 +522,7 @@ export default function Register() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
+      <PublicPageControls className="fixed end-4 top-4 z-10" />
       <div className="w-full max-w-md space-y-6">
         <div className="flex justify-center">
           <BrandLogo href="/" />
@@ -579,7 +598,18 @@ export default function Register() {
               <Input id="reg-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
 
-            <GlowButton type="submit" className="w-full" disabled={busy}>
+            {captchaConfig.enabled && (
+              <div className="flex justify-center">
+                <TurnstileWidget
+                  ref={turnstileRef}
+                  siteKey={captchaConfig.siteKey}
+                  onVerify={setCaptchaToken}
+                  onExpire={() => setCaptchaToken(null)}
+                />
+              </div>
+            )}
+
+            <GlowButton type="submit" className="w-full" disabled={busy || (captchaConfig.enabled && !captchaToken)}>
               {busy && <Loader2 className="me-2 size-4 animate-spin" />}
               {t.continue}
             </GlowButton>

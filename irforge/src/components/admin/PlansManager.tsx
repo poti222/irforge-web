@@ -4,6 +4,7 @@ import type { Plan } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -192,7 +193,7 @@ export function PlansManager() {
             </div>
             <div className="space-y-1.5">
               <Label>{fa ? "قیمت (تومان)" : "Price (Toman)"}</Label>
-              <Input type="number" dir="ltr" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+              <AmountInput value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
             </div>
             <div className="space-y-1.5">
               <Label>{fa ? "دوره" : "Interval"}</Label>

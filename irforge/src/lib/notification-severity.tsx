@@ -49,10 +49,16 @@ export function severityIcon(severity: Severity, className = "size-4 shrink-0") 
 export function ctaForType(
   type: string,
   refId?: string | null,
+  botId?: string | null,
 ): { href: string; key: "tickets" | "invoices" | "buyBot" | "wallet" | "bots" | "update" } | null {
   // اول از همه: اعلانِ آپدیت سایت به خودِ آن آپدیت لینک می‌دهد. تنها نوعی که
   // مقصدش به یک رکورد مشخص وابسته است، نه فقط به type.
   if (type === "site_update" && refId) return { href: `/updates/${refId}`, key: "update" };
+  // IRFORGE_PROMPT_V3 Phase 16 — تیکتِ داخلِ *بات*، نه دسکِ پشتیبانیِ سایت
+  // (`ticket_*` پایین‌تر) — مقصدش سکشن تیکت‌های همان بات است.
+  if (type === "bot_new_ticket" || type === "bot_ticket_escalated") {
+    return { href: botId ? `/bots/${botId}?section=tickets` : "/bots", key: "bots" };
+  }
   if (type.startsWith("ticket_")) return { href: "/tickets", key: "tickets" };
   if (type.startsWith("purchase_") || type.startsWith("payment_") || type.startsWith("order_")) {
     return { href: "/invoices", key: "invoices" };

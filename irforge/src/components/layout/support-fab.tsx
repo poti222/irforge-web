@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Youtube } from "lucide-react";
 import { OrangeRobot } from "@/components/layout/brand-home";
 import { useLanguage } from "@/hooks/use-language";
-import { EDUCATION_CHANNEL_URL } from "@/config/support";
+import { useSupportLinks } from "@/config/support";
 
 /**
  * A floating support robot pinned to the corner of every dashboard page.
@@ -19,6 +19,7 @@ export function SupportFab() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const reduce = useReducedMotion();
+  const { educationChannelUrl } = useSupportLinks();
 
   if (location === "/support") return null;
 
@@ -29,7 +30,7 @@ export function SupportFab() {
     // right in RTL (→ FAB left) and on the left in LTR (→ FAB right).
     <div className={`fixed bottom-6 z-40 flex flex-col items-center gap-3 ${fa ? "left-6" : "right-6"}`}>
       <a
-        href={EDUCATION_CHANNEL_URL}
+        href={educationChannelUrl}
         target="_blank"
         rel="noopener noreferrer"
         aria-label={channelLabel}

@@ -181,39 +181,29 @@ test("مجموعه‌های فقط‌خواندنی، همان‌هایی هست
   const readonly = collectionsMod.COLLECTIONS.filter((c) => c.readonly).map((c) => c.key);
   // حساب امتیاز: نوشتن مستقیم، لِجِر `loyalty_events` را دور می‌زد.
   assert.ok(readonly.includes("loyalty-accounts"));
-  // تخصیص برچسب: کلیدش ترکیبی است (`<user_id>:<tag_id>`).
-  assert.ok(readonly.includes("crm-user-tags"));
-
-  // رزرو: ساخت ممنوع (شمارنده‌ی ظرفیت)، ولی تغییر وضعیت مجاز.
-  const reservations = collectionsMod.getCollection("booking-reservations");
-  assert.equal(reservations.noCreate, true);
-  assert.notEqual(reservations.readonly, true);
+  // تخصیصِ برچسبِ CRM (کلیدش ترکیبی است، `<user_id>:<tag_id>`) از فاز ۲۰
+  // اینجا نیست — یک lib/crmStore.ts اختصاصی دارد که خودش این کلید را
+  // می‌سازد، دقیقاً به همین دلیل که این تست قبلاً مستند می‌کرد.
 });
 
-test("فیلدهای شمارنده‌ی بات، readonly اعلام شده‌اند", () => {
-  // اگر سایت اجازه‌ی نوشتن روی این‌ها را بدهد، عددی که بات نگه می‌دارد خراب می‌شود.
-  const counters = {
-    "booking-slots": "booked_count",
-    giveaways: "entry_count",
-    surveys: "response_count",
-    "drip-campaigns": "sent_count",
-  };
-  for (const [collection, field] of Object.entries(counters)) {
-    const spec = collectionsMod.getCollection(collection);
-    assert.ok(spec, `${collection} پیدا نشد`);
-    const found = spec.fields.find((f) => f.key === field);
-    assert.ok(found, `${collection} فیلد ${field} ندارد`);
-    assert.equal(found.type, "readonly", `${collection}.${field} باید readonly باشد`);
-  }
-});
+// «فیلدهای شمارنده‌ی بات، readonly اعلام شده‌اند» اینجا بود تا وقتی که
+// drip/survey/giveaway — تنها سه مجموعه‌ای که یک شمارنده‌ی بات‌ساخته
+// داشتند (sent_count/response_count/entry_count) — هر سه به فاز ۱۹/۲۰ یک
+// lib/*Store.ts اختصاصی منتقل شدند (مثل booking/address) که اصلاً این
+// فیلدها را در ورودیِ create/update نمی‌پذیرند، نه اینکه با
+// type:"readonly" نشانشان بدهند. امروز هیچ مجموعه‌ای در COLLECTIONS یک
+// شمارنده‌ی این‌شکلی ندارد؛ اگر یکی اضافه شد، همین‌جا یک تستِ مشابه اضافه شود.
 
 test("مجموعه‌ی ناشناخته null برمی‌گرداند (روت ۴۰۴ می‌دهد)", () => {
   assert.equal(collectionsMod.getCollection("nope"), null);
 });
 
 test("مجموعه‌های هر پلاگین قابل استخراج‌اند", () => {
+  // IRFORGE_PROMPT_V3 Phase 17 — booking-slots/booking-reservations یک
+  // UI/روتِ اختصاصی گرفتند (BookingSection.tsx / routes/booking.ts)،
+  // درست مثل تیکت. فقط booking-services روی سیستم عمومی مانده.
   const booking = collectionsMod.collectionsOfPlugin("booking").map((c) => c.key);
-  assert.deepEqual(booking.sort(), ["booking-reservations", "booking-services", "booking-slots"]);
+  assert.deepEqual(booking.sort(), ["booking-services"]);
   assert.deepEqual(collectionsMod.collectionsOfPlugin("ticket"), [],
     "تیکت سکشن اختصاصی خودش را دارد (botSupportTickets.ts)");
 });

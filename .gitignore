@@ -14,3 +14,7 @@ dist-ssg/
 # local reproduction harness (Fix Round 2) — removed in final cleanup
 _repro_*
 lib/db/_repro_migrations/
+
+# ephemeral git worktrees the agent harness creates for isolated background
+# subagents — ceases to exist once the agent finishes, never project content
+.claude/worktrees/

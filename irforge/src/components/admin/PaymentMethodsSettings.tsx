@@ -17,6 +17,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Bitcoin, CreditCard, Loader2, Save } from "lucide-react";
@@ -139,9 +140,9 @@ export function PaymentMethodsSettings() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="usdt-rate">{fa ? "نرخ هر تتر (تومان)" : "Rate per USDT (Toman)"}</Label>
-              <Input
-                id="usdt-rate" type="number" dir="ltr"
-                value={draft.usdt.tomanPerUsdt || ""}
+              <AmountInput
+                id="usdt-rate"
+                value={String(draft.usdt.tomanPerUsdt || "")}
                 onChange={(e) => patchUsdt({ tomanPerUsdt: Number(e.target.value) || 0 })}
               />
               <p className="text-xs text-muted-foreground">{fa ? "صفر یعنی نمایش نده." : "Zero hides it."}</p>

@@ -17,6 +17,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BrandHomeButton, SidebarBrandHeader } from "@/components/layout/brand-home";
+import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { useT } from "@/hooks/use-translation";
 import { useSEO } from "@/hooks/use-seo";
 
@@ -102,10 +104,12 @@ export default function Docs() {
               </span>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-          <Button variant="ghost" size="sm" asChild>
+          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+          <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
             <Link href="/learn">{footerT.learnNav}</Link>
           </Button>
+          <ThemeToggleButton className="rounded-full" />
+          <LanguageSwitcher />
           <Button variant="ghost" size="sm" className="shrink-0" asChild>
             <Link href="/" data-testid="link-back-home" aria-label={t.backToHome}>
               <ArrowLeft className="sm:me-2 size-4 rtl-flip" />
