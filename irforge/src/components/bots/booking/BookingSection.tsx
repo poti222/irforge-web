@@ -44,6 +44,7 @@ import {
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
 import { PluginCollectionTable } from "@/components/bots/plugins/PluginCollectionTable";
+import { formatJalali } from "@/lib/tehran-time";
 
 // ── قالب‌های داده — همتای lib/bookingStore.ts سمت سرور ──────────────────
 
@@ -110,6 +111,17 @@ function addDays(date: string, n: number): string {
   const dt = new Date(Date.UTC(y, m - 1, d));
   dt.setUTCDate(dt.getUTCDate() + n);
   return dt.toISOString().slice(0, 10);
+}
+
+/**
+ * تاریخِ «YYYY-MM-DD» میلادی → همان تاریخ شمسی، برای نمایش کنار میلادی.
+ * بات خودش تقویمِ رزرو را کاملاً شمسی به مشتری نشان می‌دهد
+ * (`plugins/booking/handlers.py`)؛ این تب مدیریتی روی سایت تا امروز فقط
+ * میلادی داشت — برای ادمین فارسی‌زبان یعنی تاریخِ خودِ بات را نمی‌شناخت.
+ */
+function jalaliOf(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return formatJalali(y, m, d);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -300,7 +312,9 @@ function ExceptionDialog({
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle dir="ltr">{date}</DialogTitle>
+          <DialogTitle>
+            {jalaliOf(date)} <span dir="ltr" className="text-sm font-normal text-muted-foreground">({date})</span>
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
@@ -393,7 +407,12 @@ function CalendarTab({ botId }: { botId: string }) {
       <p className="text-sm text-muted-foreground">{t.calendarDesc}</p>
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="outline" size="sm" onClick={() => setWeekStart(addDays(weekStart, -7))}>{t.prevWeek}</Button>
-        <span dir="ltr" className="text-sm font-medium">{dates[0]} — {dates[6]}</span>
+        <span className="text-sm font-medium">
+          {jalaliOf(dates[0])} — {jalaliOf(dates[6])}
+          <span dir="ltr" className="ms-1.5 text-xs font-normal text-muted-foreground">
+            ({dates[0]} — {dates[6]})
+          </span>
+        </span>
         <Button variant="outline" size="sm" onClick={() => setWeekStart(addDays(weekStart, 7))}>{t.nextWeek}</Button>
         <div className="ms-auto flex items-center gap-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1"><span className="size-2.5 rounded-full bg-emerald-500" /> {t.legendOpen}</span>
@@ -416,7 +435,8 @@ function CalendarTab({ botId }: { botId: string }) {
                       onClick={() => setEditingDate(date)}
                       className="flex w-full flex-col items-center gap-0.5 rounded p-1 hover:bg-muted/60"
                     >
-                      <span dir="ltr" className="font-medium">{date.slice(5)}</span>
+                      <span className="font-medium">{jalaliOf(date).slice(5)}</span>
+                      <span dir="ltr" className="text-[10px] text-muted-foreground">{date.slice(5)}</span>
                       {exc?.closed && <Badge variant="destructive" className="text-[10px]">{t.dayClosed}</Badge>}
                     </button>
                   </th>
