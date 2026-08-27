@@ -37,6 +37,7 @@ export type FieldType =
   | "boolean"
   | "select"
   | "datetime"
+  | "image"
   | "readonly";
 
 export type FieldSpec = {
@@ -159,6 +160,13 @@ export const COLLECTIONS: CollectionSpec[] = [
     fields: [
       { key: "title", label: t("Service name", "نام سرویس"), type: "text", required: true, maxLength: 80 },
       { key: "description", label: t("Description", "توضیح"), type: "textarea", maxLength: 500 },
+      {
+        key: "photo_file_id", label: t("Photo (optional)", "عکس (اختیاری)"), type: "image",
+        help: t(
+          "Shown to a customer right before they pick a date for this service.",
+          "درست قبل از انتخاب تاریخ، به مشتری نشان داده می‌شود.",
+        ),
+      },
       { key: "duration_minutes", label: t("Duration (minutes, display only)", "مدت (دقیقه، فقط نمایشی)"), type: "number", required: true, min: 1, default: 30 },
       { key: "price", label: t("Price (Toman)", "هزینه (تومان)"), type: "number", min: 0, default: 0 },
       {

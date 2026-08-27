@@ -36,6 +36,7 @@ import {
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
+import { MediaList } from "@/components/bots/panels/MediaList";
 
 /** متن دوزبانه‌ای که سرور می‌دهد — `api-server/src/lib/pluginCollections.ts`. */
 export type Localized = { en: string; fa: string };
@@ -43,7 +44,7 @@ export type Localized = { en: string; fa: string };
 export type FieldSpec = {
   key: string;
   label: Localized;
-  type: "text" | "textarea" | "number" | "boolean" | "select" | "datetime" | "readonly";
+  type: "text" | "textarea" | "number" | "boolean" | "select" | "datetime" | "image" | "readonly";
   required?: boolean;
   options?: Array<{ value: string; label: Localized }>;
   min?: number;
@@ -98,8 +99,20 @@ function renderCell(
   locale: string,
   lang: string,
   itemsLabel: string,
+  botId: string,
 ): React.ReactNode {
   if (value === undefined || value === null || value === "") return <span className="text-muted-foreground">—</span>;
+
+  if (field?.type === "image") {
+    return (
+      <img
+        src={`/api/bots/${botId}/media/${encodeURIComponent(String(value))}`}
+        alt=""
+        loading="lazy"
+        className="size-10 rounded border object-cover"
+      />
+    );
+  }
 
   if (field?.type === "boolean" || typeof value === "boolean") {
     return value ? <Badge variant="secondary">✓</Badge> : <span className="text-muted-foreground">—</span>;
@@ -134,12 +147,13 @@ function renderCell(
 }
 
 function RecordForm({
-  spec, initial, onChange, lang,
+  spec, initial, onChange, lang, botId,
 }: {
   spec: CollectionSpec;
   initial: Record<string, unknown>;
   onChange: (next: Record<string, unknown>) => void;
   lang: string;
+  botId: string;
 }) {
   const editable = spec.fields.filter((f) => f.type !== "readonly");
 
@@ -211,6 +225,15 @@ function RecordForm({
                   onCheckedChange={(checked) => set(field.key, checked)}
                 />
               </div>
+            )}
+
+            {field.type === "image" && (
+              <MediaList
+                botId={botId}
+                fileIds={value ? [String(value)] : []}
+                multiple={false}
+                onChange={(next) => set(field.key, next[0] ?? "")}
+              />
             )}
 
             {field.type === "select" && (
@@ -393,7 +416,7 @@ export function PluginCollectionTable({ botId, collection }: { botId: string; co
                 <TableRow key={record.id}>
                   {spec.listColumns.map((column) => (
                     <TableCell key={column} className="align-top text-sm">
-                      {renderCell(fieldsByKey.get(column), record[column], lang === "fa" ? "fa-IR" : "en-US", lang, t.items)}
+                      {renderCell(fieldsByKey.get(column), record[column], lang === "fa" ? "fa-IR" : "en-US", lang, t.items, botId)}
                     </TableCell>
                   ))}
                   {canEdit && (
@@ -434,7 +457,7 @@ export function PluginCollectionTable({ botId, collection }: { botId: string; co
             <DialogTitle>{editing ? t.editTitle : t.addTitle}</DialogTitle>
             <DialogDescription>{loc(spec.title, lang)}</DialogDescription>
           </DialogHeader>
-          <RecordForm spec={spec} initial={draft} onChange={setDraft} lang={lang} />
+          <RecordForm spec={spec} initial={draft} onChange={setDraft} lang={lang} botId={botId} />
           <DialogFooter>
             <Button
               variant="outline"
