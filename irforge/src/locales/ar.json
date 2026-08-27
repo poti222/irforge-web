@@ -1423,7 +1423,7 @@
     "fieldMediaList": "الوسائط (بالترتيب)",
     "fieldMediaSingle": "الوسائط",
     "fieldParent": "اللوحة الأم",
-    "fieldParentHint": "اتركه فارغاً للوحة من المستوى الأول.",
+    "fieldParentHint": "اللوحة التي يعود إليها زر «رجوع» في هذه اللوحة. اتركه فارغًا للوحة من المستوى الأول بدون زر رجوع.",
     "noParent": "بدون لوحة أم",
     "errorTitleRequired": "يجب أن يكون للوحة عنوان.",
     "errorRowTooFull": "أحد الصفوف يحوي أزراراً كثيرة.",
@@ -1546,7 +1546,8 @@
     "healthTitle": "عُثر على {n} مشكلة في بنية اللوحات",
     "healthMore": "و{n} أخرى",
     "repairCta": "إصلاح",
-    "repairDone": "تم إصلاح {n} لوحة"
+    "repairDone": "تم إصلاح {n} لوحة",
+    "mediaAddMore": "إضافة عنصر آخر"
   },
   "botForms": {
     "loading": "جارٍ تحميل النماذج…",

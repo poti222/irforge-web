@@ -58,6 +58,17 @@ function formatDuration(seconds: number): string {
 }
 
 /**
+ * `file_id`های تلگرام معمولاً ۵۰+ کاراکترند و بدون فاصله — یعنی هیچ نقطه‌ی
+ * شکستی برای بسته‌بندی خط ندارند. CSS-only `truncate` روی یک `<code>` که
+ * ذاتاً `inline` است اصلاً اثر نمی‌کند (`text-overflow` فقط روی block
+ * container کار می‌کند)، پس بدون این کوتاه‌سازیِ صریح، رشته کل باکس/دیالوگ را
+ * از عرض خارج می‌کرد. کوتاه می‌کنیم، صرف‌نظر از عرض ظرف.
+ */
+function shortFileId(fileId: string): string {
+  return fileId.length > 18 ? `${fileId.slice(0, 10)}…${fileId.slice(-4)}` : fileId;
+}
+
+/**
  * چیزی که درباره‌ی هر `file_id` می‌دانیم.
  *
  * روی شیت فقط `file_id` ذخیره می‌شود (شکلی که خودِ بات می‌خواند)، پس نوع و
@@ -65,7 +76,7 @@ function formatDuration(seconds: number): string {
  * برای فایل‌های قدیمی از روی خودِ پیش‌نمایش حدس زده می‌شوند. هیچ‌کدام در
  * شیت نوشته نمی‌شوند — وگرنه شکل داده با آنچه بات انتظار دارد فرق می‌کرد.
  */
-type MediaMeta = { kind: "photo" | "audio" | "unknown"; duration: number | null };
+export type MediaMeta = { kind: "photo" | "audio" | "unknown"; duration: number | null };
 
 /**
  * ردیف یک مدیا: پیش‌نمایش واقعی (تصویر یا پخش‌کننده‌ی صوت)، نه یک رشته‌ی
@@ -128,8 +139,12 @@ function MediaRow({
             )}
           </div>
         ) : (
-          <code dir="ltr" className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-            {fileId}
+          <code
+            dir="ltr"
+            title={fileId}
+            className="block min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
+          >
+            {shortFileId(fileId)}
           </code>
         )}
       </div>
@@ -156,12 +171,20 @@ export function MediaList({
   fileIds,
   multiple,
   onChange,
+  onMetaChange,
+  onWantMore,
 }: {
   botId: string;
   fileIds: string[];
   /** نوع carousel چند فایل می‌گیرد؛ بقیه فقط یکی. */
   multiple: boolean;
   onChange: (next: string[]) => void;
+  /** نوع واقعیِ هر فایل (از پاسخ آپلود) — برای اینکه پیش‌نمایش هم بداند، نه
+      اینکه خودش دوباره از روی خطای <img> حدس بزند. */
+  onMetaChange?: (meta: Record<string, MediaMeta>) => void;
+  /** کاربر می‌خواهد مدیای دومی اضافه کند در حالی که نوع پنل هنوز تک‌مدیایی
+      است — تصمیم اینکه نوع به carousel تغییر کند با صداکننده است. */
+  onWantMore?: () => void;
 }) {
   const t = useT("botPanels");
   const { toast } = useToast();
@@ -171,7 +194,14 @@ export function MediaList({
   const [showManual, setShowManual] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [meta, setMeta] = useState<Record<string, MediaMeta>>({});
+  const [meta, setMetaState] = useState<Record<string, MediaMeta>>({});
+  const setMeta: typeof setMetaState = (update) => {
+    setMetaState((prev) => {
+      const next = typeof update === "function" ? (update as (p: typeof prev) => typeof prev)(prev) : update;
+      onMetaChange?.(next);
+      return next;
+    });
+  };
 
   const atLimit = !multiple && fileIds.length >= 1;
 
@@ -269,6 +299,15 @@ export function MediaList({
             />
           ))}
         </ul>
+      )}
+
+      {/* نوع فعلی پنل تک‌مدیایی است، ولی چون carousel وجود دارد راه‌حل «نوعش
+          را عوض کن» است نه بن‌بست — کاربر معمولی خودش نمی‌داند باید اول
+          نوع پنل را عوض کند تا بشود مدیای دوم اضافه کرد. */}
+      {atLimit && onWantMore && (
+        <Button type="button" variant="outline" size="sm" onClick={onWantMore}>
+          <Plus className="me-1.5 size-4" /> {t.mediaAddMore}
+        </Button>
       )}
 
       {!atLimit && (

@@ -1423,7 +1423,7 @@
     "fieldMediaList": "Media (in order)",
     "fieldMediaSingle": "Media",
     "fieldParent": "Parent panel",
-    "fieldParentHint": "Leave empty for a top-level panel.",
+    "fieldParentHint": "The panel this one's Back button returns to. Leave empty for a top-level panel with no Back button.",
     "noParent": "No parent (top level)",
     "errorTitleRequired": "The panel needs a title.",
     "errorRowTooFull": "One row has too many buttons.",
@@ -1546,7 +1546,8 @@
     "healthTitle": "{n} problem(s) found in the panel structure",
     "healthMore": "and {n} more",
     "repairCta": "Repair",
-    "repairDone": "{n} panel(s) fixed"
+    "repairDone": "{n} panel(s) fixed",
+    "mediaAddMore": "Add another"
   },
   "botForms": {
     "loading": "Loading forms…",

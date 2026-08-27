@@ -32,7 +32,7 @@ import { useUnsavedGuard } from "@/lib/unsaved-changes";
 import { buttonsToRows, rowsToButtons, overfullRows, type PanelButton } from "@/lib/panel-buttons";
 import { ButtonBuilder } from "./ButtonBuilder";
 import { PanelPreview } from "./PanelPreview";
-import { MediaList } from "./MediaList";
+import { MediaList, type MediaMeta } from "./MediaList";
 import { panelTypeLabel } from "./labels";
 import {
   apiErrorMessage, usePanelReferences, useSetHomePanel, useTogglePanel, useUpdatePanel,
@@ -98,6 +98,7 @@ export function PanelEditor({
   const [type, setType] = useState(panel.type);
   const [content, setContent] = useState(panel.content);
   const [media, setMedia] = useState<string[]>(() => mediaOf(panel));
+  const [mediaMeta, setMediaMeta] = useState<Record<string, MediaMeta>>({});
   const [rows, setRows] = useState<PanelButton[][]>(() => buttonsToRows(panel.buttons ?? []));
   const [settings, setSettings] = useState<Record<string, unknown>>(() => ({ ...panel.settings }));
   const [pendingType, setPendingType] = useState<string | null>(null);
@@ -139,6 +140,14 @@ export function PanelEditor({
       return;
     }
     setType(nextType);
+  }
+
+  /** کاربر خواست مدیای دومی اضافه کند — نوع پنل را به اولین نوع
+      چندمدیایی که کاتالوگ می‌شناسد ارتقا می‌دهیم (هیچ مدیایی از دست
+      نمی‌رود، پس نیازی به هشدار افت داده نیست). */
+  function promoteToMultiMedia() {
+    const [multiType] = catalog?.multiMediaTypes ?? ["carousel"];
+    if (multiType && multiType !== type) setType(multiType);
   }
 
   function applyPendingType() {
@@ -259,7 +268,14 @@ export function PanelEditor({
                 {!textOnly && (
                   <div className="space-y-1.5">
                     <Label>{multiMedia ? t.fieldMediaList : t.fieldMediaSingle}</Label>
-                    <MediaList botId={botId} fileIds={media} multiple={multiMedia} onChange={setMedia} />
+                    <MediaList
+                      botId={botId}
+                      fileIds={media}
+                      multiple={multiMedia}
+                      onChange={setMedia}
+                      onMetaChange={setMediaMeta}
+                      onWantMore={multiMedia ? undefined : promoteToMultiMedia}
+                    />
                   </div>
                 )}
               </CardContent>
@@ -472,6 +488,7 @@ export function PanelEditor({
             content={content}
             type={type}
             media={media}
+            mediaMeta={mediaMeta}
             botId={botId}
             rows={rows}
             watermark={watermark}

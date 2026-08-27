@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Bot, Image as ImageIcon, Film, Music, FileText, Images } from "lucide-react";
 import { useT } from "@/hooks/use-translation";
 import type { PanelButton } from "@/lib/panel-buttons";
+import type { MediaMeta } from "./MediaList";
 
 const MEDIA_ICON: Record<string, typeof ImageIcon> = {
   photo: ImageIcon,
@@ -25,13 +26,22 @@ const STYLE_CLASS: Record<string, string> = {
 };
 
 /**
- * یک مدیا در پیش‌نمایش. چون روی شیت فقط `file_id` هست و نوعش معلوم نیست،
- * اول تصویر امتحان می‌شود و اگر لود نشد به پخش‌کننده‌ی صوت سوییچ می‌کند —
- * همان روشی که MediaList استفاده می‌کند.
+ * یک مدیا در پیش‌نمایش. اگر نوعش را از پاسخ آپلود (همان لحظه) می‌دانیم،
+ * مستقیم همان را رندر می‌کنیم — دیگر لازم نیست حدس بزنیم. فقط برای پنلِ
+ * از قبل ذخیره‌شده که تازه باز شده (روی شیت فقط `file_id` هست، نوعش معلوم
+ * نیست) به روش قدیمی برمی‌گردیم: اول تصویر امتحان می‌شود و اگر لود نشد به
+ * پخش‌کننده‌ی صوت سوییچ می‌کند.
+ *
+ * این حدسِ fallback همان چیزی بود که قبلاً **همیشه** اجرا می‌شد، حتی درست
+ * بعد از یک آپلود موفق — و چون این پیش‌نمایش داخل ستون sticky است که هنگام
+ * اولین رندر گاهی هنوز اندازه‌ی نهایی نگرفته، همان حدس گاهی به‌غلط روی صوت
+ * می‌افتاد و یک عکسِ تازه‌آپلودشده را دائم به‌شکل پخش‌کننده‌ی صوتی نشان
+ * می‌داد. دانستنِ نوعِ واقعی این مشکل را کلاً کنار می‌زند.
  */
-function MediaThumb({ botId, fileId }: { botId: string; fileId: string }) {
-  const [isAudio, setIsAudio] = useState(false);
+function MediaThumb({ botId, fileId, knownKind }: { botId: string; fileId: string; knownKind?: MediaMeta["kind"] }) {
+  const [guessedAudio, setGuessedAudio] = useState(false);
   const src = `/api/bots/${botId}/media/${encodeURIComponent(fileId)}`;
+  const isAudio = knownKind ? knownKind === "audio" : guessedAudio;
 
   if (isAudio) {
     return (
@@ -46,9 +56,8 @@ function MediaThumb({ botId, fileId }: { botId: string; fileId: string }) {
     <img
       src={src}
       alt=""
-      loading="lazy"
       className="max-h-44 w-full rounded-md border object-cover"
-      onError={() => setIsAudio(true)}
+      onError={() => { if (!knownKind) setGuessedAudio(true); }}
     />
   );
 }
@@ -58,6 +67,7 @@ export function PanelPreview({
   content,
   type,
   media,
+  mediaMeta,
   botId,
   rows,
   watermark,
@@ -68,6 +78,8 @@ export function PanelPreview({
   type: string;
   /** file_idهای مدیا — برای رندر واقعی، نه فقط شمردن. */
   media: string[];
+  /** نوع واقعیِ هر فایل، وقتی از پاسخ آپلود در همین صفحه شناخته شده. */
+  mediaMeta?: Record<string, MediaMeta>;
   botId: string;
   rows: PanelButton[][];
   watermark?: string;
@@ -98,7 +110,12 @@ export function PanelPreview({
           {mediaCount > 0 && (
             <div className={mediaCount > 1 ? "grid grid-cols-2 gap-1" : ""}>
               {media.map((fileId) => (
-                <MediaThumb key={fileId} botId={botId} fileId={fileId} />
+                <MediaThumb
+                  key={fileId}
+                  botId={botId}
+                  fileId={fileId}
+                  knownKind={mediaMeta?.[fileId]?.kind === "unknown" ? undefined : mediaMeta?.[fileId]?.kind}
+                />
               ))}
             </div>
           )}

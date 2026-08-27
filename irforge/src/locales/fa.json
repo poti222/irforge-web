@@ -1423,7 +1423,7 @@
     "fieldMediaList": "مدیا (به ترتیب)",
     "fieldMediaSingle": "مدیا",
     "fieldParent": "پنل والد",
-    "fieldParentHint": "برای پنل سطح اول خالی بگذارید.",
+    "fieldParentHint": "پنلی که دکمه‌ی «بازگشت» این پنل به آن برمی‌گردد. برای پنل سطح اول (بدون دکمه‌ی بازگشت)، خالی بگذارید.",
     "noParent": "بدون والد (سطح اول)",
     "errorTitleRequired": "پنل باید عنوان داشته باشد.",
     "errorRowTooFull": "یکی از ردیف‌ها دکمه‌ی زیادی دارد.",
@@ -1546,7 +1546,8 @@
     "healthTitle": "{n} مشکل در ساختار پنل‌ها پیدا شد",
     "healthMore": "و {n} مورد دیگر",
     "repairCta": "رفع خودکار",
-    "repairDone": "{n} پنل اصلاح شد"
+    "repairDone": "{n} پنل اصلاح شد",
+    "mediaAddMore": "افزودن مورد دیگر"
   },
   "botForms": {
     "loading": "در حال بارگذاری فرم‌ها…",

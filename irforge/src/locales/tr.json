@@ -1423,7 +1423,7 @@
     "fieldMediaList": "Medya (sırayla)",
     "fieldMediaSingle": "Medya",
     "fieldParent": "Üst panel",
-    "fieldParentHint": "Üst seviye panel için boş bırakın.",
+    "fieldParentHint": "Bu panelin Geri düğmesinin döneceği panel. Geri düğmesi olmayan üst düzey bir panel için boş bırakın.",
     "noParent": "Üst panel yok",
     "errorTitleRequired": "Panelin bir başlığı olmalı.",
     "errorRowTooFull": "Bir satırda çok fazla buton var.",
@@ -1546,7 +1546,8 @@
     "healthTitle": "Panel yapısında {n} sorun bulundu",
     "healthMore": "ve {n} tane daha",
     "repairCta": "Onar",
-    "repairDone": "{n} panel düzeltildi"
+    "repairDone": "{n} panel düzeltildi",
+    "mediaAddMore": "Bir tane daha ekle"
   },
   "botForms": {
     "loading": "Formlar yükleniyor…",
