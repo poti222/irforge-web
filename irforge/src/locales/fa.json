@@ -519,7 +519,9 @@
     "ctaBuyBot": "مشاهده پکیج‌ها",
     "ctaWallet": "باز کردن کیف پول",
     "ctaBots": "رفتن به ربات‌های من",
-    "ctaUpdate": "دیدن آپدیت"
+    "ctaUpdate": "دیدن آپدیت",
+    "ctaAdminPending": "بررسی فیش در انتظار",
+    "ctaAdminPayments": "بررسی واریز کیف پول"
   },
   "updates": {
     "title": "آپدیت‌های سایت",

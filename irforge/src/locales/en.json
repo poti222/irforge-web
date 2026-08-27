@@ -519,7 +519,9 @@
     "ctaBuyBot": "See packages",
     "ctaWallet": "Open wallet",
     "ctaBots": "Go to my bots",
-    "ctaUpdate": "View update"
+    "ctaUpdate": "View update",
+    "ctaAdminPending": "Review pending payment",
+    "ctaAdminPayments": "Review wallet deposit"
   },
   "updates": {
     "title": "Site updates",

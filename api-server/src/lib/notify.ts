@@ -14,7 +14,7 @@
  */
 import crypto from "crypto";
 import { and, eq } from "drizzle-orm";
-import { db, notificationsTable } from "@workspace/db";
+import { db, notificationsTable, usersTable } from "@workspace/db";
 import { logger } from "./logger";
 import { deliverToTelegramInBackground } from "./notifyTelegram";
 
@@ -135,6 +135,25 @@ export async function createNotificationsBulk(
  */
 export function formatTomanFa(amount: number): string {
   return `${Math.round(amount).toLocaleString("fa-IR")} تومان`;
+}
+
+/**
+ * اعلان را به **همه‌ی** super_admin ها می‌رساند — سایت (زنگوله) و تلگرام،
+ * هر دو، از طریق همان `createNotificationsBulk` بالا.
+ *
+ * تا امروز هیچ‌کدام از این رویدادها (فیشِ در انتظار تأیید، واریزِ کیف‌پولِ
+ * در انتظار، تیکتِ تازه) به سوپرادمین‌ها نمی‌رسید — فقط اگر خودشان صفحه‌ی
+ * مربوطه را باز می‌کردند می‌فهمیدند. `dedupeKey` اختیاری است، برای همان
+ * رفتارِ «یک‌بار» که `createNotificationsBulk` پشتیبانی می‌کند (مثلاً یک
+ * فیش که رویش چند بار retry صدا زده می‌شود نباید چند بار اعلان بسازد).
+ */
+export async function notifySuperAdmins(input: Omit<NotificationInput, "userId">): Promise<void> {
+  try {
+    const admins = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.role, "super_admin"));
+    await createNotificationsBulk(admins.map((a) => a.id), input);
+  } catch (err) {
+    logger.warn({ err, type: input.type }, "notifySuperAdmins failed (non-fatal)");
+  }
 }
 
 /** نگاشتِ `announcements.type` به severity اعلانِ per-user. */

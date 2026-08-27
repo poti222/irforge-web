@@ -50,7 +50,7 @@ export function ctaForType(
   type: string,
   refId?: string | null,
   botId?: string | null,
-): { href: string; key: "tickets" | "invoices" | "buyBot" | "wallet" | "bots" | "update" } | null {
+): { href: string; key: "tickets" | "invoices" | "buyBot" | "wallet" | "bots" | "update" | "adminPending" | "adminPayments" } | null {
   // اول از همه: اعلانِ آپدیت سایت به خودِ آن آپدیت لینک می‌دهد. تنها نوعی که
   // مقصدش به یک رکورد مشخص وابسته است، نه فقط به type.
   if (type === "site_update" && refId) return { href: `/updates/${refId}`, key: "update" };
@@ -59,6 +59,11 @@ export function ctaForType(
   if (type === "bot_new_ticket" || type === "bot_ticket_escalated") {
     return { href: botId ? `/bots/${botId}?section=tickets` : "/bots", key: "bots" };
   }
+  // اعلانِ *سوپرادمین* (فیش/واریزِ در انتظار تأیید) — باید مستقیم به تبِ
+  // بررسی برود، نه به `/wallet`/`/invoices` خودِ کاربر که این اعلان اصلاً
+  // درباره‌شان نیست.
+  if (type === "admin_payment_pending") return { href: "/admin?tab=pending", key: "adminPending" };
+  if (type === "admin_deposit_pending") return { href: "/admin?tab=payments", key: "adminPayments" };
   if (type.startsWith("ticket_")) return { href: "/tickets", key: "tickets" };
   if (type.startsWith("purchase_") || type.startsWith("payment_") || type.startsWith("order_")) {
     return { href: "/invoices", key: "invoices" };

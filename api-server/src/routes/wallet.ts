@@ -6,7 +6,7 @@ import { db, walletsTable, walletTransactionsTable, usersTable } from "@workspac
 import { eq, and, gte, desc, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
-import { createNotification, formatTomanFa } from "../lib/notify";
+import { createNotification, notifySuperAdmins, formatTomanFa } from "../lib/notify";
 import { getPaymentMethods, setPaymentMethods } from "../lib/platformSettings";
 import { ensureWallet } from "../lib/wallet.js";
 
@@ -125,6 +125,17 @@ router.post("/wallet/deposit", requireAuth, blockWhileImpersonating, requireComp
       id: crypto.randomUUID(), userId: req.userId, type, amount: Math.round(amt),
       status: "pending", receiptUrl: receiptUrl ?? null, txHash: txHash ?? null,
     }).returning();
+
+    // تا امروز فقط با باز کردنِ خودِ صفحه‌ی «واریزها» فهمیده می‌شد — نه تلگرام،
+    // نه زنگوله‌ی سایت.
+    await notifySuperAdmins({
+      type: "admin_deposit_pending",
+      severity: "info",
+      title: "واریز کیف پول در انتظار بررسی",
+      message: `یک واریز ${method === "card" ? "کارت‌به‌کارت" : "تتری"} به مبلغ ${formatTomanFa(Math.round(amt))} در انتظار تأیید است.`,
+      refId: tx.id,
+    });
+
     res.status(201).json(formatTx(tx));
   } catch (err) {
     logger.error({ err }, "Wallet deposit error");

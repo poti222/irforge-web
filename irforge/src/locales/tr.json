@@ -519,7 +519,9 @@
     "ctaBuyBot": "Paketleri gör",
     "ctaWallet": "Cüzdanı aç",
     "ctaBots": "Botlarıma git",
-    "ctaUpdate": "Güncellemeyi gör"
+    "ctaUpdate": "Güncellemeyi gör",
+    "ctaAdminPending": "Bekleyen fişi incele",
+    "ctaAdminPayments": "Cüzdan yatırımını incele"
   },
   "updates": {
     "title": "Site güncellemeleri",

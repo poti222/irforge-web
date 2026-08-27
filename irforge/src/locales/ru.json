@@ -519,7 +519,9 @@
     "ctaBuyBot": "Посмотреть пакеты",
     "ctaWallet": "Открыть кошелёк",
     "ctaBots": "Мои боты",
-    "ctaUpdate": "Посмотреть обновление"
+    "ctaUpdate": "Посмотреть обновление",
+    "ctaAdminPending": "Проверить платёж",
+    "ctaAdminPayments": "Проверить пополнение"
   },
   "updates": {
     "title": "Обновления сайта",

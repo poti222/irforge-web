@@ -39,7 +39,10 @@ export default function NotificationDetail() {
 
   const cta = data ? ctaForType(data.type, data.refId, data.botId) : null;
   const ctaLabel = cta
-    ? ({ tickets: t.ctaTickets, invoices: t.ctaInvoices, buyBot: t.ctaBuyBot, wallet: t.ctaWallet, bots: t.ctaBots, update: t.ctaUpdate }[cta.key])
+    ? ({
+        tickets: t.ctaTickets, invoices: t.ctaInvoices, buyBot: t.ctaBuyBot, wallet: t.ctaWallet,
+        bots: t.ctaBots, update: t.ctaUpdate, adminPending: t.ctaAdminPending, adminPayments: t.ctaAdminPayments,
+      }[cta.key])
     : null;
 
   return (

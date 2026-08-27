@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearch } from "wouter";
 import type { QueryKey } from "@tanstack/react-query";
 import {
   getAdminGetStatsQueryKey,
@@ -49,7 +50,12 @@ export default function Admin() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { user } = useAuth();
-  const [tab, setTab] = useState("overview");
+  // یک اعلان («فیشِ در انتظار تأیید»، «واریزِ در انتظار») باید بتواند مستقیم
+  // روی تبِ درست این صفحه باز شود — قبل‌تر `tab` فقط useState محلی بود و هر
+  // لینکی به /admin همیشه روی «نمای کلی» می‌افتاد. مقدارِ نامعتبر/ناموجودِ
+  // پارامتر به همان پیش‌فرض برمی‌گردد، نه یک تب خالی.
+  const initialTab = new URLSearchParams(useSearch()).get("tab");
+  const [tab, setTab] = useState(initialTab && initialTab in TAB_KEYS ? initialTab : "overview");
   // R6 RBAC: all-bots, payments and plan management stay super_admin-only —
   // their APIs are requireSuperAdmin server-side, so showing the tabs to a
   // plain admin would just render a 403.

@@ -55,7 +55,7 @@ import {
 import { renameSpreadsheet, sheetIsAccessible, resetSpreadsheet, ensureAllTenantTabs } from "../lib/sheets";
 import { readTabRows } from "../lib/tenantSheets.js";
 import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
-import { createNotification, formatTomanFa } from "../lib/notify";
+import { createNotification, notifySuperAdmins, formatTomanFa } from "../lib/notify";
 import { botUserStats, type BotUserStats } from "../lib/botStats";
 // قیمت خرید از سرور حساب می‌شود، نه از بدنه‌ی درخواست — نگاه کن lib/pluginPricing.ts
 import { resolvePurchasePrice } from "../lib/pluginPricing.js";
@@ -649,6 +649,16 @@ router.post("/bots", requireAuth, perUserRateLimit("bot_create", 10, 60 * 60 * 1
     syncPaymentUpsert({
       id: payment.id, userId: payment.userId, amount: 0,
       status: payment.status, planId: null, createdAt: payment.createdAt,
+    });
+
+    // تا امروز هیچ سوپرادمینی از یک فیشِ تازه خبردار نمی‌شد مگر خودش صفحه‌ی
+    // «در انتظار تأیید» را باز می‌کرد — این همان چیزی است که این اعلان می‌بندد.
+    await notifySuperAdmins({
+      type: "admin_payment_pending",
+      severity: "info",
+      title: "فیش پرداخت تازه در انتظار بررسی",
+      message: `بات «${name}» با فیش پرداخت ثبت شد و منتظر تأیید است.`,
+      refId: payment.id,
     });
 
     res.status(201).json(formatBot(bot));

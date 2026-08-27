@@ -5,7 +5,7 @@ import { eq, and, desc } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { notifyBotTicketReply } from "../lib/supportBot";
-import { createNotification } from "../lib/notify";
+import { createNotification, notifySuperAdmins } from "../lib/notify";
 
 const router = Router();
 
@@ -77,6 +77,17 @@ router.post("/tickets", requireAuth, async (req: any, res) => {
     await db.insert(ticketMessagesTable).values({
       id: crypto.randomUUID(), ticketId, senderId: req.userId, senderRole: "user", body: body.trim(),
     });
+
+    // تا امروز یک تیکتِ تازه فقط داخل جدول می‌نشست — سوپرادمین تا خودش صفحه‌ی
+    // تیکت‌ها را باز نمی‌کرد خبردار نمی‌شد.
+    await notifySuperAdmins({
+      type: "ticket_new",
+      severity: "info",
+      title: "تیکت پشتیبانی تازه",
+      message: `تیکت «${subject.trim()}» باز شد.`,
+      refId: ticket.id,
+    });
+
     res.status(201).json(formatTicket(ticket));
   } catch (err) {
     logger.error({ err }, "Create ticket error");
@@ -136,6 +147,19 @@ router.post("/tickets/:id/messages", requireAuth, async (req: any, res) => {
     // G7: relay an operator reply back to the support bot so it DMs the user.
     if (isStaff && ticket.source === "bot") {
       notifyBotTicketReply({ ticketId: ticket.id, status: "answered", replyPreview: body.trim(), tenant: ticket.tenant });
+    }
+    // کاربر (نه اپراتور) روی تیکتی پاسخ داده که قبلاً answered/closed بوده —
+    // یعنی دوباره باز شده و منتظر پشتیبانی است؛ باید همان‌قدر مطلع شوند که
+    // یک تیکتِ کاملاً تازه.
+    if (!isStaff && ticket.status !== "open") {
+      const preview = body.trim().length > 160 ? `${body.trim().slice(0, 159)}…` : body.trim();
+      await notifySuperAdmins({
+        type: "ticket_reopened",
+        severity: "info",
+        title: "تیکت پشتیبانی دوباره باز شد",
+        message: `تیکت «${ticket.subject}» با یک پیام تازه دوباره باز شد:\n\n${preview}`,
+        refId: ticket.id,
+      });
     }
     // اعلانِ «پاسخ پشتیبانی» فقط برای صاحب تیکت — نه برای خود پاسخ‌دهنده
     // (اپراتور می‌تونه صاحب تیکت خودش هم نباشه).

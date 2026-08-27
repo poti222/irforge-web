@@ -519,7 +519,9 @@
     "ctaBuyBot": "عرض الباقات",
     "ctaWallet": "فتح المحفظة",
     "ctaBots": "الذهاب إلى بوتاتي",
-    "ctaUpdate": "عرض التحديث"
+    "ctaUpdate": "عرض التحديث",
+    "ctaAdminPending": "مراجعة الفيش المعلّق",
+    "ctaAdminPayments": "مراجعة إيداع المحفظة"
   },
   "updates": {
     "title": "تحديثات الموقع",
