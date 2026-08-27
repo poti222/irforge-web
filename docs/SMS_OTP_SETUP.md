@@ -60,6 +60,22 @@ miss.
    you then need to change `PARAM_NAME` in `smsir.ts` to match — don't leave
    the two out of sync, or every send will fail with sms.ir rejecting the
    `parameters` field.
+
+   **To also get Chrome/Android's WebOTP auto-fill** (the frontend already
+   listens for it — see `irforge/src/hooks/use-web-otp.ts` — so nothing
+   else needs to change once the SMS text itself is right), end the
+   template with a line in the exact `@domain #code` shape the
+   [WebOTP spec](https://github.com/WICG/web-otp) requires:
+   ```
+   کد تایید شما در ایرفورج: %CODE%
+
+   @irforge.ir #%CODE%
+   ```
+   That `@irforge.ir` must be **exactly** the origin's bare domain — no
+   `https://`, no `www.` unless the site is actually served from
+   `www.irforge.ir`, no trailing slash — or Chrome silently won't offer the
+   autofill (the six-box manual input still works either way, so this
+   isn't something that can visibly "break," only quietly not autofill).
 3. Submit the template for review. sms.ir has to manually approve
    OTP/Verify templates (this is what keeps this line eligible to bypass
    users' "block promotional SMS" setting) — approval isn't instant; budget

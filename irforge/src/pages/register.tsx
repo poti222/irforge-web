@@ -831,6 +831,7 @@ export default function Register() {
               disabled={busy}
               invalid={codeInvalid}
               errorMessage={codeErrorMessage}
+              webOtp={method === "sms"}
             />
 
             <p className="text-center text-sm text-muted-foreground" aria-live="polite">

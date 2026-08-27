@@ -710,6 +710,7 @@ export default function Login() {
               disabled={busy}
               invalid={codeInvalid}
               errorMessage={codeErrorMessage}
+              webOtp
             />
 
             <p className="text-center text-sm text-muted-foreground" aria-live="polite">
