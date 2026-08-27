@@ -893,6 +893,16 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
         "wallet-purchase: price computed server-side",
       );
     }
+    // اگر کلاینت بیش از سقفِ پلاگین‌های رایگانِ پکیج فرستاده باشد (باگ UI یا
+    // یک تماس دستی با API)، `resolvePurchasePrice` مازاد را کنار گذاشته —
+    // این‌جا فقط لاگ می‌شود تا اگر کسی سعی در دور زدن سقف داشت قابل ردیابی
+    // باشد؛ خودِ خرید با فهرست کوتاه‌شده ادامه پیدا می‌کند.
+    if (resolved.droppedFreePluginIds?.length) {
+      logger.warn(
+        { userId: req.userId, dropped: resolved.droppedFreePluginIds },
+        "wallet-purchase: free-plugin quota exceeded, extra plugins dropped",
+      );
+    }
     let finalAmount = price;
     let discountAmount = 0;
     let appliedCodeId: string | null = null;

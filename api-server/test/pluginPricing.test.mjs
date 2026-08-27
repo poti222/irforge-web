@@ -24,9 +24,12 @@ const pricing = await import("../src/lib/pluginPricing.ts");
 const sync = await import("../src/lib/marketplaceSync.ts");
 
 const {
-  PLUGIN_PRICES, BOT_TIER_PRICES, CUSTOM_BUILD,
+  PLUGIN_PRICES, BOT_TIER_PRICES, BOT_TIER_MAX_FREE_PLUGINS, CUSTOM_BUILD,
   pluginPrice, isPluginFree, quoteCustomBuild, quotePluginAddons, resolvePurchasePrice,
 } = pricing;
+
+/** یک id پلاگین رایگان که در `PLUGIN_PRICES` نیست (پس `pluginPrice` صفر می‌دهد). */
+const FREE_PLUGIN_IDS = ["freeplug-a", "freeplug-b", "freeplug-c", "freeplug-d"];
 
 // ─── قیمت پلاگین ────────────────────────────────────────────────────────────
 
@@ -184,6 +187,61 @@ test("افزودنی روی پکیج آماده جدا هم قابل محاسب�
   assert.equal(quotePluginAddons("booking").total, 0);
 });
 
+// ─── سقفِ پلاگین رایگان (مشکل بزرگِ گزارش‌شده) ──────────────────────────────
+
+test("quotePluginAddons: پلاگین‌های رایگان از سقف رد نمی‌شوند، پولی‌ها هیچ‌وقت سقف نمی‌خورند", () => {
+  const many = [...FREE_PLUGIN_IDS, "booking", "crm"]; // ۴ رایگان + ۲ پولی
+  const capped = quotePluginAddons(many, undefined, 2);
+
+  // فقط ۲ تای اول از رایگان‌ها نگه داشته می‌شود؛ ۲ تای بعدی کنار گذاشته می‌شود.
+  assert.deepEqual(capped.droppedFreePluginIds, FREE_PLUGIN_IDS.slice(2));
+  const keptIds = capped.plugins.map((p) => p.id);
+  assert.ok(keptIds.includes("booking") && keptIds.includes("crm"), "پولی‌ها هرگز کنار گذاشته نمی‌شوند");
+  assert.equal(keptIds.filter((id) => FREE_PLUGIN_IDS.includes(id)).length, 2);
+  // مازادِ کنارگذاشته‌شده رایگان بود، پس روی مبلغ اثری ندارد.
+  assert.equal(capped.total, pluginPrice("booking") + pluginPrice("crm"));
+});
+
+test("quotePluginAddons: بدون سقف مشخص، همه‌ی رایگان‌ها می‌مانند (پیش‌فرض قدیمی دست‌نخورده)", () => {
+  const addons = quotePluginAddons(FREE_PLUGIN_IDS);
+  assert.deepEqual(addons.droppedFreePluginIds, []);
+  assert.equal(addons.plugins.length, FREE_PLUGIN_IDS.length);
+});
+
+test("resolvePurchasePrice: پکیجِ آماده بیش از سقفِ پلاگین رایگانش را قبول نمی‌کند", () => {
+  // نقره‌ای سقفش ۳ است — اینجا ۵ تا رایگان انتخاب شده.
+  const resolved = resolvePurchasePrice({
+    buildSpec: { tierId: "silver", pluginIds: [...FREE_PLUGIN_IDS, "freeplug-e"] },
+  });
+  assert.equal(resolved.source, "tier");
+  assert.equal(resolved.pluginIds.length, BOT_TIER_MAX_FREE_PLUGINS.silver);
+  assert.equal(resolved.droppedFreePluginIds.length, 5 - BOT_TIER_MAX_FREE_PLUGINS.silver);
+  // پلاگین‌های رایگانِ مازاد قیمتی ندارند، پس مبلغ فقط قیمت پکیج می‌ماند —
+  // نه اینکه رایگان‌های اضافه پولی حساب شوند و نه اینکه رایگان بمانند.
+  assert.equal(resolved.total, BOT_TIER_PRICES.silver);
+});
+
+test("resolvePurchasePrice: پلاگین پولی هرگز جزو سقفِ رایگان پکیج حساب نمی‌شود", () => {
+  // طلایی سقفش ۱۰ رایگان است؛ اینجا ۱۰ رایگان + یک پولی انتخاب شده — پولی
+  // نباید به‌خاطر پر بودن سهمیه‌ی رایگان کنار گذاشته شود.
+  const tenFree = Array.from({ length: BOT_TIER_MAX_FREE_PLUGINS.gold }, (_, i) => `freeplug-${i}`);
+  const resolved = resolvePurchasePrice({
+    buildSpec: { tierId: "gold", pluginIds: [...tenFree, "booking"] },
+  });
+  assert.deepEqual(resolved.droppedFreePluginIds, []);
+  assert.ok(resolved.pluginIds.includes("booking"));
+  assert.equal(resolved.total, BOT_TIER_PRICES.gold + pluginPrice("booking"));
+});
+
+test("resolvePurchasePrice: بات سفارشی سقفِ پلاگین رایگان ندارد", () => {
+  // «سفارشی» عمداً از این سقف مستثناست — قبلاً هم تست‌های بالا با بات سفارشی
+  // چند پلاگین پولی جمع می‌زدند بدون هیچ محدودیتی؛ اینجا با رایگان هم همینه.
+  const resolved = resolvePurchasePrice({
+    buildSpec: { tierId: "custom", ramGb: 1, cpuCores: 1, pluginIds: FREE_PLUGIN_IDS },
+  });
+  assert.equal(resolved.pluginIds.length, FREE_PLUGIN_IDS.length);
+});
+
 // ─── محافظ drift بین سرور و فرانت ───────────────────────────────────────────
 
 test("قیمت پکیج‌های آماده در سرور و فرانت یکی است", () => {
@@ -203,6 +261,25 @@ test("قیمت پکیج‌های آماده در سرور و فرانت یکی �
     assert.equal(
       Number(match[1]), serverPrice,
       `قیمت «${tierId}» در فرانت (${match[1]}) با سرور (${serverPrice}) یکی نیست`,
+    );
+  }
+});
+
+test("سقفِ پلاگین رایگان در سرور و فرانت یکی است", () => {
+  // همان محافظِ drift بالا، این‌بار برای `maxPlugins` هر پکیج در bot-tiers.ts.
+  const source = fs.readFileSync(
+    new URL("../../irforge/src/lib/bot-tiers.ts", import.meta.url),
+    "utf8",
+  );
+
+  for (const [tierId, serverMax] of Object.entries(BOT_TIER_MAX_FREE_PLUGINS)) {
+    const block = source.split(`id: "${tierId}"`)[1];
+    assert.ok(block, `پکیج ${tierId} در bot-tiers.ts پیدا نشد`);
+    const match = block.match(/maxPlugins:\s*(\d+)/);
+    assert.ok(match, `maxPlugins برای ${tierId} در bot-tiers.ts پیدا نشد`);
+    assert.equal(
+      Number(match[1]), serverMax,
+      `سقفِ پلاگینِ رایگانِ «${tierId}» در فرانت (${match[1]}) با سرور (${serverMax}) یکی نیست`,
     );
   }
 });

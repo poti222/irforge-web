@@ -489,6 +489,8 @@
     "required": "Zorunlu",
     "plugins": "Eklentiler",
     "pluginsAddonNote": "Seçtiğiniz her eklenti fiyata eklenir ve bu bota kurulur. Daha sonra o botun Eklentiler bölümünden de ekleyebilirsiniz.",
+    "freePluginQuota": "Kullanılan ücretsiz eklenti: {used} / {max}",
+    "freePluginLimitReached": "Bu pakete dahil {max} ücretsiz eklentinin tamamını kullandınız. Bunun yerine ücretli bir eklenti seçin veya daha büyük bir paket alın.",
     "loadingPlugins": "Eklentiler yükleniyor…",
     "pluginListUnavailable": "Eklenti listesi şu an kullanılamıyor. Botu alıp eklentileri sonra ekleyebilirsiniz.",
     "addToCart": "Sepete ekle",

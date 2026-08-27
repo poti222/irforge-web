@@ -489,6 +489,8 @@
     "required": "Required",
     "plugins": "Plugins",
     "pluginsAddonNote": "Each plugin you pick is added to the price and installed on this bot. You can also add them later from that bot's Plugins section.",
+    "freePluginQuota": "Free plugins used: {used} / {max}",
+    "freePluginLimitReached": "You've used all {max} free plugins included in this package. Pick a paid plugin instead, or choose a bigger package.",
     "loadingPlugins": "Loading plugins…",
     "pluginListUnavailable": "The plugin list isn't available right now. You can buy the bot and add plugins later.",
     "addToCart": "Add to cart",

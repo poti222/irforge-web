@@ -157,15 +157,46 @@ export function quoteCustomBuild(
  * پکیج آماده قیمت ثابت دارد و منابعش هم ثابت است، پس فقط پلاگین‌ها به آن
  * اضافه می‌شوند.
  */
+/**
+ * سقفِ تعداد پلاگین‌های *رایگان* قابل‌انتخاب روی هر پکیجِ آماده، هنگام خرید —
+ * آینه‌ی `maxPlugins` در `irforge/src/lib/bot-tiers.ts` (همان الگوی
+ * `BOT_TIER_PRICES` بالا؛ تست drift پایین همین فایل برابری‌شان را چک می‌کند).
+ *
+ * پلاگینِ پولی هرگز جزو این سقف نیست — قیمتش را می‌دهی و می‌گیری، دقیقاً
+ * همان قانونی که `lib/planLimits.ts` برای روشن‌کردن پلاگین روی بات موجود
+ * دارد. عدد ۹۹۹ برای الماسی یعنی «عملاً نامحدود». «سفارشی» عمداً اینجا
+ * نیست: بات سفارشی سقفی برای تعداد پلاگین ندارد (خودِ `bot-tiers.ts` هم
+ * چنین فیلدی برایش تعریف نکرده).
+ */
+export const BOT_TIER_MAX_FREE_PLUGINS: Record<string, number> = {
+  silver:  3,
+  gold:    10,
+  diamond: 999,
+};
+
 export function quotePluginAddons(
   pluginIds: unknown,
   knownPlugins?: Iterable<string>,
-): { plugins: Array<{ id: string; price: Toman }>; total: Toman } {
+  maxFreePlugins: number = Infinity,
+): { plugins: Array<{ id: string; price: Toman }>; total: Toman; droppedFreePluginIds: string[] } {
   const allowed = knownPlugins ? new Set(knownPlugins) : null;
   const ids = [...new Set(Array.isArray(pluginIds) ? pluginIds.map(String) : [])]
     .filter((id) => (allowed ? allowed.has(id) : true));
-  const plugins = ids.map((id) => ({ id, price: pluginPrice(id) }));
-  return { plugins, total: plugins.reduce((sum, p) => sum + p.price, 0) };
+
+  // پولی‌ها هیچ‌وقت سقف نمی‌خورند؛ فقط تعداد رایگان‌ها به `maxFreePlugins`
+  // محدود می‌شود. مازاد نه نصب می‌شود و نه پولی حساب می‌شود — فقط کنار
+  // گذاشته می‌شود، همان رفتارِ بی‌خطرِ «id ساختگی» چند خط پایین‌تر.
+  const paidIds = ids.filter((id) => pluginPrice(id) > 0);
+  const freeIds = ids.filter((id) => pluginPrice(id) <= 0);
+  const keptFreeIds = freeIds.slice(0, Math.max(0, maxFreePlugins));
+  const droppedFreePluginIds = freeIds.slice(keptFreeIds.length);
+
+  const plugins = [...paidIds, ...keptFreeIds].map((id) => ({ id, price: pluginPrice(id) }));
+  return {
+    plugins,
+    total: plugins.reduce((sum, p) => sum + p.price, 0),
+    droppedFreePluginIds,
+  };
 }
 
 // ─── پکیج‌های آماده ─────────────────────────────────────────────────────────
@@ -198,6 +229,8 @@ export type ResolvedPrice = {
   /** از کجا آمد — برای لاگ و برای اینکه رفتار قابل توضیح باشد. */
   source: "custom-build" | "tier" | "client-amount";
   pluginIds: string[];
+  /** پلاگین‌های رایگانی که به‌خاطر رد شدن از سقفِ پکیج کنار گذاشته شدند (فقط پکیج‌های آماده). */
+  droppedFreePluginIds?: string[];
   breakdown?: CustomBuildQuote | { tier: Toman; plugins: Toman };
 };
 
@@ -234,11 +267,13 @@ export function resolvePurchasePrice(
 
   if (spec && spec.tierId && spec.tierId in BOT_TIER_PRICES) {
     const tier = BOT_TIER_PRICES[spec.tierId];
-    const addons = quotePluginAddons(spec.pluginIds, knownPlugins);
+    const maxFreePlugins = BOT_TIER_MAX_FREE_PLUGINS[spec.tierId] ?? Infinity;
+    const addons = quotePluginAddons(spec.pluginIds, knownPlugins, maxFreePlugins);
     return {
       total: tier + addons.total,
       source: "tier",
       pluginIds: addons.plugins.map((p) => p.id),
+      droppedFreePluginIds: addons.droppedFreePluginIds,
       breakdown: { tier, plugins: addons.total },
     };
   }

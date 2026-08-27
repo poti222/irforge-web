@@ -69,6 +69,13 @@ export default function BuyBotDetail() {
   const chosenPlugins = availablePlugins.filter((plugin) => selectedPlugins.has(plugin.id));
   const pluginsTotal = chosenPlugins.reduce((sum, plugin) => sum + plugin.price, 0);
 
+  // سقفِ پلاگین رایگانِ همین پکیج (مثلاً طلایی = ۱۰ رایگان) — پولی‌ها هرگز
+  // جزو این سقف نیستند، دقیقاً همان قانونی که سرور در resolvePurchasePrice
+  // اجرا می‌کند (lib/pluginPricing.ts). «سفارشی» عمداً سقف ندارد.
+  const freeLimit = isCustom ? Infinity : (tier?.maxPlugins ?? Infinity);
+  const freeChosenCount = chosenPlugins.filter((plugin) => plugin.price <= 0).length;
+  const atFreeLimit = freeChosenCount >= freeLimit;
+
   // سفارشی: پایه + منابع + پلاگین‌ها. آماده: قیمت ثابت پکیج + پلاگین‌ها.
   const customQuote = quoteCustom(pricing?.customBuild, customRam, customCpu, chosenPlugins);
   const packagePrice = isCustom ? customQuote.total : (tier?.price ?? 0) + pluginsTotal;
@@ -88,10 +95,23 @@ export default function BuyBotDetail() {
   }
 
   function togglePlugin(id: string) {
+    const plugin = availablePlugins.find((p) => p.id === id);
     setSelectedPlugins((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
+      if (prev.has(id)) {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      }
+      // فقط انتخابِ یک پلاگینِ *رایگانِ تازه* وقتی سهمیه پر است رد می‌شود؛
+      // پلاگین پولی همیشه قابل‌انتخاب است.
+      if (plugin && plugin.price <= 0 && atFreeLimit) {
+        toast({
+          variant: "destructive",
+          title: tb.freePluginLimitReached.replace("{max}", String(freeLimit)),
+        });
+        return prev;
+      }
+      return new Set(prev).add(id);
     });
   }
 
@@ -267,7 +287,12 @@ export default function BuyBotDetail() {
                 <Blocks className="size-4 text-primary" />
                 {tb.plugins}
               </p>
-              <p className="mb-3 text-xs text-muted-foreground">{tb.pluginsAddonNote}</p>
+              <p className="mb-1 text-xs text-muted-foreground">{tb.pluginsAddonNote}</p>
+              {Number.isFinite(freeLimit) && (
+                <p className={`mb-3 text-xs font-medium ${atFreeLimit ? "text-amber-500" : "text-muted-foreground"}`}>
+                  {tb.freePluginQuota.replace("{used}", String(freeChosenCount)).replace("{max}", String(freeLimit))}
+                </p>
+              )}
 
               {pricingLoading ? (
                 <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
@@ -282,14 +307,17 @@ export default function BuyBotDetail() {
                 <div className="space-y-2">
                   {availablePlugins.map((plugin) => {
                     const checked = selectedPlugins.has(plugin.id);
+                    const lockedFree = !checked && plugin.price <= 0 && atFreeLimit;
                     return (
                       <label
                         key={plugin.id}
-                        className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm transition-colors ${checked ? "border-primary bg-primary/5" : "hover:border-primary"}`}
+                        title={lockedFree ? tb.freePluginLimitReached.replace("{max}", String(freeLimit)) : undefined}
+                        className={`flex items-start gap-3 rounded-md border p-3 text-sm transition-colors ${checked ? "border-primary bg-primary/5" : lockedFree ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-primary"}`}
                       >
                         <Checkbox
                           className="mt-0.5"
                           checked={checked}
+                          disabled={lockedFree}
                           onCheckedChange={() => togglePlugin(plugin.id)}
                         />
                         <span className="min-w-0 flex-1">
