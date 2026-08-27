@@ -290,6 +290,7 @@ export function PanelEditor({
               </CardHeader>
               <CardContent>
                 <ButtonBuilder
+                  botId={botId}
                   rows={rows}
                   panels={panels.filter((p) => p.id !== panel.id)}
                   forms={forms}

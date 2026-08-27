@@ -9,6 +9,8 @@
  * جابه‌جایی با **دکمه** است نه drag: روی موبایل کشیدن داخل یک لیست اسکرول‌شونده
  * عملاً کار نمی‌کند، و ↑↓←→ در هر دو جهت RTL/LTR بدون ابهام است.
  */
+import { useQuery } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 import { Plus, Trash2, ArrowUp, ArrowDown, ArrowRight, ArrowLeft, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
+import { useLanguage } from "@/hooks/use-language";
 import {
   addButton, addRow, emptyButton, moveButtonHorizontally, moveButtonVertically,
   moveRow, overfullRows, removeButton, removeRow, updateButton,
@@ -25,22 +28,65 @@ import {
 import { buttonActionLabel, buttonStyleLabel } from "./labels";
 import type { Panel, PanelCatalog } from "./api";
 
+/** فقط برای انتخاب‌گرِ اکشنِ «ثبت سفارش یک محصول» — نیازی به کل شکلِ CatalogItem نیست. */
+function useCatalogItemsForPicker(botId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["bot-panel-catalog-items", botId],
+    queryFn: () =>
+      customFetch<{ items: Array<{ id: string; name: string; name_fa: string; status: string }> }>(
+        `/api/bots/${botId}/catalog/items`,
+      ),
+    enabled,
+  });
+}
+
 /** ورودی مناسبِ هر اکشن — نه یک فیلد متنی که uuid دستی بخواهد. */
 function ValueField({
+  botId,
   button,
   panels,
   forms,
+  catalog,
   onChange,
 }: {
+  botId: string;
   button: PanelButton;
   panels: Panel[];
   forms: Array<{ id: string; title: string }>;
+  catalog: PanelCatalog | undefined;
   onChange: (value: string) => void;
 }) {
   const t = useT("botPanels");
+  const { lang } = useLanguage();
 
-  if (button.action === "phone") {
+  const isCatalogOrder = button.action === "catalog_order";
+  const { data: catalogItems, isLoading: catalogItemsLoading } = useCatalogItemsForPicker(botId, isCatalogOrder);
+
+  if (button.action === "phone" || (catalog?.buttonFixedValues && button.action in catalog.buttonFixedValues)) {
     return <p className="text-xs text-muted-foreground">{t.valueNoneNeeded}</p>;
+  }
+
+  if (isCatalogOrder) {
+    const activeItems = (catalogItems?.items ?? []).filter((i) => i.status === "active");
+    if (catalogItemsLoading) {
+      return <p className="text-xs text-muted-foreground">{t.loadingProducts}</p>;
+    }
+    if (activeItems.length === 0) {
+      return <p className="text-xs text-muted-foreground">{t.noProductsYet}</p>;
+    }
+    return (
+      <Select value={button.value || "__none__"} onValueChange={(v) => onChange(v === "__none__" ? "" : v)}>
+        <SelectTrigger><SelectValue placeholder={t.pickProduct} /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">{t.pickProduct}</SelectItem>
+          {activeItems.map((item) => (
+            <SelectItem key={item.id} value={item.id}>
+              {(lang === "fa" ? item.name_fa : item.name) || item.name || item.name_fa}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
   }
 
   if (button.action === "panel") {
@@ -91,12 +137,14 @@ function ValueField({
 }
 
 export function ButtonBuilder({
+  botId,
   rows,
   panels,
   forms,
   catalog,
   onChange,
 }: {
+  botId: string;
   rows: PanelButton[][];
   panels: Panel[];
   forms: Array<{ id: string; title: string }>;
@@ -104,7 +152,7 @@ export function ButtonBuilder({
   onChange: (rows: PanelButton[][]) => void;
 }) {
   const t = useT("botPanels");
-  const actions = catalog?.buttonActions ?? ["panel", "url", "form", "callback", "phone"];
+  const actions = catalog?.buttonActions ?? ["panel", "url", "form"];
   const styles = catalog?.buttonStyles ?? ["", "primary", "success", "danger"];
   const overfull = new Set(overfullRows(rows));
 
@@ -178,8 +226,16 @@ export function ButtonBuilder({
                       value={button.action}
                       onValueChange={(v) =>
                         // مقدار قبلی برای اکشن جدید معنا ندارد و اگر بماند یک
-                        // uuid پنل در فیلد URL جا خوش می‌کند.
-                        onChange(updateButton(rows, rowIndex, colIndex, { action: v, value: "" }))
+                        // uuid پنل در فیلد URL جا خوش می‌کند — مگر اکشنِ تازه
+                        // یکی از اکشن‌های پلاگینیِ مقدارِ‌ثابت باشد (مثلاً
+                        // «رزرو نوبت»)، که آن‌وقت خودِ مقدارش را می‌گیرد و
+                        // ادمین چیزی برای پرکردن ندارد.
+                        onChange(
+                          updateButton(rows, rowIndex, colIndex, {
+                            action: v,
+                            value: catalog?.buttonFixedValues?.[v] ?? "",
+                          }),
+                        )
                       }
                     >
                       <SelectTrigger id={`btn-action-${rowIndex}-${colIndex}`}><SelectValue /></SelectTrigger>
@@ -193,9 +249,11 @@ export function ButtonBuilder({
                   <div className="space-y-1.5">
                     <Label>{t.buttonValue}</Label>
                     <ValueField
+                      botId={botId}
                       button={button}
                       panels={panels}
                       forms={forms}
+                      catalog={catalog}
                       onChange={(value) => onChange(updateButton(rows, rowIndex, colIndex, { value }))}
                     />
                   </div>

@@ -42,6 +42,8 @@ import {
   type PanelButton,
 } from "../lib/botTypes.js";
 import { putEntities } from "../lib/botConfig.js";
+import { isPluginEnabled } from "../lib/pluginGate.js";
+import { PLUGIN_BUTTON_ACTIONS, CATALOG_ORDER_ACTION } from "../lib/pluginButtonActions.js";
 
 const router = Router();
 
@@ -415,13 +417,36 @@ router.post("/bots/:botId/panels/:panelId/link", requireAuth, async (req: any, r
   }
 });
 
-/** انواع پنل و اکشن دکمه که UI باید نشان دهد. */
+/**
+ * انواع پنل و اکشن دکمه که UI باید نشان دهد.
+ *
+ * `buttonActions` دیگر فقط `CORE_BTN_ACTIONS` نیست — اکشن هر پلاگینی که
+ * *روی همین بات* فعال است هم اضافه می‌شود (بات خودش این‌ها را در پیکرِ
+ * تلگرامی‌اش از قبل نشان می‌داد؛ اینجا همان چیز به سایت هم می‌رسد). فقط
+ * برای همین ۸ تا که یک مقصدِ ثابت دارند، `buttonFixedValues` هم برمی‌گردد تا
+ * `ButtonBuilder.tsx` بتواند «مقداری لازم نیست» را همان‌طور که برای «درخواست
+ * شماره» نشان می‌دهد، نشان دهد و خودش مقدار را پر کند — بدون این نگاشت،
+ * فرانت نمی‌دانست هر اکشن پلاگینی دقیقاً چه callback_dataای باید بگیرد.
+ */
 router.get("/bots/:botId/panel-catalog", requireAuth, async (req: any, res) => {
   try {
-    await resolveBotSheet(req.userId, req.params.botId);
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+
+    const enabledPluginActions = (
+      await Promise.all(
+        PLUGIN_BUTTON_ACTIONS.map(async (a) => ((await isPluginEnabled(spreadsheetId, a.pluginId)) ? a : null)),
+      )
+    ).filter((a): a is (typeof PLUGIN_BUTTON_ACTIONS)[number] => a !== null);
+    const catalogOrderEnabled = await isPluginEnabled(spreadsheetId, CATALOG_ORDER_ACTION.pluginId);
+
     res.json({
       panelTypes: CORE_PANEL_TYPES,
-      buttonActions: CORE_BTN_ACTIONS,
+      buttonActions: [
+        ...CORE_BTN_ACTIONS,
+        ...enabledPluginActions.map((a) => a.key),
+        ...(catalogOrderEnabled ? [CATALOG_ORDER_ACTION.key] : []),
+      ],
+      buttonFixedValues: Object.fromEntries(enabledPluginActions.map((a) => [a.key, a.fixedValue])),
       buttonStyles: BUTTON_STYLES,
       multiMediaTypes: MULTI_MEDIA_PANEL_TYPES,
       textOnlyTypes: TEXT_ONLY_PANEL_TYPES,

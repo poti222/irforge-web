@@ -459,7 +459,7 @@ function CampaignEditor({
 
           <div className="space-y-1.5">
             <Label>{t.fieldButtons}</Label>
-            <ButtonBuilder rows={rows} panels={panels} forms={forms} catalog={undefined} onChange={setRows} />
+            <ButtonBuilder botId={botId} rows={rows} panels={panels} forms={forms} catalog={undefined} onChange={setRows} />
           </div>
 
           <div className="space-y-1.5">

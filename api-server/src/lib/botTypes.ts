@@ -46,15 +46,19 @@ export const MULTI_MEDIA_PANEL_TYPES: readonly string[] = ["carousel"];
 /** انواعی که اصلاً مدیا نمی‌گیرند — تغییر نوع به این‌ها یعنی حذف مدیا. */
 export const TEXT_ONLY_PANEL_TYPES: readonly string[] = ["text", "form", "sell"];
 
-/** اکشن‌های دکمه — آینه‌ی `CORE_BTN_ACTIONS` (`handlers/panel_builder.py:43`). */
+/**
+ * اکشن‌های دکمه — آینه‌ی `CORE_BTN_ACTIONS` (`handlers/panel_builder.py:43`).
+ * `callback`/`phone` عمداً این‌جا نیستند: هر دو escape hatchِ فنی‌اند («کال‌بک
+ * خام» و «درخواست شماره») که در انتخاب‌گرِ اکشن گیج‌کننده بودند — دکمه‌ای که
+ * از قبل با یکی از این دو ساخته شده هنوز عادی کار می‌کند (رندر/دیسپچ سمت بات
+ * دست‌نخورده مانده)، فقط دیگر برای ساخت *تازه* پیشنهاد نمی‌شود.
+ */
 export const CORE_BTN_ACTIONS = [
   "panel",
   "url",
   "mini_app",
   "form",
   "sell",
-  "callback",
-  "phone",
 ] as const;
 export type CoreButtonAction = (typeof CORE_BTN_ACTIONS)[number];
 
