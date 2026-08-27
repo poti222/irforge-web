@@ -21,9 +21,15 @@ export interface GlowButtonProps extends ButtonProps {
 }
 
 export const GlowButton = React.forwardRef<HTMLButtonElement, GlowButtonProps>(
-  ({ className, wrapperClassName, children, ...props }, ref) => {
+  ({ className, wrapperClassName, children, disabled, ...props }, ref) => {
     const [hovered, setHovered] = React.useState(false);
     const reduce = useReducedMotion();
+    // shadcn's Button only sets `disabled:pointer-events-none` on the inner
+    // <button>, so a disabled button still lets mouse events fall through to
+    // this wrapper div and the motion.div beneath it — without this check a
+    // disabled button (e.g. "pay from wallet" with insufficient balance)
+    // would still glow and lift on hover, falsely signaling it's clickable.
+    const active = hovered && !disabled;
 
     return (
       <div
@@ -41,16 +47,16 @@ export const GlowButton = React.forwardRef<HTMLButtonElement, GlowButtonProps>(
           aria-hidden
           className={cn(
             "pointer-events-none absolute -inset-[2px] rounded-md blur-[3px] transition-opacity duration-300",
-            hovered ? "opacity-100" : "opacity-0",
-            !reduce && hovered && "[animation:glow-spin_2.5s_linear_infinite]"
+            active ? "opacity-100" : "opacity-0",
+            !reduce && active && "[animation:glow-spin_2.5s_linear_infinite]"
           )}
           style={{
             background:
               "conic-gradient(from var(--glow-angle, 0deg), hsl(var(--primary)) 0%, transparent 25%, hsl(var(--primary)) 50%, transparent 75%, hsl(var(--primary)) 100%)",
           }}
         />
-        <motion.div className="relative w-full" {...(reduce ? {} : hoverLiftMotion)}>
-          <Button ref={ref} className={className} {...props}>
+        <motion.div className="relative w-full" {...(reduce || disabled ? {} : hoverLiftMotion)}>
+          <Button ref={ref} className={className} disabled={disabled} {...props}>
             {children}
           </Button>
         </motion.div>
