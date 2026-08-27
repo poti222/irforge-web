@@ -227,13 +227,20 @@ export default function AdminUserDetail() {
       </div>
 
       {/* دلیل مشترک همه‌ی اقدامات — بدون آن، اقدامات مخرب اجرا نمی‌شوند. */}
-      <Card>
+      <Card className={reasonTooShort ? "border-amber-500/50" : undefined}>
         <CardContent className="space-y-2 p-4">
           <Label htmlFor="reason">{fa ? "دلیل (برای لاگ ممیزی)" : "Reason (for the audit log)"}</Label>
           <Textarea
             id="reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)}
             placeholder={fa ? "چه چیزی را تأیید کردید و چرا؟" : "What did you verify, and why?"}
           />
+          {reasonTooShort && (
+            <p className="text-xs font-medium text-amber-500">
+              {fa
+                ? "تا این‌جا را پر نکنی، تغییر نقش، تغییر پلن، شارژ/کسر کیف پول، تنظیم رمز و پاک‌کردن اتصال تلگرام — همه در پایین همین صفحه غیرفعال می‌مانند."
+                : "Until this is filled in, changing the role, changing the plan, crediting/debiting the wallet, setting a password, and resetting the Telegram link — all further down this page — stay disabled."}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -363,6 +370,11 @@ export default function AdminUserDetail() {
                     <SelectItem value="super_admin">super_admin</SelectItem>
                   </SelectContent>
                 </Select>
+                {reasonTooShort && (
+                  <p className="text-xs text-muted-foreground">
+                    {fa ? "برای این کار باید دلیل بنویسید (بالای صفحه)." : "A written reason is required for this action (top of the page)."}
+                  </p>
+                )}
               </div>
               <div className="text-sm text-muted-foreground">
                 {fa ? "ربات‌ها" : "Bots"}: {data.activity.botCount} ·{" "}
@@ -426,6 +438,11 @@ export default function AdminUserDetail() {
                   ? "این کار هیچ پولی از کیف پول کم نمی‌کند — یک override اداری است."
                   : "This never charges the wallet — it's an administrative override."}
               </p>
+              {reasonTooShort && (
+                <p className="text-xs text-muted-foreground">
+                  {fa ? "برای این کار باید دلیل بنویسید (بالای صفحه)." : "A written reason is required for this action (top of the page)."}
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -469,6 +486,11 @@ export default function AdminUserDetail() {
                   ? "کسر نمی‌تواند موجودی را منفی کند — اگر ناکافی باشد رد می‌شود."
                   : "A debit can never take the balance negative — it's rejected if insufficient."}
               </p>
+              {reasonTooShort && (
+                <p className="text-xs text-muted-foreground">
+                  {fa ? "برای این کار باید دلیل بنویسید (بالای صفحه)." : "A written reason is required for this action (top of the page)."}
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -520,6 +542,11 @@ export default function AdminUserDetail() {
                   {fa ? "جعل هویت (فقط خواندنی)" : "Impersonate (read-only)"}
                 </Button>
               </div>
+              {reasonTooShort && (
+                <p className="text-xs text-muted-foreground">
+                  {fa ? "برای این اقدامات باید دلیل بنویسید (بالای صفحه)." : "A written reason is required for these actions (top of the page)."}
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

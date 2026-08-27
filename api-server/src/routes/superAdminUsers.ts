@@ -304,6 +304,17 @@ router.patch("/superadmin/users/:id", requireSuperAdmin, async (req: any, res) =
       metadata: { fields: changed },
     });
 
+    // هر تغییری که پشتیبانی روی حساب کسی می‌زند باید به خودش هم برسد — وگرنه
+    // از دید کاربر با یک نفوذِ ساکت فرقی ندارد.
+    const fieldLabelsFa: Record<string, string> = { name: "نام", email: "ایمیل", phone: "شماره" };
+    await createNotification({
+      userId: user.id,
+      type: "identity_updated",
+      severity: "info",
+      title: "اطلاعات حساب شما تغییر کرد",
+      message: `پشتیبانی این فیلدها را روی حساب شما تغییر داد: ${changed.map((f) => fieldLabelsFa[f] ?? f).join("، ")}.`,
+    });
+
     res.json({ user: publicUser(updated) });
   } catch (err) {
     logger.error({ err }, "superadmin patch user error");
@@ -353,16 +364,15 @@ router.post("/superadmin/users/:id/password", requireSuperAdmin, async (req: any
     });
 
     // این اطلاع‌رسانی اختیاری نیست: تغییر رمزی که صاحب حساب از آن خبر ندارد،
-    // از دید او با یک نفوذ فرقی ندارد.
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    if (botToken && user.telegramId) {
-      await sendTelegramMessage(
-        botToken,
-        user.telegramId,
-        "🔐 <b>رمز عبور حساب شما توسط مدیر تغییر کرد</b>\n\n" +
-          "همه‌ی نشست‌های فعال بسته شدند. اگر این تغییر را انتظار نداشتید، فوراً با پشتیبانی تماس بگیرید.",
-      ).catch(() => {});
-    }
+    // از دید او با یک نفوذ فرقی ندارد. `createNotification` هم ردیفِ سایت را
+    // می‌سازد هم (چون تلگرامش دست‌نخورده مانده) همین را در تلگرام می‌رساند.
+    await createNotification({
+      userId: user.id,
+      type: "password_set",
+      severity: "warning",
+      title: "رمز عبور حساب شما توسط مدیر تغییر کرد",
+      message: "همه‌ی نشست‌های فعال بسته شدند. اگر این تغییر را انتظار نداشتید، فوراً با پشتیبانی تماس بگیرید.",
+    });
 
     logger.info({ actor: req.userId, target: user.id }, "Admin set user password");
     res.json({ ok: true, sessionsRevoked: killed.length });
@@ -394,6 +404,19 @@ router.post("/superadmin/users/:id/telegram-reset", requireSuperAdmin, async (re
       return;
     }
 
+    // پیام باید از *همین* اتصالِ در حال پاک‌شدن برود — بعد از UPDATE دیگر
+    // telegramId ای برای فرستادن نیست. دقیقاً همان دلیلی که password_set هم
+    // این پیام را مستقیم می‌فرستد، نه از طریق createNotification.
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (botToken && user.telegramId) {
+      await sendTelegramMessage(
+        botToken,
+        user.telegramId,
+        "🔗 <b>اتصال تلگرام حساب شما توسط مدیر پاک شد</b>\n\n" +
+          "می‌توانید یک حساب تلگرام تازه به سایت وصل کنید. اگر این تغییر را انتظار نداشتید، فوراً با پشتیبانی تماس بگیرید.",
+      ).catch(() => {});
+    }
+
     await db
       .update(usersTable)
       .set({
@@ -412,6 +435,16 @@ router.post("/superadmin/users/:id/telegram-reset", requireSuperAdmin, async (re
       targetUserId: user.id,
       reason,
       metadata: { previousTelegramUsername: user.telegramUsername },
+    });
+
+    // فقط برای رکوردِ سایت — تلگرامِ قبلی همین بالا مطلع شد و دیگر chat_id
+    // معتبری برای این کاربر نمانده تا createNotification دوباره تلاش کند.
+    await createNotification({
+      userId: user.id,
+      type: "telegram_reset",
+      severity: "warning",
+      title: "اتصال تلگرام حساب شما پاک شد",
+      message: "پشتیبانی اتصال تلگرام حساب شما را پاک کرد. برای ادامه‌ی کار با ربات، دوباره حساب تلگرامتان را وصل کنید.",
     });
 
     logger.info({ actor: req.userId, target: user.id }, "Admin reset user Telegram link");
@@ -458,6 +491,15 @@ router.post("/superadmin/users/:id/role", requireSuperAdmin, async (req: any, re
       targetUserId: user.id,
       reason,
       metadata: { from: user.role, to: role },
+    });
+
+    const roleLabelsFa: Record<string, string> = { user: "کاربر عادی", admin: "ادمین", super_admin: "سوپر ادمین" };
+    await createNotification({
+      userId: user.id,
+      type: "role_changed",
+      severity: role === "super_admin" || user.role === "super_admin" ? "warning" : "info",
+      title: "نقش حساب شما تغییر کرد",
+      message: `نقش حساب شما در سایت به «${roleLabelsFa[role] ?? role}» تغییر کرد.`,
     });
 
     res.json({ user: publicUser(updated) });
