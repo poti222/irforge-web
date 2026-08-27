@@ -28,8 +28,9 @@ import {
   sessionsTable,
   pendingRegistrationsTable,
   telegramLinkTokensTable,
+  smsOtpCodesTable,
 } from "@workspace/db";
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import {
   normaliseEmail,
@@ -50,6 +51,7 @@ import {
   generateCode,
   hashCode,
   isExpired,
+  normalizePhone,
   verifyCode,
 } from "../lib/otp";
 import { sendRegistrationCode } from "../lib/registrationBot";
@@ -654,6 +656,184 @@ router.post("/auth/register/complete", async (req, res) => {
       return;
     }
     logger.error({ err }, "register/complete error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * چقدر بعد از verify شدنِ کدِ پیامکی (purpose=register در
+ * `/auth/otp/sms/verify`، `routes/auth.ts`) یک شماره «به‌تازگی تأیید شده»
+ * حساب می‌شود. کوتاه، ولی به‌قدر کافی برای اینکه کاربر گام هویت→کد→رمز را
+ * بدون عجله طی کند — همان بازه‌ای که resetToken بازیابی رمز هم دارد.
+ */
+const SMS_PHONE_PROOF_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * `smsOtpCodesTable` مستقیماً به‌جای یک `pendingRegistrationsTable` جدید،
+ * چون purpose=register آن جدول از قبل عین چیزی است که اینجا لازم است: یک
+ * ردیفِ مصرف‌شده (`consumedAt` پر) برای این شماره با purpose="register".
+ * اگر چنین ردیفی با `consumedAt` تازه پیدا نشود، یعنی این شماره هرگز از
+ * مسیر `/auth/otp/sms/verify` رد نشده — کلاینت هرچه بگوید، بدون این اثبات
+ * سمت سرور اعتماد نمی‌شود.
+ */
+async function recentSmsRegisterProof(phone: string): Promise<boolean> {
+  const [row] = await db
+    .select({ consumedAt: smsOtpCodesTable.consumedAt })
+    .from(smsOtpCodesTable)
+    .where(
+      and(
+        eq(smsOtpCodesTable.phone, phone),
+        eq(smsOtpCodesTable.purpose, "register"),
+        sql`${smsOtpCodesTable.consumedAt} IS NOT NULL`,
+      ),
+    )
+    .orderBy(desc(smsOtpCodesTable.consumedAt))
+    .limit(1);
+  if (!row?.consumedAt) return false;
+  return Date.now() - row.consumedAt.getTime() < SMS_PHONE_PROOF_TTL_MS;
+}
+
+// ─── POST /api/auth/register/sms/complete ────────────────────────────────────
+// معادلِ «سوم» register/complete: به‌جای یک pendingRegistrations که با گام
+// تلگرام یا کد ایمیل ساخته شده، اثباتِ مالکیتِ شماره از یک ردیفِ تازه‌مصرف‌شده‌ی
+// smsOtpCodesTable (purpose=register) می‌آید — چیزی که فرانت با
+// POST /auth/otp/sms/send و POST /auth/otp/sms/verify قبل از این نقطه ساخته.
+// هیچ registrationId ای اینجا نیست؛ شماره خودش کلید است.
+router.post("/auth/register/sms/complete", async (req, res) => {
+  try {
+    const phone = normalizePhone(req.body?.phone);
+    if (!phone) {
+      res.status(400).json({ error: "Phone number is not valid", code: "invalid_phone" });
+      return;
+    }
+
+    const firstName = requireText(req.body?.firstName, "First name", NAME_MAX);
+    const lastName = requireText(req.body?.lastName, "Last name", NAME_MAX);
+    const emailRaw = requireText(req.body?.email, "Email", EMAIL_MAX);
+    const email = normaliseEmail(emailRaw);
+    if (!EMAIL_RE.test(email)) throw new ValidationError("Email is not valid");
+
+    const password = req.body?.password;
+    const passwordConfirm = req.body?.passwordConfirm;
+    if (typeof password !== "string" || password.length < PASSWORD_MIN) {
+      res.status(400).json({ error: `Password must be at least ${PASSWORD_MIN} characters` });
+      return;
+    }
+    if (password !== passwordConfirm) {
+      res.status(400).json({ error: "Passwords do not match", code: "password_mismatch" });
+      return;
+    }
+
+    if (!(await recentSmsRegisterProof(phone))) {
+      res.status(400).json({
+        error: "Phone number verification was not found or has expired",
+        code: "phone_not_verified",
+      });
+      return;
+    }
+
+    const userId = crypto.randomUUID();
+    const passwordHash = await hashPassword(password);
+    const token = generateToken(userId);
+    const tokenHash = hashSessionToken(token);
+    const sessionExpiry = sessionExpiresAt();
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    // همان قاعده‌ی تراکنشی register/complete: یکتاییِ ایمیل/شماره **داخل**
+    // تراکنش بررسی می‌شود، ولی مرجعِ واقعی همان ایندکس‌های یکتای دیتابیس‌اند؛
+    // این select فقط برای پیامِ خطای درست است.
+    const user = await db.transaction(async (tx) => {
+      const [emailTaken] = await tx
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(emailEquals(email))
+        .limit(1);
+      if (emailTaken) throw new TakenError("email");
+
+      const [phoneTaken] = await tx
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.phone, phone))
+        .limit(1);
+      if (phoneTaken) throw new TakenError("phone");
+
+      const [created] = await tx
+        .insert(usersTable)
+        .values({
+          id: userId,
+          name: fullName,
+          email,
+          passwordHash,
+          role: "user",
+          plan: "free",
+          status: "active",
+          phone,
+          phoneVerified: true,
+          // ایمیل اینجا هیچ کدی نگرفته — فقط برای دریافت اطلاعیه‌ها جمع شده،
+          // درست مثل مسیر شماره+تلگرام. نباید تأییدشده حساب شود.
+          emailVerified: false,
+        })
+        .returning();
+
+      await tx.insert(sessionsTable).values({
+        token: tokenHash, userId, expiresAt: sessionExpiry,
+        userAgentHash: hashUserAgent(req.headers["user-agent"]),
+      });
+      return created;
+    });
+
+    syncSessionUpsert({ token: tokenHash, userId, expiresAt: sessionExpiry });
+    syncUserUpsert({
+      id: user.id, name: user.name, email: user.email, role: user.role,
+      plan: user.plan, status: user.status, bio: user.bio,
+      telegramUsername: user.telegramUsername, createdAt: user.createdAt,
+    });
+
+    logger.info({ userId: user.id }, "SMS registration completed");
+    res.status(201).json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        role: user.role,
+        plan: user.plan,
+        status: user.status,
+        bio: user.bio,
+        phone: user.phone,
+        phoneVerified: user.phoneVerified,
+        emailVerified: user.emailVerified,
+        telegramId: user.telegramId,
+        telegramUsername: user.telegramUsername,
+        telegramFirstName: user.telegramFirstName,
+        telegramLastName: user.telegramLastName,
+        telegramPhotoUrl: user.telegramPhotoUrl,
+        profileComplete: user.profileComplete,
+        botCount: 0,
+        createdAt: user.createdAt.toISOString(),
+      },
+      token,
+    });
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err instanceof TakenError || isEmailUniqueViolation(err) || isPhoneUniqueViolation(err)) {
+      const field =
+        err instanceof TakenError
+          ? err.field
+          : isEmailUniqueViolation(err)
+            ? "email"
+            : "phone";
+      res.status(409).json(
+        field === "email"
+          ? { error: "This email is already registered", code: "email_taken" }
+          : { error: "This phone is already registered", code: "phone_taken" },
+      );
+      return;
+    }
+    logger.error({ err }, "register/sms/complete error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

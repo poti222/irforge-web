@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Phone, Mail, LifeBuoy, Send } from "lucide-react";
+import { Loader2, Phone, Mail, LifeBuoy, Send, MessageSquareText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/use-seo";
 import { useT } from "@/hooks/use-translation";
@@ -36,7 +36,7 @@ import { setAuthToken } from "@/lib/auth-token";
  * یعنی فقط یک چک‌باکس فاصله تا حساب.
  */
 
-type Step = "credentials" | "code" | "needs_telegram" | "telegram_waiting";
+type Step = "credentials" | "code" | "needs_telegram" | "telegram_waiting" | "sms_phone" | "sms_code";
 
 /** شماره و رمز → کد تلگرام. */
 const TOTAL_STEPS = 2;
@@ -83,6 +83,13 @@ function openTelegram(deepLink: string) {
   window.open(deepLink, "_blank", "noopener,noreferrer");
 }
 
+/** همان الگوی register.tsx: «۰۹۱۲···۴۵۶۷» به‌جای شماره‌ی کامل. */
+function maskPhoneForDisplay(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 6) return phone;
+  return `${digits.slice(0, 4)}···${digits.slice(-4)}`;
+}
+
 function loadTgRequest(): TgLoginRequest | null {
   try {
     const raw = sessionStorage.getItem(TG_STORAGE_KEY);
@@ -123,6 +130,21 @@ export default function Login() {
   const { lang } = useLanguage();
   const [tgRequest, setTgRequest] = useState<TgLoginRequest | null>(null);
   const [tgError, setTgError] = useState<string | null>(null);
+
+  // ─── ورود سریع با کد پیامکی ───────────────────────────────────────────────
+  // بدون رمز عبور: کدِ سرور با purpose="login" مستقیم یک نشستِ کامل صادر
+  // می‌کند (issueSession در routes/auth.ts)، دقیقاً مثل مسیر شماره+رمز، فقط
+  // با یک عاملِ اثبات به‌جای دو تا. همان CodeInput و همان ثانیه‌شمارِ بالا
+  // (`secondsLeft`) اینجا هم استفاده می‌شوند — دو مسیر هیچ‌وقت هم‌زمان فعال
+  // نیستند، پس تداخلی در کار نیست.
+  const [smsLoginPhone, setSmsLoginPhone] = useState("");
+  const [smsResendIn, setSmsResendIn] = useState(0);
+
+  useEffect(() => {
+    if (smsResendIn <= 0) return;
+    const id = window.setInterval(() => setSmsResendIn((n) => Math.max(0, n - 1)), 1000);
+    return () => window.clearInterval(id);
+  }, [smsResendIn]);
 
   useEffect(() => {
     if (secondsLeft <= 0) return;
@@ -351,6 +373,93 @@ export default function Login() {
     setStep("credentials");
   }
 
+  // ─── ورود سریع با کد پیامکی ───────────────────────────────────────────────
+
+  async function startSmsLogin() {
+    if (!smsLoginPhone.trim()) return;
+    setBusy(true);
+    try {
+      const res = await customFetch<{ message: string; expiresInSeconds: number }>(
+        "/api/auth/otp/sms/send",
+        {
+          method: "POST",
+          body: JSON.stringify({ phone: smsLoginPhone.trim(), purpose: "login" }),
+        },
+      );
+      setCode("");
+      setCodeInvalid(false);
+      setCodeErrorMessage(undefined);
+      setSecondsLeft(res.expiresInSeconds ?? 120);
+      setSmsResendIn(60);
+      setStep("sms_code");
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifySmsLogin(entered: string) {
+    if (entered.length !== 6) return;
+    setBusy(true);
+    setCodeInvalid(false);
+    setCodeErrorMessage(undefined);
+    try {
+      const res = await customFetch<{ user: any; token: string }>("/api/auth/otp/sms/verify", {
+        method: "POST",
+        body: JSON.stringify({ phone: smsLoginPhone.trim(), code: entered, purpose: "login" }),
+      });
+      finishSession(res);
+    } catch (err: any) {
+      setCodeInvalid(true);
+      setCode("");
+      if (err?.data?.code === "too_many_attempts" || err?.data?.code === "code_expired") {
+        setStep("sms_phone");
+        toast({ variant: "destructive", title: t.tooManyAttempts });
+        return;
+      }
+      const attemptsLeft = err?.data?.attemptsLeft;
+      if (err?.data?.code === "invalid_code" && typeof attemptsLeft === "number") {
+        setCodeErrorMessage((t.codeAttemptsLeft ?? "").replace("{n}", String(attemptsLeft)));
+      }
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resendSmsLogin() {
+    if (!smsLoginPhone.trim()) return;
+    setBusy(true);
+    try {
+      const res = await customFetch<{ message: string; expiresInSeconds: number }>(
+        "/api/auth/otp/sms/send",
+        {
+          method: "POST",
+          body: JSON.stringify({ phone: smsLoginPhone.trim(), purpose: "login" }),
+        },
+      );
+      setSmsResendIn(60);
+      setSecondsLeft(res.expiresInSeconds ?? 120);
+      setCode("");
+      setCodeInvalid(false);
+      setCodeErrorMessage(undefined);
+    } catch (err: any) {
+      if (typeof err?.data?.retryAfterSeconds === "number") setSmsResendIn(err.data.retryAfterSeconds);
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function goBackToSmsPhone() {
+    setCode("");
+    setCodeInvalid(false);
+    setCodeErrorMessage(undefined);
+    setSecondsLeft(0);
+    setStep("sms_phone");
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <PublicPageControls className="fixed end-4 top-4 z-10" />
@@ -392,6 +501,17 @@ export default function Login() {
                   {tgError}
                 </p>
               )}
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full gap-2"
+                disabled={busy}
+                onClick={() => setStep("sms_phone")}
+              >
+                <MessageSquareText className="size-4" aria-hidden="true" />
+                {t.smsLoginButton}
+              </Button>
 
               {/* جداکننده‌ی «یا» — تا فرم پایین یک گزینه دیده شود، نه گام بعدی. */}
               <div className="flex items-center gap-3 pt-1">
@@ -540,6 +660,84 @@ export default function Login() {
                   )
                 : t.tgExpired}
             </p>
+          </div>
+        )}
+
+        {step === "sms_phone" && (
+          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void startSmsLogin(); }}>
+            <AuthStepHeader
+              title={t.smsLoginTitle}
+              description={t.smsLoginDesc}
+              step={1}
+              total={TOTAL_STEPS}
+              onBack={() => setStep("credentials")}
+            />
+
+            <div className="space-y-1.5">
+              <Label htmlFor="sms-login-phone">{t.loginPhone}</Label>
+              <Input
+                id="sms-login-phone"
+                dir="ltr"
+                inputMode="tel"
+                autoComplete="tel"
+                value={smsLoginPhone}
+                onChange={(e) => setSmsLoginPhone(e.target.value)}
+                required
+              />
+            </div>
+
+            <GlowButton type="submit" className="w-full" disabled={busy || !smsLoginPhone.trim()}>
+              {busy && <Loader2 className="me-2 size-4 animate-spin" />}
+              {t.smsLoginSend}
+            </GlowButton>
+          </form>
+        )}
+
+        {step === "sms_code" && (
+          <div className="space-y-5">
+            <AuthStepHeader
+              title={t.loginCodeTitle}
+              description={(t.smsLoginCodeDesc ?? "").replace("{dest}", maskPhoneForDisplay(smsLoginPhone))}
+              step={2}
+              total={TOTAL_STEPS}
+              onBack={goBackToSmsPhone}
+            />
+
+            <CodeInput
+              value={code}
+              onChange={setCode}
+              onComplete={(c) => void verifySmsLogin(c)}
+              disabled={busy}
+              invalid={codeInvalid}
+              errorMessage={codeErrorMessage}
+            />
+
+            <p className="text-center text-sm text-muted-foreground" aria-live="polite">
+              {secondsLeft > 0
+                ? (t.codeExpiresIn ?? "").replace(
+                    "{t}",
+                    `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`,
+                  )
+                : t.codeExpired}
+            </p>
+
+            <GlowButton
+              className="w-full"
+              disabled={busy || code.length !== 6}
+              onClick={() => void verifySmsLogin(code)}
+            >
+              {busy && <Loader2 className="me-2 size-4 animate-spin" />}
+              {t.loginVerify}
+            </GlowButton>
+
+            <Button
+              variant="ghost"
+              className="w-full"
+              disabled={busy || smsResendIn > 0}
+              onClick={() => void resendSmsLogin()}
+            >
+              {smsResendIn > 0 ? (t.resendIn ?? "").replace("{n}", String(smsResendIn)) : t.resend}
+            </Button>
           </div>
         )}
 

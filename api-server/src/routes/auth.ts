@@ -7,20 +7,23 @@ import {
   telegramLinkTokensTable,
   loginChallengesTable,
   telegramLoginRequestsTable,
+  smsOtpCodesTable,
+  SMS_OTP_PURPOSES,
+  type SmsOtpPurpose,
 } from "@workspace/db";
-import { eq, and, gt, count, isNull } from "drizzle-orm";
+import { eq, and, gt, count, isNull, desc } from "drizzle-orm";
 import crypto from "crypto";
 import { logger } from "../lib/logger";
 import { normaliseEmail, emailEquals, isEmailUniqueViolation } from "../lib/email";
 import { syncUserUpsert, syncSessionUpsert, syncSessionDelete } from "../lib/sheetsSync";
 import { verifyTelegramAuth, verifyTelegramInitData } from "../lib/telegramAuth";
 import { hashPassword, verifyPassword } from "../lib/password";
-import { sendTelegramMessage } from "../lib/telegram";
 import { sendResetCodeSms } from "../lib/registrationBot";
 import {
   CODE_TTL_MS,
   MAX_CODE_ATTEMPTS,
   codeExpiry,
+  devEchoCode,
   generateCode,
   hashCode,
   isExpired,
@@ -29,7 +32,9 @@ import {
 } from "../lib/otp";
 import { sendLoginCode } from "../lib/registrationBot";
 import { sendEmailLoginCode } from "../lib/authEmails";
-import { authRateLimit, hit, phoneKey, emailKey, reset, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS } from "../middleware/rateLimit";
+import { sendOtpSms } from "../lib/smsir";
+import { smsOtpSendRateLimit } from "../lib/smsOtpRateLimit";
+import { authRateLimit, hit, clientIp, phoneKey, emailKey, reset, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS } from "../middleware/rateLimit";
 import { hashSessionToken, hashUserAgent } from "../lib/sessionToken";
 
 /** برای نمایش در پاسخ — اشاره‌ی ماسک‌شده به ایمیل، نه خودِ آن. */
@@ -885,61 +890,47 @@ router.post("/auth/telegram/login/ticket", authRateLimit("telegram_login_ticket"
 });
 
 // ─── POST /api/auth/forgot-password ──────────────────────────────────────────
-// V2: send a reset code through the PLATFORM bot (TELEGRAM_BOT_TOKEN) to the
-// user's linked telegramId. Password recovery is a site-level account action,
-// so it must not go through any tenant's bot token.
+// V3: recovery is phone + SMS OTP only — no email, no Telegram. The user
+// enters the phone number on file for the account; if it matches, a code
+// goes out over SMS (lib/registrationBot.ts:sendResetCodeSms → lib/smsSender.ts).
 
-router.post("/auth/forgot-password", async (req, res) => {
+router.post("/auth/forgot-password", authRateLimit("forgot_password"), async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) {
-      res.status(400).json({ error: "Email is required" });
+    const phone = normalizePhone(req.body?.phone);
+    if (!phone) {
+      res.status(400).json({ error: "Phone number is required" });
       return;
     }
-    // Generic response used whether or not the account exists (anti-enumeration).
-    const genericMessage =
-      "اگر این ایمیل ثبت شده باشد و حساب تلگرام متصل داشته باشد، کد بازیابی از طریق تلگرام ارسال می‌شود.";
 
-    const [user] = await db.select().from(usersTable).where(emailEquals(email)).limit(1);
-    if (!user) {
-      res.json({ message: genericMessage });
-      return;
-    }
-    if (!user.telegramId) {
-      // Honest, per the plan: there is no email channel, so recovery needs Telegram.
-      res.status(400).json({
-        error: "برای بازیابی رمز، ابتدا باید حساب تلگرام خود را وصل کنید",
-        code: "no_telegram",
+    // Generic response used whether or not the account exists (anti-enumeration).
+    const genericMessage = "اگر این شماره ثبت شده باشد، کد بازیابی با پیامک ارسال می‌شود.";
+
+    // Per-phone throttle — same bucket/limits as login failures, so this
+    // can't be hammered to spam SMS at an arbitrary number.
+    const rateKey = phoneKey(phone);
+    const blocked = await hit(rateKey, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS);
+    if (!blocked.allowed) {
+      res.status(429).json({
+        error: "تعداد درخواست‌ها بیش از حد مجاز است. کمی بعد دوباره تلاش کنید.",
+        code: "rate_limited",
+        retryAfterSeconds: blocked.retryAfterSeconds,
       });
       return;
     }
 
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    if (!botToken) {
-      res.status(503).json({ error: "Password recovery is not configured on this server" });
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
+    if (!user) {
+      res.json({ message: genericMessage });
       return;
     }
 
-    // Same generator/pattern as the per-bot admin code (8 hex chars, short-lived).
     const code = generateCode();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     await db.update(usersTable)
       .set({ resetCodeHash: hashCode(code), resetCodeExpiresAt: expiresAt })
       .where(eq(usersTable.id, user.id));
 
-    await Promise.all([
-      sendTelegramMessage(
-        botToken,
-        user.telegramId,
-        `🔐 <b>کد بازیابی رمز IRForge</b>\n\n` +
-          `کد شما: <code>${code}</code>\n` +
-          `این کد تا ۱۵ دقیقه معتبر است. اگر شما درخواست نداده‌اید، این پیام را نادیده بگیرید.`
-      ),
-      // IRFORGE_PROMPT_V3 Phase 13 — same "Telegram + SMS together" as the
-      // registration/login codes: sendResetCodeSms no-ops when the user
-      // has no phone on file or SMS isn't configured.
-      sendResetCodeSms(user.phone ?? undefined, code, null),
-    ]);
+    await sendResetCodeSms(phone, code, null);
 
     res.json({ message: genericMessage });
   } catch (err) {
@@ -950,18 +941,19 @@ router.post("/auth/forgot-password", async (req, res) => {
 
 // ─── POST /api/auth/reset-password ───────────────────────────────────────────
 
-router.post("/auth/reset-password", async (req, res) => {
+router.post("/auth/reset-password", authRateLimit("reset_password"), async (req, res) => {
   try {
-    const { email, code, newPassword } = req.body;
-    if (!email || !code || !newPassword) {
-      res.status(400).json({ error: "email, code and newPassword are required" });
+    const phone = normalizePhone(req.body?.phone);
+    const { code, newPassword } = req.body;
+    if (!phone || !code || !newPassword) {
+      res.status(400).json({ error: "phone, code and newPassword are required" });
       return;
     }
     if (String(newPassword).length < 6) {
       res.status(400).json({ error: "Password must be at least 6 characters" });
       return;
     }
-    const [user] = await db.select().from(usersTable).where(emailEquals(email)).limit(1);
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
     if (
       !user ||
       !user.resetCodeHash ||
@@ -975,6 +967,10 @@ router.post("/auth/reset-password", async (req, res) => {
       return;
     }
 
+    // موفق — شمارنده‌ی تلاش‌های ناموفقِ همین شماره پاک می‌شود (همان کلیدی که
+    // بالا و در /auth/login استفاده می‌شود).
+    await reset(phoneKey(phone));
+
     await db.update(usersTable)
       .set({
         passwordHash: await hashPassword(newPassword),
@@ -986,6 +982,243 @@ router.post("/auth/reset-password", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     logger.error({ err }, "Reset password error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IRFORGE_SMS_OTP_PROMPT Phase 4 — پیامک به‌عنوان روش سومِ OTP (کنار تلگرام
+// و ایمیل)، برای هر سه هدف: register | login | password_reset.
+//
+// جدولِ مستقلِ sms_otp_codes (فاز ۲) و rate limit فاز ۳
+// (lib/smsOtpRateLimit.ts) اینجا به هم وصل می‌شوند؛ خودِ ارسال از
+// lib/smsir.ts (فاز ۱) می‌آید. برخلاف تلگرام (رایگان)، هر بار موفقِ این
+// روت پول واقعی خرج می‌کند اگر کلیدِ Production فعال باشد.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * عمداً ۲ دقیقه، نه ۵ دقیقه‌ی `CODE_TTL_MS` تلگرام/ایمیل — هر ارسالِ مجدد
+ * اینجا هزینه‌ی واقعیِ پیامک دارد، پس نمی‌خواهیم کاربر را به نگه‌داشتنِ یک
+ * کدِ قدیمی و صبرِ طولانی تشویق کنیم. طول عمر عمداً همین‌جا تعیین می‌شود، نه
+ * در schema (ببینید کامنتِ `smsOtpCodesTable` در schema/auth.ts).
+ */
+const SMS_OTP_CODE_TTL_MS = 2 * 60 * 1000;
+
+function isSmsOtpPurpose(value: unknown): value is SmsOtpPurpose {
+  return typeof value === "string" && (SMS_OTP_PURPOSES as readonly string[]).includes(value);
+}
+
+/**
+ * پیامِ ژنریکِ ارسال. برای register واقعاً یعنی «رفت». برای login/password_reset
+ * حتی وقتی شماره اصلاً حساب ندارد همین برمی‌گردد — دقیقاً همان الگوی ضدِّ
+ * شمارشِ `/auth/forgot-password`، وگرنه این اندپوینت به ابزارِ کشفِ شماره
+ * تبدیل می‌شود.
+ */
+const SMS_OTP_SENT_MESSAGE = "کد تأیید برای این شماره پیامک شد.";
+
+// ─── POST /api/auth/otp/sms/send ─────────────────────────────────────────────
+router.post("/auth/otp/sms/send", smsOtpSendRateLimit(), async (req, res) => {
+  try {
+    const purpose = req.body?.purpose;
+    if (!isSmsOtpPurpose(purpose)) {
+      res.status(400).json({ error: "هدف نامعتبر است", code: "invalid_purpose" });
+      return;
+    }
+    const phone = normalizePhone(req.body?.phone);
+    if (!phone) {
+      res.status(400).json({ error: "شماره موبایل نامعتبر است", code: "invalid_phone" });
+      return;
+    }
+
+    const [existingUser] = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
+
+    if (purpose === "register") {
+      // برخلاف login/password_reset پایین، اینجا افشای «این شماره قبلاً
+      // ثبت شده» همان قاعده‌ی /auth/register (پیامِ صریحِ «Email already
+      // registered») است، نه ضدِّشمارش — کاربری که دارد ثبت‌نام می‌کند باید
+      // بداند شماره‌اش قبلاً گرفته شده، وگرنه کدی می‌گیرد که به‌جایی نمی‌رسد.
+      if (existingUser) {
+        res.status(409).json({ error: "این شماره قبلاً ثبت شده است", code: "phone_already_registered" });
+        return;
+      }
+    } else if (
+      !existingUser ||
+      existingUser.status === "banned" ||
+      existingUser.status === "suspended"
+    ) {
+      // login / password_reset روی شماره‌ی ناموجود یا بن‌شده: پاسخِ یکسان با
+      // موفقیت، بدونِ درجِ ردیف و بدونِ صداکردنِ sendOtpSms — نه شماره لو
+      // می‌رود، نه پولِ پیامک برایش خرج می‌شود.
+      res.json({
+        message: SMS_OTP_SENT_MESSAGE,
+        expiresInSeconds: Math.floor(SMS_OTP_CODE_TTL_MS / 1000),
+      });
+      return;
+    }
+
+    const code = generateCode();
+    await db.insert(smsOtpCodesTable).values({
+      id: crypto.randomUUID(),
+      phone,
+      purpose,
+      userId: purpose === "register" ? null : (existingUser as typeof usersTable.$inferSelect).id,
+      codeHash: hashCode(code),
+      expiresAt: new Date(Date.now() + SMS_OTP_CODE_TTL_MS),
+      sourceIp: clientIp(req).slice(0, 64),
+      userAgent: String(req.headers["user-agent"] ?? "").slice(0, 512) || null,
+    });
+
+    const sendResult = await sendOtpSms(phone, code);
+    if (!sendResult.success) {
+      // کدِ خام هرگز به فرانت برنمی‌گردد، حتی اینجا — فقط اینکه ارسال جواب
+      // نداد. جزئیاتِ خطای خامِ sms.ir همین‌جا (لاگ) می‌ماند، نه در پاسخ.
+      logger.warn({ purpose, error: sendResult.error }, "sendOtpSms failed");
+      res.status(502).json({
+        error: "ارسال پیامک ناموفق بود. کمی بعد دوباره تلاش کنید.",
+        code: "sms_send_failed",
+      });
+      return;
+    }
+
+    logger.info({ purpose }, "SMS OTP sent");
+    res.json({
+      message: SMS_OTP_SENT_MESSAGE,
+      expiresInSeconds: Math.floor(SMS_OTP_CODE_TTL_MS / 1000),
+      // فقط وقتی AUTH_DEV_ECHO_CODES=true — تا فازِ ۵ (و QA) بدونِ سوزاندنِ
+      // اعتبارِ sms.ir قابل تست باشد. پیش‌فرض خاموش، هرگز در production.
+      ...devEchoCode(code),
+    });
+  } catch (err) {
+    logger.error({ err }, "SMS OTP send error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/auth/otp/sms/verify ───────────────────────────────────────────
+// رفتار بعد از موفقیت به purpose بستگی دارد:
+//  • login → نشستِ کامل صادر می‌شود (issueSession)، دقیقاً مثلِ
+//    /auth/login/verify و /auth/telegram/login/ticket.
+//  • password_reset → نشست صادر نمی‌شود؛ به‌جایش یک resetToken کوتاه‌عمر
+//    روی همان resetCodeHash/resetCodeExpiresAtِ usersTable نوشته می‌شود که
+//    /auth/reset-password (بدونِ هیچ تغییری) با آن رمز را عوض می‌کند —
+//    همان مکانیزمِ قبلی، فقط کدِ خامش این‌بار از مسیرِ sms.ir Verify آمده.
+//  • register → هنوز کاربری وجود ندارد؛ فقط verified:true برمی‌گردد تا
+//    فرانت‌اند به گامِ بعدیِ ثبت‌نام برود (ساختِ حساب کارِ فازِ دیگری است).
+router.post("/auth/otp/sms/verify", authRateLimit("otp_sms_verify"), async (req, res) => {
+  try {
+    const purpose = req.body?.purpose;
+    if (!isSmsOtpPurpose(purpose)) {
+      res.status(400).json({ error: "هدف نامعتبر است", code: "invalid_purpose" });
+      return;
+    }
+    const phone = normalizePhone(req.body?.phone);
+    if (!phone) {
+      res.status(400).json({ error: "شماره موبایل نامعتبر است", code: "invalid_phone" });
+      return;
+    }
+
+    const [row] = await db
+      .select()
+      .from(smsOtpCodesTable)
+      .where(
+        and(
+          eq(smsOtpCodesTable.phone, phone),
+          eq(smsOtpCodesTable.purpose, purpose),
+          isNull(smsOtpCodesTable.consumedAt),
+        ),
+      )
+      .orderBy(desc(smsOtpCodesTable.createdAt))
+      .limit(1);
+
+    // ناموجود یا منقضی — یک پیام، تا این اندپوینت هم اوراکلِ «آیا کدی برای
+    // این شماره فرستاده شده» نشود.
+    if (!row || isExpired(row.expiresAt)) {
+      res.status(400).json({ error: "کد منقضی شده یا نامعتبر است", code: "code_expired" });
+      return;
+    }
+
+    // شمارنده **قبل** از مقایسه بالا می‌رود، وگرنه یک درخواستِ نیمه‌کاره
+    // تلاشِ رایگان می‌داد — همان قاعده‌ی /auth/login/verify.
+    const attempts = row.attempts + 1;
+    await db.update(smsOtpCodesTable).set({ attempts }).where(eq(smsOtpCodesTable.id, row.id));
+
+    if (attempts > MAX_CODE_ATTEMPTS) {
+      await db
+        .update(smsOtpCodesTable)
+        .set({ consumedAt: new Date() })
+        .where(eq(smsOtpCodesTable.id, row.id));
+      logger.warn({ purpose }, "SMS OTP killed after too many attempts");
+      res.status(429).json({ error: "تعداد تلاش‌ها بیش از حد مجاز است", code: "too_many_attempts" });
+      return;
+    }
+
+    if (!verifyOtp(String(req.body?.code ?? ""), row.codeHash)) {
+      res.status(400).json({
+        error: "کد وارد شده اشتباه است",
+        code: "invalid_code",
+        attemptsLeft: Math.max(0, MAX_CODE_ATTEMPTS - attempts),
+      });
+      return;
+    }
+
+    // مصرفِ اتمیک: شرطِ `consumedAt IS NULL` داخل خودِ UPDATE، تا دو
+    // درخواستِ هم‌زمان با همان کدِ درست هر دو یک نتیجه‌ی موفق نگیرند.
+    const consumed = await db
+      .update(smsOtpCodesTable)
+      .set({ consumedAt: new Date() })
+      .where(and(eq(smsOtpCodesTable.id, row.id), isNull(smsOtpCodesTable.consumedAt)))
+      .returning({ id: smsOtpCodesTable.id });
+    if (consumed.length === 0) {
+      res.status(400).json({ error: "این کد قبلاً استفاده شده است", code: "code_expired" });
+      return;
+    }
+
+    if (purpose === "register") {
+      logger.info("SMS OTP verified for registration");
+      res.json({ verified: true, phone });
+      return;
+    }
+
+    // login / password_reset: ردیف حتماً userId دارد (هنگامِ send برای این
+    // دو هدف پر شده)؛ اگر بینِ send و verify حساب حذف/بن شده باشد همان
+    // پیامِ «منقضی شده» را می‌گیرد، نه یک خطای داخلی یا افشای وضعیتِ حساب.
+    const [user] = row.userId
+      ? await db.select().from(usersTable).where(eq(usersTable.id, row.userId)).limit(1)
+      : [];
+    if (!user || user.status === "banned" || user.status === "suspended") {
+      res.status(400).json({ error: "کد منقضی شده یا نامعتبر است", code: "code_expired" });
+      return;
+    }
+
+    // این هم یک تأییدِ واقعیِ شماره است — با دکمه‌ی request_contact تلگرام
+    // فرقی ندارد، پس همان ستون را true می‌کند (ببینید کامنتِ phoneVerified
+    // در schema/users.ts).
+    if (!user.phoneVerified) {
+      await db.update(usersTable).set({ phoneVerified: true }).where(eq(usersTable.id, user.id));
+    }
+
+    if (purpose === "login") {
+      logger.info({ userId: user.id }, "SMS OTP login completed");
+      res.json(await issueSession(user, req));
+      return;
+    }
+
+    // password_reset: بدونِ نشست. یک رازِ کوتاه‌عمر (۱۰ دقیقه) روی همان
+    // resetCodeHash/resetCodeExpiresAtِ usersTable — تا /auth/reset-password
+    // بدونِ هیچ تغییری همان چک را روی این رمزِ تازه انجام دهد.
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    await db
+      .update(usersTable)
+      .set({
+        resetCodeHash: hashCode(resetToken),
+        resetCodeExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      })
+      .where(eq(usersTable.id, user.id));
+
+    logger.info({ userId: user.id }, "SMS OTP verified for password reset");
+    res.json({ verified: true, resetToken });
+  } catch (err) {
+    logger.error({ err }, "SMS OTP verify error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

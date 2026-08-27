@@ -114,17 +114,16 @@ export function clientIp(req: Request): string {
   return (first || req.ip || "unknown").trim().slice(0, 64);
 }
 
-/**
- * محدودیت per-IP روی اندپوینت‌های احراز هویت.
- * `scope` فقط برای خوانایی کلید است؛ سقف مشترک است تا کسی نتواند با پخش‌کردن
- * درخواست‌ها بین چند اندپوینت از آن رد شود.
- */
 /** IRFORGE_PROMPT_V3 Phase 5.2 — the JSON body already carried
  * retryAfterSeconds; a real `Retry-After` header lets a spec-compliant HTTP
  * client (and any browser devtools inspecting the response) back off
  * correctly without parsing the body, and a translated message replaces the
- * generic English one the UI otherwise has nothing to show. */
-function send429(res: Response, retryAfterSeconds: number, message = "چند لحظه صبر کنید و دوباره تلاش کنید."): void {
+ * generic English one the UI otherwise has nothing to show.
+ *
+ * Exported (IRFORGE_SMS_OTP_PROMPT Phase 3) so other rate limiters — e.g.
+ * lib/smsOtpRateLimit.ts — can reuse the exact same 429 shape instead of a
+ * second, slightly-different helper living in two places. */
+export function send429(res: Response, retryAfterSeconds: number, message = "چند لحظه صبر کنید و دوباره تلاش کنید."): void {
   res.setHeader("Retry-After", String(Math.max(1, Math.ceil(retryAfterSeconds))));
   res.status(429).json({
     error: message,
@@ -133,12 +132,18 @@ function send429(res: Response, retryAfterSeconds: number, message = "چند ل�
   });
 }
 
+/**
+ * محدودیت per-IP روی اندپوینت‌های احراز هویت.
+ * `scope` فقط برای خوانایی کلید است؛ سقف مشترک است تا کسی نتواند با پخش‌کردن
+ * درخواست‌ها بین چند اندپوینت از آن رد شود.
+ */
 // `hitFn` on the three functions below defaults to `hit` (the real,
 // DB-backed limiter) in production. Tests substitute a fake so the verdict
 // is deterministic without a live Postgres — ES module named exports are
 // read-only from the importing side, so `rateLimit.hit = fake` isn't
 // possible; passing it as a parameter is.
 type HitFn = typeof hit;
+export type { HitFn };
 
 export function authRateLimit(scope: string, hitFn: HitFn = hit) {
   return async (req: Request, res: Response, next: NextFunction) => {

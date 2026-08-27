@@ -143,7 +143,7 @@
     "registrationFailedTitle": "فشل التسجيل",
     "registrationFailedDefaultDesc": "تعذّر إنشاء الحساب. حاول مرة أخرى.",
     "resetPasswordTitle": "إعادة تعيين كلمة المرور",
-    "resetPasswordDesc": "أدخل بريد حسابك الإلكتروني؛ سيتم إرسال رمز الاستعادة إليك عبر بوت IRForge على تيليجرام.",
+    "resetPasswordDesc": "أدخل رقم هاتف حسابك؛ سيتم إرسال رمز الاستعادة إليك عبر رسالة نصية.",
     "haveResetCode": "لديّ رمز استعادة",
     "backToLogin": "العودة إلى تسجيل الدخول",
     "enterCode": "إدخال الرمز",

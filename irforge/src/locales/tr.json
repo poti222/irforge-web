@@ -143,7 +143,7 @@
     "registrationFailedTitle": "Kayıt Başarısız",
     "registrationFailedDefaultDesc": "Hesap oluşturulamadı. Lütfen tekrar deneyin.",
     "resetPasswordTitle": "Şifrenizi sıfırlayın",
-    "resetPasswordDesc": "Hesap e-postanızı girin; sıfırlama kodu size IRForge Telegram botu üzerinden gönderilecektir.",
+    "resetPasswordDesc": "Hesabınızın telefon numarasını girin; sıfırlama kodu size SMS ile gönderilecektir.",
     "haveResetCode": "Sıfırlama kodum var",
     "backToLogin": "Girişe dön",
     "enterCode": "Kod gir",

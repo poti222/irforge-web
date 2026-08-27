@@ -608,6 +608,33 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
 CREATE INDEX IF NOT EXISTS admin_audit_log_target_idx ON admin_audit_log(target_user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS admin_audit_log_actor_idx ON admin_audit_log(actor_user_id, created_at DESC);
 
+-- ─── SMS_OTP_CODES (IRFORGE_SMS_OTP_PROMPT Phase 2) ─────────────────────────
+-- کدهای OTP پیامکی sms.ir، مشترک بین هر سه هدف (ثبت‌نام/ورود/فراموشی رمز) —
+-- ببینید lib/db/src/schema/auth.ts برای اینکه چرا این یک جدولِ مستقل است و
+-- نه گسترشِ pending_registrations/login_challenges/users.reset_code_*.
+CREATE TABLE IF NOT EXISTS sms_otp_codes (
+  id TEXT PRIMARY KEY,
+  phone TEXT NOT NULL,
+  purpose TEXT NOT NULL,
+  user_id TEXT,
+  code_hash TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  sent_count INTEGER NOT NULL DEFAULT 1,
+  consumed_at TIMESTAMPTZ,
+  source_ip TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- verify یک کد را با (phone, purpose) پیدا می‌کند؛ رایج‌ترین کوئری این جدول.
+CREATE INDEX IF NOT EXISTS sms_otp_codes_phone_purpose_idx
+  ON sms_otp_codes(phone, purpose, created_at DESC);
+-- شمارش درخواست‌های اخیر برای rate limiting (فاز ۳) — هم per-phone هم per-IP.
+CREATE INDEX IF NOT EXISTS sms_otp_codes_source_ip_idx
+  ON sms_otp_codes(source_ip, created_at DESC);
+-- جاروبِ دوره‌ایِ ردیف‌های منقضی (اگر/وقتی اضافه شود).
+CREATE INDEX IF NOT EXISTS sms_otp_codes_expires_idx ON sms_otp_codes(expires_at);
+
 -- ─── DISCOUNT_CODES / DISCOUNT_REDEMPTIONS — REMOVED FROM POSTGRES ──────────
 -- Discount data (codes + redemption audit log) now lives entirely in Google
 -- Sheets — see api-server/src/lib/discountStore.ts. Postgres must not hold
