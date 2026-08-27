@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { isRtlLang } from "@/lib/i18n";
 import { auditActionLabel, describeAuditDetail } from "@/lib/auditLog";
+import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * جزئیات کاربر برای super_admin.
@@ -61,6 +62,8 @@ export default function AdminUserDetail() {
   const fa = lang === "fa";
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user: viewer } = useAuth();
+  const isSelf = Boolean(viewer && viewer.id === id);
   const BackArrow = isRtlLang(lang) ? ArrowRight : ArrowLeft;
 
   const [name, setName] = useState("");
@@ -361,7 +364,7 @@ export default function AdminUserDetail() {
                     ) return;
                     changeRole.mutate(role);
                   }}
-                  disabled={reasonTooShort}
+                  disabled={reasonTooShort || isSelf}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -370,7 +373,13 @@ export default function AdminUserDetail() {
                     <SelectItem value="super_admin">super_admin</SelectItem>
                   </SelectContent>
                 </Select>
-                {reasonTooShort && (
+                {isSelf ? (
+                  <p className="text-xs text-muted-foreground">
+                    {fa
+                      ? "نقشِ خودتان را از همین‌جا نمی‌توانید عوض کنید — از یک حساب super_admin دیگر این کار را انجام دهید."
+                      : "You can't change your own role from here — do it from another super_admin's account."}
+                  </p>
+                ) : reasonTooShort && (
                   <p className="text-xs text-muted-foreground">
                     {fa ? "برای این کار باید دلیل بنویسید (بالای صفحه)." : "A written reason is required for this action (top of the page)."}
                   </p>

@@ -460,11 +460,21 @@ router.post("/superadmin/users/:id/telegram-reset", requireSuperAdmin, async (re
 });
 
 // ─── POST /api/superadmin/users/:id/role ─────────────────────────────────────
+// یک super_admin می‌تواند نقشِ super_admin دیگری را همین‌جا پس بگیرد (پایین
+// آورد به admin/user) — تنها دو محافظ: نمی‌تواند نقشِ *خودش* را این‌جا عوض
+// کند (تا با یک کلیک خودش را از پنل بیرون نیندازد — تغییرِ نقشِ خود باید از
+// یک نشستِ دیگر/توسط یک super_admin دیگر انجام شود)، و آخرین super_admin
+// باقی‌مانده‌ی کل سایت را نمی‌شود پایین آورد (وگرنه سایت بدون هیچ super_admin
+// می‌ماند و هیچ‌کس نمی‌تواند این را برگرداند).
 router.post("/superadmin/users/:id/role", requireSuperAdmin, async (req: any, res) => {
   try {
     const role = req.body?.role;
     if (!["user", "admin", "super_admin"].includes(role)) {
       res.status(400).json({ error: "Unknown role" });
+      return;
+    }
+    if (req.params.id === req.userId) {
+      res.status(400).json({ error: "نمی‌توانید نقشِ خودتان را از همین‌جا عوض کنید" });
       return;
     }
     const reason = typedReason(req.body?.reason);
@@ -477,6 +487,17 @@ router.post("/superadmin/users/:id/role", requireSuperAdmin, async (req: any, re
     if (!user) {
       res.status(404).json({ error: "Not found" });
       return;
+    }
+
+    if (user.role === "super_admin" && role !== "super_admin") {
+      const [{ value: superAdminCount }] = await db
+        .select({ value: count() })
+        .from(usersTable)
+        .where(eq(usersTable.role, "super_admin"));
+      if (superAdminCount <= 1) {
+        res.status(400).json({ error: "آخرین super_admin سایت را نمی‌شود پایین آورد" });
+        return;
+      }
     }
 
     const [updated] = await db
