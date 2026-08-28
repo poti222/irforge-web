@@ -343,7 +343,12 @@ router.post("/auth/login", authRateLimit("login"), async (req, res) => {
     });
 
     if (isEmailOnlyAccount) {
-      await sendEmailLoginCode(user.email, code, null);
+      const delivery = await sendEmailLoginCode(user.email, code, null);
+      if (!delivery.ok) {
+        logger.error({ userId: user.id, error: delivery.error }, "login: email delivery failed");
+        res.status(502).json({ error: "Could not send the sign-in email", code: "email_delivery_failed" });
+        return;
+      }
     } else {
       await sendLoginCode(user.telegramId as string, code, null, user.phone ?? undefined);
     }

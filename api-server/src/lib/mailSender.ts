@@ -89,7 +89,14 @@ export async function sendEmail(
     });
     return { ok: true, provider: "smtp" };
   } catch (err) {
-    logger.warn({ err, to: msg.to }, "sendEmail failed (non-fatal)");
-    return { ok: false, provider: "smtp", error: "send_failed" };
+    // logger.warn({ err }) alone often prints as an empty object depending on the
+    // logger's serializer, which is why this failure mode looked silent in
+    // production. Pull out message/code explicitly so the real SMTP rejection
+    // (e.g. Resend's "domain not verified") actually shows up in the logs.
+    const message = err instanceof Error ? err.message : String(err);
+    const code = (err as { code?: string; responseCode?: number })?.code;
+    const responseCode = (err as { code?: string; responseCode?: number })?.responseCode;
+    logger.warn({ message, code, responseCode, to: msg.to }, "sendEmail failed (non-fatal)");
+    return { ok: false, provider: "smtp", error: message };
   }
 }

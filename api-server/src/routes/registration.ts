@@ -310,7 +310,18 @@ router.post("/auth/register/email/start", authRateLimit("register_start"), async
       expiresAt: new Date(now.getTime() + PENDING_TTL_MS),
     });
 
-    await sendEmailRegistrationCode(email, code, locale);
+    const delivery = await sendEmailRegistrationCode(email, code, locale);
+    if (!delivery.ok) {
+      // IRFORGE_PROMPT_V3 Phase 42 fix — previously this result was discarded and
+      // the client always got 201/code_sent even when SMTP was misconfigured or
+      // the provider rejected the send, leaving the user stuck with no code and
+      // no error. The pending row already exists at this point (harmless — the
+      // resend endpoint can retry once the delivery problem is fixed), so we
+      // only change what we report back to the client.
+      logger.error({ registrationId: id, error: delivery.error }, "register/email/start: email delivery failed");
+      res.status(502).json({ error: "Could not send the verification email", code: "email_delivery_failed" });
+      return;
+    }
 
     logger.info({ registrationId: id }, "Email registration started");
     res.status(201).json({ registrationId: id, step: "code_sent" });
@@ -446,7 +457,12 @@ router.post("/auth/register/resend", authRateLimit("register_resend"), async (re
       step: "code_sent",
     });
     if (isEmailMethod) {
-      await sendEmailRegistrationCode(normaliseEmail(row.email ?? ""), code, row.locale);
+      const delivery = await sendEmailRegistrationCode(normaliseEmail(row.email ?? ""), code, row.locale);
+      if (!delivery.ok) {
+        logger.error({ registrationId: row.id, error: delivery.error }, "register/resend: email delivery failed");
+        res.status(502).json({ error: "Could not send the verification email", code: "email_delivery_failed" });
+        return;
+      }
     } else {
       await sendRegistrationCode(row.telegramChatId, code, row.locale, row.phone ?? undefined);
     }

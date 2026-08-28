@@ -6,7 +6,7 @@
  * one place for this flow's message copy, built on lib/mailSender.ts the
  * same way registrationBot.ts is built on lib/telegram.ts.
  */
-import { sendEmail } from "./mailSender";
+import { sendEmail, type DeliveryResult } from "./mailSender";
 
 type Locale = string | null | undefined;
 
@@ -63,14 +63,18 @@ export function buildLoginCodeEmail(code: string, locale?: Locale): BuiltEmail {
   return { subject, html: wrap(html), text: `${subject}: ${code}` };
 }
 
-/** کد تأیید ثبت‌نام با ایمیل. */
-export async function sendEmailRegistrationCode(to: string, code: string, locale?: Locale): Promise<void> {
+/**
+ * کد تأیید ثبت‌نام با ایمیل.
+ * نتیجه‌ی sendEmail را برمی‌گرداند (قبلاً await می‌شد و دور ریخته می‌شد، یعنی
+ * چه ایمیل واقعاً برود چه SMTP تنظیم نباشد چه رد شود، کالر هیچ‌وقت نمی‌فهمید).
+ */
+export async function sendEmailRegistrationCode(to: string, code: string, locale?: Locale): Promise<DeliveryResult> {
   const { subject, html, text } = buildRegistrationCodeEmail(code, locale);
-  await sendEmail({ to, subject, html, text });
+  return sendEmail({ to, subject, html, text });
 }
 
 /** کد ورود دومرحله‌ای برای حساب‌های فقط-ایمیل (بدون تلگرام). */
-export async function sendEmailLoginCode(to: string, code: string, locale?: Locale): Promise<void> {
+export async function sendEmailLoginCode(to: string, code: string, locale?: Locale): Promise<DeliveryResult> {
   const { subject, html, text } = buildLoginCodeEmail(code, locale);
-  await sendEmail({ to, subject, html, text });
+  return sendEmail({ to, subject, html, text });
 }
