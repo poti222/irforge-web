@@ -12,6 +12,18 @@
  * pointing SMTP_HOST at whichever one the operator already has, with no
  * vendor-specific code to swap out later.
  *
+ * IRFORGE_PROMPT_V3 Phase 43 — Resend-over-HTTPS fallback. In production,
+ * raw SMTP to smtp.resend.com hung on every port tried (25, 465, 587) with
+ * no TCP-level rejection, which is the classic signature of a host/PaaS
+ * silently dropping outbound SMTP packets rather than refusing them
+ * (common on platforms that block raw mail ports to fight spam — the
+ * connection just never completes instead of erroring). HTTPS on 443 is
+ * essentially never blocked the same way, and Resend's dashboard API accepts
+ * the exact same API key already stored in SMTP_PASS, so when SMTP_HOST
+ * points at Resend's relay this reuses that key over their HTTPS API
+ * instead of opening a raw SMTP socket. Any other SMTP_HOST still goes
+ * through nodemailer unchanged.
+ *
  * Same never-throw contract as lib/telegram.ts's sendTelegramMessage and
  * lib/registrationBot.ts's senders: a broken mail provider must not break
  * whatever flow is trying to notify a user, and the caller only cares
@@ -46,6 +58,10 @@ export interface MailTransport {
 export function mailConfigIssue(env: NodeJS.ProcessEnv = process.env): string | null {
   if (!env.SMTP_HOST?.trim()) return "SMTP_HOST is not set — email delivery is disabled.";
   return null;
+}
+
+function isResendHost(env: NodeJS.ProcessEnv): boolean {
+  return /(^|\.)resend\.com$/i.test(env.SMTP_HOST?.trim() ?? "");
 }
 
 let _cached: MailTransport | null | undefined;
@@ -92,16 +108,76 @@ export function _resetMailTransportCache(): void {
   _cached = undefined;
 }
 
+/**
+ * Sends via Resend's HTTPS API (api.resend.com) using the API key already
+ * configured as SMTP_PASS (Resend's SMTP password *is* the API key — see
+ * https://resend.com/docs/send-with-smtp). Bypasses raw SMTP sockets
+ * entirely, which is the point: SMTP itself was hanging on this network
+ * regardless of host/port.
+ */
+async function sendViaResendApi(
+  msg: EmailMessage,
+  env: NodeJS.ProcessEnv,
+  timeoutMs: number,
+): Promise<void> {
+  const apiKey = env.SMTP_PASS;
+  if (!apiKey) throw Object.assign(new Error("SMTP_PASS is not set (needed as the Resend API key)"), { code: "NO_API_KEY" });
+  const from = env.SMTP_FROM || env.SMTP_USER || "no-reply@localhost";
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        from,
+        to: [msg.to],
+        subject: msg.subject,
+        html: msg.html,
+        text: msg.text,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw Object.assign(new Error(`Resend API responded ${res.status}: ${body.slice(0, 300)}`), {
+        responseCode: res.status,
+      });
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function sendEmail(
   msg: EmailMessage,
   getTransport: (env?: NodeJS.ProcessEnv) => MailTransport | null = realTransport,
 ): Promise<DeliveryResult> {
-  const transport = getTransport();
+  const env = process.env;
+  const hardTimeoutMs = smtpTimeoutMs(env) + 2_000; // small margin over the transport's own timeout
+
+  if (isResendHost(env)) {
+    try {
+      await sendViaResendApi(msg, env, hardTimeoutMs);
+      return { ok: true, provider: "resend-api" };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const code = (err as { code?: string; responseCode?: number })?.code;
+      const responseCode = (err as { code?: string; responseCode?: number })?.responseCode;
+      logger.warn({ message, code, responseCode, to: msg.to }, "sendEmail failed (non-fatal)");
+      return { ok: false, provider: "resend-api", error: message };
+    }
+  }
+
+  const transport = getTransport(env);
   if (!transport) {
     logger.debug({ to: msg.to }, "sendEmail skipped: SMTP not configured");
     return { ok: false, provider: "none", error: "not_configured" };
   }
-  const hardTimeoutMs = smtpTimeoutMs(process.env) + 2_000; // small margin over the transport's own timeout
   try {
     await Promise.race([
       transport.sendMail({
