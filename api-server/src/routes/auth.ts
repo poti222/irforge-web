@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { google } from "googleapis";
 import {
   db,
   usersTable,
@@ -890,6 +891,140 @@ router.post("/auth/telegram/login/ticket", authRateLimit("telegram_login_ticket"
   } catch (err) {
     logger.error({ err }, "Telegram login ticket error");
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── ورود با گوگل ─────────────────────────────────────────────────────────
+//
+// یک هندشیک استاندارد authorization-code: دکمه‌ی «ورود با گوگل» با یک
+// navigation کامل (نه fetch) به GET زیر می‌رود، گوگل کاربر را می‌پرسد و به
+// GET دومی برمی‌گرداند. چون این یک ریدایرکت مرورگری است نه یک تماس API،
+// نشست نهایی (`token`) هرگز در body یک پاسخ JSON به این مسیر برنمی‌گردد؛
+// در عوض در URL fragment (بعد از `#`) به فرانت‌اند ریدایرکت می‌شود — دقیقاً
+// همان دلیلی که `pollSecret` بالاتر هیچ‌وقت در URL نمی‌رود: query string در
+// لاگ سرور و در هدر Referer صفحه‌ی بعدی می‌ماند، fragment هیچ‌کدام را.
+//
+// تطبیق حساب: چون گوگل ایمیل را خودش تأیید کرده (`verified_email`)، اگر
+// از قبل کاربری با همان ایمیل باشد همان حساب لاگین می‌شود؛ وگرنه یک حساب
+// تازه با یک passwordHash تصادفیِ غیرقابل‌حدس ساخته می‌شود (ستون در دیتابیس
+// NOT NULL است، این حساب صرفاً هرگز از رمز برای ورود استفاده نمی‌کند).
+const GOOGLE_OAUTH_STATE_COOKIE = "irforge_g_oauth_state";
+const GOOGLE_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
+function googleOAuthClient() {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+  if (!clientId || !clientSecret || !redirectUri) return null;
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+}
+
+function loginErrorRedirect(res: any, code: string) {
+  const site = process.env.PUBLIC_SITE_URL || "/";
+  res.redirect(`${site.replace(/\/$/, "")}/login?error=${encodeURIComponent(code)}`);
+}
+
+// ─── GET /api/auth/google ─────────────────────────────────────────────────
+router.get("/auth/google", (req, res) => {
+  const client = googleOAuthClient();
+  if (!client) {
+    loginErrorRedirect(res, "google_unavailable");
+    return;
+  }
+  const state = crypto.randomBytes(24).toString("hex");
+  res.cookie(GOOGLE_OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: GOOGLE_OAUTH_STATE_TTL_MS,
+    path: "/api/auth/google",
+  });
+  const url = client.generateAuthUrl({
+    access_type: "online",
+    scope: ["openid", "email", "profile"],
+    prompt: "select_account",
+    state,
+  });
+  res.redirect(url);
+});
+
+// ─── GET /api/auth/google/callback ────────────────────────────────────────
+router.get("/auth/google/callback", async (req, res) => {
+  try {
+    const client = googleOAuthClient();
+    if (!client) {
+      loginErrorRedirect(res, "google_unavailable");
+      return;
+    }
+
+    const cookieState = req.cookies?.[GOOGLE_OAUTH_STATE_COOKIE];
+    res.clearCookie(GOOGLE_OAUTH_STATE_COOKIE, { path: "/api/auth/google" });
+    const queryState = typeof req.query.state === "string" ? req.query.state : "";
+    // راز غلط/گمشده و کاربرِ لغوکننده یک مقصد می‌گیرند — پیام دقیق برای این
+    // مسیر که کاربر مستقیم چیزی تایپ نمی‌کند اهمیتی ندارد.
+    if (!cookieState || !queryState || !secretEquals(queryState, cookieState)) {
+      loginErrorRedirect(res, "google_failed");
+      return;
+    }
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    if (!code) {
+      loginErrorRedirect(res, "google_failed");
+      return;
+    }
+
+    const { tokens } = await client.getToken(code);
+    client.setCredentials(tokens);
+    const oauth2 = google.oauth2({ auth: client, version: "v2" });
+    const { data: profile } = await oauth2.userinfo.get();
+
+    if (!profile.email || profile.verified_email === false) {
+      loginErrorRedirect(res, "google_email_unverified");
+      return;
+    }
+    const email = normaliseEmail(profile.email);
+
+    const existing = await db.select().from(usersTable).where(emailEquals(email)).limit(1);
+    let user = existing[0];
+
+    if (user && (user.status === "banned" || user.status === "suspended")) {
+      loginErrorRedirect(res, "suspended");
+      return;
+    }
+
+    if (!user) {
+      const id = crypto.randomUUID();
+      const randomPasswordHash = await hashPassword(crypto.randomBytes(32).toString("hex"));
+      const [created] = await db
+        .insert(usersTable)
+        .values({
+          id,
+          name: profile.name || email.split("@")[0],
+          email,
+          passwordHash: randomPasswordHash,
+          avatar: profile.picture ?? null,
+          role: "user",
+          plan: "free",
+          status: "active",
+          emailVerified: true,
+        })
+        .returning();
+      user = created;
+      syncUserUpsert({
+        id: user.id, name: user.name, email: user.email, role: user.role,
+        plan: user.plan, status: user.status, bio: user.bio,
+        telegramUsername: user.telegramUsername, createdAt: user.createdAt,
+      });
+      logger.info({ userId: user.id }, "New account created via Google sign-in");
+    } else {
+      logger.info({ userId: user.id }, "Google sign-in completed");
+    }
+
+    const { token } = await issueSession(user, req);
+    const site = (process.env.PUBLIC_SITE_URL || "/").replace(/\/$/, "");
+    res.redirect(`${site}/auth/google/callback#token=${encodeURIComponent(token)}`);
+  } catch (err) {
+    logger.error({ err }, "Google OAuth callback error");
+    loginErrorRedirect(res, "google_failed");
   }
 });
 

@@ -20,6 +20,7 @@ import { BrandLogo } from "@/components/layout/brand-home";
 import { PublicPageControls } from "@/components/layout/public-page-controls";
 import { BackHomeButton } from "@/components/layout/back-home-button";
 import { CodeInput } from "@/components/auth/CodeInput";
+import { GoogleIcon } from "@/components/auth/GoogleIcon";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
 import { setAuthToken } from "@/lib/auth-token";
@@ -509,6 +510,29 @@ export default function Login() {
                   <span className="text-xs font-normal opacity-80">{t.tgLoginHint}</span>
                 </span>
               </GlowButton>
+
+              {/*
+                گوگل هم مثل تلگرام یک‌کلیکی است: navigation کامل (نه fetch)
+                به سرور، که خودش کاربر را به گوگل می‌فرستد. توکن نهایی از
+                طریق auth-google-callback.tsx برمی‌گردد.
+              */}
+              <motion.button
+                type="button"
+                {...(reduceMotion ? {} : hoverLiftMotion)}
+                disabled={busy}
+                onClick={() => {
+                  window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/google`;
+                }}
+                className="flex w-full items-center gap-3 rounded-md border border-border px-3.5 py-3 text-start transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary">
+                  <GoogleIcon className="size-5" />
+                </span>
+                <span className="flex flex-col items-start">
+                  <span className="font-medium">{t.googleLoginButton}</span>
+                  <span className="text-xs text-muted-foreground">{t.googleLoginHint}</span>
+                </span>
+              </motion.button>
 
               <motion.button
                 type="button"

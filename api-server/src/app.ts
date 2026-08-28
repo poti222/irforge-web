@@ -1,5 +1,6 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import path from "path";
@@ -72,6 +73,10 @@ app.use(cors({
   origin: resolveCorsOrigin(),
   credentials: true,
 }));
+
+// فقط برای Google OAuth state cookie (`GET /api/auth/google`) لازم است —
+// همان httpOnly + path-scoped cookie که CSRF لحظه‌ی redirect را می‌بندد.
+app.use(cookieParser());
 
 // IRFORGE_PROMPT_V3 Phase 6.1 — most routes are small JSON bodies; a small
 // cap here shrinks the attack surface for a body-based DoS on the many

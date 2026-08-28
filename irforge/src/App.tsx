@@ -47,6 +47,7 @@ const Login = lazy(() => import("@/pages/login"));
 const Register = lazy(() => import("@/pages/register"));
 const ForgotPassword = lazy(() => import("@/pages/forgot-password"));
 const AuthTelegram = lazy(() => import("@/pages/auth-telegram"));
+const AuthGoogleCallback = lazy(() => import("@/pages/auth-google-callback"));
 const ResetPassword = lazy(() => import("@/pages/reset-password"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const Bots = lazy(() => import("@/pages/bots"));
@@ -195,6 +196,7 @@ function Router() {
           جایگزین می‌کند.
       */}
       <Route path="/auth/telegram" component={AuthTelegram} />
+      <Route path="/auth/google/callback" component={AuthGoogleCallback} />
       <Route path="/forgot-password"><PublicOnlyRoute component={ForgotPassword} /></Route>
       <Route path="/reset-password"><PublicOnlyRoute component={ResetPassword} /></Route>
       
