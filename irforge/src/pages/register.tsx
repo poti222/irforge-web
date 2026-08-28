@@ -494,10 +494,24 @@ export default function Register() {
     setCodeInvalid(false);
     setCodeErrorMessage(undefined);
     try {
-      const res = await customFetch<RegStatus & { ok: boolean }>(
+      const res = await customFetch<
+        RegStatus & { ok: boolean; existingAccount?: boolean; user?: any; token?: string }
+      >(
         "/api/auth/register/verify-code",
         { method: "POST", body: JSON.stringify({ registrationId, code: entered }) },
       );
+
+      // این ایمیل از قبل صاحب حساب داشت — کاربر همین الان مالکیتش را با همین
+      // کد ثابت کرد، پس دیگر رمز تازه نمی‌خواهیم؛ درجا واردش می‌کنیم، دقیقاً
+      // مثل انتهای موفقِ `complete()`.
+      if (res.existingAccount && res.token && res.user) {
+        setAuthToken(res.token);
+        queryClient.setQueryData(getGetMeQueryKey(), res.user);
+        sessionStorage.removeItem(STORAGE_KEY);
+        navigate("/dashboard");
+        return;
+      }
+
       setStatus((prev) => ({ ...(prev as RegStatus), ...res }));
       setEmail(res.email ?? email);
       setStep("finish");

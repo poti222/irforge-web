@@ -29,8 +29,9 @@ import {
   pendingRegistrationsTable,
   telegramLinkTokensTable,
   smsOtpCodesTable,
+  botsTable,
 } from "@workspace/db";
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import {
   normaliseEmail,
@@ -79,6 +80,55 @@ function sessionExpiresAt(): Date {
 
 function generateToken(userId: string): string {
   return `${userId}.${crypto.randomBytes(32).toString("hex")}`;
+}
+
+/**
+ * وقتی کد ایمیل تأیید می‌شود ولی آن ایمیل از قبل صاحب حساب است، دیگر چیزی
+ * برای «ثبت‌نام» نمانده — کاربر همین الان مالکیتِ همان صندوق ایمیل را با
+ * همین کد ثابت کرده، پس دقیقاً هم‌ارزِ ورود است. رمزِ حساب قدیمی را نمی‌پرسیم
+ * (این ورود دومین‌عاملی از طریق ایمیل است، نه اثباتِ رمز)، یک نشست برایش
+ * صادر می‌کنیم و به‌جای فرم رمزِ ثبت‌نام مستقیم واردش می‌کنیم.
+ */
+async function issueSessionForExistingUser(
+  user: typeof usersTable.$inferSelect,
+  req: { headers: Record<string, unknown> },
+) {
+  const token = generateToken(user.id);
+  const tokenHash = hashSessionToken(token);
+  const expiresAt = sessionExpiresAt();
+  await db.insert(sessionsTable).values({
+    token: tokenHash,
+    userId: user.id,
+    expiresAt,
+    userAgentHash: hashUserAgent(req.headers["user-agent"] as string | undefined),
+  });
+  syncSessionUpsert({ token: tokenHash, userId: user.id, expiresAt });
+
+  const [{ value: botCount }] = await db
+    .select({ value: count() })
+    .from(botsTable)
+    .where(eq(botsTable.userId, user.id));
+
+  return {
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+      role: user.role,
+      plan: user.plan,
+      bio: user.bio ?? null,
+      telegramId: user.telegramId ?? null,
+      telegramUsername: user.telegramUsername ?? null,
+      telegramFirstName: user.telegramFirstName ?? null,
+      telegramLastName: user.telegramLastName ?? null,
+      telegramPhotoUrl: user.telegramPhotoUrl ?? null,
+      hasUsedTrial: user.hasUsedTrial ?? false,
+      botCount,
+      createdAt: user.createdAt.toISOString(),
+    },
+  };
 }
 
 /** رشته‌ی اجباری با سقف طول. */
@@ -402,6 +452,39 @@ router.post("/auth/register/verify-code", authRateLimit("register_verify"), asyn
         attemptsLeft: Math.max(0, MAX_CODE_ATTEMPTS - attempts),
       });
       return;
+    }
+
+    // ایمیل از قبل صاحب حساب دارد و کاربر همین الان با همین کد مالکیتِ همان
+    // صندوق را ثابت کرده — ثبت‌نامِ تازه بی‌معنی است. به‌جای فرستادنش به گامِ
+    // «رمز عبور» که آخرش با ۴۰۹ email_taken برمی‌گردد، همین‌جا مستقیم واردش
+    // می‌کنیم. فقط مسیرِ ایمیل: مسیرِ شماره/تلگرام این تناقض را زودتر
+    // (register/start ↔ /auth/login با isEmailOnlyAccount=false) می‌بیند.
+    if (row.registrationMethod === "email") {
+      const emailNorm = normaliseEmail(row.email ?? "");
+      const [existingUser] = await db
+        .select()
+        .from(usersTable)
+        .where(emailEquals(emailNorm))
+        .limit(1);
+
+      if (existingUser) {
+        if (existingUser.status === "banned" || existingUser.status === "suspended") {
+          res.status(403).json({ error: "Account suspended", code: "account_suspended" });
+          return;
+        }
+
+        await db
+          .delete(pendingRegistrationsTable)
+          .where(eq(pendingRegistrationsTable.id, row.id));
+
+        const { user, token } = await issueSessionForExistingUser(existingUser, req);
+        logger.info(
+          { userId: existingUser.id },
+          "Registration email matched an existing account; logged in directly",
+        );
+        res.json({ ok: true, existingAccount: true, user, token });
+        return;
+      }
     }
 
     await touch(row.id, { verifiedAt: new Date(), step: "code_verified", codeHash: null });
