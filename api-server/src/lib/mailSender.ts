@@ -50,17 +50,39 @@ export function mailConfigIssue(env: NodeJS.ProcessEnv = process.env): string | 
 
 let _cached: MailTransport | null | undefined;
 
+/**
+ * nodemailer's built-in defaults for these are all 2 minutes
+ * (connectionTimeout, greetingTimeout, socketTimeout = 120000ms each), which
+ * is exactly what produced the 125s hang: a SMTP_HOST that TCP-connects (or
+ * looks like it will) but never actually answers leaves nodemailer waiting
+ * the full 2 minutes per phase before it gives up. Overriding all three to a
+ * short, fail-fast value means a dead/unreachable/firewalled SMTP host turns
+ * into a quick error instead of a multi-minute hang on the request.
+ * Configurable via SMTP_TIMEOUT_MS in case a slow-but-working provider needs
+ * more headroom.
+ */
+const DEFAULT_SMTP_TIMEOUT_MS = 10_000;
+
+function smtpTimeoutMs(env: NodeJS.ProcessEnv): number {
+  const raw = Number(env.SMTP_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_SMTP_TIMEOUT_MS;
+}
+
 function realTransport(env: NodeJS.ProcessEnv = process.env): MailTransport | null {
   if (_cached !== undefined) return _cached;
   if (mailConfigIssue(env)) {
     _cached = null;
     return _cached;
   }
+  const timeout = smtpTimeoutMs(env);
   _cached = nodemailer.createTransport({
     host: env.SMTP_HOST,
     port: Number(env.SMTP_PORT || 587),
     secure: env.SMTP_SECURE === "true",
     auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
+    connectionTimeout: timeout,
+    greetingTimeout: timeout,
+    socketTimeout: timeout,
   }) as unknown as MailTransport;
   return _cached;
 }
@@ -79,14 +101,20 @@ export async function sendEmail(
     logger.debug({ to: msg.to }, "sendEmail skipped: SMTP not configured");
     return { ok: false, provider: "none", error: "not_configured" };
   }
+  const hardTimeoutMs = smtpTimeoutMs(process.env) + 2_000; // small margin over the transport's own timeout
   try {
-    await transport.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@localhost",
-      to: msg.to,
-      subject: msg.subject,
-      html: msg.html,
-      text: msg.text,
-    });
+    await Promise.race([
+      transport.sendMail({
+        from: process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@localhost",
+        to: msg.to,
+        subject: msg.subject,
+        html: msg.html,
+        text: msg.text,
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("SMTP send timed out"), { code: "ETIMEDOUT_GUARD" })), hardTimeoutMs),
+      ),
+    ]);
     return { ok: true, provider: "smtp" };
   } catch (err) {
     // logger.warn({ err }) alone often prints as an empty object depending on the
