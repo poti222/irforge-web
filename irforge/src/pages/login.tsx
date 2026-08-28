@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
+import { motion, useReducedMotion } from "framer-motion";
 import { customFetch, getGetMeQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { GlowButton } from "@/components/ui/glow-button";
@@ -13,8 +14,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/use-seo";
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
+import { cn } from "@/lib/utils";
+import { hoverLiftMotion } from "@/lib/motion-variants";
 import { BrandLogo } from "@/components/layout/brand-home";
 import { PublicPageControls } from "@/components/layout/public-page-controls";
+import { BackHomeButton } from "@/components/layout/back-home-button";
 import { CodeInput } from "@/components/auth/CodeInput";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
@@ -110,6 +114,7 @@ export default function Login() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
+  const reduceMotion = useReducedMotion();
 
   useSEO({ title: t.signIn ?? "Sign in | IrForge", noindex: true });
 
@@ -463,6 +468,7 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
+      <BackHomeButton className="fixed start-4 top-4 z-10" />
       <PublicPageControls className="fixed end-4 top-4 z-10" />
       <div className="w-full max-w-md space-y-6">
         <div className="flex justify-center">
@@ -477,42 +483,80 @@ export default function Login() {
             <AuthStepHeader title={t.signInAccount} step={1} total={TOTAL_STEPS} />
 
             {/*
-              راه اول و پیش‌فرض. بالای فرم است چون برای کسی که تلگرامش روی همین
-              دستگاه باز است، یک لمس کل کار است — و رمز و کد شش‌رقمی فقط مسیر
-              پشتیبان‌اند.
+              سه راه ورود، کنار هم و هم‌قواره: تلگرام (یک‌لمسی)، ایمیل و شماره
+              (هردو با رمز عبور، از طریق فرم پایین). هر کارت آیکون + زیرنویسِ
+              «چه چیزی لازم داری» دارد تا انتخاب بدون فکر کردن انجام شود؛
+              ایمیل/شماره وقتی انتخاب‌اند یک ring می‌گیرند تا معلوم باشد فرمِ
+              زیرشان الان مال کدام‌شان است.
             */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <GlowButton
                 type="button"
-                className="w-full gap-2"
+                wrapperClassName="w-full"
+                className="h-auto w-full justify-start gap-3 px-3.5 py-3"
                 disabled={busy}
                 onClick={() => void startTelegramLogin()}
               >
-                {busy ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Send className="size-4" aria-hidden="true" />
-                )}
-                {t.tgLoginButton}
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
+                  {busy ? (
+                    <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Send className="size-5" aria-hidden="true" />
+                  )}
+                </span>
+                <span className="flex flex-col items-start text-start">
+                  <span className="font-medium">{t.tgLoginButton}</span>
+                  <span className="text-xs font-normal opacity-80">{t.tgLoginHint}</span>
+                </span>
               </GlowButton>
-              <p className="text-center text-xs text-muted-foreground">{t.tgLoginHint}</p>
+
+              <motion.button
+                type="button"
+                {...(reduceMotion ? {} : hoverLiftMotion)}
+                disabled={busy}
+                onClick={() => setLoginMethod("email")}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-md border px-3.5 py-3 text-start transition-colors disabled:pointer-events-none disabled:opacity-50",
+                  loginMethod === "email"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                    : "border-border hover:border-primary/50"
+                )}
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
+                  <Mail className="size-5" aria-hidden="true" />
+                </span>
+                <span className="flex flex-col">
+                  <span className="font-medium">{t.email}</span>
+                  <span className="text-xs text-muted-foreground">{t.loginPassword}</span>
+                </span>
+              </motion.button>
+
+              <motion.button
+                type="button"
+                {...(reduceMotion ? {} : hoverLiftMotion)}
+                disabled={busy}
+                onClick={() => setLoginMethod("phone")}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-md border px-3.5 py-3 text-start transition-colors disabled:pointer-events-none disabled:opacity-50",
+                  loginMethod === "phone"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                    : "border-border hover:border-primary/50"
+                )}
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
+                  <Phone className="size-5" aria-hidden="true" />
+                </span>
+                <span className="flex flex-col">
+                  <span className="font-medium">{t.loginPhone}</span>
+                  <span className="text-xs text-muted-foreground">{t.loginPassword}</span>
+                </span>
+              </motion.button>
 
               {tgError && (
                 <p className="text-center text-sm text-destructive" role="alert">
                   {tgError}
                 </p>
               )}
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full gap-2"
-                disabled={busy}
-                onClick={() => setStep("sms_phone")}
-              >
-                <MessageSquareText className="size-4" aria-hidden="true" />
-                {t.smsLoginButton}
-              </Button>
 
               {/* جداکننده‌ی «یا» — تا فرم پایین یک گزینه دیده شود، نه گام بعدی. */}
               <div className="flex items-center gap-3 pt-1">
@@ -522,42 +566,45 @@ export default function Login() {
               </div>
             </div>
 
-            {loginMethod === "phone" ? (
+            {/* شناسه (شماره/ایمیل) و رمز عبور کنار هم، برای فشرده‌تر شدن فرم. */}
+            <div className="grid grid-cols-2 gap-3">
+              {loginMethod === "phone" ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="login-phone">{t.loginPhone}</Label>
+                  <Input
+                    id="login-phone"
+                    dir="ltr"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="login-email">{t.email}</Label>
+                  <Input
+                    id="login-email"
+                    type="email"
+                    dir="ltr"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
               <div className="space-y-1.5">
-                <Label htmlFor="login-phone">{t.loginPhone}</Label>
-                <Input
-                  id="login-phone"
-                  dir="ltr"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                <Label htmlFor="login-pass">{t.loginPassword}</Label>
+                <PasswordInput
+                  id="login-pass"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
                 />
               </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Label htmlFor="login-email">{t.email}</Label>
-                <Input
-                  id="login-email"
-                  type="email"
-                  dir="ltr"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label htmlFor="login-pass">{t.loginPassword}</Label>
-              <PasswordInput
-                id="login-pass"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
             </div>
 
             <GlowButton type="submit" className="w-full" disabled={busy}>
@@ -567,17 +614,11 @@ export default function Login() {
 
             <button
               type="button"
-              onClick={() => setLoginMethod((m) => (m === "phone" ? "email" : "phone"))}
+              onClick={() => setStep("sms_phone")}
               className="flex w-full items-center gap-2 rounded-lg border p-3 text-start transition-colors hover:border-primary/60"
             >
-              {loginMethod === "phone" ? (
-                <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              ) : (
-                <Phone className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              )}
-              <span className="text-sm">
-                {loginMethod === "phone" ? t.loginWithEmailInstead : t.loginWithPhoneInstead}
-              </span>
+              <MessageSquareText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="text-sm">{t.smsLoginButton}</span>
             </button>
 
             <p className="text-center text-sm text-muted-foreground">

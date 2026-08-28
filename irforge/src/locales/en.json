@@ -228,6 +228,7 @@
     "orDivider": "or",
     "tgExpired": "This sign-in request expired. Please try again.",
     "tgFailed": "Telegram sign-in didn't complete. Please try again.",
+    "backToHome": "Back to home",
     "tgLoginButton": "Sign in with Telegram",
     "tgLoginHint": "One tap — we recognise your account from the Telegram you open the bot with.",
     "tgNoAccount": "No account matches this Telegram. If you have one, sign in once with your phone and password and connect Telegram.",
