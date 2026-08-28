@@ -33,7 +33,6 @@ import {
 import { sendLoginCode } from "../lib/registrationBot";
 import { sendEmailLoginCode } from "../lib/authEmails";
 import { sendOtpSms } from "../lib/smsir";
-import { smsOtpSendRateLimit } from "../lib/smsOtpRateLimit";
 import { authRateLimit, hit, clientIp, phoneKey, emailKey, reset, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS } from "../middleware/rateLimit";
 import { hashSessionToken, hashUserAgent } from "../lib/sessionToken";
 
@@ -1022,7 +1021,7 @@ function isSmsOtpPurpose(value: unknown): value is SmsOtpPurpose {
 const SMS_OTP_SENT_MESSAGE = "کد تأیید برای این شماره پیامک شد.";
 
 // ─── POST /api/auth/otp/sms/send ─────────────────────────────────────────────
-router.post("/auth/otp/sms/send", smsOtpSendRateLimit(), async (req, res) => {
+router.post("/auth/otp/sms/send", async (req, res) => {
   try {
     const purpose = req.body?.purpose;
     if (!isSmsOtpPurpose(purpose)) {
