@@ -104,26 +104,36 @@ export async function checkSmsOtpSendRateLimit(
   sourceIp: string,
   hitFn: HitFn = hit,
 ): Promise<SmsOtpRateLimitVerdict> {
+  // چهار سقف مستقل‌اند (کلیدهای جدا در جدول)، پس نیازی نیست پشتِ‌سرِهم
+  // منتظرشان بمانیم — هرکدام یک رفت‌وبرگشتِ دیتابیس جداست و پشتِ‌سرِهم
+  // صدا زدنشان یعنی تاخیرِ هر کدام روی هم جمع شود (تا ۴برابرِ کندترین).
+  // با اجرای موازی، این تاخیر به‌اندازه‌ی کندترینِ آن‌ها می‌شود، نه مجموعشان.
+  // اولویتِ تصمیم همان ترتیبِ قبلی می‌ماند (کول‌داون > ۱۰دقیقه > روزانه >
+  // IP)، فقط این‌بار روی نتایجِ آماده انتخاب می‌شود، نه با return زودهنگام.
+  const checks: { reason: SmsOtpRateLimitReason; promise: ReturnType<HitFn> }[] = [];
   if (phone) {
-    const cooldown = await hitFn(cooldownKey(phone), 1, 0, SMS_OTP_COOLDOWN_MS);
-    if (!cooldown.allowed) {
-      return { allowed: false, reason: "cooldown", retryAfterSeconds: cooldown.retryAfterSeconds };
-    }
-
-    const tenMin = await hitFn(phone10mKey(phone), SMS_OTP_PHONE_10M_LIMIT, 0, SMS_OTP_PHONE_10M_WINDOW_MS);
-    if (!tenMin.allowed) {
-      return { allowed: false, reason: "phone_10m", retryAfterSeconds: tenMin.retryAfterSeconds };
-    }
-
-    const daily = await hitFn(phoneDailyKey(phone), SMS_OTP_PHONE_DAILY_LIMIT, 0, SMS_OTP_PHONE_DAILY_WINDOW_MS);
-    if (!daily.allowed) {
-      return { allowed: false, reason: "phone_daily", retryAfterSeconds: daily.retryAfterSeconds };
-    }
+    checks.push({ reason: "cooldown", promise: hitFn(cooldownKey(phone), 1, 0, SMS_OTP_COOLDOWN_MS) });
+    checks.push({
+      reason: "phone_10m",
+      promise: hitFn(phone10mKey(phone), SMS_OTP_PHONE_10M_LIMIT, 0, SMS_OTP_PHONE_10M_WINDOW_MS),
+    });
+    checks.push({
+      reason: "phone_daily",
+      promise: hitFn(phoneDailyKey(phone), SMS_OTP_PHONE_DAILY_LIMIT, 0, SMS_OTP_PHONE_DAILY_WINDOW_MS),
+    });
   }
+  checks.push({
+    reason: "ip_hourly",
+    promise: hitFn(ipHourlyKey(sourceIp), SMS_OTP_IP_HOURLY_LIMIT, 0, SMS_OTP_IP_HOURLY_WINDOW_MS),
+  });
 
-  const hourly = await hitFn(ipHourlyKey(sourceIp), SMS_OTP_IP_HOURLY_LIMIT, 0, SMS_OTP_IP_HOURLY_WINDOW_MS);
-  if (!hourly.allowed) {
-    return { allowed: false, reason: "ip_hourly", retryAfterSeconds: hourly.retryAfterSeconds };
+  const results = await Promise.all(checks.map((c) => c.promise));
+
+  for (let i = 0; i < checks.length; i++) {
+    const result = results[i];
+    if (!result.allowed) {
+      return { allowed: false, reason: checks[i].reason, retryAfterSeconds: result.retryAfterSeconds };
+    }
   }
 
   return { allowed: true };

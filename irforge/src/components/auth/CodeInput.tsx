@@ -116,7 +116,7 @@ export function CodeInput({
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-center gap-2" dir="ltr" role="group" aria-label={t.codeGroupLabel}>
+      <div className="flex justify-center gap-1.5 sm:gap-2" dir="ltr" role="group" aria-label={t.codeGroupLabel}>
         {Array.from({ length: CODE_LENGTH }).map((_, i) => (
           <input
             key={i}
@@ -133,7 +133,7 @@ export function CodeInput({
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
             className={cn(
-              "size-12 rounded-lg border bg-background text-center text-xl font-semibold tabular-nums outline-none transition-colors motion-reduce:transition-none",
+              "size-10 rounded-lg border bg-background text-center text-lg font-semibold tabular-nums outline-none transition-colors motion-reduce:transition-none sm:size-12 sm:text-xl",
               "focus:border-primary focus:ring-2 focus:ring-primary/30",
               invalid && "border-destructive",
               focused === i && !invalid && "border-primary",
