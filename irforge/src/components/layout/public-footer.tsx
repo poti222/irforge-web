@@ -96,6 +96,23 @@ export function PublicFooter() {
           />
         </picture>
         <p>{t.rights.replace("{year}", "2026")}</p>
+
+        {/* Enamad trust seal. Loads its badge image directly from Enamad's
+            servers using the site's registered id/code — do not change these
+            values or the seal will stop validating. */}
+        <a
+          referrerPolicy="origin"
+          target="_blank"
+          rel="noopener noreferrer"
+          href="https://trustseal.enamad.ir/?id=7510632&Code=BwMRxuRefk1bEHHCVLxUEkfRcXhTcf4j"
+        >
+          <img
+            referrerPolicy="origin"
+            src="https://trustseal.enamad.ir/logo.aspx?id=7510632&Code=BwMRxuRefk1bEHHCVLxUEkfRcXhTcf4j"
+            alt="نماد اعتماد الکترونیکی"
+            style={{ cursor: "pointer" }}
+          />
+        </a>
       </div>
     </footer>
   );
