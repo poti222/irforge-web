@@ -21,6 +21,7 @@ import { PublicPageControls } from "@/components/layout/public-page-controls";
 import { BackHomeButton } from "@/components/layout/back-home-button";
 import { CodeInput } from "@/components/auth/CodeInput";
 import { GoogleIcon } from "@/components/auth/GoogleIcon";
+import { GitHubIcon } from "@/components/auth/GitHubIcon";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
 import { setAuthToken } from "@/lib/auth-token";
@@ -484,37 +485,36 @@ export default function Login() {
             <AuthStepHeader title={t.signInAccount} step={1} total={TOTAL_STEPS} />
 
             {/*
-              سه راه ورود، کنار هم و هم‌قواره: تلگرام (یک‌لمسی)، ایمیل و شماره
-              (هردو با رمز عبور، از طریق فرم پایین). هر کارت آیکون + زیرنویسِ
-              «چه چیزی لازم داری» دارد تا انتخاب بدون فکر کردن انجام شود؛
-              ایمیل/شماره وقتی انتخاب‌اند یک ring می‌گیرند تا معلوم باشد فرمِ
-              زیرشان الان مال کدام‌شان است.
+              راه‌های ورودِ یک‌کلیکی (تلگرام، گوگل، گیت‌هاب) از ایمیل/شماره
+              جدا و کوچک‌ترند: این سه هیچ فرمی زیرشان باز نمی‌کنند — همان لحظه
+              کاربر را به مقصد می‌فرستند — پس جای کارت‌های بزرگِ هم‌قواره با
+              فرم پایین نیستند. ایمیل/شماره پایین‌تر، بزرگ و انتخاب‌پذیر
+              می‌مانند چون فرم زیرشان همین‌جا باز می‌شود.
             */}
-            <div className="space-y-2.5">
-              <GlowButton
+            <div className="grid grid-cols-3 gap-2">
+              <button
                 type="button"
-                wrapperClassName="w-full"
-                className="h-auto w-full justify-start gap-3 px-3.5 py-3"
                 disabled={busy}
                 onClick={() => void startTelegramLogin()}
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-2.5 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                aria-label={t.tgLoginButton}
+                title={t.tgLoginHint}
               >
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
                   {busy ? (
-                    <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                   ) : (
-                    <Send className="size-5" aria-hidden="true" />
+                    <Send className="size-4" aria-hidden="true" />
                   )}
                 </span>
-                <span className="flex flex-col items-start text-start">
-                  <span className="font-medium">{t.tgLoginButton}</span>
-                  <span className="text-xs font-normal opacity-80">{t.tgLoginHint}</span>
-                </span>
-              </GlowButton>
+                <span className="text-xs font-medium leading-tight">{t.tgLoginButton}</span>
+              </button>
 
               {/*
-                گوگل هم مثل تلگرام یک‌کلیکی است: navigation کامل (نه fetch)
-                به سرور، که خودش کاربر را به گوگل می‌فرستد. توکن نهایی از
-                طریق auth-google-callback.tsx برمی‌گردد.
+                گوگل و گیت‌هاب هم مثل تلگرام یک‌کلیکی‌اند: navigation کامل (نه
+                fetch) به سرور، که خودش کاربر را به آن سرویس می‌فرستد. توکن
+                نهایی از طریق auth-google-callback.tsx / auth-github-callback.tsx
+                برمی‌گردد.
               */}
               <motion.button
                 type="button"
@@ -523,17 +523,54 @@ export default function Login() {
                 onClick={() => {
                   window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/google`;
                 }}
-                className="flex w-full items-center gap-3 rounded-md border border-border px-3.5 py-3 text-start transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-2.5 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                aria-label={t.googleLoginButton}
+                title={t.googleLoginHint}
               >
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary">
-                  <GoogleIcon className="size-5" />
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                  <GoogleIcon className="size-4" />
                 </span>
-                <span className="flex flex-col items-start">
-                  <span className="font-medium">{t.googleLoginButton}</span>
-                  <span className="text-xs text-muted-foreground">{t.googleLoginHint}</span>
-                </span>
+                <span className="text-xs font-medium leading-tight">{t.googleLoginButton}</span>
               </motion.button>
 
+              <motion.button
+                type="button"
+                {...(reduceMotion ? {} : hoverLiftMotion)}
+                disabled={busy}
+                onClick={() => {
+                  window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/github`;
+                }}
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-2.5 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                aria-label={t.githubLoginButton}
+                title={t.githubLoginHint}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                  <GitHubIcon className="size-4" />
+                </span>
+                <span className="text-xs font-medium leading-tight">{t.githubLoginButton}</span>
+              </motion.button>
+            </div>
+
+            {tgError && (
+              <p className="text-center text-sm text-destructive" role="alert">
+                {tgError}
+              </p>
+            )}
+
+            {/* جداکننده‌ی «یا» — تا فرم پایین یک گزینه دیده شود، نه گام بعدی. */}
+            <div className="flex items-center gap-3 pt-1">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">{t.orDivider}</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+
+            {/*
+              ایمیل و شماره: کارت‌های بزرگ و هم‌قواره‌ی قبلی، دست‌نخورده. هر
+              کارت آیکون + زیرنویسِ «چه چیزی لازم داری» دارد و وقتی انتخاب
+              است یک ring می‌گیرد تا معلوم باشد فرمِ زیرش الان مال کدام‌شان
+              است.
+            */}
+            <div className="space-y-2.5">
               <motion.button
                 type="button"
                 {...(reduceMotion ? {} : hoverLiftMotion)}
@@ -575,19 +612,6 @@ export default function Login() {
                   <span className="text-xs text-muted-foreground">{t.loginPassword}</span>
                 </span>
               </motion.button>
-
-              {tgError && (
-                <p className="text-center text-sm text-destructive" role="alert">
-                  {tgError}
-                </p>
-              )}
-
-              {/* جداکننده‌ی «یا» — تا فرم پایین یک گزینه دیده شود، نه گام بعدی. */}
-              <div className="flex items-center gap-3 pt-1">
-                <span className="h-px flex-1 bg-border" />
-                <span className="text-xs text-muted-foreground">{t.orDivider}</span>
-                <span className="h-px flex-1 bg-border" />
-              </div>
             </div>
 
             {/* شناسه (شماره/ایمیل) و رمز عبور: از سایز تبلت به بالا کنار هم، روی موبایل زیر هم — گرید ثابتِ دوستونه اینجا را روی گوشی می‌شکست. */}

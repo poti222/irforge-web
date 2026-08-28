@@ -1028,6 +1028,178 @@ router.get("/auth/google/callback", async (req, res) => {
   }
 });
 
+// ─── ورود با گیت‌هاب ──────────────────────────────────────────────────────
+//
+// همان الگوی گوگل بالا، فقط handshake با endpointهای خودِ گیت‌هاب (نه یک
+// SDK): GET /login/oauth/authorize برای ریدایرکت اول، POST
+// /login/oauth/access_token برای گرفتن accessToken، و GET /user (+ در صورت
+// نبودِ ایمیل عمومی، GET /user/emails) برای پروفایل. تطبیق حساب هم دقیقاً
+// همان‌طور: بر اساس ایمیلِ **تأییدشده**، چون این ستونِ یکتای واقعی روی
+// جدول کاربران است، نه یک `githubId` جداگانه.
+//
+// افزودن یک provider بعدی (دیسکورد، اپل، …) یعنی کپی همین دو مسیر با
+// endpointهای آن سرویس — الگو همینجا مستند است.
+const GITHUB_OAUTH_STATE_COOKIE = "irforge_gh_oauth_state";
+const GITHUB_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
+function githubOAuthConfig() {
+  const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET;
+  const redirectUri = process.env.GITHUB_OAUTH_REDIRECT_URI;
+  if (!clientId || !clientSecret || !redirectUri) return null;
+  return { clientId, clientSecret, redirectUri };
+}
+
+// ─── GET /api/auth/github ─────────────────────────────────────────────────
+router.get("/auth/github", (req, res) => {
+  const config = githubOAuthConfig();
+  if (!config) {
+    loginErrorRedirect(res, "github_unavailable");
+    return;
+  }
+  const state = crypto.randomBytes(24).toString("hex");
+  res.cookie(GITHUB_OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: GITHUB_OAUTH_STATE_TTL_MS,
+    path: "/api/auth/github",
+  });
+  const url = new URL("https://github.com/login/oauth/authorize");
+  url.searchParams.set("client_id", config.clientId);
+  url.searchParams.set("redirect_uri", config.redirectUri);
+  url.searchParams.set("scope", "read:user user:email");
+  url.searchParams.set("allow_signup", "true");
+  url.searchParams.set("state", state);
+  res.redirect(url.toString());
+});
+
+// ─── GET /api/auth/github/callback ────────────────────────────────────────
+router.get("/auth/github/callback", async (req, res) => {
+  try {
+    const config = githubOAuthConfig();
+    if (!config) {
+      loginErrorRedirect(res, "github_unavailable");
+      return;
+    }
+
+    const cookieState = req.cookies?.[GITHUB_OAUTH_STATE_COOKIE];
+    res.clearCookie(GITHUB_OAUTH_STATE_COOKIE, { path: "/api/auth/github" });
+    const queryState = typeof req.query.state === "string" ? req.query.state : "";
+    if (!cookieState || !queryState || !secretEquals(queryState, cookieState)) {
+      loginErrorRedirect(res, "github_failed");
+      return;
+    }
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    if (!code) {
+      loginErrorRedirect(res, "github_failed");
+      return;
+    }
+
+    const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        code,
+        redirect_uri: config.redirectUri,
+      }),
+    });
+    if (!tokenRes.ok) {
+      loginErrorRedirect(res, "github_failed");
+      return;
+    }
+    const tokenData = (await tokenRes.json()) as { access_token?: string };
+    const accessToken = tokenData.access_token;
+    if (!accessToken) {
+      loginErrorRedirect(res, "github_failed");
+      return;
+    }
+
+    const ghHeaders = {
+      Authorization: `Bearer ${accessToken}`,
+      // گیت‌هاب بدون User-Agent هر تماسی به REST API را با 403 رد می‌کند.
+      "User-Agent": "irforge-web",
+      Accept: "application/vnd.github+json",
+    };
+    const profileRes = await fetch("https://api.github.com/user", { headers: ghHeaders });
+    if (!profileRes.ok) {
+      loginErrorRedirect(res, "github_failed");
+      return;
+    }
+    const profile = (await profileRes.json()) as {
+      email?: string | null;
+      name?: string | null;
+      login?: string;
+      avatar_url?: string | null;
+    };
+
+    // ایمیل پروفایل عمومی اغلب خالی است (کاربر در تنظیمات گیت‌هاب مخفی‌اش
+    // کرده)؛ در آن صورت لیست ایمیل‌ها را می‌گیریم و اولین موردِ primary +
+    // verified را برمی‌داریم — دقیقاً همان چیزی که گوگل با `verified_email`
+    // تضمین می‌کند، این‌جا هم لازم است چون هویت روی همین ایمیل تطبیق می‌شود.
+    let primaryEmail: string | null = profile.email ?? null;
+    if (!primaryEmail) {
+      const emailsRes = await fetch("https://api.github.com/user/emails", { headers: ghHeaders });
+      if (emailsRes.ok) {
+        const emails = (await emailsRes.json()) as Array<{ email: string; primary: boolean; verified: boolean }>;
+        const best = emails.find((e) => e.primary && e.verified) ?? emails.find((e) => e.verified);
+        primaryEmail = best?.email ?? null;
+      }
+    }
+
+    if (!primaryEmail) {
+      loginErrorRedirect(res, "github_email_unverified");
+      return;
+    }
+    const email = normaliseEmail(primaryEmail);
+
+    const existing = await db.select().from(usersTable).where(emailEquals(email)).limit(1);
+    let user = existing[0];
+
+    if (user && (user.status === "banned" || user.status === "suspended")) {
+      loginErrorRedirect(res, "suspended");
+      return;
+    }
+
+    if (!user) {
+      const id = crypto.randomUUID();
+      const randomPasswordHash = await hashPassword(crypto.randomBytes(32).toString("hex"));
+      const [created] = await db
+        .insert(usersTable)
+        .values({
+          id,
+          name: profile.name || profile.login || email.split("@")[0],
+          email,
+          passwordHash: randomPasswordHash,
+          avatar: profile.avatar_url ?? null,
+          role: "user",
+          plan: "free",
+          status: "active",
+          emailVerified: true,
+        })
+        .returning();
+      user = created;
+      syncUserUpsert({
+        id: user.id, name: user.name, email: user.email, role: user.role,
+        plan: user.plan, status: user.status, bio: user.bio,
+        telegramUsername: user.telegramUsername, createdAt: user.createdAt,
+      });
+      logger.info({ userId: user.id }, "New account created via GitHub sign-in");
+    } else {
+      logger.info({ userId: user.id }, "GitHub sign-in completed");
+    }
+
+    const { token } = await issueSession(user, req);
+    const site = (process.env.PUBLIC_SITE_URL || "/").replace(/\/$/, "");
+    res.redirect(`${site}/auth/github/callback#token=${encodeURIComponent(token)}`);
+  } catch (err) {
+    logger.error({ err }, "GitHub OAuth callback error");
+    loginErrorRedirect(res, "github_failed");
+  }
+});
+
 // ─── POST /api/auth/forgot-password ──────────────────────────────────────────
 // V3: recovery is phone + SMS OTP only — no email, no Telegram. The user
 // enters the phone number on file for the account; if it matches, a code

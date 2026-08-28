@@ -17,6 +17,8 @@ import { BrandLogo } from "@/components/layout/brand-home";
 import { PublicPageControls } from "@/components/layout/public-page-controls";
 import { BackHomeButton } from "@/components/layout/back-home-button";
 import { CodeInput } from "@/components/auth/CodeInput";
+import { GoogleIcon } from "@/components/auth/GoogleIcon";
+import { GitHubIcon } from "@/components/auth/GitHubIcon";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/auth/TurnstileWidget";
@@ -656,6 +658,53 @@ export default function Register() {
           <div className="space-y-4">
             {/* گام اول: بازگشتی وجود ندارد، پس فقط نشانگر گام. */}
             <AuthStepHeader title={t.methodTitle} step={1} total={stepNumber(method, "finish")} />
+
+            {/*
+              ثبت‌نام یک‌کلیکی با گوگل/گیت‌هاب: همان endpoint ورودِ آن سرویس
+              (GET /api/auth/google یا /api/auth/github) — سرور اگر حسابی با
+              همان ایمیل نباشد خودش می‌سازد، پس «ثبت‌نام» و «ورود» با این دو
+              سرویس یک مسیر مشترک‌اند. بقیه‌ی گام‌های ثبت‌نام (شماره/ایمیل/
+              پیامک) پایین‌تر، جدا از این دو، دست‌نخورده می‌مانند.
+            */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/google`;
+                }}
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-3 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                aria-label={t.googleLoginButton}
+                title={t.googleLoginHint}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                  <GoogleIcon className="size-4" />
+                </span>
+                <span className="text-xs font-medium leading-tight">{t.googleLoginButton}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/github`;
+                }}
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-3 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                aria-label={t.githubLoginButton}
+                title={t.githubLoginHint}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                  <GitHubIcon className="size-4" />
+                </span>
+                <span className="text-xs font-medium leading-tight">{t.githubLoginButton}</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">{t.orDivider}</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
 
             <button
               type="button"
