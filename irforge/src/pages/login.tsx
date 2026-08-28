@@ -566,8 +566,8 @@ export default function Login() {
               </div>
             </div>
 
-            {/* شناسه (شماره/ایمیل) و رمز عبور کنار هم، برای فشرده‌تر شدن فرم. */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* شناسه (شماره/ایمیل) و رمز عبور: از سایز تبلت به بالا کنار هم، روی موبایل زیر هم — گرید ثابتِ دوستونه اینجا را روی گوشی می‌شکست. */}
+            <div className="grid gap-3 sm:grid-cols-2">
               {loginMethod === "phone" ? (
                 <div className="space-y-1.5">
                   <Label htmlFor="login-phone">{t.loginPhone}</Label>
