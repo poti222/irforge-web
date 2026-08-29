@@ -668,6 +668,7 @@ export default function Register() {
           <BrandLogo href="/" />
         </div>
 
+        <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
         {/* ── گام ۱: انتخاب روش ─────────────────────────────────────────── */}
         {step === "method" && (
           <div className="space-y-4">
@@ -1032,6 +1033,7 @@ export default function Register() {
             </GlowButton>
           </form>
         )}
+        </div>
       </div>
     </div>
   );

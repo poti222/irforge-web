@@ -478,6 +478,7 @@ export default function Login() {
           <BrandLogo href="/" />
         </div>
 
+        <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
         {step === "credentials" && (
           <form
             className="space-y-4"
@@ -858,6 +859,7 @@ export default function Login() {
             </Card>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
