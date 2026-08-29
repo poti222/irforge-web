@@ -10,9 +10,9 @@
  */
 
 import type { LucideIcon } from "lucide-react";
-import { Medal, Trophy, Gem } from "lucide-react";
+import { Medal, Trophy } from "lucide-react";
 
-export type BotTierId = "silver" | "gold" | "diamond" | "custom";
+export type BotTierId = "standard" | "pro" | "custom";
 
 export interface BotTierFeature {
   fa: string;
@@ -45,12 +45,12 @@ export const CUSTOM_MAX_CPU_CORES = 8;
 
 export const BOT_TIERS: BotTier[] = [
   {
-    id: "silver",
+    id: "standard",
     icon: Medal,
     accent: "from-slate-400 to-slate-300",
-    name: { fa: "نقره‌ای", en: "Silver" },
+    name: { fa: "استاندارد", en: "Standard" },
     tagline: { fa: "برای شروع سریع و پروژه‌های کوچک", en: "A fast start for small projects" },
-    price: 150000,
+    price: 500000,
     maxBots: 1,
     maxPlugins: 3,
     ramGb: 1,
@@ -58,7 +58,6 @@ export const BOT_TIERS: BotTier[] = [
     maxConcurrentUsers: 50,
     features: [
       { fa: "۱ ربات فعال", en: "1 active bot" },
-      { fa: "۱ گیگ رم / ۱ هسته پردازنده", en: "1 GB RAM / 1 CPU core" },
       { fa: "تا ۵۰ کاربر همزمان", en: "Up to 50 concurrent users" },
       { fa: "تا ۳ پلاگین", en: "Up to 3 plugins" },
       { fa: "پشتیبانی از طریق تیکت", en: "Ticket-based support" },
@@ -66,49 +65,25 @@ export const BOT_TIERS: BotTier[] = [
     ],
   },
   {
-    id: "gold",
+    id: "pro",
     icon: Trophy,
     accent: "from-amber-400 to-yellow-300",
-    name: { fa: "طلایی", en: "Gold" },
-    tagline: { fa: "تعادل بین امکانات و قیمت", en: "The best balance of features and price" },
-    price: 350000,
-    maxBots: 2,
+    name: { fa: "پرو", en: "Pro" },
+    tagline: { fa: "حداکثر امکانات برای کسب‌وکارهای جدی", en: "Maximum power for serious businesses" },
+    price: 1100000,
+    maxBots: 3,
     maxPlugins: 10,
     ramGb: 3,
-    cpuCores: 2,
-    maxConcurrentUsers: 200,
+    cpuCores: 3,
+    maxConcurrentUsers: 250,
     popular: true,
     features: [
-      { fa: "تا ۲ ربات فعال", en: "Up to 2 active bots" },
-      { fa: "۳ گیگ رم / ۲ هسته پردازنده", en: "3 GB RAM / 2 CPU cores" },
-      { fa: "تا ۲۰۰ کاربر همزمان", en: "Up to 200 concurrent users" },
+      { fa: "تا ۳ ربات فعال", en: "Up to 3 active bots" },
+      { fa: "تا ۲۵۰ کاربر همزمان", en: "Up to 250 concurrent users" },
       { fa: "تا ۱۰ پلاگین", en: "Up to 10 plugins" },
       { fa: "پشتیبانی اولویت‌دار", en: "Priority support" },
       { fa: "دسترسی به قالب‌های اختصاصی", en: "Access to premium themes" },
       { fa: "گزارش‌گیری پیشرفته", en: "Advanced analytics" },
-    ],
-  },
-  {
-    id: "diamond",
-    icon: Gem,
-    accent: "from-sky-400 to-cyan-300",
-    name: { fa: "الماسی", en: "Diamond" },
-    tagline: { fa: "حداکثر امکانات برای کسب‌وکارهای جدی", en: "Maximum power for serious businesses" },
-    price: 750000,
-    maxBots: 5,
-    maxPlugins: 999,
-    ramGb: 5,
-    cpuCores: 4,
-    maxConcurrentUsers: 500,
-    features: [
-      { fa: "تا ۵ ربات فعال", en: "Up to 5 active bots" },
-      { fa: "۵ گیگ رم / ۴ هسته پردازنده", en: "5 GB RAM / 4 CPU cores" },
-      { fa: "تا ۵۰۰ کاربر همزمان", en: "Up to 500 concurrent users" },
-      { fa: "پلاگین نامحدود", en: "Unlimited plugins" },
-      { fa: "پشتیبانی اختصاصی ۲۴/۷", en: "Dedicated 24/7 support" },
-      { fa: "دسترسی زودهنگام به امکانات جدید", en: "Early access to new features" },
-      { fa: "گزارش‌گیری و آنالیتیکس کامل", en: "Full analytics suite" },
-      { fa: "برندینگ اختصاصی (بدون لوگوی ما)", en: "White-label branding" },
     ],
   },
 ];

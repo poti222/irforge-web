@@ -12,7 +12,7 @@
  */
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Cpu, MemoryStick, Sparkles, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Cpu, MemoryStick, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BOT_TIERS, type BotTier } from "@/lib/bot-tiers";
 import { useT } from "@/hooks/use-translation";
@@ -34,9 +34,8 @@ export function LandingPlans({ reduce }: { reduce: boolean }) {
   /** متن هر پکیج از ترجمه‌ها؛ قیمت و منابع از `BOT_TIERS`. */
   function textFor(tier: BotTier) {
     switch (tier.id) {
-      case "silver": return tt.silver;
-      case "gold": return tt.gold;
-      case "diamond": return tt.diamond;
+      case "standard": return tt.standard;
+      case "pro": return tt.pro;
       default: return null;
     }
   }
@@ -147,25 +146,8 @@ export function LandingPlans({ reduce }: { reduce: boolean }) {
             })}
           </div>
 
-          {/* پکیج سفارشی: یک نوار، نه یک کارت چهارم — انتخابش جنس دیگری دارد. */}
-          <RevealItem variants={item}>
-            <div className="mx-auto mt-6 flex max-w-6xl flex-col items-start justify-between gap-4 rounded-2xl border border-dashed bg-background p-6 sm:flex-row sm:items-center">
-              <div className="flex items-start gap-3">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-400 to-fuchsia-300 text-white">
-                  <Sparkles className="size-5" />
-                </span>
-                <div>
-                  <h3 className="font-semibold">{tr.plansCustomTitle}</h3>
-                  <p className="mt-0.5 max-w-xl text-sm text-muted-foreground">{tr.plansCustomDesc}</p>
-                </div>
-              </div>
-              <Button asChild variant="outline" className="w-full shrink-0 sm:w-auto">
-                <Link href="/buy-bot/custom" data-testid="link-plan-custom">
-                  {tr.plansCustomCta} <ArrowIcon className="ms-2 size-4" />
-                </Link>
-              </Button>
-            </div>
-          </RevealItem>
+          {/* پکیج سفارشی فعلاً موقتاً غیرفعال است — نه فقط اینجا، buy-bot.tsx
+              و buy-bot-detail.tsx هم همین را رعایت می‌کنند. */}
 
           <RevealItem variants={item}>
             <p className="mx-auto mt-6 max-w-3xl text-center text-xs text-muted-foreground">

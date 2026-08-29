@@ -497,7 +497,7 @@
   },
   "buyBot": {
     "plansTitle": "Abonelik planları",
-    "plansSub": "Yöneticinin tanımladığı planlar — yukarıdaki paketlere ek olarak.",
+    "plansSub": "Toman enflasyonundan etkilenmeyen, sabit dolar bazlı fiyatlandırma. Her seferinde yeni bir bot satın almak yerine, aylık abonelik hesabınızın bot/kullanıcı/eklenti limitlerini büyütür.",
     "noPlans": "Henüz plan tanımlanmadı.",
     "currentPlan": "Mevcut plan",
     "upgrade": "Yükselt",
@@ -519,10 +519,11 @@
     "pageTitle": "Yeni bot satın al",
     "pageSub": "Hazır paketlerden birini seçin ya da kendinizinkini kurun.",
     "trialTitle": "7 gün ücretsiz deneyin",
-    "trialDesc": "Gümüş pakete denk — sadece Telegram'ı bağlayın, ödeme gerekmez.",
+    "trialDesc": "Standart pakete denk — sadece Telegram'ı bağlayın, ödeme gerekmez.",
     "trialCta": "Ücretsiz denemeyi başlat",
     "viewSelect": "Gör ve seç",
     "from": "başlangıç",
+    "customUnavailable": "Özel paket şu anda geçici olarak kullanılamıyor. Lütfen hazır paketlerden birini seçin.",
     "customRequiredNote": "Bazı parçalar her zaman açıktır (zorunlu); gerisini siz seçersiniz.",
     "customPriceNote": "Fiyat, seçtiğiniz RAM, CPU ve eklentilere göre hesaplanır.",
     "buildCustom": "Özel paket oluştur",
@@ -1206,7 +1207,7 @@
     "intro": "Planlar, her birinin içeriği ve faturalamanın işleyişi. Her plan tek bir hesap içindir; botlar paketlerle eklenir.",
     "breadcrumbLabel": "Sayfa yolu",
     "tiersTitle": "Planlar",
-    "priceNote": "Bunlar güncel, gerçek plan fiyatları — giriş yaptıktan sonra görülenlerle aynı. Gümüş, Altın ve Elmas paketlerinin gerçek fiyatları da ana sayfada yazılıdır.",
+    "priceNote": "Bunlar güncel, gerçek plan fiyatları — giriş yaptıktan sonra görülenlerle aynı. Standart ve Pro paketlerinin gerçek fiyatları da ana sayfada yazılıdır.",
     "faqTitle": "Faturalama soruları",
     "faq": [
       {
@@ -2710,43 +2711,27 @@
       "name": "Özel",
       "tagline": "RAM, CPU ve eklentileri kendiniz seçin."
     },
-    "silver": {
-      "name": "Gümüş",
+    "standard": {
+      "name": "Standart",
       "tagline": "Küçük projeler için hızlı bir başlangıç",
       "features": [
         "1 aktif bot",
-        "1 GB RAM / 1 CPU çekirdeği",
         "Aynı anda 50 kullanıcıya kadar",
         "3 eklentiye kadar",
         "Destek talebi ile destek",
         "Genel güncellemeler"
       ]
     },
-    "gold": {
-      "name": "Altın",
-      "tagline": "Özellik ve fiyat arasındaki en iyi denge",
+    "pro": {
+      "name": "Pro",
+      "tagline": "Ciddi işletmeler için maksimum güç",
       "features": [
-        "2 aktif bota kadar",
-        "3 GB RAM / 2 CPU çekirdeği",
-        "Aynı anda 200 kullanıcıya kadar",
+        "3 aktif bota kadar",
+        "Aynı anda 250 kullanıcıya kadar",
         "10 eklentiye kadar",
         "Öncelikli destek",
         "Özel temalara erişim",
         "Gelişmiş analitik"
-      ]
-    },
-    "diamond": {
-      "name": "Elmas",
-      "tagline": "Ciddi işletmeler için maksimum güç",
-      "features": [
-        "5 aktif bota kadar",
-        "5 GB RAM / 4 CPU çekirdeği",
-        "Aynı anda 500 kullanıcıya kadar",
-        "Sınırsız eklenti",
-        "7/24 özel destek",
-        "Yeni özelliklere erken erişim",
-        "Eksiksiz analitik paketi",
-        "Kendi markanızla kullanım"
       ]
     },
     "modules": {

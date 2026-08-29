@@ -497,7 +497,7 @@
   },
   "buyBot": {
     "plansTitle": "Subscription plans",
-    "plansSub": "Plans defined by the admin — in addition to the packages above.",
+    "plansSub": "Stable USD-based pricing that doesn't drift with Toman inflation. Instead of buying a whole new bot each time, a monthly subscription grows your account's bot/user/plugin limits.",
     "noPlans": "No plans have been defined yet.",
     "currentPlan": "Current plan",
     "upgrade": "Upgrade",
@@ -519,10 +519,11 @@
     "pageTitle": "Buy a new bot",
     "pageSub": "Pick one of the ready-made packages, or build your own.",
     "trialTitle": "Try it free for 7 days",
-    "trialDesc": "Equivalent to the Silver package — just link Telegram, no payment needed.",
+    "trialDesc": "Equivalent to the Standard package — just link Telegram, no payment needed.",
     "trialCta": "Start free trial",
     "viewSelect": "View & select",
     "from": "from",
+    "customUnavailable": "The custom package is temporarily unavailable. Please choose one of the ready-made packages.",
     "customRequiredNote": "Some parts are always on (required); you toggle the rest.",
     "customPriceNote": "The price is calculated from the RAM, CPU and plugins you pick.",
     "buildCustom": "Build a custom package",
@@ -1206,7 +1207,7 @@
     "intro": "Plans, what each one includes, and how billing works. Every plan is for one hosted Telegram bot builder account; bots are added per package.",
     "breadcrumbLabel": "Breadcrumb",
     "tiersTitle": "The plans",
-    "priceNote": "These are the current, live plan prices — the same ones shown once you sign in. Real figures for the Silver, Gold and Diamond bot packages are shown on the home page.",
+    "priceNote": "These are the current, live plan prices — the same ones shown once you sign in. Real figures for the Standard and Pro bot packages are shown on the home page.",
     "faqTitle": "Billing questions",
     "faq": [
       {
@@ -2710,43 +2711,27 @@
       "name": "Custom",
       "tagline": "Pick your own RAM, CPU and plugins."
     },
-    "silver": {
-      "name": "Silver",
+    "standard": {
+      "name": "Standard",
       "tagline": "A fast start for small projects",
       "features": [
         "1 active bot",
-        "1 GB RAM / 1 CPU core",
         "Up to 50 concurrent users",
         "Up to 3 plugins",
         "Ticket-based support",
         "General updates"
       ]
     },
-    "gold": {
-      "name": "Gold",
-      "tagline": "The best balance of features and price",
+    "pro": {
+      "name": "Pro",
+      "tagline": "Maximum power for serious businesses",
       "features": [
-        "Up to 2 active bots",
-        "3 GB RAM / 2 CPU cores",
-        "Up to 200 concurrent users",
+        "Up to 3 active bots",
+        "Up to 250 concurrent users",
         "Up to 10 plugins",
         "Priority support",
         "Access to premium themes",
         "Advanced analytics"
-      ]
-    },
-    "diamond": {
-      "name": "Diamond",
-      "tagline": "Maximum power for serious businesses",
-      "features": [
-        "Up to 5 active bots",
-        "5 GB RAM / 4 CPU cores",
-        "Up to 500 concurrent users",
-        "Unlimited plugins",
-        "Dedicated 24/7 support",
-        "Early access to new features",
-        "Full analytics suite",
-        "White-label branding"
       ]
     },
     "modules": {

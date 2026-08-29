@@ -42,9 +42,8 @@ export default function BuyBotDetail() {
 
   /** متن ترجمه‌شده‌ی همین پکیج (قیمت و منابع همچنان از `BOT_TIERS`). */
   const tierText =
-    tier?.id === "silver" ? tt.silver
-    : tier?.id === "gold" ? tt.gold
-    : tier?.id === "diamond" ? tt.diamond
+    tier?.id === "standard" ? tt.standard
+    : tier?.id === "pro" ? tt.pro
     : null;
 
   /** برچسب ترجمه‌شده‌ی یک ماژولِ پکیج سفارشی. */
@@ -87,6 +86,19 @@ export default function BuyBotDetail() {
     return (
       <div className="mx-auto max-w-lg space-y-4 py-16 text-center">
         <p className="text-muted-foreground">{tb.notFound}</p>
+        <Button asChild variant="outline">
+          <Link href="/buy-bot">{tb.backToBuyBot}</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  // بستهٔ سفارشی فعلاً موقتاً غیرفعال است — نه فقط از buy-bot.tsx/LandingPlans.tsx
+  // پنهان، بلکه اگر کسی مستقیم این آدرس را باز کند هم همین پیام را می‌بیند.
+  if (isCustom) {
+    return (
+      <div className="mx-auto max-w-lg space-y-4 py-16 text-center">
+        <p className="text-muted-foreground">{tb.customUnavailable}</p>
         <Button asChild variant="outline">
           <Link href="/buy-bot">{tb.backToBuyBot}</Link>
         </Button>

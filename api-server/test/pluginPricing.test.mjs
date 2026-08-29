@@ -69,10 +69,10 @@ test("سفارشیِ حداقلی = قیمت پایه", () => {
   assert.equal(quote.total, CUSTOM_BUILD.basePrice);
 });
 
-test("سفارشیِ حداقلی ارزان‌تر از نقره‌ای درنمی‌آید", () => {
+test("سفارشیِ حداقلی ارزان‌تر از ارزان‌ترین پکیجِ آماده درنمی‌آید", () => {
   // وگرنه پکیج‌های آماده بی‌معنی می‌شدند: همه سفارشیِ حداقلی می‌خریدند.
   const minimum = quoteCustomBuild({ ramGb: 1, cpuCores: 1, pluginIds: [] }).total;
-  assert.ok(minimum >= BOT_TIER_PRICES.silver);
+  assert.ok(minimum >= BOT_TIER_PRICES.standard);
 });
 
 test("منابع بیشتر، قیمت را بالا می‌برد — دقیقاً به اندازه‌ی مازاد", () => {
@@ -145,10 +145,10 @@ test("سفارشی: مبلغ از spec حساب می‌شود و `amount` کلا
 test("پکیج آماده: قیمت پکیج + پلاگین‌ها، نه `amount` کلاینت", () => {
   const resolved = resolvePurchasePrice({
     amount: 1,
-    buildSpec: { tierId: "gold", pluginIds: ["ticket"] },
+    buildSpec: { tierId: "pro", pluginIds: ["ticket"] },
   });
   assert.equal(resolved.source, "tier");
-  assert.equal(resolved.total, BOT_TIER_PRICES.gold + pluginPrice("ticket"));
+  assert.equal(resolved.total, BOT_TIER_PRICES.pro + pluginPrice("ticket"));
 });
 
 test("بدون spec، مسیر قدیمی دست‌نخورده می‌ماند", () => {
@@ -209,28 +209,28 @@ test("quotePluginAddons: بدون سقف مشخص، همه‌ی رایگان‌�
 });
 
 test("resolvePurchasePrice: پکیجِ آماده بیش از سقفِ پلاگین رایگانش را قبول نمی‌کند", () => {
-  // نقره‌ای سقفش ۳ است — اینجا ۵ تا رایگان انتخاب شده.
+  // استاندارد سقفش ۳ است — اینجا ۵ تا رایگان انتخاب شده.
   const resolved = resolvePurchasePrice({
-    buildSpec: { tierId: "silver", pluginIds: [...FREE_PLUGIN_IDS, "freeplug-e"] },
+    buildSpec: { tierId: "standard", pluginIds: [...FREE_PLUGIN_IDS, "freeplug-e"] },
   });
   assert.equal(resolved.source, "tier");
-  assert.equal(resolved.pluginIds.length, BOT_TIER_MAX_FREE_PLUGINS.silver);
-  assert.equal(resolved.droppedFreePluginIds.length, 5 - BOT_TIER_MAX_FREE_PLUGINS.silver);
+  assert.equal(resolved.pluginIds.length, BOT_TIER_MAX_FREE_PLUGINS.standard);
+  assert.equal(resolved.droppedFreePluginIds.length, 5 - BOT_TIER_MAX_FREE_PLUGINS.standard);
   // پلاگین‌های رایگانِ مازاد قیمتی ندارند، پس مبلغ فقط قیمت پکیج می‌ماند —
   // نه اینکه رایگان‌های اضافه پولی حساب شوند و نه اینکه رایگان بمانند.
-  assert.equal(resolved.total, BOT_TIER_PRICES.silver);
+  assert.equal(resolved.total, BOT_TIER_PRICES.standard);
 });
 
 test("resolvePurchasePrice: پلاگین پولی هرگز جزو سقفِ رایگان پکیج حساب نمی‌شود", () => {
-  // طلایی سقفش ۱۰ رایگان است؛ اینجا ۱۰ رایگان + یک پولی انتخاب شده — پولی
+  // پرو سقفش ۱۰ رایگان است؛ اینجا ۱۰ رایگان + یک پولی انتخاب شده — پولی
   // نباید به‌خاطر پر بودن سهمیه‌ی رایگان کنار گذاشته شود.
-  const tenFree = Array.from({ length: BOT_TIER_MAX_FREE_PLUGINS.gold }, (_, i) => `freeplug-${i}`);
+  const tenFree = Array.from({ length: BOT_TIER_MAX_FREE_PLUGINS.pro }, (_, i) => `freeplug-${i}`);
   const resolved = resolvePurchasePrice({
-    buildSpec: { tierId: "gold", pluginIds: [...tenFree, "booking"] },
+    buildSpec: { tierId: "pro", pluginIds: [...tenFree, "booking"] },
   });
   assert.deepEqual(resolved.droppedFreePluginIds, []);
   assert.ok(resolved.pluginIds.includes("booking"));
-  assert.equal(resolved.total, BOT_TIER_PRICES.gold + pluginPrice("booking"));
+  assert.equal(resolved.total, BOT_TIER_PRICES.pro + pluginPrice("booking"));
 });
 
 test("resolvePurchasePrice: بات سفارشی سقفِ پلاگین رایگان ندارد", () => {

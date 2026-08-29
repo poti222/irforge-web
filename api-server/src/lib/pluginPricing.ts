@@ -73,7 +73,7 @@ export function isPluginFree(pluginId: string): boolean {
  * ارزان‌تر از پکیج آماده درنیاید — وگرنه پکیج‌ها بی‌معنی می‌شدند.
  */
 export const CUSTOM_BUILD = {
-  basePrice:        150_000 as Toman,
+  basePrice:        500_000 as Toman,
   /** رم و هسته‌ای که در قیمت پایه هست؛ مازادش حساب می‌شود. */
   includedRamGb:    1,
   includedCpuCores: 1,
@@ -169,9 +169,8 @@ export function quoteCustomBuild(
  * چنین فیلدی برایش تعریف نکرده).
  */
 export const BOT_TIER_MAX_FREE_PLUGINS: Record<string, number> = {
-  silver:  3,
-  gold:    10,
-  diamond: 999,
+  standard: 3,
+  pro:      10,
 };
 
 export function quotePluginAddons(
@@ -211,9 +210,8 @@ export function quotePluginAddons(
  * کردن یکی بدون دیگری تست را می‌شکند.
  */
 export const BOT_TIER_PRICES: Record<string, Toman> = {
-  silver:  150_000,
-  gold:    350_000,
-  diamond: 750_000,
+  standard: 500_000,
+  pro:      1_100_000,
 };
 
 /** مشخصات ساختی که کلاینت همراه خرید می‌فرستد. */

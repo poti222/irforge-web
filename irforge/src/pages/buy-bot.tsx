@@ -29,9 +29,8 @@ import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatToman } from "@/lib/format";
-import { BOT_TIERS, CUSTOM_MAX_RAM_GB, type BotTier } from "@/lib/bot-tiers";
+import { BOT_TIERS, type BotTier } from "@/lib/bot-tiers";
 import { TrialDialog } from "@/components/bots/TrialDialog";
-import { usePluginPricing } from "@/hooks/use-plugin-pricing";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 
 /**
@@ -57,9 +56,6 @@ export default function BuyBot() {
   const [trialOpen, setTrialOpen] = useState(false);
   const hasUsedTrial = Boolean(user?.hasUsedTrial);
 
-  // قیمت پایه‌ی بات سفارشی از سرور می‌آید (همان جدولی که موقع پرداخت هم
-  // استفاده می‌شود)، پس کارت زیر عدد واقعی نشان می‌دهد نه یک وعده.
-  const { data: pricing } = usePluginPricing();
   const { data: plans, isLoading: plansLoading } = useListPlans();
   const { data: currentPlan } = useGetCurrentPlan();
   const subscribe = useSubscribeToPlan();
@@ -95,9 +91,8 @@ export default function BuyBot() {
   /** متن ترجمه‌شده‌ی یک پکیج ثابت (قیمت و منابع همچنان از `BOT_TIERS`). */
   function tierText(tier: BotTier) {
     switch (tier.id) {
-      case "silver": return tt.silver;
-      case "gold": return tt.gold;
-      case "diamond": return tt.diamond;
+      case "standard": return tt.standard;
+      case "pro": return tt.pro;
       default: return null;
     }
   }
@@ -158,7 +153,7 @@ export default function BuyBot() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 space-y-3">
-                  <ResourceRow ramGb={tier.ramGb} cpuCores={tier.cpuCores} maxUsers={tier.maxConcurrentUsers} />
+                  <ResourceRow maxUsers={tier.maxConcurrentUsers} />
                   {/* every feature, no "+N more" — a truncated list is exactly
                       what makes people leave to go and find the full one */}
                   <ul className="space-y-2.5 text-sm">
@@ -182,8 +177,10 @@ export default function BuyBot() {
           );
         })}
 
-        {/* Custom package card */}
-        <MotionCard className="flex flex-col overflow-hidden border-dashed">
+        {/* Custom package card — temporarily disabled: no price/details, no
+            link, just a clear "not available right now" state. Kept visible
+            (not removed) so it's obvious this is coming back, not gone. */}
+        <MotionCard className="flex flex-col overflow-hidden border-dashed opacity-60">
           <div className="h-1.5 w-full bg-gradient-to-r from-violet-400 to-fuchsia-300" />
           <CardHeader>
             <div className="mb-2 flex size-11 items-center justify-center rounded-lg bg-gradient-to-br from-violet-400 to-fuchsia-300 text-white">
@@ -194,32 +191,14 @@ export default function BuyBot() {
               {tt.custom.tagline}
             </p>
           </CardHeader>
-          {pricing?.customBuild && (
-            <div className="px-6 pb-1">
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-xs text-muted-foreground">{t.from}</span>
-                <span className="text-2xl font-extrabold">
-                  {formatToman(pricing.customBuild.basePrice, lang)}
-                </span>
-              </div>
-            </div>
-          )}
           <CardContent className="flex-1 space-y-2">
             <p className="text-sm text-muted-foreground">
-              {t.customRequiredNote}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {t.customPriceNote}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {t.customResourcesHint.replace("8", String(CUSTOM_MAX_RAM_GB))}
+              {t.customUnavailable}
             </p>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" variant="outline" asChild>
-              <Link href="/buy-bot/custom">
-                {t.buildCustom} <ArrowIcon className="ms-2 h-4 w-4" />
-              </Link>
+            <Button className="w-full" variant="outline" disabled>
+              {t.buildCustom}
             </Button>
           </CardFooter>
         </MotionCard>

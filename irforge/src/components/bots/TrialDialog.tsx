@@ -153,8 +153,8 @@ export function TrialDialog({ open, onOpenChange }: TrialDialogProps) {
               </DialogTitle>
               <DialogDescription>
                 {fa
-                  ? "معادل پکیج نقره‌ای، بدون نیاز به پرداخت. بعد از ۷ روز اگر پکیجی نخری، سرویس بات قطع می‌شود."
-                  : "Equivalent to the Silver package, no payment needed. If you don't upgrade within 7 days, the bot's service will be suspended."}
+                  ? "معادل پکیج استاندارد، بدون نیاز به پرداخت. بعد از ۷ روز اگر پکیجی نخری، سرویس بات قطع می‌شود."
+                  : "Equivalent to the Standard package, no payment needed. If you don't upgrade within 7 days, the bot's service will be suspended."}
               </DialogDescription>
             </DialogHeader>
 
