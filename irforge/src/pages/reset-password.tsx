@@ -18,7 +18,7 @@ export default function ResetPassword() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ export default function ResetPassword() {
     try {
       await customFetch("/api/auth/reset-password", {
         method: "POST",
-        body: JSON.stringify({ email, code, newPassword }),
+        body: JSON.stringify({ phone: phone.trim(), code, newPassword }),
       });
       toast({
         title: t.passwordResetToastTitle,
@@ -62,8 +62,13 @@ export default function ResetPassword() {
         <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
           <form onSubmit={submit} className="space-y-5">
             <div className="space-y-1.5">
-              <Label htmlFor="rp-email">{t.emailAddress}</Label>
-              <Input id="rp-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={loading} className="bg-background" />
+              <Label htmlFor="rp-phone">{t.loginPhone}</Label>
+              <Input
+                id="rp-phone" required
+                dir="ltr" inputMode="tel" autoComplete="tel"
+                placeholder="0912xxxxxxx"
+                value={phone} onChange={(e) => setPhone(e.target.value)} disabled={loading} className="bg-background"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="rp-code">{t.resetCodeLabel}</Label>

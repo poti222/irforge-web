@@ -8,14 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Phone, Mail, Pencil } from "lucide-react";
+import { Loader2, Phone, Mail, MessageSquareText, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/use-seo";
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
 import { BrandLogo } from "@/components/layout/brand-home";
 import { PublicPageControls } from "@/components/layout/public-page-controls";
+import { BackHomeButton } from "@/components/layout/back-home-button";
 import { CodeInput } from "@/components/auth/CodeInput";
+import { GoogleIcon } from "@/components/auth/GoogleIcon";
+import { GitHubIcon } from "@/components/auth/GitHubIcon";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/auth/TurnstileWidget";
@@ -51,7 +54,7 @@ interface SavedRegistration {
   id: string;
   deepLink: string | null;
   step: Step;
-  method: "phone" | "email";
+  method: "phone" | "email" | "sms";
 }
 
 function loadSaved(): SavedRegistration | null {
@@ -64,7 +67,8 @@ function loadSaved(): SavedRegistration | null {
         id: parsed.id,
         deepLink: parsed.deepLink ?? null,
         step: parsed.step ?? "telegram",
-        method: parsed.method === "email" ? "email" : "phone",
+        method:
+          parsed.method === "email" ? "email" : parsed.method === "sms" ? "sms" : "phone",
       };
     }
   } catch {
@@ -81,15 +85,18 @@ function saveRegistration(data: SavedRegistration) {
 /**
  * روش → هویت → [تلگرام] → کد → رمز عبور.
  *
- * گام تلگرام فقط در مسیر شماره است؛ مسیر ایمیل چهار گام دارد نه پنج.
+ * گام تلگرام فقط در مسیر شماره+تلگرام است؛ مسیرهای ایمیل و پیامک هر دو چهار
+ * گام دارند نه پنج — هیچ‌کدام نیازی به دور زدنِ تلگرام ندارند چون کدشان
+ * مستقیم به مقصد می‌رود.
  */
-function stepNumber(method: "phone" | "email", s: Step): number {
+function stepNumber(method: "phone" | "email" | "sms", s: Step): number {
+  const skipsTelegram = method === "email" || method === "sms";
   switch (s) {
     case "method": return 1;
     case "identity": return 2;
     case "telegram": return 3;
-    case "code": return method === "email" ? 3 : 4;
-    case "finish": return method === "email" ? 4 : 5;
+    case "code": return skipsTelegram ? 3 : 4;
+    case "finish": return skipsTelegram ? 4 : 5;
   }
 }
 
@@ -134,7 +141,7 @@ export default function Register() {
   useSEO({ title: t.createAccount ?? "Sign up | IrForge", noindex: true });
 
   const [step, setStep] = useState<Step>("method");
-  const [method, setMethod] = useState<"phone" | "email">("phone");
+  const [method, setMethod] = useState<"phone" | "email" | "sms">("phone");
   const [registrationId, setRegistrationId] = useState<string | null>(null);
   const [deepLink, setDeepLink] = useState<string | null>(null);
   const [status, setStatus] = useState<RegStatus | null>(null);
@@ -147,6 +154,12 @@ export default function Register() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [editingEmail, setEditingEmail] = useState(false);
+  // فقط مسیرِ پیامک از این استفاده می‌کند — مسیرِ شماره+تلگرام شماره را از
+  // خودِ تلگرام می‌گیرد (تأییدشده)، پس فیلد ورودی جدا لازم ندارد.
+  const [smsPhone, setSmsPhone] = useState("");
+  // ثانیه‌شمارِ اعتبارِ کد برای مسیرِ پیامک — بدون registrationId ای که
+  // بشود از سرور poll کرد، این مستقیماً از پاسخِ send/resend پر می‌شود.
+  const [smsSecondsLeft, setSmsSecondsLeft] = useState(0);
 
   // IRFORGE_PROMPT_V3 Phase 42 — abuse gate on the free identity step.
   const captchaConfig = useCaptchaConfig();
@@ -302,6 +315,15 @@ export default function Register() {
     return () => window.clearInterval(id);
   }, [resendIn]);
 
+  // همتای مسیرِ پیامکِ افکتِ بالا برای `secondsLeft`: آنجا از `status.codeExpiresAt`
+  // سرور می‌آید (رکوردِ pendingRegistrations)، اینجا چنین رکوردی وجود ندارد —
+  // پس خودِ عدد را می‌شماریم.
+  useEffect(() => {
+    if (method !== "sms" || smsSecondsLeft <= 0) return;
+    const id = window.setInterval(() => setSmsSecondsLeft((n) => Math.max(0, n - 1)), 1000);
+    return () => window.clearInterval(id);
+  }, [method, smsSecondsLeft]);
+
   function fail(err: any, fallback?: string) {
     const retry = err?.data?.retryAfterSeconds;
     const description =
@@ -347,12 +369,32 @@ export default function Register() {
 
   async function startRegistration() {
     if (!firstName.trim() || !lastName.trim() || !email.trim()) return;
+    if (method === "sms" && !smsPhone.trim()) return;
     if (captchaConfig.enabled && !captchaToken) {
       toast({ variant: "destructive", title: tCaptcha.required });
       return;
     }
     setBusy(true);
     try {
+      if (method === "sms") {
+        // مسیرِ پیامک نه pendingRegistrations دارد نه registrationId — هویت
+        // (نام/ایمیل) همین‌جا در state می‌ماند و فقط در گامِ پایانی، همراهِ
+        // اثباتِ تأییدِ شماره، یک‌جا به سرور می‌رود. اینجا فقط کدِ پیامکی
+        // فرستاده می‌شود.
+        const res = await customFetch<{ message: string; expiresInSeconds: number }>(
+          "/api/auth/otp/sms/send",
+          {
+            method: "POST",
+            body: JSON.stringify({ phone: smsPhone.trim(), purpose: "register" }),
+          },
+        );
+        setCode("");
+        setSmsSecondsLeft(res.expiresInSeconds ?? 120);
+        setResendIn(60);
+        setStep("code");
+        return;
+      }
+
       if (method === "email") {
         // مسیر ایمیل گام تلگرام ندارد: کد همین‌جا و بلافاصله فرستاده می‌شود.
         const res = await customFetch<{ registrationId: string; step?: string }>(
@@ -412,15 +454,65 @@ export default function Register() {
   }
 
   async function verify(entered: string) {
-    if (!registrationId || entered.length !== 6) return;
+    if (entered.length !== 6) return;
+    if (method === "sms") {
+      if (!smsPhone.trim()) return;
+      setBusy(true);
+      setCodeInvalid(false);
+      setCodeErrorMessage(undefined);
+      try {
+        // فقط اثباتِ مالکیتِ شماره — هیچ حسابی هنوز ساخته نمی‌شود
+        // (`verified:true` بدونِ session، ببینید کامنتِ purpose==="register"
+        // در routes/auth.ts). ساختِ حساب کارِ گامِ «پایان» است.
+        await customFetch<{ verified: boolean; phone: string }>("/api/auth/otp/sms/verify", {
+          method: "POST",
+          body: JSON.stringify({ phone: smsPhone.trim(), code: entered, purpose: "register" }),
+        });
+        setStep("finish");
+      } catch (err: any) {
+        setCodeInvalid(true);
+        setCode("");
+        if (err?.data?.code === "too_many_attempts") {
+          setStep("identity");
+          toast({ variant: "destructive", title: t.tooManyAttempts });
+          return;
+        }
+        const attemptsLeft = err?.data?.attemptsLeft;
+        const message =
+          err?.data?.code === "invalid_code" && typeof attemptsLeft === "number"
+            ? (t.codeAttemptsLeft ?? "").replace("{n}", String(attemptsLeft))
+            : serverMessage(err);
+        setCodeErrorMessage(message);
+        fail(err);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (!registrationId) return;
     setBusy(true);
     setCodeInvalid(false);
     setCodeErrorMessage(undefined);
     try {
-      const res = await customFetch<RegStatus & { ok: boolean }>(
+      const res = await customFetch<
+        RegStatus & { ok: boolean; existingAccount?: boolean; user?: any; token?: string }
+      >(
         "/api/auth/register/verify-code",
         { method: "POST", body: JSON.stringify({ registrationId, code: entered }) },
       );
+
+      // این ایمیل از قبل صاحب حساب داشت — کاربر همین الان مالکیتش را با همین
+      // کد ثابت کرد، پس دیگر رمز تازه نمی‌خواهیم؛ درجا واردش می‌کنیم، دقیقاً
+      // مثل انتهای موفقِ `complete()`.
+      if (res.existingAccount && res.token && res.user) {
+        setAuthToken(res.token);
+        queryClient.setQueryData(getGetMeQueryKey(), res.user);
+        sessionStorage.removeItem(STORAGE_KEY);
+        navigate("/dashboard");
+        return;
+      }
+
       setStatus((prev) => ({ ...(prev as RegStatus), ...res }));
       setEmail(res.email ?? email);
       setStep("finish");
@@ -449,6 +541,31 @@ export default function Register() {
   }
 
   async function resend() {
+    if (method === "sms") {
+      if (!smsPhone.trim()) return;
+      setBusy(true);
+      try {
+        const res = await customFetch<{ message: string; expiresInSeconds: number }>(
+          "/api/auth/otp/sms/send",
+          {
+            method: "POST",
+            body: JSON.stringify({ phone: smsPhone.trim(), purpose: "register" }),
+          },
+        );
+        setResendIn(60);
+        setSmsSecondsLeft(res.expiresInSeconds ?? 120);
+        setCode("");
+        setCodeInvalid(false);
+        setCodeErrorMessage(undefined);
+      } catch (err: any) {
+        if (typeof err?.data?.retryAfterSeconds === "number") setResendIn(err.data.retryAfterSeconds);
+        fail(err);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     if (!registrationId) return;
     setBusy(true);
     try {
@@ -470,6 +587,12 @@ export default function Register() {
   }
 
   async function saveEmail() {
+    // مسیرِ پیامک هنوز هیچ رکوردی روی سرور ندارد — ایمیل فقط در state
+    // می‌ماند و همراهِ بقیه‌ی فیلدها در `complete()` یک‌جا فرستاده می‌شود.
+    if (method === "sms") {
+      setEditingEmail(false);
+      return;
+    }
     if (!registrationId) return;
     try {
       await customFetch(`/api/auth/register/${registrationId}`, {
@@ -483,7 +606,7 @@ export default function Register() {
   }
 
   async function complete() {
-    if (!registrationId) return;
+    if (method !== "sms" && !registrationId) return;
     if (password !== passwordConfirm) {
       toast({ variant: "destructive", title: t.passwordMismatch });
       return;
@@ -495,10 +618,21 @@ export default function Register() {
     setBusy(true);
     try {
       const res = await customFetch<{ user: any; token: string }>(
-        "/api/auth/register/complete",
+        method === "sms" ? "/api/auth/register/sms/complete" : "/api/auth/register/complete",
         {
           method: "POST",
-          body: JSON.stringify({ registrationId, password, passwordConfirm }),
+          body: JSON.stringify(
+            method === "sms"
+              ? {
+                  phone: smsPhone.trim(),
+                  firstName: firstName.trim(),
+                  lastName: lastName.trim(),
+                  email: email.trim(),
+                  password,
+                  passwordConfirm,
+                }
+              : { registrationId, password, passwordConfirm },
+          ),
         },
       );
       // Same key `customFetch`'s auth-token getter reads ("irforge_token") —
@@ -511,6 +645,10 @@ export default function Register() {
     } catch (err: any) {
       // رکورد عمداً زنده می‌ماند تا کاربر بتواند ایمیل را اصلاح کند.
       if (err?.data?.code === "email_taken") setEditingEmail(true);
+      // اثباتِ تأییدِ شماره (فاز پیامک) بعد از ۱۰ دقیقه منقضی می‌شود — اگر
+      // کاربر همین‌جا کند بود، برگرداندنش به گامِ کد از دوباره‌تایپ‌کردنِ
+      // همه‌چیز بهتر است.
+      if (err?.data?.code === "phone_not_verified") setStep("code");
       fail(err);
     } finally {
       setBusy(false);
@@ -523,6 +661,7 @@ export default function Register() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
+      <BackHomeButton className="fixed start-4 top-4 z-10" />
       <PublicPageControls className="fixed end-4 top-4 z-10" />
       <div className="w-full max-w-md space-y-6">
         <div className="flex justify-center">
@@ -534,6 +673,53 @@ export default function Register() {
           <div className="space-y-4">
             {/* گام اول: بازگشتی وجود ندارد، پس فقط نشانگر گام. */}
             <AuthStepHeader title={t.methodTitle} step={1} total={stepNumber(method, "finish")} />
+
+            {/*
+              ثبت‌نام یک‌کلیکی با گوگل/گیت‌هاب: همان endpoint ورودِ آن سرویس
+              (GET /api/auth/google یا /api/auth/github) — سرور اگر حسابی با
+              همان ایمیل نباشد خودش می‌سازد، پس «ثبت‌نام» و «ورود» با این دو
+              سرویس یک مسیر مشترک‌اند. بقیه‌ی گام‌های ثبت‌نام (شماره/ایمیل/
+              پیامک) پایین‌تر، جدا از این دو، دست‌نخورده می‌مانند.
+            */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/google`;
+                }}
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-3 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                aria-label={t.googleLoginButton}
+                title={t.googleLoginHint}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                  <GoogleIcon className="size-4" />
+                </span>
+                <span className="text-xs font-medium leading-tight">{t.googleLoginButton}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/github`;
+                }}
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-3 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                aria-label={t.githubLoginButton}
+                title={t.githubLoginHint}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                  <GitHubIcon className="size-4" />
+                </span>
+                <span className="text-xs font-medium leading-tight">{t.githubLoginButton}</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">{t.orDivider}</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
 
             <button
               type="button"
@@ -565,6 +751,20 @@ export default function Register() {
               </button>
             )}
 
+            <button
+              type="button"
+              onClick={() => { setMethod("sms"); setStep("identity"); }}
+              className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
+            >
+              <div className="flex items-start gap-3">
+                <MessageSquareText className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="font-semibold">{t.methodSms}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{t.methodSmsDesc}</p>
+                </div>
+              </div>
+            </button>
+
             <p className="text-center text-sm text-muted-foreground">
               {t.alreadyHaveAccount ?? ""}{" "}
               <Link href="/login" className="text-primary hover:underline">{t.signInLink}</Link>
@@ -580,7 +780,9 @@ export default function Register() {
           >
             <AuthStepHeader
               title={t.identityTitle}
-              description={method === "email" ? t.identityDescEmail : t.identityDesc}
+              description={
+                method === "email" ? t.identityDescEmail : method === "sms" ? t.identityDescSms : t.identityDesc
+              }
               step={stepNumber(method, "identity")}
               total={stepNumber(method, "finish")}
               onBack={() => goBack("method")}
@@ -600,6 +802,20 @@ export default function Register() {
               <Label htmlFor="reg-email">{t.email}</Label>
               <Input id="reg-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
+            {method === "sms" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="reg-sms-phone">{t.phoneLabel}</Label>
+                <Input
+                  id="reg-sms-phone"
+                  dir="ltr"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={smsPhone}
+                  onChange={(e) => setSmsPhone(e.target.value)}
+                  required
+                />
+              </div>
+            )}
 
             {captchaConfig.enabled && (
               <div className="flex justify-center">
@@ -653,10 +869,12 @@ export default function Register() {
                 نمی‌فرستد؛ ارسال مجدد دکمه‌ی خودش را دارد. */}
             <AuthStepHeader
               title={t.codeTitle}
-              description={method === "email" ? t.codeDescEmail : t.codeDesc}
+              description={
+                method === "email" ? t.codeDescEmail : method === "sms" ? t.codeDescSms : t.codeDesc
+              }
               step={stepNumber(method, "code")}
               total={stepNumber(method, "finish")}
-              onBack={() => goBack(method === "email" ? "identity" : "telegram")}
+              onBack={() => goBack(method === "phone" ? "telegram" : "identity")}
             />
 
             {/* مقصد ماسک‌شده — نه رشته‌ی خام، ولی به‌قدر کافی برای این‌که کاربر
@@ -667,9 +885,11 @@ export default function Register() {
             <p className="text-center text-sm text-muted-foreground" dir="ltr">
               {method === "email"
                 ? maskEmail(email)
-                : status?.phone
-                  ? maskPhone(status.phone)
-                  : ""}
+                : method === "sms"
+                  ? maskPhone(smsPhone)
+                  : status?.phone
+                    ? maskPhone(status.phone)
+                    : ""}
             </p>
 
             <CodeInput
@@ -679,13 +899,17 @@ export default function Register() {
               disabled={busy}
               invalid={codeInvalid}
               errorMessage={codeErrorMessage}
+              webOtp={method === "sms"}
             />
 
             <p className="text-center text-sm text-muted-foreground" aria-live="polite">
-              {secondsLeft > 0
+              {(method === "sms" ? smsSecondsLeft : secondsLeft) > 0
                 ? (t.codeExpiresIn ?? "").replace(
                     "{t}",
-                    `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`,
+                    (() => {
+                      const s = method === "sms" ? smsSecondsLeft : secondsLeft;
+                      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+                    })(),
                   )
                 : t.codeExpired}
             </p>
@@ -699,10 +923,10 @@ export default function Register() {
               <Button
                 variant="ghost"
                 className="w-full"
-                disabled={busy || resendIn > 0 || status?.canResend === false}
+                disabled={busy || resendIn > 0 || (method !== "sms" && status?.canResend === false)}
                 onClick={() => void resend()}
               >
-                {status?.canResend === false
+                {method !== "sms" && status?.canResend === false
                   ? t.resendLimit
                   : resendIn > 0
                     ? (t.resendIn ?? "").replace("{n}", String(resendIn))
@@ -730,7 +954,9 @@ export default function Register() {
                 ویرایش دارد. */}
             <AuthStepHeader
               title={t.finishTitle}
-              description={method === "email" ? t.finishDescEmail : t.finishDesc}
+              description={
+                method === "email" ? t.finishDescEmail : method === "sms" ? t.finishDescSms : t.finishDesc
+              }
               step={stepNumber(method, "finish")}
               total={stepNumber(method, "finish")}
             />
@@ -745,10 +971,12 @@ export default function Register() {
                     </span>
                   </div>
                 )}
-                {method === "phone" && (
+                {(method === "phone" || method === "sms") && (
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-muted-foreground">{t.phoneLabel}</span>
-                    <span className="font-medium tabular-nums" dir="ltr">{status?.phone ?? "—"}</span>
+                    <span className="font-medium tabular-nums" dir="ltr">
+                      {method === "sms" ? smsPhone : (status?.phone ?? "—")}
+                    </span>
                   </div>
                 )}
                 <div className="flex items-center justify-between gap-3">

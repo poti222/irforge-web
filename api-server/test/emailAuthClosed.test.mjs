@@ -61,11 +61,11 @@ test("POST /auth/register/email/start checks EMAIL_AUTH_CLOSED before sending an
   assert.ok(guardAt < sendAt, "the closed-check must run before a code is ever sent");
 });
 
-test("POST /auth/forgot-password is untouched — it was never an email delivery channel", () => {
+test("POST /auth/forgot-password needs no EMAIL_AUTH_CLOSED check — it's phone-keyed, not email", () => {
   const block = authSrc.slice(
     authSrc.indexOf('router.post("/auth/forgot-password",'),
     authSrc.indexOf('router.post("/auth/reset-password"'),
   );
   assert.doesNotMatch(block, /EMAIL_AUTH_CLOSED/);
-  assert.match(block, /no_telegram/, "recovery still requires Telegram, same as before");
+  assert.match(block, /normalizePhone\(req\.body\?\.phone\)/, "forgot-password looks accounts up by phone");
 });

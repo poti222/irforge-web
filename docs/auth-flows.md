@@ -15,6 +15,15 @@ over the phone through a `request_contact` button — a number **Telegram has
 verified**, not one the user typed. No SMS cost, no typos, a genuinely
 confirmed phone.
 
+A third method, SMS OTP via sms.ir, works the same way end-to-end but is
+routed through `/auth/otp/sms/send` + `/auth/otp/sms/verify` instead of the
+Telegram bot (see `api-server/src/lib/smsir.ts` and
+`api-server/src/lib/smsOtpRateLimit.ts`). It needs no panel setup at all in
+development — a Sandbox key simulates success without sending real SMS or
+spending credit. For what's needed to make it send real SMS in production
+(an approved OTP template + a Production key on Railway), see
+[`SMS_OTP_SETUP.md`](./SMS_OTP_SETUP.md).
+
 ## Registration
 
 ```

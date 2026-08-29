@@ -1,8 +1,8 @@
 /**
  * schema/auth.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * جدول‌های جریان ثبت‌نام/ورودِ دومرحله‌ای، محدودسازی نرخ، نشست مهمان و
- * لاگ ممیزی ادمین.
+ * جدول‌های جریان ثبت‌نام/ورودِ دومرحله‌ای، محدودسازی نرخ، نشست مهمان،
+ * لاگ ممیزی ادمین، و کدهای OTP پیامکی (sms_otp_codes، IRFORGE_SMS_OTP_PROMPT).
  *
  * نکته‌ی امنیتی مشترک همه‌ی این جدول‌ها: **هیچ‌جا کدِ خام ذخیره نمی‌شود.**
  * فقط sha256 آن (`codeHash`) نگه‌داری می‌شود و مقایسه هم timing-safe انجام
@@ -185,12 +185,78 @@ export const adminAuditLogTable = pgTable("admin_audit_log", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * کدهای OTP پیامکی — IRFORGE_SMS_OTP_PROMPT Phase 2.
+ *
+ * چرا یک جدول جدید و نه گسترش سه جدولِ بالا؟
+ * هر کدام از سه جدول بالا مخصوصِ یک کانالِ خاص طراحی شده‌اند: تلگرام (کاربر
+ * از داخل بات با دکمه‌ی request_contact تأیید می‌شود) و ایمیل (کد به آدرس
+ * ایمیل می‌رود). پیامک یک کانالِ سوم است که — برخلاف تلگرام/ایمیل — باید
+ * پشتِ هر سه هدف (ثبت‌نام، ورود، فراموشی رمز) یکسان کار کند، چون فقط یک
+ * چیز لازم دارد: یک شماره موبایل. اضافه‌کردنِ فیلدهای پیامکی به
+ * `login_challenges` (که جوابش را از `user_id` می‌گیرد) و به `users.reset_code_*`
+ * (که با تلگرامِ پلتفرم کار می‌کند) یعنی سه مسیر جدا با فرض‌های متفاوت را
+ * برای یک ویژگی ساده به‌هم می‌ریزیم. یک جدولِ مستقل — دقیقاً هم‌شکل با چیزی
+ * که پرامپت خواسته (شماره، کد هش‌شده، انقضا، تلاش، هدف) — هر سه هدف را با
+ * یک ستون `purpose` پوشش می‌دهد و از سه گلوگاهِ موجود فقط شماره‌ی نرمال‌شده و
+ * (وقتی هدف ورود/بازیابی رمز است) `user_id` را قرض می‌گیرد.
+ *
+ * هش/تولید/مقایسه‌ی کد از همان api-server/src/lib/otp.ts استفاده می‌کند —
+ * هیچ منطق رمزنگاری جدیدی اینجا نیست، فقط محل ذخیره‌سازی.
+ */
+export const smsOtpCodesTable = pgTable("sms_otp_codes", {
+  id: text("id").primaryKey(),
+
+  /** شماره‌ی نرمال‌شده به E.164 (همان normalizePhone در lib/otp.ts) */
+  phone: text("phone").notNull(),
+
+  /** register | login | password_reset — ببینید SMS_OTP_PURPOSES پایین */
+  purpose: text("purpose").notNull(),
+
+  /**
+   * برای purpose = login یا password_reset، کاربرِ صاحبِ این کد از قبل
+   * وجود دارد و اینجا پر می‌شود — verify باید هم شماره و هم user_id را چک
+   * کند، نه فقط شماره را، وگرنه یک کدِ معتبر برای شماره‌ی X می‌توانست
+   * حساب Y را هم باز کند اگر شماره‌ها به هر دلیلی (تغییرِ صاحب سیم‌کارت)
+   * جا‌به‌جا شده باشند. برای purpose = register همیشه NULL است، چون هنوز
+   * کاربری ساخته نشده.
+   */
+  userId: text("user_id"),
+
+  /** sha256/HMAC کد — هرگز متن خام (ببینید hashCode در lib/otp.ts) */
+  codeHash: text("code_hash").notNull(),
+
+  /**
+   * پیشنهاد پرامپت ۲ دقیقه است — کوتاه‌تر از پیش‌فرض ۵ دقیقه‌ی تلگرام/ایمیل
+   * در lib/otp.ts، چون هر ارسالِ مجدد اینجا هزینه‌ی واقعی پیامک دارد و
+   * می‌خواهیم کاربر را به درخواستِ زودهنگامِ کد بعدی تشویق نکنیم. طول عمر
+   * در سطح فراخوانی (فاز ۴) تعیین می‌شود، نه اینجا با یک مقدارِ ثابت در
+   * اسکیما.
+   */
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+
+  /** حداکثر ۵ تلاش اشتباه (MAX_CODE_ATTEMPTS در lib/otp.ts) قبل از باطل شدن کد */
+  attempts: integer("attempts").notNull().default(0),
+
+  /** چندمین ارسال برای همین (phone, purpose) — پایه‌ی rate limit فاز ۳ */
+  sentCount: integer("sent_count").notNull().default(1),
+
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+
+  /** فقط برای بررسی سوءاستفاده — هرگز در پاسخی برنمی‌گردد */
+  sourceIp: text("source_ip"),
+  userAgent: text("user_agent"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type PendingRegistration = typeof pendingRegistrationsTable.$inferSelect;
 export type LoginChallenge = typeof loginChallengesTable.$inferSelect;
 export type TelegramLoginRequest = typeof telegramLoginRequestsTable.$inferSelect;
 export type AuthRateLimit = typeof authRateLimitsTable.$inferSelect;
 export type GuestSession = typeof guestSessionsTable.$inferSelect;
 export type AdminAuditLogEntry = typeof adminAuditLogTable.$inferSelect;
+export type SmsOtpCode = typeof smsOtpCodesTable.$inferSelect;
 
 /** گام‌های ثبت‌نام، به‌ترتیب. تنها سرور این مقدار را جلو می‌برد. */
 export const REGISTRATION_STEPS = [
@@ -201,3 +267,7 @@ export const REGISTRATION_STEPS = [
   "completed",
 ] as const;
 export type RegistrationStep = (typeof REGISTRATION_STEPS)[number];
+
+/** مقادیر معتبر ستون `purpose` در sms_otp_codes — سه هدفی که پرامپت خواسته. */
+export const SMS_OTP_PURPOSES = ["register", "login", "password_reset"] as const;
+export type SmsOtpPurpose = (typeof SMS_OTP_PURPOSES)[number];

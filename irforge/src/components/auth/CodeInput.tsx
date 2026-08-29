@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/hooks/use-translation";
+import { useWebOtp } from "@/hooks/use-web-otp";
 
 /**
  * ورودی کد ۶ رقمی — مشترک بین ثبت‌نام و ورود.
@@ -15,6 +16,10 @@ import { useT } from "@/hooks/use-translation";
  *    ارقامش نباید با جهت متن صفحه برعکس شود.
  *  - **ارقام فارسی/عربی هم پذیرفته می‌شوند**: کیبورد فارسی موبایل پیش‌فرض
  *    ۰-۹ فارسی می‌دهد؛ بدون این تبدیل، تایپ مستقیم کد کار نمی‌کرد.
+ *  - `webOtp` (پیش‌فرض false): وقتی کد واقعاً به‌صورت پیامک رسیده باشد
+ *    (روش «پیامک»، نه تلگرام/ایمیل)، این کامپوننت با WebOTP API (فقط
+ *    Chrome/Android) خودش کد را از پیامک می‌خواند و پر می‌کند — بدون خروج
+ *    از تب. جزئیات در hooks/use-web-otp.ts.
  */
 export const CODE_LENGTH = 6;
 
@@ -35,6 +40,7 @@ export function CodeInput({
   disabled,
   invalid,
   errorMessage,
+  webOtp = false,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -43,10 +49,18 @@ export function CodeInput({
   invalid?: boolean;
   /** پیام قابل‌شنیدن برای صفحه‌خوان (aria-live) — مثلاً «کد اشتباه است، ۲ تلاش باقی مانده». */
   errorMessage?: string;
+  /**
+   * فقط برای گام‌هایی که کد واقعاً با پیامک می‌رسد. روی سایر گام‌ها
+   * (تلگرام/ایمیل) این prop اصلاً پاس داده نمی‌شود چون آن پیام‌ها SMS
+   * نیستند — WebOTP API چیزی برای گرفتن پیدا نمی‌کرد.
+   */
+  webOtp?: boolean;
 }) {
   const t = useT("auth") as Record<string, string>;
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const [focused, setFocused] = useState(0);
+
+  useWebOtp(onChange, webOtp && !disabled);
 
   const digits = value.padEnd(CODE_LENGTH, " ").slice(0, CODE_LENGTH).split("");
 
@@ -102,7 +116,7 @@ export function CodeInput({
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-center gap-2" dir="ltr" role="group" aria-label={t.codeGroupLabel}>
+      <div className="flex justify-center gap-1.5 sm:gap-2" dir="ltr" role="group" aria-label={t.codeGroupLabel}>
         {Array.from({ length: CODE_LENGTH }).map((_, i) => (
           <input
             key={i}
@@ -119,7 +133,7 @@ export function CodeInput({
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
             className={cn(
-              "size-12 rounded-lg border bg-background text-center text-xl font-semibold tabular-nums outline-none transition-colors motion-reduce:transition-none",
+              "size-10 rounded-lg border bg-background text-center text-lg font-semibold tabular-nums outline-none transition-colors motion-reduce:transition-none sm:size-12 sm:text-xl",
               "focus:border-primary focus:ring-2 focus:ring-primary/30",
               invalid && "border-destructive",
               focused === i && !invalid && "border-primary",

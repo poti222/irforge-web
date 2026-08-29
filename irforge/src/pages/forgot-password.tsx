@@ -6,14 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BrandLogo } from "@/components/layout/brand-home";
 import { PublicPageControls } from "@/components/layout/public-page-controls";
-import { ArrowLeft, Loader2, MailCheck, Send } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Send } from "lucide-react";
 import { useT } from "@/hooks/use-translation";
 import { useSEO } from "@/hooks/use-seo";
 
 export default function ForgotPassword() {
   useSEO({ title: "بازیابی رمز عبور | IrForge", noindex: true });
   const t = useT("auth");
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,12 +25,11 @@ export default function ForgotPassword() {
     try {
       const res = await customFetch<{ message: string }>("/api/auth/forgot-password", {
         method: "POST",
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ phone: phone.trim() }),
       });
       setSent(true);
       setError(res.message ?? null);
     } catch (err: any) {
-      // Backend returns a clear message for the "no linked Telegram" case.
       setError(err?.data?.error || err?.message || t.genericError);
     } finally {
       setLoading(false);
@@ -54,7 +53,7 @@ export default function ForgotPassword() {
         <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
           {sent ? (
             <div className="space-y-4 text-center">
-              <MailCheck className="mx-auto h-10 w-10 text-emerald-500" />
+              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
               <p className="text-sm text-muted-foreground">{error}</p>
               <Button asChild className="w-full">
                 <Link href="/reset-password">{t.haveResetCode}</Link>
@@ -63,12 +62,13 @@ export default function ForgotPassword() {
           ) : (
             <form onSubmit={submit} className="space-y-5">
               <div className="space-y-1.5">
-                <Label htmlFor="fp-email">{t.emailAddress}</Label>
+                <Label htmlFor="fp-phone">{t.loginPhone}</Label>
                 <Input
-                  id="fp-email" type="email" required
-                  placeholder="developer@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="fp-phone" required
+                  dir="ltr" inputMode="tel" autoComplete="tel"
+                  placeholder="0912xxxxxxx"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   disabled={loading}
                   className="bg-background"
                 />
