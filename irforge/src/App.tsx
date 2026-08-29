@@ -50,6 +50,7 @@ const AuthTelegram = lazy(() => import("@/pages/auth-telegram"));
 const AuthGoogleCallback = lazy(() => import("@/pages/auth-google-callback"));
 const AuthGithubCallback = lazy(() => import("@/pages/auth-github-callback"));
 const ResetPassword = lazy(() => import("@/pages/reset-password"));
+const CompleteProfile = lazy(() => import("@/pages/complete-profile"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const Bots = lazy(() => import("@/pages/bots"));
 const BuyBot = lazy(() => import("@/pages/buy-bot"));
@@ -113,6 +114,16 @@ function ProtectedRoute({ component: Component, adminOnly = false, superAdminOnl
     return <Redirect to="/login" />;
   }
 
+  // Mandatory Profile Completion & Identity System — applies to every
+  // authenticated route regardless of how the user signed in (email/phone/
+  // Telegram/Google/GitHub), and takes priority over the admin/super-admin
+  // checks below: an admin with an incomplete profile still gets sent here
+  // first. /complete-profile itself is a separate, unguarded-by-this route
+  // (see AuthOnlyRoute below) so this never loops.
+  if (!user.profileComplete) {
+    return <Redirect to="/complete-profile" />;
+  }
+
   if (adminOnly && user.role !== "admin" && user.role !== "super_admin") {
     return <Redirect to="/dashboard" />;
   }
@@ -126,6 +137,34 @@ function ProtectedRoute({ component: Component, adminOnly = false, superAdminOnl
       <DashboardShell routeKey={location}>
         <Component {...rest} />
       </DashboardShell>
+    </Suspense>
+  );
+}
+
+/**
+ * برای خودِ /complete-profile: نیاز به لاگین دارد، ولی عمداً کاملیِ پروفایل
+ * را چک نمی‌کند — وگرنه ProtectedRoute همین صفحه را به خودش ریدایرکت
+ * می‌کرد. و عمداً DashboardShell (سایدبار/هدر داشبورد) هم ندارد: این یک
+ * ویزارد متمرکز است، شبیه login/register، نه یک صفحه‌ی داخل داشبورد.
+ */
+function AuthOnlyRoute({ component: Component, ...rest }: { component: any }) {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Redirect to="/login" />;
+  }
+
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <Component {...rest} />
     </Suspense>
   );
 }
@@ -202,6 +241,7 @@ function Router() {
       <Route path="/forgot-password"><PublicOnlyRoute component={ForgotPassword} /></Route>
       <Route path="/reset-password"><PublicOnlyRoute component={ResetPassword} /></Route>
       
+      <Route path="/complete-profile"><AuthOnlyRoute component={CompleteProfile} /></Route>
       <Route path="/dashboard"><ProtectedRoute component={Dashboard} /></Route>
       <Route path="/bots"><ProtectedRoute component={Bots} /></Route>
       <Route path="/buy-bot"><ProtectedRoute component={BuyBot} /></Route>

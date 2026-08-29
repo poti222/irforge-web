@@ -56,3 +56,19 @@ test("password is hashed before storage, never stored raw", () => {
   assert.match(src, /hashPassword\(body\.password\)/);
   assert.doesNotMatch(src, /passwordHash:\s*body\.password\b/);
 });
+
+test("a manually-typed phone is never trusted as verified on its own — it must have a recent, real SMS OTP proof", () => {
+  // A bare client-supplied phone string is trivially spoofable — anyone
+  // could type someone else's number. This must go through the same
+  // server-side proof registration.ts's SMS-complete route already
+  // requires (a recently-consumed smsOtpCodesTable row, purpose=register),
+  // not just "the client sent a phone field so mark it verified".
+  const phoneBlock = src.slice(src.indexOf('hasField("phone")'), src.indexOf('hasField("platformUsername")'));
+  assert.match(phoneBlock, /recentSmsRegisterProof\(phone\)/);
+  assert.match(phoneBlock, /phone_not_verified/);
+  // phoneVerified must only be set to true, and only after the proof check
+  // — never unconditionally.
+  const proofAt = phoneBlock.indexOf("recentSmsRegisterProof");
+  const verifiedAt = phoneBlock.indexOf("updates.phoneVerified");
+  assert.ok(proofAt !== -1 && verifiedAt !== -1 && proofAt < verifiedAt);
+});

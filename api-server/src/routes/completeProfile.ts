@@ -24,6 +24,7 @@ import { normalizePhone } from "../lib/otp";
 import { hashPassword } from "../lib/password";
 import { nameGenderMismatch, isFakeName } from "../lib/identityHeuristics";
 import { authRateLimit } from "../middleware/rateLimit";
+import { recentSmsRegisterProof } from "./registration";
 
 const router = Router();
 
@@ -112,8 +113,17 @@ router.patch("/auth/complete-profile", authRateLimit("complete_profile"), requir
         .where(and(eq(usersTable.phone, phone), ne(usersTable.id, req.userId)))
         .limit(1);
       if (taken) throw new FieldValidationError("phone", "Phone number is already taken", "phone_taken", 409);
+      // یک عدد تایپ‌شده به‌تنهایی اثباتِ مالکیت نیست — هرکسی می‌توانست شماره‌ی
+      // دیگری را اینجا بنویسد و phoneVerified=true بگیرد. همان اثباتِ
+      // ثبت‌نامِ پیامکی (recentSmsRegisterProof در routes/registration.ts:
+      // یک ردیفِ تازه‌مصرف‌شده‌ی smsOtpCodesTable با purpose="register" برای
+      // همین شماره) لازم است — فرانت باید پیش از این PATCH، همان
+      // POST /auth/otp/sms/send + POST /auth/otp/sms/verify را زده باشد.
+      if (!(await recentSmsRegisterProof(phone))) {
+        throw new FieldValidationError("phone", "Phone number verification was not found or has expired", "phone_not_verified");
+      }
       updates.phone = phone;
-      updates.phoneVerified = true; // مسیر ورودی این فیلد فقط تلگرام است، پس همین‌جا تأییدشده تلقی می‌شود
+      updates.phoneVerified = true;
     }
 
     if (hasField("platformUsername")) {

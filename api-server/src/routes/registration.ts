@@ -739,7 +739,7 @@ const SMS_PHONE_PROOF_TTL_MS = 10 * 60 * 1000;
  * مسیر `/auth/otp/sms/verify` رد نشده — کلاینت هرچه بگوید، بدون این اثبات
  * سمت سرور اعتماد نمی‌شود.
  */
-async function recentSmsRegisterProof(phone: string): Promise<boolean> {
+export async function recentSmsRegisterProof(phone: string): Promise<boolean> {
   const [row] = await db
     .select({ consumedAt: smsOtpCodesTable.consumedAt })
     .from(smsOtpCodesTable)
