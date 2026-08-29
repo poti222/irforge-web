@@ -158,7 +158,7 @@
     "passwordResetToastDesc": "Теперь вы можете войти.",
     "resetCodeInvalidError": "Неверный или истёкший код",
     "methodTitle": "Как вы хотите зарегистрироваться?",
-    "methodPhone": "Номер телефона",
+    "methodPhone": "Telegram",
     "methodPhoneDesc": "Подтверждение через Telegram — без SMS и без ввода номера.",
     "methodEmail": "Электронная почта",
     "methodEmailDesc": "Регистрация по адресу почты и паролю.",

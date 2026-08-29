@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Phone, Mail, MessageSquareText, Pencil } from "lucide-react";
+import { Loader2, Send, Mail, MessageSquareText, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/use-seo";
 import { useT } from "@/hooks/use-translation";
@@ -724,14 +724,14 @@ export default function Register() {
 
             <button
               type="button"
-              onClick={() => { setMethod("phone"); setStep("identity"); }}
+              onClick={() => { setMethod("sms"); setStep("identity"); }}
               className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
             >
               <div className="flex items-start gap-3">
-                <Phone className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                <MessageSquareText className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
                 <div className="min-w-0">
-                  <p className="font-semibold">{t.methodPhone}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{t.methodPhoneDesc}</p>
+                  <p className="font-semibold">{t.methodSms}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{t.methodSmsDesc}</p>
                 </div>
               </div>
             </button>
@@ -754,14 +754,14 @@ export default function Register() {
 
             <button
               type="button"
-              onClick={() => { setMethod("sms"); setStep("identity"); }}
+              onClick={() => { setMethod("phone"); setStep("identity"); }}
               className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
             >
               <div className="flex items-start gap-3">
-                <MessageSquareText className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                <Send className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
                 <div className="min-w-0">
-                  <p className="font-semibold">{t.methodSms}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{t.methodSmsDesc}</p>
+                  <p className="font-semibold">{t.methodPhone}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{t.methodPhoneDesc}</p>
                 </div>
               </div>
             </button>

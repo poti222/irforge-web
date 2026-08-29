@@ -158,7 +158,7 @@
     "passwordResetToastDesc": "You can now sign in.",
     "resetCodeInvalidError": "Invalid or expired code",
     "methodTitle": "How do you want to sign up?",
-    "methodPhone": "Phone number",
+    "methodPhone": "Telegram",
     "methodPhoneDesc": "Verified through Telegram — no SMS, no typing your number.",
     "methodEmail": "Email",
     "methodEmailDesc": "Sign up with an email address and password.",

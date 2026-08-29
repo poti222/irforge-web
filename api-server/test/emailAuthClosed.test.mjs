@@ -1,12 +1,14 @@
 /**
  * test/emailAuthClosed.test.mjs
  *
- * ورود/ثبت‌نام با ایمیل به‌طور کامل بسته شده (lib/authPolicy.ts). سه نقطه‌ی
- * ورودیِ ایمیل‌محور باید همگی این چک را از همان ابتدای handler رد کنند —
- * پیش از هر کارِ دیگری (چک کپچا، خواندن دیتابیس، ساختن کد) — دقیقاً همان
- * سبکِ source-text که test/loginEmailFlow.test.mjs و
- * test/registrationEmailFlow.test.mjs برای همین دو مسیر استفاده می‌کنند،
- * چون این مخزن زیرساخت تستِ یکپارچه با دیتابیسِ واقعی ندارد.
+ * سه نقطه‌ی ورودیِ ایمیل‌محور باید همگی چکِ EMAIL_AUTH_CLOSED
+ * (lib/authPolicy.ts) را از همان ابتدای handler اجرا کنند — پیش از هر کارِ
+ * دیگری (چک کپچا، خواندن دیتابیس، ساختن کد) — دقیقاً همان سبکِ source-text
+ * که test/loginEmailFlow.test.mjs و test/registrationEmailFlow.test.mjs
+ * برای همین دو مسیر استفاده می‌کنند، چون این مخزن زیرساخت تستِ یکپارچه با
+ * دیتابیسِ واقعی ندارد. این تست‌ها فقط مکانیزم را تضمین می‌کنند — این‌که
+ * چک درست جایش هست — نه مقدارِ فعلیِ پرچم، که یک تنظیمِ محصولی است و
+ * می‌تواند تغییر کند.
  *
  * `/auth/forgot-password` عمداً این‌جا نیست: از اول هم کدش را از تلگرام
  * می‌فرستد، نه ایمیل — «ایمیل» آن‌جا فقط کلیدِ جست‌وجوست، نه یک کانالِ ورود.
@@ -22,11 +24,6 @@ import { dirname, join } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const authSrc = readFileSync(join(here, "../src/routes/auth.ts"), "utf8");
 const registrationSrc = readFileSync(join(here, "../src/routes/registration.ts"), "utf8");
-const policy = await import("../src/lib/authPolicy.ts");
-
-test("EMAIL_AUTH_CLOSED is on", () => {
-  assert.equal(policy.EMAIL_AUTH_CLOSED, true);
-});
 
 test("POST /auth/register (legacy email+password) checks EMAIL_AUTH_CLOSED before touching the database", () => {
   const block = authSrc.slice(

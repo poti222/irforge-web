@@ -158,7 +158,7 @@
     "passwordResetToastDesc": "Artık giriş yapabilirsiniz.",
     "resetCodeInvalidError": "Geçersiz veya süresi dolmuş kod",
     "methodTitle": "Nasıl kaydolmak istersiniz?",
-    "methodPhone": "Telefon numarası",
+    "methodPhone": "Telegram",
     "methodPhoneDesc": "Telegram üzerinden doğrulanır — SMS yok, numara yazmak yok.",
     "methodEmail": "E-posta",
     "methodEmailDesc": "E-posta adresi ve şifreyle kaydolun.",
