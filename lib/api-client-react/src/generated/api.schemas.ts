@@ -66,11 +66,24 @@ export interface User {
   // ─── Group 2 fields ────────────────────────────────────────────
   /** @nullable */
   phone?: string | null;
+  phoneVerified?: boolean;
+  emailVerified?: boolean;
   /** @nullable */
   platformUsername?: string | null;
   profileComplete?: boolean;
   /** آیا این کاربر قبلاً از تریال ۷ روزه‌ی رایگان استفاده کرده؟ */
   hasUsedTrial?: boolean;
+  // ─── Mandatory Profile Completion & Identity System ─────────────
+  /** @nullable */
+  gender?: 'male' | 'female' | null;
+  /** @nullable */
+  oauthProvider?: string | null;
+  /** فیلدهایی که برای تکمیل هویت هنوز کم‌اند — از checkProfile() سرور. */
+  missingProfileFields?: string[];
+  onlyUsernameMissing?: boolean;
+  twoFactorEnabled?: boolean;
+  /** @nullable */
+  twoFactorMethod?: string | null;
   createdAt: string;
 }
 

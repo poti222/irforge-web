@@ -26,6 +26,8 @@ import discountsRouter from "./discounts.js";
 import updatesRouter from "./updates.js";
 // ثبت‌نام پنج‌مرحله‌ای با تأیید شماره از طریق تلگرام
 import registrationRouter from "./registration.js";
+// دروازه‌ی اجباریِ تکمیل هویت — PATCH /auth/complete-profile
+import completeProfileRouter from "./completeProfile.js";
 // مدیریت کاربران توسط super_admin (بازیابی، رمز، نقش، جعل هویت، ممیزی)
 import superAdminUsersRouter from "./superAdminUsers.js";
 // دسترسی مهمان (توکن جدا، پیش‌فرض-رد)
@@ -95,6 +97,7 @@ router.use(notificationsRouter);
 router.use(discountsRouter);
 router.use(updatesRouter);
 router.use(registrationRouter);
+router.use(completeProfileRouter);
 router.use(superAdminUsersRouter);
 router.use(guestRouter);
 // باید بعد از botsRouter بیاید: مسیرهای اینجا زیرمسیرهای /bots/:botId هستند و

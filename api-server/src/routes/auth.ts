@@ -37,6 +37,7 @@ import { sendEmailLoginCode } from "../lib/authEmails";
 import { sendOtpSms } from "../lib/smsir";
 import { authRateLimit, hit, clientIp, phoneKey, emailKey, reset, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS } from "../middleware/rateLimit";
 import { hashSessionToken, hashUserAgent } from "../lib/sessionToken";
+import { checkProfile } from "../lib/profile";
 
 /** برای نمایش در پاسخ — اشاره‌ی ماسک‌شده به ایمیل، نه خودِ آن. */
 function maskEmail(email: string): string {
@@ -67,7 +68,8 @@ const router = Router();
  * واقعی /me اتفاق بیفته. این تابع مشترک، شکل خروجی هر سه route رو یکی می‌کنه
  * تا این مشکل دیگه هیچ‌جا تکرار نشه.
  */
-function toAuthUser(user: typeof usersTable.$inferSelect, botCount: number) {
+export function toAuthUser(user: typeof usersTable.$inferSelect, botCount: number) {
+  const profile = checkProfile(user);
   return {
     id: user.id,
     name: user.name,
@@ -82,6 +84,17 @@ function toAuthUser(user: typeof usersTable.$inferSelect, botCount: number) {
     telegramLastName: user.telegramLastName ?? null,
     telegramPhotoUrl: user.telegramPhotoUrl ?? null,
     hasUsedTrial: user.hasUsedTrial ?? false,
+    phone: user.phone ?? null,
+    phoneVerified: user.phoneVerified ?? false,
+    emailVerified: user.emailVerified ?? false,
+    platformUsername: user.platformUsername ?? null,
+    gender: (user.gender as "male" | "female" | null) ?? null,
+    oauthProvider: user.oauthProvider ?? null,
+    twoFactorEnabled: user.twoFactorEnabled ?? false,
+    twoFactorMethod: user.twoFactorMethod ?? null,
+    profileComplete: profile.complete,
+    missingProfileFields: profile.missing,
+    onlyUsernameMissing: profile.onlyUsernameMissing,
     botCount,
     createdAt: user.createdAt.toISOString(),
   };
@@ -548,17 +561,11 @@ router.post("/auth/telegram", requireAuth, async (req: any, res) => {
       createdAt: updated.createdAt, updatedAt: updated.updatedAt,
     });
 
-    res.json({
-      id: updated.id, name: updated.name, email: updated.email,
-      avatar: updated.avatar, role: updated.role, plan: updated.plan,
-      bio: updated.bio ?? null,
-      telegramId: updated.telegramId ?? null,
-      telegramUsername: updated.telegramUsername ?? null,
-      telegramFirstName: updated.telegramFirstName ?? null,
-      telegramLastName: updated.telegramLastName ?? null,
-      telegramPhotoUrl: updated.telegramPhotoUrl ?? null,
-      createdAt: updated.createdAt.toISOString(),
-    });
+    const [{ value: botCount }] = await db
+      .select({ value: count() })
+      .from(botsTable)
+      .where(eq(botsTable.userId, updated.id));
+    res.json(toAuthUser(updated, botCount));
   } catch (err) {
     logger.error({ err }, "Telegram link error");
     res.status(500).json({ error: "Internal server error" });
@@ -626,17 +633,11 @@ router.post("/auth/telegram/miniapp", requireAuth, async (req: any, res) => {
       createdAt: updated.createdAt, updatedAt: updated.updatedAt,
     });
 
-    res.json({
-      id: updated.id, name: updated.name, email: updated.email,
-      avatar: updated.avatar, role: updated.role, plan: updated.plan,
-      bio: updated.bio ?? null,
-      telegramId: updated.telegramId ?? null,
-      telegramUsername: updated.telegramUsername ?? null,
-      telegramFirstName: updated.telegramFirstName ?? null,
-      telegramLastName: updated.telegramLastName ?? null,
-      telegramPhotoUrl: updated.telegramPhotoUrl ?? null,
-      createdAt: updated.createdAt.toISOString(),
-    });
+    const [{ value: botCount }] = await db
+      .select({ value: count() })
+      .from(botsTable)
+      .where(eq(botsTable.userId, updated.id));
+    res.json(toAuthUser(updated, botCount));
   } catch (err) {
     logger.error({ err }, "Telegram miniapp link error");
     res.status(500).json({ error: "Internal server error" });

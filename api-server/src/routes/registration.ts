@@ -44,6 +44,7 @@ import { syncSessionUpsert, syncUserUpsert } from "../lib/sheetsSync";
 import { authRateLimit, clientIp } from "../middleware/rateLimit";
 import { verifyCaptchaToken } from "../lib/captchaVerify";
 import { hashSessionToken, hashUserAgent } from "../lib/sessionToken";
+import { toAuthUser } from "./auth";
 import { EMAIL_AUTH_CLOSED, EMAIL_AUTH_CLOSED_MESSAGE_FA, EMAIL_AUTH_CLOSED_CODE } from "../lib/authPolicy";
 import {
   MAX_CODE_ATTEMPTS,
@@ -110,26 +111,7 @@ async function issueSessionForExistingUser(
     .from(botsTable)
     .where(eq(botsTable.userId, user.id));
 
-  return {
-    token,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      avatar: user.avatar,
-      role: user.role,
-      plan: user.plan,
-      bio: user.bio ?? null,
-      telegramId: user.telegramId ?? null,
-      telegramUsername: user.telegramUsername ?? null,
-      telegramFirstName: user.telegramFirstName ?? null,
-      telegramLastName: user.telegramLastName ?? null,
-      telegramPhotoUrl: user.telegramPhotoUrl ?? null,
-      hasUsedTrial: user.hasUsedTrial ?? false,
-      botCount,
-      createdAt: user.createdAt.toISOString(),
-    },
-  };
+  return { token, user: toAuthUser(user, botCount) };
 }
 
 /** رشته‌ی اجباری با سقف طول. */
@@ -718,30 +700,7 @@ router.post("/auth/register/complete", async (req, res) => {
     });
 
     logger.info({ userId: user.id }, "Registration completed");
-    res.status(201).json({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        role: user.role,
-        plan: user.plan,
-        status: user.status,
-        bio: user.bio,
-        phone: user.phone,
-        phoneVerified: user.phoneVerified,
-        emailVerified: user.emailVerified,
-        telegramId: user.telegramId,
-        telegramUsername: user.telegramUsername,
-        telegramFirstName: user.telegramFirstName,
-        telegramLastName: user.telegramLastName,
-        telegramPhotoUrl: user.telegramPhotoUrl,
-        profileComplete: user.profileComplete,
-        botCount: 0,
-        createdAt: user.createdAt.toISOString(),
-      },
-      token,
-    });
+    res.status(201).json({ user: toAuthUser(user, 0), token });
   } catch (err) {
     // رکورد در انتظار عمداً زنده می‌ماند تا کاربر بتواند ایمیلش را اصلاح کند و
     // دوباره تلاش کند، نه اینکه کل ثبت‌نام را از اول شروع کند.
@@ -894,30 +853,7 @@ router.post("/auth/register/sms/complete", async (req, res) => {
     });
 
     logger.info({ userId: user.id }, "SMS registration completed");
-    res.status(201).json({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        role: user.role,
-        plan: user.plan,
-        status: user.status,
-        bio: user.bio,
-        phone: user.phone,
-        phoneVerified: user.phoneVerified,
-        emailVerified: user.emailVerified,
-        telegramId: user.telegramId,
-        telegramUsername: user.telegramUsername,
-        telegramFirstName: user.telegramFirstName,
-        telegramLastName: user.telegramLastName,
-        telegramPhotoUrl: user.telegramPhotoUrl,
-        profileComplete: user.profileComplete,
-        botCount: 0,
-        createdAt: user.createdAt.toISOString(),
-      },
-      token,
-    });
+    res.status(201).json({ user: toAuthUser(user, 0), token });
   } catch (err) {
     if (err instanceof ValidationError) {
       res.status(400).json({ error: err.message });

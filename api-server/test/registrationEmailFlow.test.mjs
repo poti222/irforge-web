@@ -16,6 +16,7 @@ import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(here, "../src/routes/registration.ts"), "utf8");
+const authSrc = readFileSync(join(here, "../src/routes/auth.ts"), "utf8");
 
 test("یک اندپوینت جدا برای شروع ثبت‌نام با ایمیل وجود دارد، با محدودسازی نرخ", () => {
   assert.match(src, /router\.post\(\s*["']\/auth\/register\/email\/start["']\s*,\s*authRateLimit/);
@@ -51,6 +52,11 @@ test("complete: phoneVerified فقط برای مسیر شماره‌ای true م
 });
 
 test("پاسخ نهاییِ complete وضعیتِ emailVerified کاربر را هم برمی‌گرداند", () => {
-  const completeBlock = src.slice(src.indexOf('"/auth/register/complete"'));
-  assert.match(completeBlock, /emailVerified:\s*user\.emailVerified/);
+  // پاسخ دیگر آبجکتِ inline نیست — از toAuthUser() در routes/auth.ts می‌آید
+  // (مشترک بین همه‌ی روت‌های ورود/ثبت‌نام)، پس این چک آنجا انجام می‌شود.
+  const toAuthUserBlock = authSrc.slice(
+    authSrc.indexOf("export function toAuthUser"),
+    authSrc.indexOf("function generateToken"),
+  );
+  assert.match(toAuthUserBlock, /emailVerified:\s*user\.emailVerified/);
 });
