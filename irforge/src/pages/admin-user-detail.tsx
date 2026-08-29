@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -80,6 +80,15 @@ export default function AdminUserDetail() {
   const [durationDays, setDurationDays] = useState("");
   const [walletDirection, setWalletDirection] = useState<"credit" | "debit">("credit");
   const [walletAmount, setWalletAmount] = useState("");
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  // دکمه‌های غیرفعال کلیک نمی‌فرستند (disabled:pointer-events-none در
+  // Button)، پس کلیک از رویشان مستقیم به همین دیوِ اطراف‌شان می‌رسد —
+  // این تابع همان‌جا صدا زده می‌شود تا کاربر مجبور نباشد خودش بفهمد چرا
+  // دکمه کار نمی‌کند.
+  function focusReason() {
+    reasonRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    reasonRef.current?.focus();
+  }
 
   const key = ["admin-user", id];
   const { data, isLoading } = useQuery({
@@ -240,7 +249,7 @@ export default function AdminUserDetail() {
         <CardContent className="space-y-2 p-4">
           <Label htmlFor="reason">{fa ? "دلیل (برای لاگ ممیزی)" : "Reason (for the audit log)"}</Label>
           <Textarea
-            id="reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)}
+            id="reason" ref={reasonRef} rows={2} value={reason} onChange={(e) => setReason(e.target.value)}
             placeholder={fa ? "چه چیزی را تأیید کردید و چرا؟" : "What did you verify, and why?"}
           />
           {reasonTooShort && (
@@ -321,7 +330,7 @@ export default function AdminUserDetail() {
 
         <TabsContent value="telegram">
           <Card>
-            <CardContent className="space-y-3 p-5 text-sm">
+            <CardContent className="space-y-3 p-5 text-sm" onClick={() => reasonTooShort && focusReason()}>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">{fa ? "شناسه عددی" : "Numeric ID"}</span>
                 <span className="flex items-center gap-2">
@@ -377,7 +386,7 @@ export default function AdminUserDetail() {
 
         <TabsContent value="account">
           <Card>
-            <CardContent className="space-y-4 p-5">
+            <CardContent className="space-y-4 p-5" onClick={() => reasonTooShort && focusReason()}>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline">{u.role}</Badge>
                 <Badge variant="secondary">{u.status}</Badge>
@@ -437,7 +446,7 @@ export default function AdminUserDetail() {
           */}
           <Card>
             <CardHeader><CardTitle className="text-base">{fa ? "پلن" : "Plan"}</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3" onClick={() => reasonTooShort && focusReason()}>
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-muted-foreground">{fa ? "پلن فعلی:" : "Current plan:"}</span>
                 <Badge variant="secondary">{billing?.planName}</Badge>
@@ -491,7 +500,7 @@ export default function AdminUserDetail() {
 
           <Card>
             <CardHeader><CardTitle className="text-base">{fa ? "کیف پول" : "Wallet"}</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3" onClick={() => reasonTooShort && focusReason()}>
               <div className="text-sm">
                 <span className="text-muted-foreground">{fa ? "موجودی فعلی:" : "Current balance:"}</span>{" "}
                 <span className="font-semibold">{billing?.walletBalance?.toLocaleString(fa ? "fa-IR" : "en-US")}</span>
@@ -545,7 +554,7 @@ export default function AdminUserDetail() {
                 <KeyRound className="size-4" /> {fa ? "امنیت" : "Security"}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 p-5 pt-0">
+            <CardContent className="space-y-4 p-5 pt-0" onClick={() => reasonTooShort && focusReason()}>
               {/* جایی که یک فیلد «نمایش رمز» انتظار می‌رفت. */}
               <div className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-sm">
                 <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
