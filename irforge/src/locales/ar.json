@@ -2772,6 +2772,7 @@
     "insufficientTitle": "رصيد المحفظة غير كافٍ",
     "insufficientDesc": "اشحن محفظتك أولاً.",
     "complete": "تم إتمام الشراء",
+    "newBotActivateReminder": "لكي يعمل البوت، يجب عليك تشغيله. إذا واجهتك مشكلة، تواصل معنا من قسم الدعم.",
     "discountNoLongerValid": "رمز الخصم لم يعد صالحاً",
     "payFailed": "فشل الدفع",
     "emptyCart": "سلتك فارغة.",

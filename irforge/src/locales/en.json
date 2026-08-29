@@ -2772,6 +2772,7 @@
     "insufficientTitle": "Insufficient wallet balance",
     "insufficientDesc": "Top up your wallet first.",
     "complete": "Checkout complete",
+    "newBotActivateReminder": "You need to turn your bot on for it to work. If you run into a problem, reach us from the Support section.",
     "discountNoLongerValid": "Discount code no longer valid",
     "payFailed": "Checkout failed",
     "emptyCart": "Your cart is empty.",

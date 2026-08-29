@@ -38,6 +38,7 @@ import {
 import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { normaliseEmail, emailEquals } from "../lib/email";
+import { normalizePhone } from "../lib/otp";
 import { requireSuperAdmin } from "./auth";
 import { hashPassword } from "../lib/password";
 import { writeAudit } from "../lib/audit";
@@ -304,8 +305,28 @@ router.patch("/superadmin/users/:id", requireSuperAdmin, async (req: any, res) =
       }
     }
     if (typeof req.body?.phone === "string") {
-      const phone = req.body.phone.trim() || null;
+      // بدون normalizePhone، شماره‌ی تایپ‌شده‌ی ادمین («۰۹۱۲...» یا با فاصله)
+      // دقیقاً به همان شکلی که ورود/OTP انتظار دارند («+۹۸۹۱۲...») ذخیره
+      // نمی‌شد — همان شماره بعداً در جست‌وجوی eq(usersTable.phone, ...) پیدا
+      // نمی‌شد، یعنی کاربر با شماره‌ی درستش نمی‌توانست وارد شود.
+      const trimmed = req.body.phone.trim();
+      const phone = trimmed ? normalizePhone(trimmed) : null;
+      if (trimmed && !phone) {
+        res.status(400).json({ error: "Phone number is not valid" });
+        return;
+      }
       if (phone !== user.phone) {
+        if (phone) {
+          const [taken] = await db
+            .select({ id: usersTable.id })
+            .from(usersTable)
+            .where(and(eq(usersTable.phone, phone), sql`${usersTable.id} <> ${user.id}`))
+            .limit(1);
+          if (taken) {
+            res.status(409).json({ error: "That phone number belongs to another user" });
+            return;
+          }
+        }
         patch.phone = phone;
         // ادمین شماره را تأیید نکرده، فقط تایپش کرده.
         patch.phoneVerified = false;

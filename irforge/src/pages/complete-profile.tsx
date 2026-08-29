@@ -381,18 +381,25 @@ export default function CompleteProfile() {
                 )}
               </div>
 
-              {!isOAuth && (
+              {/*
+                هر مسیر ثبت‌نامِ واقعی (ایمیل، پیامک — حتی «ثبت‌نام با تلگرام»
+                که همان مسیر پیامکی با یک گامِ اضافه است) از قبل رمز عبور
+                می‌گیرد؛ OAuth هم با رمزِ تصادفی معاف است. یعنی
+                missing.has("password") در عمل هرگز true نمی‌شود مگر برای یک
+                حسابِ واقعاً بدون رمز — پس این فیلد فقط همان‌جا نشان داده
+                می‌شود، نه برای هر کاربرِ غیر-OAuth، وگرنه از هرکسی که همین
+                الان رمز ساخته دوباره می‌خواست.
+              */}
+              {!isOAuth && missing.has("password") && (
                 <div className="space-y-1.5">
                   <Label htmlFor="cp-password">{t.password}</Label>
                   <PasswordInput
                     id="cp-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    required={missing.has("password")}
+                    required
                   />
-                  <p className="text-xs text-muted-foreground">
-                    {missing.has("password") ? t.passwordMin : t.cpPasswordOptionalHint}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t.passwordMin}</p>
                   {fieldErrors.password && <p className="text-xs text-destructive">{t[fieldErrors.password]}</p>}
                 </div>
               )}

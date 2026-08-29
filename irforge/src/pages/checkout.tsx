@@ -168,6 +168,7 @@ export default function Checkout() {
     }
     setBusy(true);
     const touchedBots = new Set<string>();
+    let createdBot = false;
     // The discount, if any, is only sent with the first bot purchase in the cart —
     // the server re-validates and applies it once, atomically, inside that request's
     // transaction. It isn't split across multiple items or sent to plugin purchases.
@@ -198,6 +199,7 @@ export default function Checkout() {
             }),
           });
           discountCodeToSend = null; // applied once
+          createdBot = true;
         }
         remove(item.key); // drop each as it succeeds so a mid-way failure keeps the rest
       }
@@ -210,7 +212,11 @@ export default function Checkout() {
       });
       setAppliedDiscount(null);
       setDiscountInput("");
-      toast({ title: t.complete });
+      toast(
+        createdBot
+          ? { title: t.complete, description: t.newBotActivateReminder, duration: 12000 }
+          : { title: t.complete },
+      );
       setLocation("/bots");
     } catch (err: any) {
       // A discount code that was valid at "Apply" time but died before this request

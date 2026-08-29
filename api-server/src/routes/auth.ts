@@ -76,6 +76,7 @@ export function toAuthUser(user: typeof usersTable.$inferSelect, botCount: numbe
     email: user.email,
     avatar: user.avatar,
     role: user.role,
+    status: user.status,
     plan: user.plan,
     bio: user.bio ?? null,
     telegramId: user.telegramId ?? null,
@@ -321,40 +322,28 @@ router.post("/auth/login", authRateLimit("login"), async (req, res) => {
       await genericFail();
       return;
     }
-    if (user.status === "banned" || user.status === "suspended") {
-      res.status(403).json({ error: "Account suspended" });
-      return;
-    }
-
-    // IRFORGE_PROMPT_V3 Phase 14 — یک حساب فقط-ایمیل (بدون شماره) هرگز شماره
-    // یا تلگرامی نداشته که وصل کند؛ کدش را روی همان ایمیل می‌گیرد. اما یک
-    // حساب قدیمیِ شماره‌محور که تلگرامش وصل نیست باید همان مسیر قبلی
-    // («وصل کن») را ببیند — نه این‌که ناگهان کد را جای دیگری بگیرد.
-    const isEmailOnlyAccount = !user.telegramId && !user.phone;
-
-    if (!user.telegramId && !isEmailOnlyAccount) {
-      // حساب‌های ساخته‌شده پیش از این فیچر تلگرام ندارند و نمی‌توانند کد بگیرند.
-      // نه اجازه‌ی عبور بدون عامل دوم، نه قفل‌شدن: یک وضعیت مشخص برمی‌گردد که UI
-      // آن را به صفحه‌ی «حسابت باید به تلگرام وصل شود» با لینک عمیق تبدیل می‌کند،
-      // و همان ماشین فاز ۳ را با purpose = "link" دوباره استفاده می‌کند.
-      const linkToken = crypto.randomBytes(16).toString("hex");
-      await db.insert(telegramLinkTokensTable).values({
-        token: linkToken,
-        userId: user.id,
-        purpose: "link",
-        expiresAt: new Date(Date.now() + LINK_TOKEN_TTL_MS),
-      });
-      const username = process.env.TELEGRAM_BOT_USERNAME?.replace(/^@/, "") ?? null;
-      res.status(409).json({
-        error: "This account needs Telegram connected before signing in",
-        code: "telegram_required",
-        deepLink: username ? `https://t.me/${username}?start=${linkToken}` : null,
-      });
+    // بن‌شده اصلاً وارد نمی‌شود. تعلیق‌شده برعکس — باید بتواند وارد شود و
+    // همه‌چیز را ببیند، فقط هیچ عملی نمی‌تواند انجام دهد (اجرای این محدودیت
+    // در تک‌تک مسیرهای نوشتنی + قفل‌شدنِ دکمه‌ها در فرانت است، نه اینجا).
+    if (user.status === "banned") {
+      res.status(403).json({ error: "Account banned", code: "banned" });
       return;
     }
 
     await reset(rateKey);
 
+    // احراز هویت دومرحله‌ای اختیاری است — خودِ کاربر از داخل تنظیمات
+    // روشن/خاموشش می‌کند (identityverificationspec.md، «Decisions locked in
+    // with Ali»). پیش از این، این مرحله برای همه‌ی حساب‌ها همیشه اجباری بود
+    // (چالش تلگرام/ایمیل که هیچ‌وقت خاموش نمی‌شد) — همان چیزی که خاموش بودن
+    // ۲FA را بی‌معنی می‌کرد. وقتی خاموش است، رمز عبور به‌تنهایی کافی است.
+    if (!user.twoFactorEnabled) {
+      logger.info({ userId: user.id }, "Login completed (2FA disabled)");
+      res.json(await issueSession(user, req));
+      return;
+    }
+
+    const method = user.twoFactorMethod ?? "telegram";
     const code = generateCode();
     const challengeId = crypto.randomUUID();
     await db.insert(loginChallengesTable).values({
@@ -364,27 +353,43 @@ router.post("/auth/login", authRateLimit("login"), async (req, res) => {
       codeExpiresAt: codeExpiry(),
     });
 
-    if (isEmailOnlyAccount) {
+    let destinationHint: string;
+    if (method === "email") {
       const delivery = await sendEmailLoginCode(user.email, code, null);
       if (!delivery.ok) {
-        logger.error({ userId: user.id, error: delivery.error }, "login: email delivery failed");
+        logger.error({ userId: user.id, error: delivery.error }, "login: 2FA email delivery failed");
         res.status(502).json({ error: "Could not send the sign-in email", code: "email_delivery_failed" });
         return;
       }
+      destinationHint = maskEmail(user.email);
+    } else if (method === "sms") {
+      if (!user.phone) {
+        logger.error({ userId: user.id }, "login: 2FA method is sms but the account has no phone");
+        res.status(500).json({ error: "Internal server error" });
+        return;
+      }
+      const sendResult = await sendOtpSms(user.phone, code);
+      if (!sendResult.success) {
+        logger.error({ userId: user.id, error: sendResult.error }, "login: 2FA SMS delivery failed");
+        res.status(502).json({ error: "Could not send the sign-in SMS", code: "sms_send_failed" });
+        return;
+      }
+      destinationHint = user.phone.replace(/^(\+\d{4}).*(\d{2})$/, "$1***$2");
     } else {
-      await sendLoginCode(user.telegramId as string, code, null, user.phone ?? undefined);
+      if (!user.telegramId) {
+        logger.error({ userId: user.id }, "login: 2FA method is telegram but the account has no telegramId");
+        res.status(500).json({ error: "Internal server error" });
+        return;
+      }
+      await sendLoginCode(user.telegramId, code, null, user.phone ?? undefined);
+      destinationHint = user.telegramUsername ? `@${user.telegramUsername.slice(0, 3)}***` : "Telegram";
     }
 
-    logger.info({ userId: user.id }, "Login challenge issued");
+    logger.info({ userId: user.id, method }, "Login challenge issued (2FA)");
     res.json({
       challengeId,
       expiresInSeconds: Math.floor(CODE_TTL_MS / 1000),
-      // اشاره‌ی ماسک‌شده به مقصد، نه خودِ مقصد.
-      destinationHint: isEmailOnlyAccount
-        ? maskEmail(user.email)
-        : user.telegramUsername
-          ? `@${user.telegramUsername.slice(0, 3)}***`
-          : "Telegram",
+      destinationHint,
     });
   } catch (err) {
     logger.error({ err }, "Login error");

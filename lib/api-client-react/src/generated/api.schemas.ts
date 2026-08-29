@@ -48,6 +48,7 @@ export interface User {
   /** @nullable */
   avatar?: string | null;
   role: UserRole;
+  status?: AdminUserStatus;
   plan: UserPlanProperty;
   botCount?: number;
   /** @nullable */

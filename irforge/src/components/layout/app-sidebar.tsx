@@ -284,7 +284,7 @@ export function AppSidebar() {
                 )}
               </div>
               <div className="flex flex-1 flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
-                <span className="truncate text-sm font-medium">{user.name}</span>
+                <span className="truncate text-sm font-medium">{user.platformUsername ?? user.name}</span>
                 <span className="truncate text-xs text-sidebar-foreground/60">{user.email}</span>
               </div>
             </div>
@@ -303,7 +303,7 @@ export function AppSidebar() {
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col">
-                <span className="text-sm font-medium">{user.name}</span>
+                <span className="text-sm font-medium">{user.platformUsername ?? user.name}</span>
                 <Badge variant="outline" className="h-4 px-1 text-[10px] uppercase w-fit">
                   {user.plan}
                 </Badge>

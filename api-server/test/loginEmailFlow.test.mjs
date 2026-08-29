@@ -21,18 +21,21 @@ test("ورود ایمیل را فقط وقتی می‌پذیرد که شماره
   assert.match(loginBlock, /const email = !phone && req\.body\?\.email/);
 });
 
-test("حساب فقط-ایمیل بدون شماره و بدون تلگرام مشخص است، نه با یک شرط دیگر", () => {
-  assert.match(loginBlock, /const isEmailOnlyAccount = !user\.telegramId && !user\.phone;/);
+test("۲FA اختیاری است: وقتی خاموش است، رمز عبور به‌تنهایی نشست می‌سازد، بدون هیچ چالشی", () => {
+  assert.match(loginBlock, /if \(!user\.twoFactorEnabled\)[\s\S]{0,120}issueSession\(user, req\)/);
 });
 
-test("حساب قدیمیِ شماره‌محورِ بدون تلگرام هنوز باید «تلگرام لازم است» ببیند", () => {
-  const guard = loginBlock.match(/if \(!user\.telegramId && !isEmailOnlyAccount\) \{[\s\S]{0,900}?telegram_required/);
-  assert.ok(guard, "شرط ورود به بلاکِ telegram_required باید isEmailOnlyAccount را هم در نظر بگیرد");
+test("وقتی ۲FA روشن است، روش تحویلِ کد از twoFactorMethod خودِ کاربر می‌آید، نه نوع حساب", () => {
+  assert.match(loginBlock, /const method = user\.twoFactorMethod \?\? "telegram";/);
+  assert.match(loginBlock, /if \(method === "email"\)/);
+  assert.match(loginBlock, /\} else if \(method === "sms"\)/);
+  assert.match(loginBlock, /sendOtpSms\(user\.phone, code\)/);
+  assert.match(loginBlock, /sendLoginCode\(user\.telegramId, code/);
 });
 
-test("حساب فقط-ایمیل کدش را با sendEmailLoginCode می‌گیرد، نه sendLoginCode", () => {
-  assert.match(loginBlock, /if \(isEmailOnlyAccount\)[\s\S]{0,60}sendEmailLoginCode\(user\.email/);
-  assert.match(loginBlock, /\} else \{[\s\S]{0,60}sendLoginCode\(user\.telegramId/);
+test("حسابِ بن‌شده اصلاً وارد نمی‌شود؛ تعلیق‌شده جلوی این چک متوقف نمی‌شود", () => {
+  assert.match(loginBlock, /if \(user\.status === "banned"\)/);
+  assert.doesNotMatch(loginBlock, /user\.status === "suspended"/);
 });
 
 test("محدودسازی نرخ برای ورود با ایمیل از emailKey استفاده می‌کند، نه از phoneKey با ایمیل", () => {

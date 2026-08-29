@@ -2772,6 +2772,7 @@
     "insufficientTitle": "Cüzdan bakiyesi yetersiz",
     "insufficientDesc": "Önce cüzdanınızı yükleyin.",
     "complete": "Satın alma tamamlandı",
+    "newBotActivateReminder": "Botunuzun çalışması için onu açmanız gerekir. Bir sorunla karşılaşırsanız Destek bölümünden bize ulaşın.",
     "discountNoLongerValid": "İndirim kodu artık geçerli değil",
     "payFailed": "Ödeme başarısız",
     "emptyCart": "Sepetiniz boş.",

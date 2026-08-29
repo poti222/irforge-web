@@ -311,28 +311,30 @@ export default function Login() {
   async function submitCredentials() {
     setBusy(true);
     try {
+      // ۲FA اختیاری است: وقتی کاربر خودش خاموشش کرده، سرور مستقیم نشست
+      // برمی‌گرداند (user + token)، نه چالش — پس هر دو شکل پاسخ ممکن است.
       const res = await customFetch<{
-        challengeId: string;
-        expiresInSeconds: number;
-        destinationHint: string;
+        challengeId?: string;
+        expiresInSeconds?: number;
+        destinationHint?: string;
+        user?: any;
+        token?: string;
       }>("/api/auth/login", {
         method: "POST",
         body: JSON.stringify(
           loginMethod === "email" ? { email: email.trim(), password } : { phone: phone.trim(), password },
         ),
       });
-      setChallengeId(res.challengeId);
-      setDestination(res.destinationHint);
-      setSecondsLeft(res.expiresInSeconds);
+      if (res.token && res.user) {
+        finishSession({ user: res.user, token: res.token });
+        return;
+      }
+      setChallengeId(res.challengeId ?? null);
+      setDestination(res.destinationHint ?? "");
+      setSecondsLeft(res.expiresInSeconds ?? 0);
       setCode("");
       setStep("code");
     } catch (err: any) {
-      // کاربر قدیمی بدون تلگرام: نه رد، نه عبور بدون عامل دوم — هدایت به اتصال.
-      if (err?.data?.code === "telegram_required") {
-        setLinkDeepLink(err.data.deepLink ?? null);
-        setStep("needs_telegram");
-        return;
-      }
       fail(err);
     } finally {
       setBusy(false);
