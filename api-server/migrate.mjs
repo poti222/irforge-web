@@ -4,6 +4,7 @@
  * Uses raw SQL so no TypeScript compilation needed at runtime.
  */
 import pg from "pg";
+import crypto from "crypto";
 
 const { Pool } = pg;
 
@@ -147,6 +148,10 @@ CREATE TABLE IF NOT EXISTS plans (
 -- resource sizing, added after the table already existed in production
 ALTER TABLE plans ADD COLUMN IF NOT EXISTS ram_gb REAL NOT NULL DEFAULT 1;
 ALTER TABLE plans ADD COLUMN IF NOT EXISTS cpu_cores REAL NOT NULL DEFAULT 1;
+-- Phase 10 (identityverificationspec.md): optional live USD price. See
+-- lib/db/src/schema/plans.ts for why this, not the flat price column, is
+-- the real price whenever it's set.
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS price_usd REAL;
 
 -- ─── USER_PLANS ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_plans (
@@ -720,6 +725,34 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_method TEXT;
 -- دروازه‌ی تکمیل هویت مثل یک کاربرِ عادی رمزدار رفتار می‌شوند، یعنی از آن‌ها
 -- هم ثبتِ یک رمزِ واقعی خواسته می‌شود. این محافظه‌کارانه‌تر از حدسِ اشتباه
 -- است: بک‌فیلِ نادرست یعنی معافیتِ رمز به کسی که آن را از OAuth نگرفته.
+
+-- ─── EXCHANGE_RATES (Phase 10 — Plan restructuring + live USD→IRR pricing) ──
+-- تاریخچه‌ی append-only نرخ دلار به ریال. جدا از platform_settings's
+-- currency_display (فاز ۳۹، فقط نمایشی) — این یکی مرجعِ واقعیِ صورتحساب است.
+-- ببینید lib/db/src/schema/exchangeRates.ts و src/lib/exchangeRate.ts.
+CREATE TABLE IF NOT EXISTS exchange_rates (
+  id TEXT PRIMARY KEY,
+  rial_per_usd REAL NOT NULL,
+  source TEXT NOT NULL,
+  updated_by TEXT,
+  fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ─── PLAN_TIERS_SGD (Phase 10) ──────────────────────────────────────────────
+-- سه پلنِ ثابت با قیمتِ زنده (price_usd). idempotent با ON CONFLICT: اگر
+-- ادمین یکی را از قبل با همین id ساخته یا ویرایش کرده، دست‌نخورده می‌ماند —
+-- این INSERT فقط برای نصب‌های تازه/اولین دیپلوی این فاز است، نه یک همگام‌سازیِ
+-- مقادیر روی هر بوت.
+--
+-- cpu_cores پلن Diamond در سند مشخص نشده بود؛ با همان نسبتِ ۱:۱ رم:پردازنده‌ی
+-- Silver (۰.۵/۰.۵) و Gold (۱/۱) به ۳ تخمین زده شد، هم‌راستا با ram_gb=3 خودش.
+-- ادمین از همان فرم مدیریت پلن‌ها می‌تواند اصلاحش کند.
+INSERT INTO plans (id, name, price, price_usd, interval, features, max_bots, max_plugins, max_users, ram_gb, cpu_cores, popular)
+VALUES
+  ('silver', 'Silver', 0, 2.13, 'monthly', '{}', 1, 3,   60,  0.5, 0.5, false),
+  ('gold',   'Gold',   0, 3.5,  'monthly', '{}', 1, 10,  130, 1,   1,   true),
+  ('diamond','Diamond',0, 5.13, 'monthly', '{}', 3, 999, 500, 3,   3,   false)
+ON CONFLICT (id) DO NOTHING;
 `;
 
 
@@ -820,6 +853,26 @@ async function postSteps(client) {
     "CREATE UNIQUE INDEX IF NOT EXISTS users_platform_username_unique_idx " +
     "ON users(platform_username) WHERE platform_username IS NOT NULL"
   );
+
+  /**
+   * بوت‌استرپِ اولین ردیفِ exchange_rates — فقط اگر جدول کاملاً خالی است
+   * (نصب تازه، یا اولین بوت بعد از این فاز). بدونش، formatPlan() تا اولین
+   * موفقیتِ refreshExchangeRateFromApi() (که در بوتِ سرور، نه اینجا، اجرا
+   * می‌شود) نرخی ندارد و پلن‌های Silver/Gold/Diamond به قیمتِ fallback صفر
+   * نمایش داده می‌شوند. مقدار با INITIAL_USD_RIAL_RATE قابل بازنویسی است؛
+   * پیش‌فرض یک تخمینِ محافظه‌کارانه است، نه یک نرخِ رسمی — همان بارِ اولی که
+   * refreshExchangeRateFromApi() موفق شود، این ردیف با نرخِ واقعیِ API
+   * جایگزین می‌شود (چون تازه‌ترین ردیف است که خوانده می‌شود، نه اولی).
+   */
+  const { rows: existingRates } = await client.query("SELECT 1 FROM exchange_rates LIMIT 1");
+  if (existingRates.length === 0) {
+    const bootstrapRate = Number(process.env.INITIAL_USD_RIAL_RATE) || 900000;
+    await client.query(
+      "INSERT INTO exchange_rates (id, rial_per_usd, source, updated_by) VALUES ($1, $2, 'manual', NULL)",
+      [crypto.randomUUID(), bootstrapRate]
+    );
+    console.log(`[migrate] seeded initial exchange rate: ${bootstrapRate} rial/usd`);
+  }
 }
 
 /**

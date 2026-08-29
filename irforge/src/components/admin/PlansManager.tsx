@@ -34,6 +34,8 @@ type FormState = {
   id: string | null;
   name: string;
   price: string;
+  /** Phase 10: optional live USD price — set means "price" above is computed at the current rate, not stored. */
+  priceUsd: string;
   interval: "monthly" | "yearly";
   featuresText: string;
   maxBots: string;
@@ -45,7 +47,7 @@ type FormState = {
 };
 
 const EMPTY: FormState = {
-  id: null, name: "", price: "0", interval: "monthly",
+  id: null, name: "", price: "0", priceUsd: "", interval: "monthly",
   featuresText: "", maxBots: "1", maxPlugins: "5", maxUsers: "100",
   ramGb: "1", cpuCores: "1", popular: false,
 };
@@ -79,7 +81,8 @@ export function PlansManager() {
   function openCreate() { setForm(EMPTY); setDialogOpen(true); }
   function openEdit(p: Plan) {
     setForm({
-      id: p.id, name: p.name, price: String(p.price), interval: p.interval,
+      id: p.id, name: p.name, price: String(p.price), priceUsd: p.priceUsd != null ? String(p.priceUsd) : "",
+      interval: p.interval,
       featuresText: (p.features ?? []).join("\n"),
       maxBots: String(p.maxBots), maxPlugins: String(p.maxPlugins),
       maxUsers: String(p.maxUsers ?? 100),
@@ -97,6 +100,9 @@ export function PlansManager() {
     const body = {
       name: form.name.trim(),
       price: Number(form.price) || 0,
+      // خالی یعنی «قیمتِ زنده ندارد» — همیشه صریح فرستاده می‌شود تا خالی‌کردنِ
+      // فیلد واقعاً یک پلنِ زنده‌قیمت را به تومانِ ثابت برگرداند.
+      priceUsd: form.priceUsd.trim() ? Number(form.priceUsd) : null,
       interval: form.interval,
       features: form.featuresText.split("\n").map((s) => s.trim()).filter(Boolean),
       maxBots: Number(form.maxBots) || 0,
@@ -166,7 +172,12 @@ export function PlansManager() {
               {(plans ?? []).map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.name}</TableCell>
-                  <TableCell>{p.price === 0 ? (fa ? "رایگان" : "Free") : formatToman(p.price, lang)}</TableCell>
+                  <TableCell>
+                    {p.price === 0 && p.priceUsd == null ? (fa ? "رایگان" : "Free") : formatToman(p.price, lang)}
+                    {p.priceUsd != null && (
+                      <span className="ms-1.5 text-xs text-muted-foreground" dir="ltr">(${p.priceUsd})</span>
+                    )}
+                  </TableCell>
                   <TableCell className="hidden md:table-cell text-muted-foreground">{p.interval}</TableCell>
                   <TableCell className="hidden lg:table-cell text-muted-foreground">{p.maxBots} / {p.maxPlugins}</TableCell>
                   <TableCell>{p.popular ? <Badge>{fa ? "بله" : "yes"}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
@@ -193,7 +204,22 @@ export function PlansManager() {
             </div>
             <div className="space-y-1.5">
               <Label>{fa ? "قیمت (تومان)" : "Price (Toman)"}</Label>
-              <AmountInput value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+              <AmountInput value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} disabled={!!form.priceUsd.trim()} />
+              <p className="text-xs text-muted-foreground">
+                {fa ? "اگر قیمتِ دلاریِ زنده تنظیم شود، نادیده گرفته می‌شود." : "Ignored while a live USD price is set."}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{fa ? "قیمت دلاریِ زنده (اختیاری)" : "Live USD price (optional)"}</Label>
+              <Input
+                type="number" min="0" step="0.01" dir="ltr"
+                value={form.priceUsd}
+                onChange={(e) => setForm({ ...form, priceUsd: e.target.value })}
+                placeholder="2.13"
+              />
+              <p className="text-xs text-muted-foreground">
+                {fa ? "با نرخِ لحظه‌ای دلار به تومان تبدیل می‌شود — هرگز منجمد نمی‌ماند." : "Converted to Toman at the current exchange rate — never frozen."}
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>{fa ? "دوره" : "Interval"}</Label>

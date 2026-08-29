@@ -16,6 +16,7 @@ import { AllBotsTable, ADMIN_BOTS_KEY } from "@/components/admin/AllBotsTable";
 import { PaymentApprovals, WALLET_KEY } from "@/components/admin/PaymentApprovals";
 import { UsersTable } from "@/components/admin/UsersTable";
 import { PlansManager, ADMIN_PLANS_KEY } from "@/components/admin/PlansManager";
+import { ExchangeRateSettings } from "@/components/admin/ExchangeRateSettings";
 import { AnnouncementsManager } from "@/components/admin/AnnouncementsManager";
 import { UpdatesManager, ADMIN_UPDATES_KEY } from "@/components/admin/UpdatesManager";
 import { PendingRegistrations, PENDING_REGISTRATIONS_KEY } from "@/components/admin/PendingRegistrations";
@@ -104,7 +105,12 @@ export default function Admin() {
         {isSuperAdmin && <TabsContent value="bots"><AllBotsTable /></TabsContent>}
         <TabsContent value="users"><UsersTable /></TabsContent>
         {isSuperAdmin && <TabsContent value="payments"><PaymentApprovals /></TabsContent>}
-        {isSuperAdmin && <TabsContent value="plans"><PlansManager /></TabsContent>}
+        {isSuperAdmin && (
+          <TabsContent value="plans" className="space-y-4">
+            <ExchangeRateSettings />
+            <PlansManager />
+          </TabsContent>
+        )}
         <TabsContent value="announcements"><AnnouncementsManager /></TabsContent>
         {/* مثل اعلان‌ها برای admin و super_admin هر دو باز است (روت‌های سرور requireAdmin هستند). */}
         <TabsContent value="updates"><UpdatesManager /></TabsContent>

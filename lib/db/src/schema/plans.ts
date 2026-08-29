@@ -6,6 +6,17 @@ export const plansTable = pgTable("plans", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   price: real("price").notNull(),
+  /**
+   * Optional live-priced USD amount (Phase 10 of
+   * identityverificationspec.md). When set, this — not the flat `price`
+   * column above — is the plan's real price: it's converted to Toman at
+   * the current exchange rate every time it's read or charged (see
+   * `formatPlan()` / `priceInToman()` in routes/plans.ts), so renewal and
+   * checkout never use a rate frozen at some earlier moment. `price` stays
+   * the source of truth for any plan an admin created the old way, with a
+   * flat Toman amount and no `priceUsd`.
+   */
+  priceUsd: real("price_usd"),
   interval: text("interval").notNull().default("monthly"),
   features: text("features").array().notNull().default([]),
   maxBots: integer("max_bots").notNull().default(1),

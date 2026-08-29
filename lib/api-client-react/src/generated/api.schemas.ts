@@ -374,7 +374,10 @@ export const PlanInterval = {
 export interface Plan {
   id: string;
   name: string;
+  /** The real, current price in Toman — already live-converted when `priceUsd` is set. */
   price: number;
+  /** Live USD price (Phase 10). When set, `price` above is computed from this at read time via the current exchange rate, never frozen. */
+  priceUsd?: number | null;
   interval: PlanInterval;
   features: string[];
   maxBots: number;

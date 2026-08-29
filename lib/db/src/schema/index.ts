@@ -29,3 +29,5 @@ export * from "./platformSettings";
 export * from "./uploadSessions";
 // دسترسی مدیریتِ واگذارشده به یک بات (با کد ادمین)
 export * from "./botManagers";
+// نرخ دلار به ریال، مرجعِ صورتحساب (فاز ۱۰ identityverificationspec.md)
+export * from "./exchangeRates";
