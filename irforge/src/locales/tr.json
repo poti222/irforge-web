@@ -307,6 +307,10 @@
   "dashboard": {
     "title": "Panel",
     "createBot": "Bot Oluştur",
+    "trialOfferTitle": "7 gün ücretsiz deneyin",
+    "trialOfferDesc": "Ödeme gerekmez — sadece Telegram'ı bağlayın, bir bot oluşturun ve nasıl çalıştığını görün.",
+    "trialOfferCta": "Ücretsiz denemeyi başlat",
+    "trialOfferDismiss": "Kapat",
     "totalBots": "Toplam Bot",
     "activeBots": "Aktif Botlar",
     "totalUsers": "Toplam Kullanıcı",

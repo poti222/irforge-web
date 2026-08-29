@@ -307,6 +307,10 @@
   "dashboard": {
     "title": "Dashboard",
     "createBot": "Create Bot",
+    "trialOfferTitle": "Start free for 7 days",
+    "trialOfferDesc": "No payment needed — just link Telegram, create a bot, and see how it works.",
+    "trialOfferCta": "Start free trial",
+    "trialOfferDismiss": "Dismiss",
     "totalBots": "Total Bots",
     "activeBots": "Active Bots",
     "totalUsers": "Total Users",

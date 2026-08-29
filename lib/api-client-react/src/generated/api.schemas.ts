@@ -74,6 +74,8 @@ export interface User {
   profileComplete?: boolean;
   /** آیا این کاربر قبلاً از تریال ۷ روزه‌ی رایگان استفاده کرده؟ */
   hasUsedTrial?: boolean;
+  /** آیا بنرِ پیشنهادِ تریالِ داشبورد را بسته/رد کرده؟ */
+  hasSeenTrialOffer?: boolean;
   // ─── Mandatory Profile Completion & Identity System ─────────────
   /** @nullable */
   gender?: 'male' | 'female' | null;

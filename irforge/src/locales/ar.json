@@ -307,6 +307,10 @@
   "dashboard": {
     "title": "لوحة التحكم",
     "createBot": "إنشاء بوت",
+    "trialOfferTitle": "جرّب مجاناً لمدة ٧ أيام",
+    "trialOfferDesc": "بلا أي دفع — فقط اربط تلغرام وأنشئ بوتاً لترى كيف يعمل.",
+    "trialOfferCta": "ابدأ التجربة المجانية",
+    "trialOfferDismiss": "إغلاق",
     "totalBots": "إجمالي البوتات",
     "activeBots": "البوتات النشطة",
     "totalUsers": "إجمالي المستخدمين",

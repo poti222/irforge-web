@@ -145,6 +145,13 @@ export const usersTable = pgTable("users", {
   // ─── تریال ۷ روزه ─────────────────────────────────────────
   /** آیا این کاربر قبلاً از تریال رایگان استفاده کرده؟ (هر اکانت فقط یک‌بار) */
   hasUsedTrial: boolean("has_used_trial").notNull().default(false),
+  /**
+   * فاز ۱۱ (identityverificationspec.md): بنرِ پیشنهادِ تریال روی داشبورد را
+   * بسته/رد کرده؟ یک‌بار true می‌شود و دیگر برنمی‌گردد — یک ستونِ دیتابیس، نه
+   * localStorage، چون این یک نکته‌ی یک‌بارِ حساب است، نه ترجیحِ مرورگر (باید
+   * روی هر دستگاهی که کاربر واردش می‌شود هم صدق کند).
+   */
+  hasSeenTrialOffer: boolean("has_seen_trial_offer").notNull().default(false),
 
   lastLogin: timestamp("last_login", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

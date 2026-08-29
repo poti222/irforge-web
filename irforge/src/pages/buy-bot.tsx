@@ -288,10 +288,12 @@ export default function BuyBot() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t.confirmUpgradeTitle}</AlertDialogTitle>
             <AlertDialogDescription>
+              {/* فاز ۱۳: ارتقا فقط تفاوتِ قیمت را می‌گیرد، نه قیمتِ کاملِ پلن —
+                  همان چیزی که سرور واقعاً از کیف‌پول کم می‌کند. */}
               {pendingPlan &&
                 t.confirmUpgradeBody
                   .replace("{plan}", pendingPlan.name)
-                  .replace("{price}", formatToman(pendingPlan.price, lang))}
+                  .replace("{price}", formatToman(Math.max(0, pendingPlan.price - currentPlanPrice), lang))}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

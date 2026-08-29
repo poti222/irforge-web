@@ -307,6 +307,10 @@
   "dashboard": {
     "title": "داشبورد",
     "createBot": "ساخت ربات",
+    "trialOfferTitle": "۷ روز رایگان امتحان کن",
+    "trialOfferDesc": "بدون نیاز به پرداخت، فقط با اتصال تلگرام یک بات بساز و ببین چطور کار می‌کند.",
+    "trialOfferCta": "شروع تریال رایگان",
+    "trialOfferDismiss": "بستن",
     "totalBots": "کل ربات‌ها",
     "activeBots": "ربات‌های فعال",
     "totalUsers": "کل کاربران",

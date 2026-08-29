@@ -753,6 +753,11 @@ VALUES
   ('gold',   'Gold',   0, 3.5,  'monthly', '{}', 1, 10,  130, 1,   1,   true),
   ('diamond','Diamond',0, 5.13, 'monthly', '{}', 3, 999, 500, 3,   3,   false)
 ON CONFLICT (id) DO NOTHING;
+
+-- Phase 11 (identityverificationspec.md): بنرِ پیشنهادِ تریال روی داشبورد،
+-- برای کاربری که هنوز باتی نساخته. بستن/رد‌کردنِ بنر یک‌بار true می‌شود؛
+-- ستونِ دیتابیس، نه localStorage، تا روی هر دستگاهی هم صدق کند.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS has_seen_trial_offer BOOLEAN NOT NULL DEFAULT false;
 `;
 
 

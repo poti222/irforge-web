@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useGetDashboardStats, useGetDashboardActivity, useListBots, customFetch } from "@workspace/api-client-react";
 import type { ActivityItem, ActivityItemType, Bot as BotType } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
@@ -8,7 +9,7 @@ import {
   Bot, Users, MessageSquare, Activity, Plus, Wallet,
   Rocket, Blocks, UserPlus, ArrowUpCircle, Terminal,
   ArrowUpRight, ArrowDownRight, Minus, Megaphone, AlertTriangle, Clock,
-  CreditCard, ArrowRight, type LucideIcon,
+  CreditCard, ArrowRight, Gift, X, type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MotionButton } from "@/components/ui/motion-button";
@@ -18,7 +19,9 @@ import { useLanguage, type Lang } from "@/hooks/use-language";
 import { useMotionDirection } from "@/hooks/use-motion-direction";
 import { formatToman } from "@/lib/format";
 import { useT, type LocaleShape } from "@/hooks/use-translation";
+import { useAuth } from "@/contexts/AuthContext";
 import { TrialWarningDialog } from "@/components/dashboard/trial-warning-dialog";
+import { TrialDialog } from "@/components/bots/TrialDialog";
 import { UpdateDialog } from "@/components/updates/UpdateDialog";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { botsNeedingAttention, type AttentionReason } from "@/lib/dashboard-attention";
@@ -104,10 +107,32 @@ export default function Dashboard() {
   const t = useT("dashboard");
   const reduce = useReducedMotion();
   const dir = useMotionDirection();
+  const { user, refreshUser } = useAuth();
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: activity, isLoading: activityLoading } = useGetDashboardActivity();
   const { data: bots } = useListBots();
   const attentionItems = botsNeedingAttention(bots ?? []);
+
+  // فاز ۱۱ (identityverificationspec.md): بنرِ پیشنهادِ تریال، فقط برای
+  // کاربری که هنوز باتی نساخته، تریال نگرفته و بنر را نبسته — یک ستونِ
+  // دیتابیس (نه localStorage) چون باید روی هر دستگاهی که وارد می‌شود هم
+  // صدق کند. `bots` هنوز لود نشده باشد یعنی هنوز نمی‌دانیم — بنر تا لود
+  // شدنش نشان داده نمی‌شود، نه اینکه با فرضِ «صفر بات» چشمک بزند.
+  const [trialOpen, setTrialOpen] = useState(false);
+  const [dismissingTrialOffer, setDismissingTrialOffer] = useState(false);
+  const showTrialOffer = Boolean(
+    bots && bots.length === 0 && user && !user.hasUsedTrial && !user.hasSeenTrialOffer,
+  );
+
+  async function dismissTrialOffer() {
+    setDismissingTrialOffer(true);
+    try {
+      await customFetch("/api/users/trial-offer-dismissed", { method: "POST" });
+      await refreshUser();
+    } finally {
+      setDismissingTrialOffer(false);
+    }
+  }
   // R5b: surface platform announcements created in the admin panel.
   // عمداً حالت خطا ندارد: اگر این کوئری شکست بخورد نوار اعلان‌ها فقط پنهان
   // می‌ماند و هیچ توستی به کاربر نشان داده نمی‌شود — یک بنر تزئینی نباید
@@ -156,6 +181,36 @@ export default function Dashboard() {
           </Link>
         </MotionButton>
       </div>
+
+      {showTrialOffer && (
+        <div className="flex flex-col items-start gap-4 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Gift className="size-6" />
+            </div>
+            <div>
+              <p className="font-semibold">{t.trialOfferTitle}</p>
+              <p className="text-sm text-muted-foreground">{t.trialOfferDesc}</p>
+            </div>
+          </div>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <MotionButton className="flex-1 sm:flex-none" onClick={() => setTrialOpen(true)}>
+              <Gift className="me-2 h-4 w-4" /> {t.trialOfferCta}
+            </MotionButton>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              disabled={dismissingTrialOffer}
+              onClick={() => void dismissTrialOffer()}
+              aria-label={t.trialOfferDismiss}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+      <TrialDialog open={trialOpen} onOpenChange={setTrialOpen} />
 
       {announcements && announcements.length > 0 && (
         <div className="space-y-2">

@@ -14,7 +14,14 @@
  *     وگرنه تمدیدِ زودهنگام روزهای پرداخت‌شده را دور می‌ریخت.
  *   - **تنزل** (پلنِ فعلی فعال و پلنِ جدید ارزان‌تر یا هم‌قیمت): بدون کسر،
  *     فوری، ولی تاریخِ انقضا/تمدیدِ فعلی دست‌نخورده می‌ماند.
- *   - **ارتقا / اشتراکِ تازه**: کسرِ کاملِ قیمتِ پلنِ جدید، دوره‌ای تازه از الان.
+ *   - **اشتراکِ تازه** (پلنِ فعلی وجود ندارد/منقضی شده): کسرِ کاملِ قیمتِ
+ *     پلنِ جدید، دوره‌ای تازه از الان.
+ *   - **ارتقا** (پلنِ فعلی فعال و پلنِ جدید گران‌تر است — identityverificationspec.md
+ *     فاز ۱۳): فقط تفاوتِ قیمت کسر می‌شود، نه قیمتِ کاملِ پلنِ جدید — و
+ *     تاریخِ انقضا/تمدید دست‌نخورده می‌ماند، نه یک دوره‌ی تازه از الان. سقفِ
+ *     پلنِ جدید (رم/CPU/maxUsers/maxBots) بلافاصله اعمال می‌شود چون
+ *     `userPlansTable.planId` همین الان عوض می‌شود؛ فقط پولش تا پایانِ همان
+ *     دوره‌ای که قبلاً خریده بود یک بارِ اضافه است، نه یک اشتراکِ کاملاً تازه.
  */
 
 export type PlanChangeAction = "subscribe" | "upgrade" | "downgrade" | "renew";
@@ -71,11 +78,16 @@ export function decidePlanChange(
     };
   }
 
+  if (currentActive) {
+    // ارتقا: فقط تفاوت، همان دوره‌ی فعلی — نه قیمتِ کامل، نه دوره‌ی تازه.
+    return {
+      action: "upgrade",
+      charge: targetPlan.price - currentPlanPrice,
+      nextExpiresAt: existing!.expiresAt,
+      nextRenewsAt: existing!.renewsAt,
+    };
+  }
+
   const nextExpiresAt = addInterval(now, targetPlan.interval);
-  return {
-    action: currentActive ? "upgrade" : "subscribe",
-    charge: targetPlan.price,
-    nextExpiresAt,
-    nextRenewsAt: nextExpiresAt,
-  };
+  return { action: "subscribe", charge: targetPlan.price, nextExpiresAt, nextRenewsAt: nextExpiresAt };
 }

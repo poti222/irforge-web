@@ -85,6 +85,7 @@ export function toAuthUser(user: typeof usersTable.$inferSelect, botCount: numbe
     telegramLastName: user.telegramLastName ?? null,
     telegramPhotoUrl: user.telegramPhotoUrl ?? null,
     hasUsedTrial: user.hasUsedTrial ?? false,
+    hasSeenTrialOffer: user.hasSeenTrialOffer ?? false,
     phone: user.phone ?? null,
     phoneVerified: user.phoneVerified ?? false,
     emailVerified: user.emailVerified ?? false,

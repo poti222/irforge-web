@@ -34,11 +34,17 @@ test("بدون اشتراکِ قبلی → subscribe، کسرِ کاملِ قی�
   assert.deepEqual(d.nextRenewsAt, d.nextExpiresAt);
 });
 
-test("پلنِ فعلی ارزان‌تر و فعال → upgrade، کسرِ کاملِ قیمتِ پلنِ جدید", () => {
-  const d = decidePlanChange(plan({ price: 199_000 }), existing(), 99_000, NOW);
+test("پلنِ فعلی ارزان‌تر و فعال → upgrade، فقط تفاوتِ قیمت، همان دوره‌ی فعلی (فاز ۱۳)", () => {
+  // identityverificationspec.md فاز ۱۳: برخلافِ subscribe/renew که کسرِ کامل
+  // و دوره‌ی تازه دارند، ارتقا فقط تفاوت را می‌گیرد و انقضا/تمدیدِ فعلی را
+  // دست‌نخورده می‌گذارد — کاربر برای روزهای باقی‌مانده‌ای که قبلاً خریده بود
+  // دوباره تمامِ پول را نمی‌دهد.
+  const cur = existing();
+  const d = decidePlanChange(plan({ price: 199_000 }), cur, 99_000, NOW);
   assert.equal(d.action, "upgrade");
-  assert.equal(d.charge, 199_000);
-  assert.deepEqual(d.nextExpiresAt, addInterval(NOW, "monthly"));
+  assert.equal(d.charge, 100_000);
+  assert.deepEqual(d.nextExpiresAt, cur.expiresAt);
+  assert.deepEqual(d.nextRenewsAt, cur.renewsAt);
 });
 
 test("پلنِ فعلی گران‌تر و فعال → downgrade، بدون کسر، انقضای فعلی دست‌نخورده", () => {

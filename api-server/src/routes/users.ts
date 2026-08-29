@@ -108,6 +108,21 @@ router.patch("/users/notification-prefs", requireAuth, async (req: any, res) => 
   }
 });
 
+/**
+ * فاز ۱۱ (identityverificationspec.md): بستنِ بنرِ پیشنهادِ تریالِ داشبورد.
+ * یک سوئیچِ یک‌باره است، پس مثلِ notification-prefs بالا endpointی جدا از
+ * PATCH /users/profile — نه فیلدی روی همان.
+ */
+router.post("/users/trial-offer-dismissed", requireAuth, async (req: any, res) => {
+  try {
+    await db.update(usersTable).set({ hasSeenTrialOffer: true }).where(eq(usersTable.id, req.userId));
+    res.json({ hasSeenTrialOffer: true });
+  } catch (err) {
+    logger.error({ err }, "Dismiss trial offer error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // PATCH /api/users/password
 router.patch("/users/password", requireAuth, async (req: any, res) => {
   try {

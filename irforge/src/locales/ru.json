@@ -307,6 +307,10 @@
   "dashboard": {
     "title": "Панель управления",
     "createBot": "Создать бота",
+    "trialOfferTitle": "Попробуйте бесплатно 7 дней",
+    "trialOfferDesc": "Без оплаты — просто подключите Telegram, создайте бота и посмотрите, как это работает.",
+    "trialOfferCta": "Начать бесплатный период",
+    "trialOfferDismiss": "Закрыть",
     "totalBots": "Всего ботов",
     "activeBots": "Активные боты",
     "totalUsers": "Всего пользователей",
