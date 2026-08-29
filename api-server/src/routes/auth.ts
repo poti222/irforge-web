@@ -1015,6 +1015,7 @@ router.get("/auth/google/callback", async (req, res) => {
           plan: "free",
           status: "active",
           emailVerified: true,
+          oauthProvider: "google",
         })
         .returning();
       user = created;
@@ -1187,6 +1188,7 @@ router.get("/auth/github/callback", async (req, res) => {
           plan: "free",
           status: "active",
           emailVerified: true,
+          oauthProvider: "github",
         })
         .returning();
       user = created;

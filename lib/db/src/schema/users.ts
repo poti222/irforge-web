@@ -66,15 +66,63 @@ export const usersTable = pgTable("users", {
    */
   emailVerified: boolean("email_verified").notNull().default(false),
   /**
-   * یوزرنیم اختصاصی پلتفرم (نه تلگرام) — برای آینده.
-   * فعلاً nullable، بعداً می‌تونه unique بشه.
+   * یوزرنیم اختصاصی پلتفرم (نه تلگرام) — نمایشی است، هرگز برای ورود استفاده
+   * نمی‌شود (ورود همچنان بر پایه‌ی ایمیل/شماره است). nullable تا زمانی که
+   * کاربر آن را در ویزارد تکمیل هویت انتخاب کند؛ یکتاییِ آن با یک ایندکس
+   * یکتای جزئی در مایگریشن اعمال می‌شود (`WHERE platform_username IS NOT
+   * NULL`), دقیقاً همان الگوی phone پایین‌تر — چون ردیف‌های قدیمی این ستون
+   * را ندارند و چند NULL نباید با هم برخورد کنند.
    */
   platformUsername: text("platform_username"),
   /**
-   * آیا پروفایل کامل است؟ (تلگرام وصل + شماره + آواتار)
-   * می‌شه computed هم نگه داشت ولی boolean ستون سریع‌تره.
+   * آیا پروفایل کامل است؟ منبعِ حقیقتِ محاسبه در computeProfileComplete()
+   * پایین همین فایل است — این ستون فقط کشِ همان محاسبه است، برای کوئری
+   * سریع بدون بازمحاسبه‌ی هر بار.
    */
   profileComplete: boolean("profile_complete").notNull().default(false),
+  /**
+   * جنسیت — "male" | "female"، nullable تا وقتی کاربر آن را در ویزارد
+   * تکمیل هویت وارد کند. فقط این دو مقدار مجاز است؛ ورودی نامعتبر همان
+   * لحظه‌ی ثبت رد می‌شود (نه اینجا، در validation لایه‌ی route).
+   */
+  gender: text("gender"),
+  /**
+   * حساب از کدام سرویسِ OAuth ساخته شده — "google" | "github" | null.
+   * تنها جایی که این مقدار خوانده می‌شود exemption رمزِ عبور در
+   * computeProfileComplete() است: کسی که با گوگل/گیت‌هاب حساب ساخته یک
+   * passwordHash تصادفی و ناشناخته دارد (ببینید GET /auth/google/callback و
+   * GET /auth/github/callback)، پس truthy بودنِ passwordHash به‌تنهایی
+   * نمی‌تواند «رمز واقعی دارد» را نشان دهد — این ستون آن تمایز را می‌دهد.
+   * توجه: در اسپکِ اصلی این ستون قرار بود در schema/auth.ts باشد؛ آنجا
+   * چیزی برای OAuth وجود نداشت (نه این فیلد، نه هیچ معادلی)، پس اینجا و به
+   * همین نام ساخته شد، کنار بقیه‌ی ستون‌های هویتیِ کاربر.
+   */
+  oauthProvider: text("oauth_provider"),
+  /**
+   * فلگ بازبینیِ ادمین — وقتی heuristic نام/جنسیت (identityHeuristics.ts)
+   * مغایرت پیدا کند. هرگز مانعِ ثبت‌نام/ورود نمی‌شود؛ فقط حساب را در صفِ
+   * بازبینیِ ادمین می‌گذارد. حذفِ خودکار هیچ‌جای این سیستم وجود ندارد —
+   * ادمین یا فلگ را پاک می‌کند یا حساب را حذف می‌کند.
+   */
+  flaggedForReview: boolean("flagged_for_review").notNull().default(false),
+  /** "gender_mismatch" | "name_mismatch" | "manual_report" */
+  flagReason: text("flag_reason"),
+  flaggedAt: timestamp("flagged_at", { withTimezone: true }),
+  /**
+   * اولین باری که همه‌ی فیلدهای اجباریِ هویت پر شدند — یک‌بار ست می‌شود،
+   * هیچ‌وقت آپدیت نمی‌شود. برای گزارش/تحلیل، نه برای خودِ گیت (گیت از
+   * computeProfileComplete زنده استفاده می‌کند، نه این timestamp).
+   */
+  identityCompletedAt: timestamp("identity_completed_at", { withTimezone: true }),
+  /**
+   * ۲FA اختیاری — کاربر خودش در پروفایل روشن/خاموش می‌کند. روش، همان کانالِ
+   * کدِ ورودِ دومرحله‌ایِ موجود (`/auth/login/verify`) است؛ این دو ستون فقط
+   * می‌گویند «آیا فعال است» و «از کدام کانال» — منطق ارسال/تأییدِ کد قبلاً
+   * در auth.ts هست و دست‌نخورده می‌ماند.
+   */
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  /** "email" | "sms" | "telegram" — فقط وقتی twoFactorEnabled=true معنا دارد */
+  twoFactorMethod: text("two_factor_method"),
 
   // ─── V2: password recovery (code delivered via the platform Telegram bot) ──
   /** sha256 hash of the short-lived reset code (never store it plaintext) */
@@ -108,10 +156,34 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;
 
 /**
- * تابع کمکی برای محاسبه وضعیت profileComplete.
- * هر بار تلگرام لینک می‌شه یا phone آپدیت می‌شه صدا بزن.
+ * محاسبه‌ی وضعیتِ profileComplete.
+ *
+ * ⚠️ این باید همیشه دقیقاً با `checkProfile().complete` در
+ * `api-server/src/lib/profile.ts` یکی بماند — آن فایل منبعِ حقیقتِ واقعی
+ * است (چون هم برای دروازه‌ی خرید و هم دروازه‌ی اجباریِ تکمیل هویت استفاده
+ * می‌شود و جزئیاتِ «چه چیزی کم است» را هم گزارش می‌دهد)، این تابع فقط یک
+ * نسخه‌ی boolean-محضِ همان قانون در لایه‌ی schema است، برای جایی که فقط
+ * یک بله/خیر لازم است نه لیستِ فیلدهای گم‌شده. تغییرِ قانون در یکی بدون
+ * دیگری یعنی این ستون بسته به این‌که کدام مسیر آخرین‌بار نوشته، دو معنیِ
+ * متفاوت می‌گیرد.
+ *
+ * رمزِ عبور برای حساب‌های OAuth استثناست: کسی که با گوگل/گیت‌هاب ساخته
+ * شده یک passwordHash تصادفی و ناشناخته دارد (خودِ کاربر هرگز آن را
+ * تایپ نکرده)، پس truthy بودنِ passwordHash به‌تنهایی «رمزِ واقعی دارد»
+ * را ثابت نمی‌کند — oauthProvider همان تمایز را می‌دهد.
  */
 export function computeProfileComplete(user: Partial<User>): boolean {
-  return Boolean(user.telegramId && user.avatar);
-  // بعداً: && user.phone
+  const hasPassword = Boolean(user.passwordHash) || Boolean(user.oauthProvider);
+  const nameParts = (user.name ?? "").trim().split(/\s+/).filter(Boolean);
+  return Boolean(
+    nameParts.length >= 2 &&
+    user.email &&
+    user.phone &&
+    user.phoneVerified &&
+    user.telegramId &&
+    user.telegramUsername &&
+    user.gender &&
+    user.platformUsername &&
+    hasPassword,
+  );
 }

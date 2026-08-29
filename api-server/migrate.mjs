@@ -702,6 +702,24 @@ UPDATE users
  WHERE telegram_photo_file_id IS NOT NULL
    AND telegram_photo_file_id <> ''
    AND (telegram_photo_url IS NULL OR telegram_photo_url = '');
+
+-- ─── IDENTITY_FIELDS (Mandatory Profile Completion & Identity System) ──────
+-- ببینید lib/db/src/schema/users.ts برای توضیح هر ستون. yourPlatformUsername
+-- یکتاییِ خودش را از postSteps() پایین می‌گیرد (ایندکس جزئی، همان الگوی
+-- users_phone_unique_idx) نه اینجا، چون باید اول تصادم‌های موجود شمرده شوند.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS gender TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS oauth_provider TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS flagged_for_review BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS flag_reason TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS flagged_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS identity_completed_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_method TEXT;
+-- بک‌فیل: حساب‌های موجودِ گوگل/گیت‌هاب راهی برای شناسایی گذشته‌نگر ندارند
+-- (پیش از این تغییر oauth_provider اصلاً وجود نداشت) — نال می‌مانند و در
+-- دروازه‌ی تکمیل هویت مثل یک کاربرِ عادی رمزدار رفتار می‌شوند، یعنی از آن‌ها
+-- هم ثبتِ یک رمزِ واقعی خواسته می‌شود. این محافظه‌کارانه‌تر از حدسِ اشتباه
+-- است: بک‌فیلِ نادرست یعنی معافیتِ رمز به کسی که آن را از OAuth نگرفته.
 `;
 
 
@@ -776,6 +794,31 @@ async function postSteps(client) {
   await client.query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key");
   await client.query(
     "CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (lower(email))"
+  );
+
+  /**
+   * ایندکس یکتای جزئی روی users.platform_username — همان الگوی phone بالا.
+   * ستون از قبل وجود داشت (نمایشی، فاز ۱۳) ولی هیچ‌جا یکتا اعمال نمی‌شد؛
+   * دروازه‌ی تکمیل هویت اولین جایی است که واقعاً آن را می‌خواهد. تصادم‌های
+   * موجود (اگر باشند) شمرده و چاپ می‌شوند، بدون هیچ تغییرِ خودکاری —
+   * اینکه کدام حساب یوزرنیم را نگه دارد تصمیمِ ادمین است.
+   */
+  const usernameDupes = await client.query(`
+    SELECT platform_username, count(*)::int AS n
+    FROM users WHERE platform_username IS NOT NULL AND platform_username <> ''
+    GROUP BY platform_username HAVING count(*) > 1
+  `);
+  if (usernameDupes.rows.length > 0) {
+    console.error(
+      "[migrate] Cannot create the unique platform_username index: duplicates exist.\n" +
+      "[migrate] No rows were changed. Resolve these first:\n" +
+      usernameDupes.rows.map((r) => `  ${r.platform_username} → ${r.n} users`).join("\n")
+    );
+    process.exit(1);
+  }
+  await client.query(
+    "CREATE UNIQUE INDEX IF NOT EXISTS users_platform_username_unique_idx " +
+    "ON users(platform_username) WHERE platform_username IS NOT NULL"
   );
 }
 
