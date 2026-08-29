@@ -29,7 +29,10 @@ export type AuditAction =
   // IRFORGE_PROMPT_V3 Phase 36 — super admin directly adjusting a user's
   // account-level plan or wallet balance (routes/superAdminUsers.ts).
   | "plan_changed"
-  | "wallet_adjusted";
+  | "wallet_adjusted"
+  // Mandatory Profile Completion & Identity System — Phase 4/7.
+  | "flag_cleared"
+  | "user_deleted";
 
 export async function writeAudit(input: {
   actorUserId: string;

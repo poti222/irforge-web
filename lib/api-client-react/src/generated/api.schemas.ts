@@ -529,6 +529,14 @@ export interface AdminUser {
   /** @nullable */
   lastLogin?: string | null;
   createdAt: string;
+  // ─── Mandatory Profile Completion & Identity System ─────────────
+  /** @nullable */
+  gender?: 'male' | 'female' | null;
+  /** @nullable */
+  platformUsername?: string | null;
+  flaggedForReview?: boolean;
+  /** @nullable */
+  flagReason?: string | null;
 }
 
 export type AdminUserUpdateRole = typeof AdminUserUpdateRole[keyof typeof AdminUserUpdateRole];

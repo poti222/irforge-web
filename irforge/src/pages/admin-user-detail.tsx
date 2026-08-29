@@ -42,6 +42,9 @@ interface AdminUser {
   phoneVerified: boolean; role: string; status: string; plan: string;
   telegramId: string | null; telegramUsername: string | null;
   profileComplete: boolean; createdAt: string; lastLogin: string | null;
+  // ─── Mandatory Profile Completion & Identity System ─────────────
+  gender: "male" | "female" | null; platformUsername: string | null;
+  flaggedForReview: boolean; flagReason: string | null; flaggedAt: string | null;
 }
 
 interface AdminUserBilling {
@@ -69,6 +72,8 @@ export default function AdminUserDetail() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [gender, setGender] = useState<"male" | "female" | "">("");
+  const [platformUsername, setPlatformUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [reason, setReason] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState<string>("__free__");
@@ -84,6 +89,7 @@ export default function AdminUserDetail() {
         `/api/superadmin/users/${id}`,
       );
       setName(r.user.name); setEmail(r.user.email); setPhone(r.user.phone ?? "");
+      setGender(r.user.gender ?? ""); setPlatformUsername(r.user.platformUsername ?? "");
       setSelectedPlanId(r.billing.planId === "free" ? "__free__" : r.billing.planId);
       return r;
     },
@@ -114,7 +120,7 @@ export default function AdminUserDetail() {
     mutationFn: () =>
       customFetch(`/api/superadmin/users/${id}`, {
         method: "PATCH",
-        body: JSON.stringify({ name, email, phone, reason }),
+        body: JSON.stringify({ name, email, phone, gender: gender || undefined, platformUsername, reason }),
       }),
     onSuccess: () => { invalidate(); toast({ title: fa ? "ذخیره شد" : "Saved" }); },
     onError,
@@ -277,6 +283,34 @@ export default function AdminUserDetail() {
                     : "Changing the email or phone clears its verified flag — an admin edit is not verification."}
                 </p>
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="u-gender">{fa ? "جنسیت" : "Gender"}</Label>
+                <Select value={gender || "__none__"} onValueChange={(v) => setGender(v === "__none__" ? "" : (v as "male" | "female"))}>
+                  <SelectTrigger id="u-gender" className="w-40"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{fa ? "تعیین‌نشده" : "Not set"}</SelectItem>
+                    <SelectItem value="male">{fa ? "آقا" : "Male"}</SelectItem>
+                    <SelectItem value="female">{fa ? "خانم" : "Female"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="u-username">{fa ? "یوزرنیم پلتفرم" : "Platform username"}</Label>
+                <Input
+                  id="u-username" dir="ltr" value={platformUsername}
+                  onChange={(e) => setPlatformUsername(e.target.value.toLowerCase())}
+                />
+              </div>
+              {u.flaggedForReview && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+                  <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-500" aria-hidden="true" />
+                  <span>
+                    {fa ? "این حساب برای بازبینی علامت خورده — دلیل: " : "This account is flagged for review — reason: "}
+                    <span className="font-medium">{u.flagReason ?? "manual_report"}</span>
+                    {fa ? ". برای پاک کردن فلگ به «صفِ بازبینی» بروید." : ". Clear it from the Review Queue."}
+                  </span>
+                </div>
+              )}
               <Button onClick={() => saveIdentity.mutate()} disabled={saveIdentity.isPending}>
                 {saveIdentity.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
                 {fa ? "ذخیره" : "Save"}

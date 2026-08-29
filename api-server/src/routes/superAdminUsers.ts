@@ -72,9 +72,32 @@ function publicUser(u: typeof usersTable.$inferSelect) {
     telegramFirstName: u.telegramFirstName,
     telegramLastName: u.telegramLastName,
     profileComplete: u.profileComplete,
+    // ─── Mandatory Profile Completion & Identity System ───────────────
+    gender: u.gender,
+    platformUsername: u.platformUsername,
+    flaggedForReview: u.flaggedForReview,
+    flagReason: u.flagReason,
+    flaggedAt: u.flaggedAt ? u.flaggedAt.toISOString() : null,
     createdAt: u.createdAt.toISOString(),
     lastLogin: u.lastLogin ? u.lastLogin.toISOString() : null,
   };
+}
+
+/** نام نمایشیِ ادمینِ عمل‌کننده — برای متنِ اعلانِ کاربر ("ادمین {name} ..."). */
+export async function getActorName(actorUserId: string): Promise<string> {
+  const [actor] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, actorUserId)).limit(1);
+  return actor?.name ?? "ادمین";
+}
+
+/**
+ * پیامِ استانداردِ اعلانِ «ادمین فلان فیلد را تغییر داد» — یک قالب، همه‌جا.
+ * خطِ «دلیل» همیشه یک خطِ جدا و متمایز است، نه بخشی از جمله‌ی اول: وقتی
+ * ادمین دلیلی تایپ نکرده، یک متنِ عمومی («وارد شده توسط ادمین») جای آن را
+ * می‌گیرد تا خط هیچ‌وقت خالی نماند.
+ */
+export function adminChangeMessage(adminName: string, fieldsFa: string, reason: string | null): string {
+  const reasonLine = reason && reason.trim() ? reason.trim() : "وارد شده توسط ادمین";
+  return `ادمین **${adminName}** ${fieldsFa} حساب شما را تغییر داد.\nدلیل: ${reasonLine}`;
 }
 
 function typedReason(value: unknown): string {
@@ -94,6 +117,10 @@ router.get("/superadmin/users", requireSuperAdmin, async (req: any, res) => {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const role = typeof req.query.role === "string" ? req.query.role : "";
     const status = typeof req.query.status === "string" ? req.query.status : "";
+    // Review Queue (Phase 4/8): flaggedForReview=true فیلترِ صفِ بازبینیِ
+    // ادمین است. مرتب‌سازی هم عوض می‌شود — قدیمی‌ترین فلگ اول، تا فلگ‌های
+    // کهنه زیرِ تازه‌ترها گم نشوند (فاز ۸.۲).
+    const flaggedOnly = req.query.flagged === "true";
 
     const filters: any[] = [];
     if (search) {
@@ -109,13 +136,14 @@ router.get("/superadmin/users", requireSuperAdmin, async (req: any, res) => {
     }
     if (role) filters.push(eq(usersTable.role, role));
     if (status) filters.push(eq(usersTable.status, status));
+    if (flaggedOnly) filters.push(eq(usersTable.flaggedForReview, true));
     const where = filters.length ? and(...filters) : undefined;
 
     const rows = await db
       .select()
       .from(usersTable)
       .where(where)
-      .orderBy(desc(usersTable.createdAt))
+      .orderBy(flaggedOnly ? usersTable.flaggedAt : desc(usersTable.createdAt))
       .limit(perPage)
       .offset((page - 1) * perPage);
 
@@ -284,6 +312,37 @@ router.patch("/superadmin/users/:id", requireSuperAdmin, async (req: any, res) =
         changed.push("phone");
       }
     }
+    if (req.body?.gender === "male" || req.body?.gender === "female") {
+      if (req.body.gender !== user.gender) {
+        patch.gender = req.body.gender;
+        changed.push("gender");
+      }
+    } else if (req.body?.gender !== undefined && req.body?.gender !== null && req.body?.gender !== "") {
+      res.status(400).json({ error: "Gender must be 'male' or 'female'" });
+      return;
+    }
+    if (typeof req.body?.platformUsername === "string") {
+      const username = req.body.platformUsername.trim().toLowerCase() || null;
+      if (username && !/^[a-z0-9_]{3,20}$/.test(username)) {
+        res.status(400).json({ error: "Username must be 3-20 characters: lowercase letters, digits, underscore" });
+        return;
+      }
+      if (username !== user.platformUsername) {
+        if (username) {
+          const [taken] = await db
+            .select({ id: usersTable.id })
+            .from(usersTable)
+            .where(and(eq(usersTable.platformUsername, username), sql`${usersTable.id} <> ${user.id}`))
+            .limit(1);
+          if (taken) {
+            res.status(409).json({ error: "That username belongs to another user" });
+            return;
+          }
+        }
+        patch.platformUsername = username;
+        changed.push("platformUsername");
+      }
+    }
 
     if (changed.length === 0) {
       res.json({ user: publicUser(user) });
@@ -296,28 +355,85 @@ router.patch("/superadmin/users/:id", requireSuperAdmin, async (req: any, res) =
       .where(eq(usersTable.id, user.id))
       .returning();
 
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.slice(0, 500) : null;
     await writeAudit({
       actorUserId: req.userId,
       action: "identity_updated",
       targetUserId: user.id,
-      reason: typeof req.body?.reason === "string" ? req.body.reason.slice(0, 500) : null,
+      reason,
       metadata: { fields: changed },
     });
 
     // هر تغییری که پشتیبانی روی حساب کسی می‌زند باید به خودش هم برسد — وگرنه
     // از دید کاربر با یک نفوذِ ساکت فرقی ندارد.
-    const fieldLabelsFa: Record<string, string> = { name: "نام", email: "ایمیل", phone: "شماره" };
+    const fieldLabelsFa: Record<string, string> = {
+      name: "نام", email: "ایمیل", phone: "شماره", gender: "جنسیت", platformUsername: "یوزرنیم",
+    };
+    const adminName = await getActorName(req.userId);
     await createNotification({
       userId: user.id,
       type: "identity_updated",
       severity: "info",
       title: "اطلاعات حساب شما تغییر کرد",
-      message: `پشتیبانی این فیلدها را روی حساب شما تغییر داد: ${changed.map((f) => fieldLabelsFa[f] ?? f).join("، ")}.`,
+      message: adminChangeMessage(adminName, changed.map((f) => fieldLabelsFa[f] ?? f).join("، "), reason),
     });
 
     res.json({ user: publicUser(updated) });
   } catch (err) {
     logger.error({ err }, "superadmin patch user error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/superadmin/users/:id/clear-flag ───────────────────────────────
+// دومین اقدامِ صفِ بازبینی (کنارِ حذفِ حساب، که از همان DELETE /admin/users
+// موجود استفاده می‌کند). حذفِ خودکار هیچ‌جای این سیستم نیست — یا ادمین فلگ را
+// پاک می‌کند، یا حساب را حذف می‌کند.
+router.post("/superadmin/users/:id/clear-flag", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const reason = typedReason(req.body?.reason);
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.params.id)).limit(1);
+    if (!user) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    if (!user.flaggedForReview) {
+      res.json({ user: publicUser(user) });
+      return;
+    }
+
+    const [updated] = await db
+      .update(usersTable)
+      .set({ flaggedForReview: false, flagReason: null, flaggedAt: null })
+      .where(eq(usersTable.id, user.id))
+      .returning();
+
+    await writeAudit({
+      actorUserId: req.userId,
+      action: "flag_cleared",
+      targetUserId: user.id,
+      reason,
+      metadata: { previousReason: user.flagReason },
+    });
+
+    // «فلگ» هیچ‌وقت به کاربر گفته نشده بود، پس اعلانِ «فلگت پاک شد» بی‌معنی
+    // است — پیامی که برایش معنا دارد این است که حسابش بررسی و تأیید شده.
+    const adminName = await getActorName(req.userId);
+    await createNotification({
+      userId: user.id,
+      type: "identity_updated",
+      severity: "info",
+      title: "حساب شما بررسی شد",
+      message: `ادمین **${adminName}** پرونده‌ی حساب شما را بررسی و تأیید کرد.\nدلیل: ${reason}`,
+    });
+
+    res.json({ user: publicUser(updated) });
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    logger.error({ err }, "superadmin clear-flag error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -515,12 +631,13 @@ router.post("/superadmin/users/:id/role", requireSuperAdmin, async (req: any, re
     });
 
     const roleLabelsFa: Record<string, string> = { user: "کاربر عادی", admin: "ادمین", super_admin: "سوپر ادمین" };
+    const roleAdminName = await getActorName(req.userId);
     await createNotification({
       userId: user.id,
       type: "role_changed",
       severity: role === "super_admin" || user.role === "super_admin" ? "warning" : "info",
       title: "نقش حساب شما تغییر کرد",
-      message: `نقش حساب شما در سایت به «${roleLabelsFa[role] ?? role}» تغییر کرد.`,
+      message: adminChangeMessage(roleAdminName, `نقش حساب شما را به «${roleLabelsFa[role] ?? role}»`, reason),
     });
 
     res.json({ user: publicUser(updated) });

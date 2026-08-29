@@ -8,7 +8,9 @@ import { eq, and, gte, sql, desc, count, lt, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAdmin, requireAuth, requireSuperAdmin } from "./auth";
 import { syncUserUpsert, syncUserDelete } from "../lib/sheetsSync";
-import { createNotificationsBulk, severityForAnnouncementType } from "../lib/notify";
+import { createNotification, createNotificationsBulk, severityForAnnouncementType } from "../lib/notify";
+import { writeAudit } from "../lib/audit";
+import { getActorName, adminChangeMessage } from "./superAdminUsers";
 import { getRevenueEntries, sumRevenue, type RevenueKind } from "../lib/adminRevenue.js";
 
 const router = Router();
@@ -52,6 +54,11 @@ router.get("/admin/users", requireAdmin, async (req: any, res) => {
         botCount: bots.length,
         lastLogin: u.lastLogin?.toISOString() ?? null,
         createdAt: u.createdAt.toISOString(),
+        // ─── Mandatory Profile Completion & Identity System ───────────
+        gender: u.gender,
+        platformUsername: u.platformUsername,
+        flaggedForReview: u.flaggedForReview,
+        flagReason: u.flagReason,
       };
     }));
     res.json(usersWithBotCount);
@@ -98,6 +105,9 @@ router.patch("/admin/users/:userId", requireAdmin, async (req: any, res) => {
       res.status(403).json({ error: "Only a super admin can modify a super admin account" });
       return;
     }
+    const before = await db.select({ role: usersTable.role, status: usersTable.status })
+      .from(usersTable).where(eq(usersTable.id, req.params.userId)).limit(1);
+
     const update: Record<string, any> = {};
     if (role !== undefined) update.role = role;
     if (status !== undefined) update.status = status;
@@ -111,6 +121,37 @@ router.patch("/admin/users/:userId", requireAdmin, async (req: any, res) => {
     }
     const bots = await db.select().from(botsTable).where(eq(botsTable.userId, user.id));
     syncUserUpsert({ id: user.id, name: user.name, email: user.email, role: user.role, plan: user.plan, status: user.status, bio: user.bio, telegramUsername: user.telegramUsername, createdAt: user.createdAt, updatedAt: user.updatedAt });
+
+    // هر تغییری که از این پنل روی حساب کسی می‌زند باید ممیزی و به خودِ کاربر
+    // هم اطلاع‌رسانی شود — این روت قبلاً هیچ‌کدام را نداشت.
+    const reason = typeof req.body?.reason === "string" && req.body.reason.trim() ? req.body.reason.trim().slice(0, 500) : null;
+    if (role !== undefined && before[0]?.role !== role) {
+      await writeAudit({
+        actorUserId: req.userId, action: "role_changed", targetUserId: user.id, reason,
+        metadata: { from: before[0]?.role, to: role },
+      });
+      const roleLabelsFa: Record<string, string> = { user: "کاربر عادی", admin: "ادمین", super_admin: "سوپر ادمین" };
+      const adminName = await getActorName(req.userId);
+      await createNotification({
+        userId: user.id, type: "role_changed", severity: role === "super_admin" ? "warning" : "info",
+        title: "نقش حساب شما تغییر کرد",
+        message: adminChangeMessage(adminName, `نقش حساب شما را به «${roleLabelsFa[role] ?? role}»`, reason),
+      });
+    }
+    if (status !== undefined && before[0]?.status !== status) {
+      await writeAudit({
+        actorUserId: req.userId, action: "status_changed", targetUserId: user.id, reason,
+        metadata: { from: before[0]?.status, to: status },
+      });
+      const statusLabelsFa: Record<string, string> = { active: "فعال", suspended: "معلق", banned: "مسدود" };
+      const adminName = await getActorName(req.userId);
+      await createNotification({
+        userId: user.id, type: "status_changed", severity: status === "active" ? "info" : "warning",
+        title: "وضعیت حساب شما تغییر کرد",
+        message: adminChangeMessage(adminName, `وضعیت حساب شما را به «${statusLabelsFa[status] ?? status}»`, reason),
+      });
+    }
+
     res.json({
       id: user.id,
       name: user.name,
@@ -155,6 +196,14 @@ router.delete("/admin/users/:userId", requireAdmin, async (req: any, res) => {
       res.status(403).json({ error: "Only a super admin can delete a super admin account" });
       return;
     }
+
+    const reason = typeof req.body?.reason === "string" && req.body.reason.trim() ? req.body.reason.trim().slice(0, 500) : null;
+    // پیش از حذف نوشته می‌شود: بعدش دیگر targetUserId معنایی در جدولِ
+    // users ندارد، ولی ردیفِ لاگ برای مرجعِ آینده کافی است.
+    await writeAudit({
+      actorUserId: req.userId, action: "user_deleted", targetUserId: req.params.userId, reason,
+      metadata: { role: target[0].role },
+    });
 
     await db.delete(usersTable).where(eq(usersTable.id, req.params.userId));
     syncUserDelete(req.params.userId);

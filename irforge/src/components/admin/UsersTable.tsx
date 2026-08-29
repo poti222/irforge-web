@@ -22,15 +22,37 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Loader2 } from "lucide-react";
+import { Trash2, Loader2, Flag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
+import { cn } from "@/lib/utils";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   active: "default",
   suspended: "secondary",
   banned: "destructive",
 };
+
+/**
+ * هاله‌ی رنگیِ نقش/جنسیت — فاز ۵.
+ *
+ * اولویت: super_admin (مشکی، هرگز دست‌نخورده — «دست نزن برای سوپرها») >
+ * admin (طلایی، حتی اگر آن ادمین male/female هم باشد) > جنسیت > هیچ‌کدام.
+ * چون role دقیقاً یکی از این سه مقدار است، هیچ‌وقت دو تا از این سه با هم
+ * برخورد نمی‌کنند — فقط جنسیت و نقش رقابت می‌کنند، که همان چیزی است که
+ * ترتیب زیر حل می‌کند.
+ *
+ * فقط دسکتاپ: این جدول اصلاً نسخه‌ی کارتیِ موبایل ندارد (هیچ breakpointی
+ * سوییچ نمی‌کند)، پس «دسکتاپ‌محور بودن» را با پیشوندِ ریسپانسیوِ خودِ کلاس
+ * تأمین می‌کنیم — زیر `md` هیچ گرادیانی رنگ نمی‌شود.
+ */
+function getRowHaloClass(u: Pick<AdminUser, "role" | "gender">): string {
+  if (u.role === "super_admin") return "md:[background:linear-gradient(to_right,rgba(0,0,0,0.35),transparent)]";
+  if (u.role === "admin") return "md:[background:linear-gradient(to_right,rgba(234,179,8,0.35),transparent)]";
+  if (u.gender === "male") return "md:[background:linear-gradient(to_right,rgba(96,165,250,0.35),transparent)]";
+  if (u.gender === "female") return "md:[background:linear-gradient(to_right,rgba(244,114,182,0.35),transparent)]";
+  return "";
+}
 
 export function UsersTable() {
   const { lang } = useLanguage();
@@ -104,9 +126,19 @@ export function UsersTable() {
           {(users ?? []).map((u) => {
             const isSelf = u.id === me?.id;
             return (
-              <TableRow key={u.id}>
+              <TableRow key={u.id} className={cn(getRowHaloClass(u))}>
                 <TableCell>
-                  <div className="font-medium">{u.name}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium">{u.name}</span>
+                    {u.flaggedForReview && (
+                      <span title={u.flagReason ?? (fa ? "علامت‌خورده برای بازبینی" : "Flagged for review")}>
+                        <Flag
+                          className="size-3.5 shrink-0 text-amber-500"
+                          aria-label={fa ? "علامت‌خورده برای بازبینی" : "Flagged for review"}
+                        />
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground">{u.email}</div>
                 </TableCell>
                 <TableCell>
