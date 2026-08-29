@@ -82,3 +82,29 @@ test("checkProfile: pre-existing purchase-gate fields still block completion on 
   );
   assert.ok(!checkProfile({ ...COMPLETE_USER, telegramId: null }).complete, "no telegramId is incomplete");
 });
+
+test("checkProfile: a legacy pre-migration user (signed up via Telegram before gender/platformUsername existed) is correctly caught as incomplete", () => {
+  // Shape of a real pre-existing row right after the Phase 1 migration:
+  // the old required fields are all filled in (that's how they got past
+  // the old, narrower gate), but the new columns are NULL because they
+  // didn't exist at signup time. This is the exact case the mandatory
+  // identity gate exists to catch — every legacy user should land here,
+  // not slip through with complete === true.
+  const legacyUser = {
+    name: "Ali Rezaei",
+    email: "ali@example.com",
+    phone: "+989120000000",
+    phoneVerified: true,
+    telegramId: "123456",
+    telegramUsername: "alirezaei",
+    passwordHash: "hashed",
+    gender: null,
+    platformUsername: null,
+    oauthProvider: null,
+  };
+  const result = checkProfile(legacyUser);
+  assert.equal(result.complete, false);
+  assert.ok(result.missing.includes("gender"));
+  assert.ok(result.missing.includes("platformUsername"));
+  assert.equal(result.onlyUsernameMissing, false, "two fields missing, not the single-username self-service case");
+});
