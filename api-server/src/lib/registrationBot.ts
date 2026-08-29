@@ -115,7 +115,7 @@ function smsCodeText(code: string, locale: Locale, kind: CodeKind): string {
 
 async function sendCodeSms(phone: string | undefined, code: string, locale: Locale, kind: CodeKind): Promise<void> {
   if (!phone) return;
-  await sendSms({ to: phone, text: smsCodeText(code, locale, kind) });
+  await sendSms({ to: phone, text: smsCodeText(code, locale, kind), code });
 }
 
 /** Password-reset code over SMS — the Telegram half of this message is
