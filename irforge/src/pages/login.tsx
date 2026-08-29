@@ -18,6 +18,7 @@ import { CodeInput } from "@/components/auth/CodeInput";
 import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
 import { setAuthToken } from "@/lib/auth-token";
+import { EMAIL_AUTH_CLOSED } from "@/lib/auth-policy";
 
 /**
  * دو راه ورود، یک صفحه.
@@ -444,20 +445,22 @@ export default function Login() {
               {t.loginContinue}
             </GlowButton>
 
-            <button
-              type="button"
-              onClick={() => setLoginMethod((m) => (m === "phone" ? "email" : "phone"))}
-              className="flex w-full items-center gap-2 rounded-lg border p-3 text-start transition-colors hover:border-primary/60"
-            >
-              {loginMethod === "phone" ? (
-                <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              ) : (
-                <Phone className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              )}
-              <span className="text-sm">
-                {loginMethod === "phone" ? t.loginWithEmailInstead : t.loginWithPhoneInstead}
-              </span>
-            </button>
+            {!EMAIL_AUTH_CLOSED && (
+              <button
+                type="button"
+                onClick={() => setLoginMethod((m) => (m === "phone" ? "email" : "phone"))}
+                className="flex w-full items-center gap-2 rounded-lg border p-3 text-start transition-colors hover:border-primary/60"
+              >
+                {loginMethod === "phone" ? (
+                  <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                ) : (
+                  <Phone className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                )}
+                <span className="text-sm">
+                  {loginMethod === "phone" ? t.loginWithEmailInstead : t.loginWithPhoneInstead}
+                </span>
+              </button>
+            )}
 
             <p className="text-center text-sm text-muted-foreground">
               {t.noAccount}{" "}

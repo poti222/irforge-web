@@ -21,6 +21,7 @@ import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/auth/TurnstileWidget";
 import { useCaptchaConfig } from "@/config/captcha";
 import { setAuthToken } from "@/lib/auth-token";
+import { EMAIL_AUTH_CLOSED } from "@/lib/auth-policy";
 
 /**
  * ثبت‌نام پنج‌مرحله‌ای.
@@ -548,19 +549,21 @@ export default function Register() {
               </div>
             </button>
 
-            <button
-              type="button"
-              onClick={() => { setMethod("email"); setStep("identity"); }}
-              className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
-            >
-              <div className="flex items-start gap-3">
-                <Mail className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="font-semibold">{t.methodEmail}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{t.methodEmailDesc}</p>
+            {!EMAIL_AUTH_CLOSED && (
+              <button
+                type="button"
+                onClick={() => { setMethod("email"); setStep("identity"); }}
+                className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
+              >
+                <div className="flex items-start gap-3">
+                  <Mail className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="font-semibold">{t.methodEmail}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t.methodEmailDesc}</p>
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
+            )}
 
             <p className="text-center text-sm text-muted-foreground">
               {t.alreadyHaveAccount ?? ""}{" "}

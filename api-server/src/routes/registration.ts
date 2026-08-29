@@ -42,6 +42,7 @@ import { syncSessionUpsert, syncUserUpsert } from "../lib/sheetsSync";
 import { authRateLimit, clientIp } from "../middleware/rateLimit";
 import { verifyCaptchaToken } from "../lib/captchaVerify";
 import { hashSessionToken, hashUserAgent } from "../lib/sessionToken";
+import { EMAIL_AUTH_CLOSED, EMAIL_AUTH_CLOSED_MESSAGE_FA, EMAIL_AUTH_CLOSED_CODE } from "../lib/authPolicy";
 import {
   MAX_CODE_ATTEMPTS,
   MAX_CODE_SENDS,
@@ -270,6 +271,10 @@ router.post("/auth/register/start", authRateLimit("register_start"), async (req,
 // of two-step ("identity" then "telegram_pending" then "code_sent").
 router.post("/auth/register/email/start", authRateLimit("register_start"), async (req, res) => {
   try {
+    if (EMAIL_AUTH_CLOSED) {
+      res.status(403).json({ error: EMAIL_AUTH_CLOSED_MESSAGE_FA, code: EMAIL_AUTH_CLOSED_CODE });
+      return;
+    }
     // IRFORGE_PROMPT_V3 Phase 42 — see the /register/start handler above.
     if (!(await verifyCaptchaToken(req.body?.captchaToken, clientIp(req)))) {
       res.status(400).json({ error: "Captcha verification failed", code: "captcha_failed" });

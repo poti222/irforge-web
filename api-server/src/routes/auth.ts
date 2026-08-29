@@ -28,6 +28,7 @@ import {
   verifyCode as verifyOtp,
 } from "../lib/otp";
 import { sendLoginCode } from "../lib/registrationBot";
+import { EMAIL_AUTH_CLOSED, EMAIL_AUTH_CLOSED_MESSAGE_FA, EMAIL_AUTH_CLOSED_CODE } from "../lib/authPolicy";
 import { sendEmailLoginCode } from "../lib/authEmails";
 import { authRateLimit, hit, phoneKey, emailKey, reset, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS } from "../middleware/rateLimit";
 import { hashSessionToken, hashUserAgent } from "../lib/sessionToken";
@@ -194,6 +195,10 @@ function sessionExpiresAt(): Date {
 // POST /api/auth/register
 router.post("/auth/register", async (req, res) => {
   try {
+    if (EMAIL_AUTH_CLOSED) {
+      res.status(403).json({ error: EMAIL_AUTH_CLOSED_MESSAGE_FA, code: EMAIL_AUTH_CLOSED_CODE });
+      return;
+    }
     const { name, password } = req.body;
     const email = normaliseEmail(req.body?.email);
     if (!name || !email || !password) {
@@ -272,6 +277,10 @@ router.post("/auth/login", authRateLimit("login"), async (req, res) => {
     const password = req.body?.password;
     if ((!phone && !email) || typeof password !== "string" || password === "") {
       await genericFail();
+      return;
+    }
+    if (EMAIL_AUTH_CLOSED && email) {
+      res.status(403).json({ error: EMAIL_AUTH_CLOSED_MESSAGE_FA, code: EMAIL_AUTH_CLOSED_CODE });
       return;
     }
 
