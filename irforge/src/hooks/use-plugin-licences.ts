@@ -63,19 +63,6 @@ export function useInvalidateLicences() {
   };
 }
 
-/** انتقال یک لایسنس به بات دیگر. */
-export function useMoveLicence() {
-  const invalidate = useInvalidateLicences();
-  return useMutation({
-    mutationFn: ({ licenceId, botId }: { licenceId: string; botId: string }) =>
-      customFetch<{ moved: boolean }>(`/api/plugin-licences/${licenceId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ botId }),
-      }),
-    onSuccess: invalidate,
-  });
-}
-
 export type BuyForBotsResult = {
   botId: string;
   botName: string;

@@ -17,6 +17,8 @@ import {
 import { Search, ChevronRight, AlertTriangle, Flag, Loader2, CheckCircle2, Trash2 } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { getRowHaloClass } from "@/lib/user-halo";
 
 interface QueueUser {
   id: string;
@@ -26,6 +28,7 @@ interface QueueUser {
   telegramUsername?: string | null;
   role: string;
   status: string;
+  gender?: "male" | "female" | null;
   botCount: number;
   flagReason?: string | null;
   flaggedAt?: string | null;
@@ -162,7 +165,7 @@ export default function AdminUsers() {
         <>
           <div className="space-y-2">
             {data.items.map((u) => (
-              <Card key={u.id} className="transition-colors hover:border-primary/50">
+              <Card key={u.id} className={cn("transition-colors hover:border-primary/50", getRowHaloClass(u))}>
                 <CardContent className="flex flex-wrap items-center gap-3 p-4">
                   <Link href={`/admin/users/${u.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                     <div className="min-w-0 flex-1">

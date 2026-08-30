@@ -36,7 +36,7 @@ import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 /**
  * Buy Bot is now the single place plans live.
  *
- * The fixed packages (Silver/Gold/Diamond/Custom) sit on top; every plan an
+ * The fixed packages (Standard/Pro/Custom) sit on top; every plan an
  * admin creates in the admin panel appears underneath automatically, so adding
  * a plan never needs a code change or a second page. The old standalone
  * /plans route is gone.

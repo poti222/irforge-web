@@ -12,6 +12,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -31,6 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
+import { useT } from "@/hooks/use-translation";
 
 type AdminBot = Bot & { owner: { id: string; name: string; email: string } | null };
 
@@ -51,6 +55,7 @@ export function AllBotsTable() {
   const fa = lang === "fa";
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const tt = useT("botTiers");
   const nf = (n: number | undefined) => (n ?? 0).toLocaleString(fa ? "fa-IR" : "en-US");
 
   const { data: bots, isLoading } = useQuery({
@@ -187,6 +192,28 @@ export function AllBotsTable() {
     }
   }
 
+  // ─── Change tier ────────────────────────────────────────────────────────
+  // سوپرادمین می‌تواند پکیجِ ثبت‌شده‌ی یک بات را عوض کند — مثلاً وقتی کاربر
+  // آفلاین ارتقا خریده یا موقعِ خرید اشتباه ثبت شده. فقط برچسبِ نمایشی/
+  // گزارشیِ `bots.tier` عوض می‌شود (`routes/bots.ts`)، نه رم/CPU واقعیِ هاست.
+  const [changingTierId, setChangingTierId] = useState<string | null>(null);
+
+  async function changeTier(bot: AdminBot, tier: string) {
+    setChangingTierId(bot.id);
+    try {
+      await customFetch(`/api/admin/bots/${bot.id}/tier`, {
+        method: "PATCH",
+        body: JSON.stringify({ tier }),
+      });
+      await invalidate();
+      toast({ title: fa ? "پکیج تغییر کرد" : "Tier changed" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: e?.data?.error ?? e?.message });
+    } finally {
+      setChangingTierId(null);
+    }
+  }
+
   // ─── Delete bot ─────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<AdminBot | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -230,6 +257,7 @@ export function AllBotsTable() {
                 <TableHead>{fa ? "ربات" : "Bot"}</TableHead>
                 <TableHead>{fa ? "مالک" : "Owner"}</TableHead>
                 <TableHead>{fa ? "وضعیت" : "Status"}</TableHead>
+                <TableHead>{fa ? "پکیج" : "Tier"}</TableHead>
                 <TableHead className="hidden md:table-cell">{fa ? "کاربران" : "Users"}</TableHead>
                 <TableHead className="hidden md:table-cell">{fa ? "پیام‌ها" : "Messages"}</TableHead>
                 <TableHead className="hidden lg:table-cell">{fa ? "تاریخ" : "Created"}</TableHead>
@@ -252,6 +280,20 @@ export function AllBotsTable() {
                     ) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell><Badge variant={STATUS_VARIANT[bot.status] ?? "outline"}>{bot.status}</Badge></TableCell>
+                  <TableCell>
+                    <Select
+                      value={bot.tier ?? "__none__"}
+                      onValueChange={(v) => changeTier(bot, v)}
+                      disabled={changingTierId === bot.id}
+                    >
+                      <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="standard">{tt.standard.name}</SelectItem>
+                        <SelectItem value="pro">{tt.pro.name}</SelectItem>
+                        {!bot.tier && <SelectItem value="__none__" disabled>{fa ? "نامشخص" : "Unknown"}</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
                   <TableCell className="hidden md:table-cell">{nf(bot.userCount)}</TableCell>
                   <TableCell className="hidden md:table-cell">{nf(bot.messageCount)}</TableCell>
                   <TableCell className="hidden lg:table-cell text-muted-foreground">

@@ -1,12 +1,17 @@
 /**
  * ExchangeRateSettings.tsx — Phase 10 of identityverificationspec.md.
  *
- * Shows the current USD→Rial rate (used to live-price the Silver/Gold/
- * Diamond plans below it in the "Plans" tab), when it was last synced, and
- * lets a super admin override it manually. Deliberately separate from
+ * Shows the current USD→Rial rate (used to live-price any plan with a
+ * `priceUsd` set, in the "Plans" tab below it), when it was last synced,
+ * and lets a super admin override it manually. Deliberately separate from
  * CurrencyDisplaySettings (Phase 39) — that one edits a display-only "≈ X
  * USD" label; this one edits the rate a live-priced plan is actually
  * charged through.
+ *
+ * Standard/Pro (the account plans consolidated to match the bot-purchase
+ * tiers) currently have a flat Toman price, not `priceUsd` — so this rate
+ * has no live-priced plan to affect right now, but stays functional for
+ * whenever an admin creates one with PlansManager.
  */
 import { useState } from "react";
 import { customFetch } from "@workspace/api-client-react";
@@ -53,7 +58,7 @@ export function ExchangeRateSettings() {
     try {
       await customFetch("/api/admin/exchange-rate", { method: "POST", body: JSON.stringify({ rialPerUsd }) });
       queryClient.invalidateQueries({ queryKey: EXCHANGE_RATE_KEY });
-      // پلن‌های زنده‌قیمت (Silver/Gold/Diamond) بلافاصله با نرخ تازه نشان داده شوند.
+      // پلن‌های زنده‌قیمت (priceUsd) بلافاصله با نرخ تازه نشان داده شوند.
       queryClient.invalidateQueries({ queryKey: getListPlansQueryKey() });
       setDraft("");
       toast({ title: fa ? "نرخ ذخیره شد" : "Rate saved" });
@@ -74,8 +79,8 @@ export function ExchangeRateSettings() {
         <CardTitle className="text-base">{fa ? "نرخ دلار به ریال" : "USD → Rial exchange rate"}</CardTitle>
         <CardDescription>
           {fa
-            ? "همان نرخی که پلن‌های زنده‌قیمت (Silver/Gold/Diamond) با آن به تومان تبدیل می‌شوند. هر ساعت خودکار از Nobitex همگام می‌شود."
-            : "The rate live-priced plans (Silver/Gold/Diamond) convert through to Toman. Synced automatically from Nobitex every hour."}
+            ? "همان نرخی که پلن‌های زنده‌قیمت (دلاری) با آن به تومان تبدیل می‌شوند. هر ساعت خودکار از Nobitex همگام می‌شود."
+            : "The rate any live-priced (USD) plan converts through to Toman. Synced automatically from Nobitex every hour."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

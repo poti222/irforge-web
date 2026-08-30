@@ -16,7 +16,6 @@ import {
   Bot,
   LayoutDashboard,
   Store,
-  CreditCard,
   Settings,
   ShieldAlert,
   Users,
@@ -138,14 +137,6 @@ export function AppSidebar() {
                   <Link href="/wallet" data-testid="nav-wallet" onClick={closeMobileMenu}>
                     <Wallet />
                     <span>{nav.myWallet}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/plans"} tooltip={nav.plans}>
-                  <Link href="/plans" data-testid="nav-plans" onClick={closeMobileMenu}>
-                    <CreditCard />
-                    <span>{nav.plans}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

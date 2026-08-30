@@ -1950,6 +1950,7 @@
   },
   "botPlugins": {
     "loading": "در حال بارگذاری پلاگین‌ها…",
+    "searchPlaceholder": "جست‌وجوی پلاگین با نام یا توضیح…",
     "errorGeneric": "خطایی رخ داد. لطفاً دوباره تلاش کنید.",
     "noSheetYet": "این بات هنوز شیت اختصاصی ندارد؛ بعد از تخصیص شیت، پلاگین‌ها فعال می‌شوند.",
     "installedTitle": "پلاگین‌های این بات",
@@ -2639,15 +2640,12 @@
   "botPlan": {
     "loading": "در حال بارگذاریِ پلن…",
     "title": "پلن و اشتراک",
-    "statusActive": "فعال",
-    "statusPastDue": "پرداخت معوق",
-    "statusCanceled": "لغوشده",
-    "statusGrace": "دورهٔ مهلت",
-    "priceMonthly": "{price} در ماه",
-    "daysRemaining": "{n} روز تا تمدید",
-    "expired": "این پلن منقضی شده است.",
-    "graceWarning": "اشتراک شما منقضی شده — در دورهٔ مهلت هستید. برای حفظ قابلیت‌های پولی، هرچه زودتر تمدید کنید.",
-    "upgradeCta": "مشاهدهٔ پلن‌ها"
+    "tierUnknown": "پکیج نامشخص",
+    "daysRemaining": "{n} روز تا پایان تریال",
+    "expired": "تریال تمام شده است.",
+    "upgradeCta": "ارتقا",
+    "upgraded": "به پرو ارتقا یافت",
+    "upgradeFailed": "ارتقا ناموفق بود"
   },
   "plans": {
     "title": "پلن‌ها",

@@ -4,7 +4,9 @@
  * یک صفحه‌ی واقعی به‌ازای هر پلاگین (نه یک دیالوگ)، پس قابل بوکمارک و
  * اشتراک‌گذاری است: توضیح کامل، قیمت، اینکه کدام بخش را باز می‌کند، روی کدام
  * بات‌ها نشسته، و هر کاری که می‌شود با آن کرد — خرید برای یک یا چند باتِ
- * انتخابی هم‌زمان، رفتن به بخش مدیریتش، یا انتقال یک لایسنس به بات دیگر.
+ * انتخابی هم‌زمان، یا رفتن به بخش مدیریتش. انتقالِ یک لایسنس بینِ بات‌ها
+ * عمداً وجود ندارد — پلاگینی که روی بات دیگری هست فقط با یک خریدِ جدا
+ * می‌تواند روی بات دیگر هم فعال شود.
  *
  * IRFORGE_PROMPT_V3 Phase 37 — تا امروز به‌محض خریدِ یک پلاگین روی هر باتی،
  * کل بخشِ «خرید» از این صفحه ناپدید می‌شد؛ کاربری با سه بات که می‌خواست همان
@@ -17,7 +19,7 @@
  */
 import { Link, useParams } from "wouter";
 import {
-  ArrowLeft, ArrowRight, Blocks, Check, Info, Loader2, MoveRight, ShoppingCart, Table2, History,
+  ArrowLeft, ArrowRight, Blocks, Check, Info, Loader2, ShoppingCart, Table2, History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +41,7 @@ import { formatToman, formatConvertedAmount } from "@/lib/format";
 import { pluginName, pluginDescription } from "@/lib/plugin-text";
 import { SECTION_LABEL_KEYS } from "@/lib/plugin-sections";
 import {
-  usePluginLicences, useMoveLicence, useBuyPluginForBots,
+  usePluginLicences, useBuyPluginForBots,
 } from "@/hooks/use-plugin-licences";
 
 function errMessage(err: any, fallback: string): string {
@@ -65,9 +67,7 @@ export default function PluginDetail() {
     enabled: Boolean(pluginId),
   });
   const buy = useBuyPluginForBots();
-  const move = useMoveLicence();
   const [selectedBotIds, setSelectedBotIds] = useState<string[]>([]);
-  const [moveTargets, setMoveTargets] = useState<Record<string, string>>({});
 
   const plugin = data?.plugins.find((p) => p.id === pluginId);
   usePrivatePageTitle(plugin ? pluginName(plugin, lang, plugin.id) : t.detailsTitle);
@@ -234,50 +234,8 @@ export default function PluginDetail() {
                     </div>
                   </div>
 
-                  {availableBots.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-2 border-t pt-2">
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <MoveRight className="size-3.5" /> {t.moveToAnotherBot}
-                      </span>
-                      <Select
-                        value={moveTargets[licence.licenceId] ?? ""}
-                        onValueChange={(v) => setMoveTargets((prev) => ({ ...prev, [licence.licenceId]: v }))}
-                      >
-                        <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder={t.chooseBot} /></SelectTrigger>
-                        <SelectContent>
-                          {availableBots.map((bot) => (
-                            <SelectItem key={bot.id} value={bot.id}>{bot.name || bot.id}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={!moveTargets[licence.licenceId] || move.isPending}
-                        onClick={() =>
-                          move.mutate(
-                            { licenceId: licence.licenceId, botId: moveTargets[licence.licenceId] },
-                            {
-                              onSuccess: () => {
-                                toast({ title: t.moved });
-                                setMoveTargets((prev) => { const next = { ...prev }; delete next[licence.licenceId]; return next; });
-                              },
-                              onError: (err: any) => toast({
-                                variant: "destructive", title: t.errorGeneric,
-                                description: errMessage(err, t.errorGeneric),
-                              }),
-                            },
-                          )
-                        }
-                      >
-                        {move.isPending && <Loader2 className="me-2 size-3.5 animate-spin" />}
-                        {t.moveAction}
-                      </Button>
-                    </div>
-                  )}
                 </div>
               ))}
-              <p className="text-xs text-muted-foreground">{t.moveHint}</p>
             </div>
           )}
 

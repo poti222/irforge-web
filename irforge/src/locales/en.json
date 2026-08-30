@@ -1950,6 +1950,7 @@
   },
   "botPlugins": {
     "loading": "Loading plugins…",
+    "searchPlaceholder": "Search plugins by name or description…",
     "errorGeneric": "Something went wrong. Please try again.",
     "noSheetYet": "This bot doesn't have its own spreadsheet yet; plugins unlock once one is assigned.",
     "installedTitle": "Plugins on this bot",
@@ -2639,15 +2640,12 @@
   "botPlan": {
     "loading": "Loading plan…",
     "title": "Plan & Subscription",
-    "statusActive": "Active",
-    "statusPastDue": "Payment overdue",
-    "statusCanceled": "Canceled",
-    "statusGrace": "Grace period",
-    "priceMonthly": "{price}/month",
-    "daysRemaining": "{n} day(s) until renewal",
-    "expired": "This plan has expired.",
-    "graceWarning": "Your subscription has expired — you're in the grace period. Renew soon to keep your paid features.",
-    "upgradeCta": "View plans"
+    "tierUnknown": "Unknown package",
+    "daysRemaining": "{n} day(s) left on your trial",
+    "expired": "The trial has ended.",
+    "upgradeCta": "Upgrade",
+    "upgraded": "Upgraded to Pro",
+    "upgradeFailed": "Upgrade failed"
   },
   "plans": {
     "title": "Plans",

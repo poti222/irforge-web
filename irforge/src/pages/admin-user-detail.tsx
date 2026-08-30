@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useParams, useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,6 +61,7 @@ interface AdminPlan {
 
 export default function AdminUserDetail() {
   const { id } = useParams<{ id: string }>();
+  const [, setLocation] = useLocation();
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const { toast } = useToast();
@@ -80,6 +81,7 @@ export default function AdminUserDetail() {
   const [durationDays, setDurationDays] = useState("");
   const [walletDirection, setWalletDirection] = useState<"credit" | "debit">("credit");
   const [walletAmount, setWalletAmount] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
   // دکمه‌های غیرفعال کلیک نمی‌فرستند (disabled:pointer-events-none در
   // Button)، پس کلیک از رویشان مستقیم به همین دیوِ اطراف‌شان می‌رسد —
@@ -168,6 +170,31 @@ export default function AdminUserDetail() {
         method: "POST", body: JSON.stringify({ role, reason }),
       }),
     onSuccess: () => { invalidate(); toast({ title: fa ? "نقش تغییر کرد" : "Role changed" }); },
+    onError,
+  });
+
+  // وضعیت (فعال/معلق/مسدود) و حذفِ حساب — قبلاً فقط توی Admin Panel
+  // (UsersTable.tsx) بودند، جدا از بقیه‌ی اقدامات این صفحه؛ حالا همین
+  // endpoint موجود (`PATCH`/`DELETE /admin/users/:userId`) از همین‌جا هم
+  // صدا زده می‌شود تا کنترلِ حساب یک کاربر فقط یک‌جا (همین‌جا) باشد.
+  const changeStatus = useMutation({
+    mutationFn: (status: string) =>
+      customFetch(`/api/admin/users/${id}`, {
+        method: "PATCH", body: JSON.stringify({ status, reason }),
+      }),
+    onSuccess: () => { invalidate(); toast({ title: fa ? "وضعیت تغییر کرد" : "Status changed" }); },
+    onError,
+  });
+
+  const deleteAccount = useMutation({
+    mutationFn: () =>
+      customFetch(`/api/admin/users/${id}`, {
+        method: "DELETE", body: JSON.stringify({ reason }),
+      }),
+    onSuccess: () => {
+      toast({ title: fa ? "کاربر حذف شد" : "User deleted" });
+      setLocation("/admin/users");
+    },
     onError,
   });
 
@@ -428,6 +455,43 @@ export default function AdminUserDetail() {
                   </p>
                 )}
               </div>
+              <div className="space-y-1.5">
+                <Label>{fa ? "وضعیت حساب" : "Account status"}</Label>
+                <Select
+                  value={u.status}
+                  onValueChange={(status) => {
+                    if (
+                      status === "banned" &&
+                      !window.confirm(
+                        fa
+                          ? "این حساب را کاملاً از ورود مسدود می‌کند. مطمئنید؟"
+                          : "This fully blocks the account from logging in. Are you sure?",
+                      )
+                    ) return;
+                    changeStatus.mutate(status);
+                  }}
+                  disabled={reasonTooShort || isSelf || changeStatus.isPending}
+                >
+                  <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">active</SelectItem>
+                    <SelectItem value="suspended">suspended</SelectItem>
+                    <SelectItem value="banned">banned</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {fa
+                    ? "معلق: کاربر وارد می‌شود ولی همه‌چیز فقط‌خواندنی است. مسدود: اصلاً وارد نمی‌شود."
+                    : "Suspended: the user can log in but everything is read-only. Banned: can't log in at all."}
+                </p>
+                {isSelf && (
+                  <p className="text-xs text-muted-foreground">
+                    {fa
+                      ? "وضعیتِ خودتان را از همین‌جا نمی‌توانید عوض کنید."
+                      : "You can't change your own status from here."}
+                  </p>
+                )}
+              </div>
               <div className="text-sm text-muted-foreground">
                 {fa ? "ربات‌ها" : "Bots"}: {data.activity.botCount} ·{" "}
                 {fa ? "تیکت‌ها" : "Tickets"}: {data.activity.ticketCount} ·{" "}
@@ -435,6 +499,49 @@ export default function AdminUserDetail() {
               </div>
             </CardContent>
           </Card>
+
+          {/* منطقه‌ی خطر — قبلاً این کنترل فقط توی Admin Panel (تبِ Users) بود،
+              جدا از بقیه‌ی اقدامات این کاربر؛ حالا فقط همین‌جاست. */}
+          {!isSelf && (
+            <Card className="mt-4 border-destructive/40">
+              <CardHeader><CardTitle className="text-base text-destructive">{fa ? "منطقه‌ی خطر" : "Danger zone"}</CardTitle></CardHeader>
+              <CardContent className="space-y-3 p-5 pt-0" onClick={() => reasonTooShort && focusReason()}>
+                <p className="text-sm text-muted-foreground">
+                  {fa
+                    ? "حذفِ حساب کاربر برگشت‌ناپذیر است."
+                    : "Deleting a user's account cannot be undone."}
+                </p>
+                <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={reasonTooShort}>
+                      {fa ? "حذف حساب" : "Delete account"}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{fa ? "حذف حساب؟" : "Delete account?"}</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {fa
+                          ? `کاربر «${u.name}» (${u.email}) برای همیشه حذف می‌شود. این کار برگشت‌ناپذیر است.`
+                          : `"${u.name}" (${u.email}) will be permanently deleted. This cannot be undone.`}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={deleteAccount.isPending}>{fa ? "انصراف" : "Cancel"}</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={(e) => { e.preventDefault(); deleteAccount.mutate(); }}
+                        disabled={deleteAccount.isPending}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {deleteAccount.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+                        {fa ? "حذف" : "Delete"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="billing" className="space-y-4">

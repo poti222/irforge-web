@@ -16,10 +16,11 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import {
-  ArrowLeft, ArrowRight, Blocks, Check, Info, Loader2, MoveRight, ShoppingCart, Trash2,
+  ArrowLeft, ArrowRight, Blocks, Check, Info, Loader2, Search, ShoppingCart, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -37,7 +38,7 @@ import { formatToman, formatConvertedAmount } from "@/lib/format";
 import { pluginName, pluginDescription } from "@/lib/plugin-text";
 import { SECTION_LABEL_KEYS } from "@/lib/plugin-sections";
 import {
-  usePluginLicences, useMoveLicence, useBuyPluginForBots, useRemoveLicence,
+  usePluginLicences, useBuyPluginForBots, useRemoveLicence,
   type LicencedPlugin, type LicenceBot,
 } from "@/hooks/use-plugin-licences";
 
@@ -52,8 +53,8 @@ function errMessage(err: any, fallback: string): string {
   return err?.data?.error ?? err?.message ?? fallback;
 }
 
-/** کارت یک پلاگینِ داشته: کجا نشسته، مدیریتش، و انتقالش. */
-function OwnedCard({ plugin, bots }: { plugin: LicencedPlugin; bots: LicenceBot[] }) {
+/** کارت یک پلاگینِ داشته: کجا نشسته و مدیریتش. */
+function OwnedCard({ plugin }: { plugin: LicencedPlugin }) {
   const t = useT("botPlugins");
   const tw = useT("botWorkspace");
   const { lang } = useLanguage();
@@ -61,19 +62,12 @@ function OwnedCard({ plugin, bots }: { plugin: LicencedPlugin; bots: LicenceBot[
   const ArrowIcon = fa ? ArrowLeft : ArrowRight;
   const { toast } = useToast();
 
-  const move = useMoveLicence();
   const remove = useRemoveLicence();
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
   const licence = plugin.licences[0];
   const sectionKey = plugin.webSection ? SECTION_LABEL_KEYS[plugin.webSection] : undefined;
   const sectionLabel = sectionKey ? (tw[sectionKey] as string) : null;
-
-  // بات‌هایی که این لایسنس می‌تواند به آن‌ها برود: هر باتی جز آن‌هایی که همین
-  // پلاگین را دارند (سرور هم همین را ۴۰۹ می‌کند؛ اینجا فقط پیشگیری از خطای
-  // بی‌دلیل است).
-  const taken = new Set(plugin.licences.map((l) => l.botId));
-  const movableTo = bots.filter((b) => !taken.has(b.id));
 
   return (
     <Card>
@@ -128,38 +122,6 @@ function OwnedCard({ plugin, bots }: { plugin: LicencedPlugin; bots: LicenceBot[
             </Button>
           )}
         </div>
-
-        {/* انتقال به بات دیگر — تنها وقتی بات دیگری هست که نداشته باشدش. */}
-        {licence && movableTo.length > 0 && (
-          <div className="space-y-1.5 border-t pt-3">
-            <p className="flex items-center gap-1.5 text-muted-foreground">
-              <MoveRight className="size-3.5" /> {t.moveToAnotherBot}
-            </p>
-            <Select
-              value=""
-              onValueChange={(botId) =>
-                move.mutate(
-                  { licenceId: licence.licenceId, botId },
-                  {
-                    onSuccess: () => toast({ title: t.moved }),
-                    onError: (err: any) =>
-                      toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
-                  },
-                )
-              }
-              disabled={move.isPending}
-            >
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder={t.chooseBot} />
-              </SelectTrigger>
-              <SelectContent>
-                {movableTo.map((bot) => (
-                  <SelectItem key={bot.id} value={bot.id}>{bot.name || bot.id}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
       </CardContent>
 
       <AlertDialog open={confirmRemove !== null} onOpenChange={(open) => !open && setConfirmRemove(null)}>
@@ -187,69 +149,6 @@ function OwnedCard({ plugin, bots }: { plugin: LicencedPlugin; bots: LicenceBot[
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
-  );
-}
-
-/**
- * کارت یک پلاگینِ داشته که روی *این* بات نیست — با یک دکمه‌ی «انتقال به همین بات».
- *
- * بی این کارت، در صفحه‌ی یک بات، پلاگینی که روی بات دیگرت نشسته در هیچ‌کدام از دو
- * بخش نبود: نه «قابل خرید» بود (داری‌اش) و نه روی این بات نصب. یعنی گم می‌شد.
- */
-function ElsewhereCard({ plugin, scopeBotId }: { plugin: LicencedPlugin; scopeBotId: string }) {
-  const t = useT("botPlugins");
-  const { lang } = useLanguage();
-  const { toast } = useToast();
-  const move = useMoveLicence();
-  const licence = plugin.licences[0];
-  if (!licence) return null;
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-start gap-2 text-base">
-          <Blocks className="mt-0.5 size-4 shrink-0 text-primary" />
-          <Link href={`/marketplace/${plugin.id}`} className="min-w-0 flex-1 hover:underline">
-            {pluginName(plugin, lang, plugin.id)}
-          </Link>
-          <Badge variant="secondary" className="shrink-0 gap-1">
-            <Check className="size-3" /> {t.purchased}
-          </Badge>
-        </CardTitle>
-        <CardDescription className="line-clamp-2">
-          {pluginDescription(plugin, lang)}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3 text-xs">
-        <p className="flex items-start gap-1.5 rounded-md bg-muted/60 px-2.5 py-2 text-muted-foreground">
-          <Info className="mt-0.5 size-3.5 shrink-0" />
-          <span>{t.installedOnBot.replace("{bot}", licence.botName || licence.botId)}</span>
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={move.isPending}
-            onClick={() =>
-              move.mutate(
-                { licenceId: licence.licenceId, botId: scopeBotId },
-                {
-                  onSuccess: () => toast({ title: t.moved }),
-                  onError: (err: any) =>
-                    toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
-                },
-              )
-            }
-          >
-            {move.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <MoveRight className="size-3.5" />}
-            {t.moveHere}
-          </Button>
-          <Button size="sm" variant="ghost" asChild>
-            <Link href={`/marketplace/${plugin.id}`}>{t.details}</Link>
-          </Button>
-        </div>
-      </CardContent>
     </Card>
   );
 }
@@ -423,31 +322,37 @@ export function PluginLibrary({
   const t = useT("botPlugins");
   const { lang } = useLanguage();
   const { data, isLoading, error } = usePluginLicences();
+  const [search, setSearch] = useState("");
 
-  const { owned, elsewhere, available } = useMemo(() => {
+  const { owned, available } = useMemo(() => {
     const plugins = data?.plugins ?? [];
     const bots = data?.bots ?? [];
     const byName = (a: LicencedPlugin, b: LicencedPlugin) =>
       pluginName(a, lang, a.id).localeCompare(pluginName(b, lang, b.id));
     // گران‌ترها اول: پلاگین‌های اصلیِ درآمدساز باید اول دیده شوند.
     const byPrice = (a: LicencedPlugin, b: LicencedPlugin) => b.price - a.price;
+
+    // سرچ روی عنوان و توضیحِ همان زبانِ فعال — سمت کلاینت، چون فهرست پلاگین‌ها
+    // در همین یک درخواست کامل می‌آید و جدا کردنش به یک endpoint سرچ جدید
+    // نیازی اضافه می‌کرد.
+    const q = search.trim().toLowerCase();
+    const matches = (p: LicencedPlugin) =>
+      q === "" ||
+      pluginName(p, lang, p.id).toLowerCase().includes(q) ||
+      pluginDescription(p, lang).toLowerCase().includes(q);
+
     return {
-      owned: plugins.filter((p) => p.owned).sort(byName),
-      elsewhere: scopeBotId
-        ? plugins
-            .filter((p) => p.owned && !p.licences.some((l) => l.botId === scopeBotId))
-            .sort(byName)
-        : [],
+      owned: plugins.filter((p) => p.owned && matches(p)).sort(byName),
       // IRFORGE_PROMPT_V3 Phase 37 — قبلاً `!p.owned` بود: به‌محضِ خریدِ یک
       // پلاگین روی *هر* باتی، برای همیشه از این بخش پنهان می‌شد، حتی وقتی
       // بات‌های دیگرت هنوز نداشتنش. حالا تا وقتی حداقل یک بات بی‌این‌پلاگین
       // هست (یا اصلاً هنوز باتی نداری) اینجا می‌ماند — `AvailableCard` خودش
       // فقط همان بات‌های باقی‌مانده را چک‌لیست می‌کند.
       available: plugins
-        .filter((p) => bots.length === 0 || p.licences.length < bots.length)
+        .filter((p) => (bots.length === 0 || p.licences.length < bots.length) && matches(p))
         .sort(byPrice),
     };
-  }, [data, lang, scopeBotId]);
+  }, [data, lang, scopeBotId, search]);
 
   if (isLoading) {
     return (
@@ -467,6 +372,16 @@ export function PluginLibrary({
 
   return (
     <div className="space-y-8">
+      <div className="relative max-w-sm">
+        <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t.searchPlaceholder}
+          className="ps-9"
+        />
+      </div>
+
       {only === "both" && (
         <section>
           <h3 className="mb-1 text-base font-semibold">
@@ -485,25 +400,11 @@ export function PluginLibrary({
             <motion.div className="grid gap-3 sm:grid-cols-2" initial="hidden" animate="show" variants={GRID_CONTAINER}>
               {owned.map((plugin) => (
                 <motion.div key={plugin.id} variants={GRID_ITEM}>
-                  <OwnedCard plugin={plugin} bots={data.bots} />
+                  <OwnedCard plugin={plugin} />
                 </motion.div>
               ))}
             </motion.div>
           )}
-        </section>
-      )}
-
-      {scopeBotId && elsewhere.length > 0 && (
-        <section>
-          <h3 className="mb-1 text-base font-semibold">{t.elsewhereTitle}</h3>
-          <p className="mb-3 text-sm text-muted-foreground">{t.elsewhereDesc}</p>
-          <motion.div className="grid gap-3 sm:grid-cols-2" initial="hidden" animate="show" variants={GRID_CONTAINER}>
-            {elsewhere.map((plugin) => (
-              <motion.div key={plugin.id} variants={GRID_ITEM}>
-                <ElsewhereCard plugin={plugin} scopeBotId={scopeBotId} />
-              </motion.div>
-            ))}
-          </motion.div>
         </section>
       )}
 

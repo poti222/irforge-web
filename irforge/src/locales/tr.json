@@ -1950,6 +1950,7 @@
   },
   "botPlugins": {
     "loading": "Eklentiler yükleniyor…",
+    "searchPlaceholder": "Ada veya açıklamaya göre eklenti ara…",
     "errorGeneric": "Bir hata oluştu. Lütfen tekrar deneyin.",
     "noSheetYet": "Bu botun henüz kendi e-tablosu yok; tablo atandığında eklentiler açılır.",
     "installedTitle": "Bu bottaki eklentiler",
@@ -2639,15 +2640,12 @@
   "botPlan": {
     "loading": "Plan yükleniyor…",
     "title": "Plan ve Abonelik",
-    "statusActive": "Etkin",
-    "statusPastDue": "Ödeme gecikti",
-    "statusCanceled": "İptal edildi",
-    "statusGrace": "Ek süre",
-    "priceMonthly": "{price}/ay",
-    "daysRemaining": "Yenilemeye {n} gün kaldı",
-    "expired": "Bu planın süresi doldu.",
-    "graceWarning": "Aboneliğinizin süresi doldu — ek süre içindesiniz. Ücretli özellikleri korumak için en kısa zamanda yenileyin.",
-    "upgradeCta": "Planları görüntüle"
+    "tierUnknown": "Bilinmeyen paket",
+    "daysRemaining": "Deneme süresinden {n} gün kaldı",
+    "expired": "Deneme süresi sona erdi.",
+    "upgradeCta": "Yükselt",
+    "upgraded": "Pro'ya yükseltildi",
+    "upgradeFailed": "Yükseltme başarısız oldu"
   },
   "plans": {
     "title": "Planlar",

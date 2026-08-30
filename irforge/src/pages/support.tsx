@@ -10,6 +10,7 @@ import {
   MessageCircle,
   LifeBuoy,
   Youtube,
+  Ticket,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,7 +68,7 @@ export default function Support() {
   usePrivatePageTitle(useT("pageTitles").support);
   const { lang } = useLanguage();
   const fa = lang === "fa";
-  const { aiBotUsername, ownerUsername, ownerLabel } = SUPPORT_CONTACTS;
+  const { ownerUsername, ownerLabel } = SUPPORT_CONTACTS;
   const { educationChannelUrl, educationChannelHandle } = useSupportLinks();
 
   return (
@@ -83,12 +84,12 @@ export default function Support() {
         </h1>
         <p className="max-w-xl text-muted-foreground">
           {fa
-            ? "اول از ربات پشتیبانی هوش مصنوعی بپرس — سریع و شبانه‌روزی جواب می‌ده. اگه به آدم واقعی نیاز داشتی، پایین‌تر مستقیم با ما در ارتباط باش."
-            : "Ask the AI support bot first — it answers instantly, around the clock. If you need a human, reach us directly below."}
+            ? "سریع‌ترین راه، ثبت یک تیکت است — تیمِ پشتیبانی شخصاً جوابش را می‌دهد."
+            : "The fastest way is opening a ticket — our support team answers it personally."}
         </p>
       </motion.div>
 
-      {/* AI auto-support — the star */}
+      {/* Ticket support — the star */}
       <motion.div variants={fadeUp} initial="hidden" animate="show" custom={1}>
         <Card className="relative overflow-hidden border-primary/30">
           {/* soft orange glow */}
@@ -99,13 +100,13 @@ export default function Support() {
               animate={{ y: [0, -5, 0] }}
               transition={{ duration: 3, ease: "easeInOut", repeat: Infinity }}
             >
-              <OrangeRobot className="size-12" />
+              <Ticket className="size-10" />
             </motion.div>
 
             <div className="flex-1 space-y-3">
               <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 <h2 className="text-xl font-bold">
-                  {fa ? "پشتیبانی خودکار هوش مصنوعی" : "AI Auto-Support"}
+                  {fa ? "پشتیبانی با تیکت" : "Ticket support"}
                 </h2>
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-primary">
                   <Sparkles className="size-3" />
@@ -114,22 +115,21 @@ export default function Support() {
               </div>
               <p className="text-sm text-muted-foreground">
                 {fa
-                  ? "رباتی که بیشتر سؤال‌ها رو همون لحظه جواب می‌ده — راه‌اندازی بات، پرداخت، پلاگین‌ها و بیشتر."
-                  : "A bot that answers most questions on the spot — bot setup, payments, plugins and more."}
+                  ? "یک تیکت باز کن و توضیح بده چه کمکی لازم داری — یک انسان از تیم پشتیبانی شخصاً جواب می‌دهد."
+                  : "Open a ticket and describe what you need — a real person on our support team answers it personally."}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-3 sm:justify-start">
-                <HandleChip username={aiBotUsername} />
                 <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="size-3.5" />
-                  {fa ? "۲۴ ساعته" : "24/7"}
+                  <ShieldCheck className="size-3.5" />
+                  {fa ? "پاسخ‌گویی توسط انسان" : "Answered by a human"}
                 </span>
               </div>
               <div className="pt-1">
-                <Button asChild size="lg" className="gap-2" data-testid="start-ai-chat">
-                  <a href={telegramUrl(aiBotUsername)} target="_blank" rel="noopener noreferrer">
+                <Button asChild size="lg" className="gap-2" data-testid="open-ticket">
+                  <Link href="/tickets">
                     <Send className="size-4" />
-                    {fa ? "شروع گفتگو با ربات" : "Start chat with the bot"}
-                  </a>
+                    {fa ? "ثبت تیکت" : "Open a ticket"}
+                  </Link>
                 </Button>
               </div>
             </div>
@@ -183,8 +183,8 @@ export default function Support() {
                 </h3>
                 <p className="text-sm text-muted-foreground">
                   {fa
-                    ? `اگه ربات نتونست کمکت کنه، مستقیم به ${ownerLabel} پیام بده.`
-                    : `If the bot can't help, message ${ownerLabel} directly.`}
+                    ? `برای هر چیزی که تیکت زمان‌بر است، مستقیم به ${ownerLabel} پیام بده.`
+                    : `For anything a ticket would be too slow for, message ${ownerLabel} directly.`}
                 </p>
               </div>
             </div>
@@ -201,21 +201,42 @@ export default function Support() {
         </Card>
       </motion.div>
 
-      {/* Reassurance + link to tickets */}
+      {/* AI auto-support — temporarily disabled, kept visible so it's clearly
+          "coming back" rather than gone; no longer the recommended path. */}
+      <motion.div variants={fadeUp} initial="hidden" animate="show" custom={4}>
+        <Card className="border-dashed opacity-60">
+          <CardContent className="flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:justify-between sm:text-start">
+            <div className="flex items-center gap-4">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                <OrangeRobot className="size-7" />
+              </div>
+              <div>
+                <h3 className="font-semibold">
+                  {fa ? "پشتیبانی خودکار هوش مصنوعی" : "AI Auto-Support"}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {fa ? "فعلاً موقتاً غیرفعال است — به‌جایش یک تیکت ثبت کن." : "Temporarily unavailable for now — open a ticket instead."}
+                </p>
+              </div>
+            </div>
+            <Button disabled variant="outline" size="sm" className="shrink-0 gap-2">
+              <Clock className="size-4" />
+              {fa ? "به‌زودی" : "Coming back soon"}
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Reassurance */}
       <motion.div
         variants={fadeUp}
         initial="hidden"
         animate="show"
-        custom={4}
-        className="flex flex-col items-center justify-between gap-3 rounded-xl border border-dashed p-4 text-sm text-muted-foreground sm:flex-row"
+        custom={5}
+        className="flex items-center justify-center gap-2 rounded-xl border border-dashed p-4 text-sm text-muted-foreground"
       >
-        <span className="inline-flex items-center gap-2">
-          <ShieldCheck className="size-4 text-primary" />
-          {fa ? "پاسخ‌ها معمولاً کمتر از چند ساعت طول می‌کشه." : "We usually reply in under a few hours."}
-        </span>
-        <Link href="/tickets" className="font-medium text-primary hover:underline" data-testid="link-tickets">
-          {fa ? "یا یک تیکت ثبت کن ←" : "Or open a ticket →"}
-        </Link>
+        <ShieldCheck className="size-4 text-primary" />
+        {fa ? "پاسخ‌ها معمولاً کمتر از چند ساعت طول می‌کشه." : "We usually reply in under a few hours."}
       </motion.div>
     </div>
   );

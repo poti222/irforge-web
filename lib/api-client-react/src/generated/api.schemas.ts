@@ -198,6 +198,8 @@ export interface Bot {
   adminCode?: string | null;
   adminCodeUsed?: boolean;
   paymentStatus?: string;
+  /** پکیجِ خریداری‌شده — "standard" | "pro" | "custom" | null (باتِ قدیمی/بی‌spec). @nullable */
+  tier?: string | null;
   // ─── تریال ۷ روزه ────────────────────────────────────────────
   isTrial?: boolean;
   /** @nullable */
