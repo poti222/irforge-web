@@ -20,13 +20,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  ArrowLeft, ArrowRight, Copy, ShieldAlert, Loader2, KeyRound, Send, Info,
+  ArrowLeft, ArrowRight, Copy, ShieldAlert, Loader2, KeyRound, Send, Info, Bot as BotIcon,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { isRtlLang } from "@/lib/i18n";
 import { auditActionLabel, describeAuditDetail } from "@/lib/auditLog";
 import { useAuth } from "@/contexts/AuthContext";
+import { getBotTier } from "@/lib/bot-tiers";
 
 /**
  * جزئیات کاربر برای super_admin.
@@ -57,6 +58,12 @@ interface AdminUserBilling {
 
 interface AdminPlan {
   id: string; name: string; price: number; interval: string;
+}
+
+interface AdminUserBot {
+  id: string; name: string; username: string | null; avatar: string | null;
+  status: string; tier: string | null; isTrial: boolean;
+  pluginCount: number; userCount: number; createdAt: string;
 }
 
 export default function AdminUserDetail() {
@@ -115,6 +122,12 @@ export default function AdminUserDetail() {
   const { data: audit } = useQuery({
     queryKey: ["admin-user-audit", id],
     queryFn: () => customFetch<any[]>(`/api/superadmin/users/${id}/audit`),
+    enabled: Boolean(id),
+  });
+
+  const { data: bots } = useQuery({
+    queryKey: ["admin-user-bots", id],
+    queryFn: () => customFetch<AdminUserBot[]>(`/api/superadmin/users/${id}/bots`),
     enabled: Boolean(id),
   });
 
@@ -294,6 +307,7 @@ export default function AdminUserDetail() {
           <TabsTrigger value="identity">{fa ? "هویت" : "Identity"}</TabsTrigger>
           <TabsTrigger value="telegram">Telegram</TabsTrigger>
           <TabsTrigger value="account">{fa ? "حساب" : "Account"}</TabsTrigger>
+          <TabsTrigger value="bots">{fa ? "بات‌ها" : "Bots"}</TabsTrigger>
           <TabsTrigger value="billing">{fa ? "پلن و کیف پول" : "Plan & Wallet"}</TabsTrigger>
           <TabsTrigger value="security">{fa ? "امنیت" : "Security"}</TabsTrigger>
           <TabsTrigger value="audit">{fa ? "ممیزی" : "Audit"}</TabsTrigger>
@@ -542,6 +556,52 @@ export default function AdminUserDetail() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="bots">
+          <Card>
+            <CardContent className="space-y-3 p-5">
+              {!bots ? (
+                <div className="h-24 animate-pulse rounded-md bg-muted" />
+              ) : bots.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  {fa ? "این کاربر هنوز باتی نساخته." : "This user hasn't created any bots yet."}
+                </p>
+              ) : (
+                bots.map((b) => {
+                  const tierLabel = b.tier ? getBotTier(b.tier)?.name[fa ? "fa" : "en"] : null;
+                  return (
+                    <div
+                      key={b.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                          <BotIcon className="size-4 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{b.name}</p>
+                          <p className="truncate text-xs text-muted-foreground" dir="ltr">
+                            {b.username ? `@${b.username}` : "—"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary">{b.status}</Badge>
+                        {tierLabel && <Badge variant="outline">{tierLabel}</Badge>}
+                        {b.isTrial && (
+                          <Badge variant="outline">{fa ? "تریال" : "Trial"}</Badge>
+                        )}
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/bots/${b.id}`}>{fa ? "مدیریت" : "Manage"}</Link>
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="billing" className="space-y-4">

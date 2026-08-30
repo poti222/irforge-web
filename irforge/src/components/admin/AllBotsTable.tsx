@@ -56,7 +56,6 @@ export function AllBotsTable() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const tt = useT("botTiers");
-  const nf = (n: number | undefined) => (n ?? 0).toLocaleString(fa ? "fa-IR" : "en-US");
 
   const { data: bots, isLoading } = useQuery({
     queryKey: ADMIN_BOTS_KEY,
@@ -214,6 +213,34 @@ export function AllBotsTable() {
     }
   }
 
+  // ─── Change trial expiry ────────────────────────────────────────────────
+  // سوپرادمین می‌تواند تاریخِ انقضایِ یک بات تریالی را دستی تمدید/کوتاه کند —
+  // مثلاً انقضا از دهم به پانزدهم. فقط باتِ تریالی این کنترل را نشان می‌دهد.
+  const [changingExpiryId, setChangingExpiryId] = useState<string | null>(null);
+
+  function toDateInputValue(iso: string | null | undefined): string {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toISOString().slice(0, 10);
+  }
+
+  async function changeTrialExpiry(bot: AdminBot, date: string) {
+    setChangingExpiryId(bot.id);
+    try {
+      await customFetch(`/api/admin/bots/${bot.id}/trial-expiry`, {
+        method: "PATCH",
+        body: JSON.stringify({ date }),
+      });
+      await invalidate();
+      toast({ title: fa ? "تاریخ انقضا تغییر کرد" : "Expiry date changed" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: e?.data?.error ?? e?.message });
+    } finally {
+      setChangingExpiryId(null);
+    }
+  }
+
   // ─── Delete bot ─────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<AdminBot | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -258,8 +285,7 @@ export function AllBotsTable() {
                 <TableHead>{fa ? "مالک" : "Owner"}</TableHead>
                 <TableHead>{fa ? "وضعیت" : "Status"}</TableHead>
                 <TableHead>{fa ? "پکیج" : "Tier"}</TableHead>
-                <TableHead className="hidden md:table-cell">{fa ? "کاربران" : "Users"}</TableHead>
-                <TableHead className="hidden md:table-cell">{fa ? "پیام‌ها" : "Messages"}</TableHead>
+                <TableHead>{fa ? "انقضا" : "Expiry"}</TableHead>
                 <TableHead className="hidden lg:table-cell">{fa ? "تاریخ" : "Created"}</TableHead>
                 <TableHead className="text-end">{fa ? "عملیات" : "Actions"}</TableHead>
               </TableRow>
@@ -282,7 +308,7 @@ export function AllBotsTable() {
                   <TableCell><Badge variant={STATUS_VARIANT[bot.status] ?? "outline"}>{bot.status}</Badge></TableCell>
                   <TableCell>
                     <Select
-                      value={bot.tier ?? "__none__"}
+                      value={bot.isTrial ? "trial" : (bot.tier ?? "__none__")}
                       onValueChange={(v) => changeTier(bot, v)}
                       disabled={changingTierId === bot.id}
                     >
@@ -290,12 +316,25 @@ export function AllBotsTable() {
                       <SelectContent>
                         <SelectItem value="standard">{tt.standard.name}</SelectItem>
                         <SelectItem value="pro">{tt.pro.name}</SelectItem>
-                        {!bot.tier && <SelectItem value="__none__" disabled>{fa ? "نامشخص" : "Unknown"}</SelectItem>}
+                        {bot.isTrial && <SelectItem value="trial" disabled>{fa ? "تریال" : "Trial"}</SelectItem>}
+                        {!bot.tier && !bot.isTrial && <SelectItem value="__none__" disabled>{fa ? "نامشخص" : "Unknown"}</SelectItem>}
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">{nf(bot.userCount)}</TableCell>
-                  <TableCell className="hidden md:table-cell">{nf(bot.messageCount)}</TableCell>
+                  <TableCell>
+                    {bot.isTrial ? (
+                      <Input
+                        type="date"
+                        className="h-8 w-36"
+                        dir="ltr"
+                        value={toDateInputValue(bot.trialExpiresAt)}
+                        onChange={(e) => e.target.value && changeTrialExpiry(bot, e.target.value)}
+                        disabled={changingExpiryId === bot.id}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="hidden lg:table-cell text-muted-foreground">
                     {new Date(bot.createdAt).toLocaleDateString(fa ? "fa-IR" : "en-US")}
                   </TableCell>

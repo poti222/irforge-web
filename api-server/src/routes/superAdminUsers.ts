@@ -266,6 +266,36 @@ router.get("/superadmin/users/:id/audit", requireSuperAdmin, async (req: any, re
   }
 });
 
+// ─── GET /api/superadmin/users/:id/bots ──────────────────────────────────────
+// فهرستِ بات‌های این کاربر، برای دکمه‌ی «مدیریت» در پروفایلش — بدون توکن
+// (که `formatBot`ی routes/bots.ts برمی‌گرداند)، چون این فقط یک فهرستِ خلاصه
+// است، نه صفحه‌ی خودِ بات که سوپرادمین از قبل (R6) بهش دسترسی دارد.
+router.get("/superadmin/users/:id/bots", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const rows = await db
+      .select({
+        id: botsTable.id,
+        name: botsTable.name,
+        username: botsTable.username,
+        avatar: botsTable.avatar,
+        status: botsTable.status,
+        tier: botsTable.tier,
+        isTrial: botsTable.isTrial,
+        pluginCount: botsTable.pluginCount,
+        userCount: botsTable.userCount,
+        createdAt: botsTable.createdAt,
+      })
+      .from(botsTable)
+      .where(eq(botsTable.userId, req.params.id))
+      .orderBy(desc(botsTable.createdAt));
+
+    res.json(rows.map((b: (typeof rows)[number]) => ({ ...b, createdAt: b.createdAt.toISOString() })));
+  } catch (err) {
+    logger.error({ err }, "superadmin user bots error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── PATCH /api/superadmin/users/:id ─────────────────────────────────────────
 // هویت: نام، ایمیل، شماره. تغییر ایمیل یا شماره فلگ تأییدِ متناظر را پاک
 // می‌کند — ویرایشِ ادمین تأیید نیست.

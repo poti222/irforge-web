@@ -2001,6 +2001,38 @@ router.patch("/admin/bots/:botId/tier", requireSuperAdmin, async (req: any, res)
   }
 });
 
+// ─── PATCH /api/admin/bots/:botId/trial-expiry ──────────────────────────────
+// سوپرادمین می‌تواند تاریخِ انقضایِ تریالِ یک بات را عوض کند — مثلاً برای
+// تمدیدِ دستیِ یک تریالِ ۷ روزه. فقط `trialExpiresAt` را عوض می‌کند؛ خریدِ
+// عادی (`isTrial: false`) اصلاً انقضا ندارد، پس این روت رویش اثری ندارد.
+router.patch("/admin/bots/:botId/trial-expiry", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const date = String(req.body?.date ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.status(400).json({ error: "date must be an ISO calendar date (YYYY-MM-DD)" });
+      return;
+    }
+    const trialExpiresAt = new Date(`${date}T23:59:59.999Z`);
+    if (Number.isNaN(trialExpiresAt.getTime())) {
+      res.status(400).json({ error: "Invalid date" });
+      return;
+    }
+    const [bot] = await db
+      .update(botsTable)
+      .set({ trialExpiresAt })
+      .where(eq(botsTable.id, req.params.botId))
+      .returning();
+    if (!bot) {
+      res.status(404).json({ error: "Bot not found" });
+      return;
+    }
+    res.json(formatBot(bot));
+  } catch (err) {
+    logger.error({ err }, "Admin change bot trial expiry error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── DELETE /api/admin/bots/:botId ───────────────────────────────────────────
 // R6: super-admin can remove any tenant's bot (not just their own), reusing
 // the same full-purge cleanup as the tenant-facing DELETE /bots/:botId.

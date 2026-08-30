@@ -164,7 +164,7 @@ router.get("/bots/:botId/plugins", requireAuth, async (req: any, res) => {
  */
 router.patch("/bots/:botId/plugins/:pluginId", requireAuth, async (req: any, res) => {
   try {
-    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    const { spreadsheetId, isSuperAdmin } = await resolveBotSheet(req.userId, req.params.botId);
     await assertSheetsAuthoritative(SETTINGS_TAB);
 
     const pluginId = String(req.params.pluginId);
@@ -202,7 +202,9 @@ router.patch("/bots/:botId/plugins/:pluginId", requireAuth, async (req: any, res
       const wasEnabled = pluginId in states ? states[pluginId] : (manifest?.default_enabled ?? false);
       const price = pluginPrice(pluginId);
 
-      if (price > 0) {
+      // سوپرادمین برای هیچ کاری روی هیچ باتی — حتی بات کاربر دیگر — نباید
+      // پول بدهد یا اجازه بگیرد: نه چکِ خرید، نه سقفِ پلاگینِ رایگان.
+      if (!isSuperAdmin && price > 0) {
         // پولی: تا امروز این‌جا هیچ چکِ سروری نبود — کلاینت `purchased ||
         // isFree` را خودش حساب می‌کرد (`PluginsManager.tsx`) و اینجا هرچه
         // بفرستد پذیرفته می‌شد. یعنی یک `PATCH` دستی می‌توانست هر پلاگین
@@ -210,7 +212,7 @@ router.patch("/bots/:botId/plugins/:pluginId", requireAuth, async (req: any, res
         if (!(await isPluginPurchased(req.params.botId, pluginId, manifest?.name))) {
           throw new BotConfigError(402, "این پلاگین پولی است و هنوز خریداری نشده.", "plugin_not_purchased");
         }
-      } else if (!wasEnabled) {
+      } else if (!isSuperAdmin && price <= 0 && !wasEnabled) {
         // رایگان و فعلاً خاموش → روشن‌کردنش ممکن است از سقفِ «تعداد پلاگین
         // رایگان» پلنِ صاحبِ بات رد شود. پلاگین‌های پولی/خریداری‌شده هرگز جزو
         // این سهمیه شمرده نمی‌شوند.
