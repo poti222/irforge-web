@@ -5,20 +5,21 @@
  * و با اسکرول‌شدن آن پیام از دسترس خارج می‌شوند. کیبورد پایین همیشه زیر دست
  * کاربر می‌ماند و همان چیزی است که اکثر بات‌ها به‌عنوان «منوی اصلی» دارند.
  *
- * ⚠️ این تنها بخشی از این دور رفع‌باگ است که **تغییر در خودِ بات** لازم داشت
- * (`handlers/user.py`)، چون `_render_panel` فقط `InlineKeyboardMarkup`
- * می‌ساخت و هیچ مسیری برای کیبورد پایین نداشت. دلیلش در PROGRESS.md ثبت شده.
- *
- * **چرا دکمه‌ها فقط متن‌اند و نه اکشن‌های کامل؟** دکمه‌ی ReplyKeyboard در
- * تلگرام هیچ payload ای ندارد؛ فقط متن خودش را می‌فرستد. اگر آن متن با `/`
- * شروع شود، تلگرام آن را کامند می‌فهمد و هندلر کامندهای سفارشیِ موجود
- * می‌گیردش. پس دکمه‌ای که واقعاً کاری می‌کند = دکمه‌ای که متنش یک کامند است،
- * و همین‌جا صریح گفته می‌شود.
+ * **همان سیستمِ دکمه‌ی پنل، عیناً.** دکمه‌های اینجا دیگر فقط متن نیستند —
+ * `ButtonBuilder.tsx` (همان کامپوننتِ دکمه‌سازیِ پنل‌ها؛ `DripSection.tsx` هم
+ * قبلاً همین‌طور دوباره‌استفاده‌اش کرده) عیناً همین‌جا هم به کار می‌رود، با
+ * همان اکشن‌ها/توضیحات/انتخابگرها. تفاوت فقط این است که کیبورد پایین در
+ * تلگرام payload ندارد — فقط متنِ خودش را می‌فرستد — پس زیرمجموعه‌ای از
+ * اکشن‌ها که فقط با CallbackQuery معنی دارند (`catalog_order`، اکشن‌های
+ * ثابتِ پلاگینی) اینجا در دسترس نیستند، و یک اکشنِ اضافه («متن آزاد/کامند
+ * سفارشی») برای رفتارِ اصلی/عقب‌رو اضافه شده. رزولوشنِ این اکشن‌ها روی متنِ
+ * پیام در `handlers/user.py::catch_all_text` انجام می‌شود.
  */
+import { useQuery } from "@tanstack/react-query";
 import type { Bot } from "@workspace/api-client-react";
-import { Plus, Trash2, ArrowUp, ArrowDown, Keyboard, AlertTriangle } from "lucide-react";
+import { customFetch } from "@workspace/api-client-react";
+import { Keyboard } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -27,35 +28,55 @@ import { useT } from "@/hooks/use-translation";
 import { SettingsSaveBar, SettingsError, CachePropagationNotice } from "./SettingsSaveBar";
 import { useDraft } from "./useDraft";
 import { usePatchBotSettings, type BotSettings, type SettingsEnvelope } from "./api";
+import { ButtonBuilder } from "@/components/bots/panels/ButtonBuilder";
+import { usePanels, usePanelCatalog, type PanelCatalog } from "@/components/bots/panels/api";
+import type { PanelButton } from "@/lib/panel-buttons";
 
-/** آینه‌ی سقف‌های سرور (`routes/botSettings.ts`). هر دو باید با هم عوض شوند. */
+/** آینه‌ی سقفِ سرور (`routes/botSettings.ts::REPLY_KB_MAX_ROWS`). */
 const MAX_ROWS = 10;
-const MAX_PER_ROW = 4;
 
 /**
- * یک خانه‌ی کیبورد. روی شیت، دکمه‌ی بی‌رنگ یک **رشته‌ی ساده** ذخیره می‌شود
- * (شکل اصلی) و فقط دکمه‌ی رنگی آبجکت می‌شود. اینجا در حافظه همیشه آبجکت است
- * تا کد ویرایشگر دو حالت نداشته باشد؛ تبدیل در `pick`/`save` انجام می‌شود.
+ * زیرمجموعه‌ای از اکشن‌های دکمه‌ی پنل که کیبورد پایین پشتیبانی می‌کند — همان
+ * `REPLY_KB_ACTIONS` سمت سرور. `catalog_order` و اکشن‌های ثابتِ پلاگینی
+ * (رزرو نوبت و…) عمداً نیستند چون هندلرشان امروز فقط برای CallbackQuery
+ * نوشته شده، نه برای resolve از روی متنِ یک پیام.
  */
-type Cell = { text: string; style: string };
+const REPLY_KB_ACTIONS = ["text", "panel", "sell", "form", "mini_app", "url", "phone"];
 
 /** رنگ‌های Bot API: سبز/قرمز/آبی. خالی = رنگ پیش‌فرض کلاینت. */
-const STYLES = ["", "success", "danger", "primary"] as const;
-
-/** رنگ نمونه‌ی پیش‌نمایش — تقریبی از آنچه تلگرام نشان می‌دهد. */
-const STYLE_SWATCH: Record<string, string> = {
-  "": "bg-background",
-  success: "bg-emerald-600 text-white",
-  danger: "bg-rose-600 text-white",
-  primary: "bg-sky-600 text-white",
-};
+type Cell = { text: string; style: string; action: string; value: string };
 
 function toCell(raw: unknown): Cell {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-    const o = raw as { text?: unknown; style?: unknown };
-    return { text: String(o.text ?? ""), style: String(o.style ?? "") };
+    const o = raw as { text?: unknown; style?: unknown; action?: unknown; value?: unknown };
+    return {
+      text: String(o.text ?? ""),
+      style: String(o.style ?? ""),
+      action: String(o.action ?? "") || "text",
+      value: String(o.value ?? ""),
+    };
   }
-  return { text: String(raw ?? ""), style: "" };
+  return { text: String(raw ?? ""), style: "", action: "text", value: "" };
+}
+
+/** `Cell` ↔ `PanelButton` — همان شکلی که `ButtonBuilder` می‌فهمد.
+ *  `row`/`col`/`row_start` هرگز خوانده نمی‌شوند (فقط برای فرمِ تختِ ذخیره‌ی
+ *  پنل‌ها معنی دارند؛ اینجا مدل همیشه آرایه‌ی ردیف‌هاست)، پس مقدارِ ثابت کافی است. */
+function cellToButton(c: Cell): PanelButton {
+  return { label: c.text, action: c.action || "text", value: c.value, style: c.style, row: 0, col: 0, row_start: true };
+}
+function buttonToCell(b: PanelButton): Cell {
+  return { text: b.label, style: b.style, action: b.action || "text", value: b.value };
+}
+
+function useFormOptions(botId: string) {
+  return useQuery({
+    queryKey: ["bot-forms-options", botId],
+    queryFn: async () => {
+      const res = await customFetch<{ forms: Array<{ id: string; title: string }> }>(`/api/bots/${botId}/forms`);
+      return res.forms ?? [];
+    },
+  });
 }
 
 type KeyboardDraft = {
@@ -86,47 +107,55 @@ export function TabReplyKeyboard({ bot, data }: { bot: Bot; data: SettingsEnvelo
   const draft = useDraft<KeyboardDraft>(`settings:replyKeyboard:${bot.id}`, pick(data.settings));
   const patch = usePatchBotSettings(bot.id);
 
-  const rows = draft.value.rows;
+  const { data: panelsData } = usePanels(bot.id);
+  const { data: forms = [] } = useFormOptions(bot.id);
+  const { data: catalog } = usePanelCatalog(bot.id);
 
-  function setRows(next: Cell[][]) {
-    draft.set("rows", next);
-  }
-  function setCell(rowIndex: number, colIndex: number, patchCell: Partial<Cell>) {
-    setRows(
-      rows.map((r, i) =>
-        i === rowIndex ? r.map((c, j) => (j === colIndex ? { ...c, ...patchCell } : c)) : r
-      )
-    );
-  }
-  function addCell(rowIndex: number) {
-    if ((rows[rowIndex]?.length ?? 0) >= MAX_PER_ROW) return;
-    setRows(rows.map((r, i) => (i === rowIndex ? [...r, toCell("")] : r)));
-  }
-  function removeCell(rowIndex: number, colIndex: number) {
-    const next = rows
-      .map((r, i) => (i === rowIndex ? r.filter((_, j) => j !== colIndex) : r))
-      // ردیفی که آخرین دکمه‌اش رفت، خودش هم می‌رود — یک ردیف خالی روی کیبورد
-      // واقعی اصلاً وجود ندارد.
-      .filter((r) => r.length > 0);
-    setRows(next.length > 0 ? next : [[toCell("")]]);
-  }
-  function moveRow(from: number, delta: -1 | 1) {
-    const to = from + delta;
-    if (to < 0 || to >= rows.length) return;
-    const next = [...rows];
-    [next[from], next[to]] = [next[to], next[from]];
-    setRows(next);
+  // همان کاتالوگِ پنل‌ها، فقط با فهرستِ اکشن محدود به زیرمجموعه‌ی امنِ کیبورد
+  // پایین — و «متن آزاد» بدون فیلدِ مقدار (مثل phone، از buttonFixedValues).
+  const restrictedCatalog: PanelCatalog | undefined = catalog
+    ? {
+        ...catalog,
+        buttonActions: REPLY_KB_ACTIONS.filter((a) => a === "text" || catalog.buttonActions.includes(a)),
+        buttonFixedValues: { ...(catalog.buttonFixedValues ?? {}), text: "" },
+      }
+    : { panelTypes: [], buttonActions: REPLY_KB_ACTIONS, buttonFixedValues: { text: "" }, buttonStyles: ["", "primary", "success", "danger"], multiMediaTypes: [], textOnlyTypes: [], maxButtonsPerRow: 4 };
+
+  const rows = draft.value.rows;
+  const buttonRows = rows.map((row) => row.map(cellToButton));
+
+  function setButtonRows(next: PanelButton[][]) {
+    // سقفِ ردیفِ کیبورد پایین — چیزی که خودِ ButtonBuilder (که برای پنل‌های
+    // بدون این سقف ساخته شده) نمی‌داند. رسیدن به سقف یعنی «افزودنِ ردیف»
+    // بی‌اثر می‌ماند، نه خطا — هشدارِ متنیِ زیرِ آن همین را می‌گوید.
+    if (next.length > MAX_ROWS) return;
+    draft.set("rows", next.map((row) => row.map(buttonToCell)));
   }
 
   function save() {
-    // دکمه‌ی بی‌رنگ به همان رشته‌ی ساده برمی‌گردد — تا کیبوردهای موجود
-    // بی‌دلیل به شکل سنگین‌تر بازنویسی نشوند.
+    // دکمه‌ی بی‌رنگ/بی‌اکشن به همان رشته‌ی ساده برمی‌گردد — تا کیبوردهای
+    // موجود بی‌دلیل به شکل سنگین‌تر بازنویسی نشوند. «متن آزاد» هم دقیقاً
+    // همین رفتارِ اصلی است، پس روی ذخیره به «بدونِ اکشن» نرمال می‌شود.
     const cleaned = rows
       .map((r) =>
         r
-          .map((c) => ({ text: c.text.trim(), style: c.style }))
+          .map((c) => ({
+            text: c.text.trim(),
+            style: c.style,
+            action: c.action === "text" ? "" : c.action,
+            value: c.value,
+          }))
           .filter((c) => c.text)
-          .map((c) => (c.style ? c : c.text))
+          .map((c) => {
+            if (!c.style && !c.action) return c.text;
+            const obj: Record<string, string> = { text: c.text };
+            if (c.style) obj.style = c.style;
+            if (c.action) {
+              obj.action = c.action;
+              obj.value = c.value;
+            }
+            return obj;
+          })
       )
       .filter((r) => r.length > 0);
     patch.mutate(
@@ -173,97 +202,22 @@ export function TabReplyKeyboard({ bot, data }: { bot: Bot; data: SettingsEnvelo
 
           {draft.value.enabled && (
             <>
-              <p className="flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                <span>{t.replyKeyboardCommandHint}</span>
+              <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                {t.replyKeyboardCommandHint}
               </p>
 
-              <div className="space-y-3">
-                {rows.map((row, rowIndex) => (
-                  <div key={rowIndex} className="space-y-2 rounded-md border p-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {t.replyKeyboardRow.replace("{n}", String(rowIndex + 1))}
-                      </span>
-                      <div className="ms-auto flex gap-1">
-                        <Button
-                          variant="ghost" size="icon" className="size-7"
-                          aria-label={t.replyKeyboardMoveUp}
-                          disabled={rowIndex === 0}
-                          onClick={() => moveRow(rowIndex, -1)}
-                        >
-                          <ArrowUp className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost" size="icon" className="size-7"
-                          aria-label={t.replyKeyboardMoveDown}
-                          disabled={rowIndex === rows.length - 1}
-                          onClick={() => moveRow(rowIndex, 1)}
-                        >
-                          <ArrowDown className="size-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {row.map((cell, colIndex) => (
-                        <div key={colIndex} className="flex min-w-40 flex-1 items-center gap-1">
-                          <Input
-                            value={cell.text}
-                            maxLength={64}
-                            placeholder={t.replyKeyboardButtonPlaceholder}
-                            onChange={(e) => setCell(rowIndex, colIndex, { text: e.target.value })}
-                          />
-                          {/*
-                            انتخاب رنگ به‌صورت سه نمونه‌ی رنگی، نه یک dropdown:
-                            انتخاب «سبز» با دیدن سبز سریع‌تر است تا با خواندن
-                            کلمه‌ی «success».
-                          */}
-                          <div className="flex shrink-0 gap-0.5">
-                            {STYLES.map((style) => (
-                              <button
-                                key={style || "default"}
-                                type="button"
-                                aria-label={t[`replyKeyboardStyle_${style || "default"}` as keyof typeof t] as string}
-                                aria-pressed={cell.style === style}
-                                title={t[`replyKeyboardStyle_${style || "default"}` as keyof typeof t] as string}
-                                onClick={() => setCell(rowIndex, colIndex, { style })}
-                                className={`size-6 rounded-full border transition ${STYLE_SWATCH[style]} ${
-                                  cell.style === style
-                                    ? "ring-2 ring-foreground ring-offset-1 ring-offset-background"
-                                    : "opacity-70 hover:opacity-100"
-                                }`}
-                              />
-                            ))}
-                          </div>
-                          <Button
-                            variant="ghost" size="icon" className="size-8 shrink-0"
-                            aria-label={t.replyKeyboardRemoveButton}
-                            onClick={() => removeCell(rowIndex, colIndex)}
-                          >
-                            <Trash2 className="size-3.5 text-destructive" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-
-                    {row.length < MAX_PER_ROW ? (
-                      <Button variant="outline" size="sm" onClick={() => addCell(rowIndex)}>
-                        <Plus className="me-1.5 size-3.5" /> {t.replyKeyboardAddButton}
-                      </Button>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        {t.replyKeyboardRowFull.replace("{max}", String(MAX_PER_ROW))}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {rows.length < MAX_ROWS && (
-                <Button variant="outline" onClick={() => setRows([...rows, [toCell("")]])}>
-                  <Plus className="me-1.5 size-4" /> {t.replyKeyboardAddRow}
-                </Button>
+              <ButtonBuilder
+                botId={bot.id}
+                rows={buttonRows}
+                panels={panelsData?.panels ?? []}
+                forms={forms}
+                catalog={restrictedCatalog}
+                onChange={setButtonRows}
+              />
+              {rows.length >= MAX_ROWS && (
+                <p className="text-xs text-muted-foreground">
+                  {t.replyKeyboardMaxRowsReached.replace("{max}", String(MAX_ROWS))}
+                </p>
               )}
 
               <div className="space-y-1.5">
@@ -303,7 +257,13 @@ export function TabReplyKeyboard({ bot, data }: { bot: Bot; data: SettingsEnvelo
                         <span
                           key={j}
                           className={`min-w-0 flex-1 truncate rounded-md px-2 py-2 text-center text-xs shadow-sm ${
-                            STYLE_SWATCH[cell.style] ?? STYLE_SWATCH[""]
+                            cell.style === "success"
+                              ? "bg-emerald-600 text-white"
+                              : cell.style === "danger"
+                                ? "bg-rose-600 text-white"
+                                : cell.style === "primary"
+                                  ? "bg-sky-600 text-white"
+                                  : "bg-background"
                           }`}
                         >
                           {cell.text}

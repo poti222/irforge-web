@@ -319,11 +319,16 @@ export const TELEGRAM_TEXT_LIMIT = 4000;
 /**
  * یک خانه‌ی کیبورد پایین.
  *
- * رشته‌ی ساده = دکمه‌ی بی‌رنگ (شکل اصلی، هنوز کاملاً معتبر). آبجکت وقتی
- * می‌آید که رنگ ست شده باشد — `handlers/user.py::_reply_keyboard` هر دو را
- * می‌خواند.
+ * رشته‌ی ساده = دکمه‌ی بی‌رنگ/بی‌اکشن (شکل اصلی، هنوز کاملاً معتبر). آبجکت
+ * وقتی می‌آید که رنگ و/یا اکشن ست شده باشد. `action`/`value` همان سیستمِ
+ * اکشن دکمه‌ی پنل است (`ButtonBuilder.tsx`)، محدود به زیرمجموعه‌ای که از روی
+ * متنِ پیام هم resolve می‌شود (`routes/botSettings.ts::REPLY_KB_ACTIONS`) —
+ * `handlers/user.py::_reply_keyboard` (رندر) و `catch_all_text` (تحویل) هر
+ * دو این شکل را می‌خوانند.
  */
-export type ReplyKeyboardCell = string | { text: string; style: string };
+export type ReplyKeyboardCell =
+  | string
+  | { text: string; style?: string; action?: string; value?: string };
 
 export type ReplyKeyboard = {
   rows: ReplyKeyboardCell[][];

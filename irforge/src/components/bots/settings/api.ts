@@ -46,7 +46,8 @@ export type BotSettings = {
    * از دیکشنری خام می‌خواند (`handlers/user.py::_reply_keyboard`).
    */
   reply_keyboard: {
-    rows: string[][];
+    /** هر خانه: رشته‌ی ساده، یا `{text, style?, action?, value?}` (TabReplyKeyboard.tsx). */
+    rows: unknown[][];
     resize: boolean;
     one_time: boolean;
     placeholder: string;

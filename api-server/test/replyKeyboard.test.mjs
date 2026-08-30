@@ -121,3 +121,65 @@ test("آبجکت بی‌متن هم مثل رشته‌ی خالی دور ریخ�
   assert.equal(validateReplyKeyboard({ rows: [[{ text: "  ", style: "success" }]] }), null);
   assert.equal(validateReplyKeyboard({ rows: [[{ style: "danger" }]] }), null);
 });
+
+// ─── اکشن دکمه (همان سیستمِ دکمه‌ی پنل، زیرمجموعه‌ی امن) ──────────────────────
+//
+// `handlers/user.py::catch_all_text` این شکل را از روی متنِ پیام resolve
+// می‌کند — پس همان‌قدر که رنگ باید قفل بماند، این هم باید بماند.
+
+test("دکمه‌ی بدونِ اکشن دقیقاً مثلِ قبل رفتار می‌کند (بدون فیلدِ action)", () => {
+  const out = validateReplyKeyboard({ rows: [[{ text: "فروشگاه", style: "" }]] });
+  assert.deepEqual(out.rows, [["فروشگاه"]]);
+});
+
+test("اکشنِ panel با مقدار معتبر ذخیره می‌شود", () => {
+  const out = validateReplyKeyboard({
+    rows: [[{ text: "فروشگاه", action: "panel", value: "panel_store" }]],
+  });
+  assert.deepEqual(out.rows, [[{ text: "فروشگاه", action: "panel", value: "panel_store" }]]);
+});
+
+test("اکشن‌های بی‌نیاز از مقدار (text، phone) مقدار را نادیده می‌گیرند", () => {
+  const out = validateReplyKeyboard({
+    rows: [[
+      { text: "/shop", action: "text", value: "should be dropped" },
+      { text: "☎️ شماره تلفن", action: "phone", value: "junk" },
+    ]],
+  });
+  assert.deepEqual(out.rows, [[
+    { text: "/shop", action: "text", value: "" },
+    { text: "☎️ شماره تلفن", action: "phone", value: "" },
+  ]]);
+});
+
+test("اکشنِ نامعتبر رد می‌شود", () => {
+  assert.throws(
+    () => validateReplyKeyboard({ rows: [[{ text: "x", action: "catalog_order", value: "item1" }]] }),
+    /معتبر نیست/,
+  );
+});
+
+test("اکشنی که به مقدار نیاز دارد بدون مقدار رد می‌شود", () => {
+  assert.throws(
+    () => validateReplyKeyboard({ rows: [[{ text: "فرم", action: "form", value: "" }]] }),
+    /مقدار/,
+  );
+});
+
+test("url/mini_app باید https باشند", () => {
+  assert.throws(
+    () => validateReplyKeyboard({ rows: [[{ text: "لینک", action: "url", value: "http://example.com" }]] }),
+    /https/,
+  );
+  const out = validateReplyKeyboard({
+    rows: [[{ text: "لینک", action: "url", value: "https://example.com" }]],
+  });
+  assert.deepEqual(out.rows, [[{ text: "لینک", action: "url", value: "https://example.com" }]]);
+});
+
+test("رنگ + اکشن با هم روی یک دکمه کار می‌کنند", () => {
+  const out = validateReplyKeyboard({
+    rows: [[{ text: "فروشگاه", style: "success", action: "panel", value: "panel_store" }]],
+  });
+  assert.deepEqual(out.rows, [[{ text: "فروشگاه", style: "success", action: "panel", value: "panel_store" }]]);
+});

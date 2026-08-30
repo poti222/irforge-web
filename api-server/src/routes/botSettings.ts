@@ -83,6 +83,17 @@ const REPLY_KB_MAX_PER_ROW = 4;
  */
 const REPLY_KB_STYLES = ["primary", "success", "danger"] as const;
 
+/**
+ * اکشن‌های مجازِ یک دکمه‌ی کیبورد پایین — همان زیرمجموعه‌ی امنِ اکشن‌های
+ * دکمه‌ی پنل (`ButtonBuilder.tsx`) که بات می‌تواند از روی **متنِ** یک پیام
+ * (نه callback_data) resolve کند: `catalog_order` و اکشن‌های ثابتِ پلاگینی
+ * عمداً اینجا نیستند، چون هندلرشان امروز فقط برای CallbackQuery نوشته شده.
+ * `"text"` یعنی همان رفتار اصلی/عقب‌رو: دکمه فقط متن خودش را می‌فرستد.
+ */
+const REPLY_KB_ACTIONS = ["text", "panel", "sell", "form", "mini_app", "url", "phone"] as const;
+const REPLY_KB_ACTIONS_NO_VALUE = new Set<string>(["text", "phone"]);
+const REPLY_KB_ACTIONS_URL = new Set<string>(["mini_app", "url"]);
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 /**
@@ -109,24 +120,49 @@ function validateReplyKeyboard(value: unknown): Record<string, unknown> | null {
    * "style": ""}` — تا کیبوردهای موجود بایت‌به‌بایت همان بمانند و شکل روی
    * شیت بی‌دلیل سنگین‌تر نشود.
    */
-  const rows: Array<Array<string | { text: string; style: string }>> = [];
+  type Cell = string | { text: string; style?: string; action?: string; value?: string };
+  const rows: Cell[][] = [];
   for (const rawRow of rawRows) {
     if (!Array.isArray(rawRow)) continue;
     const cells = rawRow
-      .map((cell) => {
+      .map((cell): Cell | null => {
         const isObject = cell && typeof cell === "object" && !Array.isArray(cell);
         const source = (isObject ? cell : { text: cell, style: "" }) as {
           text?: unknown;
           style?: unknown;
+          action?: unknown;
+          value?: unknown;
         };
         const text = String(source.text ?? "").trim().slice(0, 64);
         if (!text) return null;
         const style = String(source.style ?? "").trim();
         if (style && !(REPLY_KB_STYLES as readonly string[]).includes(style))
           throw bad(`رنگ «${style}» برای دکمه‌ی کیبورد پایین معتبر نیست.`, "bad_button_style");
-        return style ? { text, style } : text;
+
+        // اکشن — همان سیستمِ اکشن/مقدارِ دکمه‌ی پنل (ButtonBuilder.tsx)، فقط
+        // زیرمجموعه‌ای که از روی متنِ پیام هم resolve می‌شود. نبودنش یعنی
+        // دکمه‌ی قدیمی/بی‌اکشن — رفتار اصلی (فقط ارسالِ متنِ خودش) دست‌نخورده.
+        const rawAction = String(source.action ?? "").trim();
+        if (!rawAction) return style ? { text, style } : text;
+        if (!(REPLY_KB_ACTIONS as readonly string[]).includes(rawAction))
+          throw bad(`اکشن «${rawAction}» برای دکمه‌ی کیبورد پایین معتبر نیست.`, "bad_button_action");
+
+        let actionValue = String(source.value ?? "").trim().slice(0, 300);
+        if (REPLY_KB_ACTIONS_NO_VALUE.has(rawAction)) {
+          actionValue = "";
+        } else if (!actionValue) {
+          throw bad(`دکمه‌ی «${text}» به یک مقدار نیاز دارد.`, "missing_button_value");
+        } else if (REPLY_KB_ACTIONS_URL.has(rawAction) && !/^https:\/\//i.test(actionValue)) {
+          throw bad(`مقدار دکمه‌ی «${text}» باید یک لینکِ https باشد.`, "bad_button_value");
+        }
+
+        const out: { text: string; style?: string; action: string; value: string } = {
+          text, action: rawAction, value: actionValue,
+        };
+        if (style) out.style = style;
+        return out;
       })
-      .filter((cell): cell is string | { text: string; style: string } => cell !== null);
+      .filter((cell): cell is Cell => cell !== null);
     if (cells.length > REPLY_KB_MAX_PER_ROW)
       throw bad(
         `هر ردیف کیبورد پایین حداکثر ${REPLY_KB_MAX_PER_ROW} دکمه می‌تواند داشته باشد.`,
