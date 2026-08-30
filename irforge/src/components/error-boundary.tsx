@@ -42,6 +42,13 @@ export class ErrorBoundary extends React.Component<Props, State> {
     console.error("ErrorBoundary caught an error:", error, info);
   }
 
+  /** Re-render the same children in place, no navigation. Fixes transient
+   *  crashes (a bad query result, a stale prop on first render) without the
+   *  cost of a full page reload — try this before Reload. */
+  handleRetry = () => {
+    this.setState({ hasError: false, error: undefined });
+  };
+
   render() {
     if (!this.state.hasError) return this.props.children;
 
@@ -67,8 +74,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
               : "An unexpected error occurred. Try reloading — if it keeps happening, let support know."}
           </p>
         </div>
-        <div className="flex gap-3">
-          <Button onClick={() => window.location.reload()} data-testid="error-reload">
+        <div className="flex flex-wrap justify-center gap-3">
+          <Button onClick={this.handleRetry} data-testid="error-retry">
+            {isFa ? "تلاش مجدد" : "Try again"}
+          </Button>
+          <Button variant="outline" onClick={() => window.location.reload()} data-testid="error-reload">
             {isFa ? "بارگذاری دوباره" : "Reload"}
           </Button>
           <Button variant="outline" onClick={() => { window.location.href = "/"; }}>
