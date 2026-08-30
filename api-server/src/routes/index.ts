@@ -72,6 +72,7 @@ import captchaRouter from "./captcha.js";
 import loyaltySettingsRouter from "./loyaltySettings.js";
 import catalogRouter from "./catalog.js";
 import botWalletRouter from "./botWallet.js";
+import translatePostRouter from "./translatePost.js";
 
 const router: IRouter = Router();
 
@@ -139,5 +140,6 @@ router.use(captchaRouter);
 router.use(loyaltySettingsRouter);
 router.use(catalogRouter);
 router.use(botWalletRouter);
+router.use(translatePostRouter);
 
 export default router;
