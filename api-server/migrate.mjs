@@ -758,6 +758,55 @@ ON CONFLICT (id) DO NOTHING;
 -- برای کاربری که هنوز باتی نساخته. بستن/رد‌کردنِ بنر یک‌بار true می‌شود؛
 -- ستونِ دیتابیس، نه localStorage، تا روی هر دستگاهی هم صدق کند.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS has_seen_trial_offer BOOLEAN NOT NULL DEFAULT false;
+
+-- ─── PLAN_CONSOLIDATION_STANDARD_PRO ────────────────────────────────────────
+-- درخواستِ صریح: نامِ پلن‌های اشتراکِ حساب (این جدول) باید همان ۲ اسمی باشد
+-- که پکیج‌های «خرید بات جدید» دارند (Standard/Pro — irforge/src/lib/bot-tiers.ts
+-- و BOT_TIER_PRICES در src/lib/pluginPricing.ts)، همه‌جا از جمله دراپ‌داونِ
+-- «پلن جدید» در پنلِ سوپرادمین (Manage Users). دو مکانیزم فنی جدا می‌مانند
+-- (این یکی اشتراکِ ماهانه‌ی حساب است، آن یکی خریدِ یک‌بارِ بات) ولی واژگانِ
+-- نمایشی یکی می‌شود تا کاربر دو اسمِ متفاوت برای یک مفهوم نبیند.
+--
+-- silver/gold با UPDATE به Standard/Pro بازنویسی می‌شوند (نه DELETE+INSERT)
+-- تا اشتراکِ فعالِ کسی که از قبل رویشان است (user_plans.plan_id) گم نشود.
+-- diamond معادلی در ۲ پلنِ تازه ندارد؛ مشترکینِ آن (اگر باشند) قبل از حذفِ
+-- ردیف به بالاترین پلنِ باقی‌مانده (gold → Pro) منتقل می‌شوند. price_usd
+-- عمداً NULL می‌شود: این ۲ پلن قیمتِ ثابتِ تومانی دارند، دقیقاً همان
+-- BOT_TIER_PRICES، نه چیزی که با نرخ ارز جابه‌جا شود.
+UPDATE user_plans SET plan_id = 'gold' WHERE plan_id = 'diamond';
+UPDATE users SET plan = 'gold' WHERE plan = 'diamond';
+
+UPDATE plans SET
+  name = 'Standard', price = 500000, price_usd = NULL,
+  max_bots = 1, max_plugins = 3, max_users = 50, ram_gb = 1, cpu_cores = 1, popular = false
+WHERE id = 'silver';
+
+UPDATE plans SET
+  name = 'Pro', price = 1100000, price_usd = NULL,
+  max_bots = 3, max_plugins = 6, max_users = 250, ram_gb = 3, cpu_cores = 3, popular = true
+WHERE id = 'gold';
+
+UPDATE user_plans SET plan_name = 'Standard' WHERE plan_id = 'silver';
+UPDATE user_plans SET plan_name = 'Pro' WHERE plan_id = 'gold';
+
+DELETE FROM plans WHERE id = 'diamond';
+
+-- نصب‌های تازه هرگز silver/gold/diamond نداشته‌اند، پس مستقیم با اسمِ
+-- Standard/Pro seed می‌شوند (شناسه‌ی داخلی 'silver'/'gold' فقط برای هم‌راستاییِ
+-- UPDATE بالا حفظ شده، به کاربر هیچ‌جا نشان داده نمی‌شود).
+INSERT INTO plans (id, name, price, price_usd, interval, features, max_bots, max_plugins, max_users, ram_gb, cpu_cores, popular)
+VALUES
+  ('silver', 'Standard', 500000,  NULL, 'monthly', '{}', 1, 3, 50,  1, 1, false),
+  ('gold',   'Pro',      1100000, NULL, 'monthly', '{}', 3, 6, 250, 3, 3, true)
+ON CONFLICT (id) DO NOTHING;
+
+-- ─── BOTS_TIER (Persist a bought bot's tier — Standard/Pro) ────────────────
+-- تا امروز tierId فقط در لحظه‌ی خرید (buildSpec) برای محاسبه‌ی قیمت و
+-- انتخاب پلاگین‌ها استفاده می‌شد و روی خودِ بات ذخیره نمی‌شد — یعنی صفحه‌ی
+-- overview بات هیچ‌وقت نمی‌توانست بگوید این بات استاندارد است یا پرو، و
+-- سوپرادمین راهی برای تغییرش نداشت. NULL یعنی بات‌های قدیمی‌تر که پیش از
+-- این ستون ساخته شده‌اند — نه یک باگ، فقط «نامعلوم» است.
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS tier TEXT;
 `;
 
 

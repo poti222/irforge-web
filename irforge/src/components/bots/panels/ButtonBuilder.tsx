@@ -89,13 +89,24 @@ function ValueField({
     );
   }
 
-  if (button.action === "panel") {
+  if (button.action === "panel" || button.action === "sell") {
+    // اکشنِ «پنل فروش» (`sell`) دقیقاً مثل «لینک به پنل» یک پنل را هدف
+    // می‌گیرد، فقط محدود به پنل‌هایی با type === "sell" — همان فیلتری که
+    // خودِ بات موقع ساختِ این دکمه در تلگرام انجام می‌دهد
+    // (`handlers/panel_builder.py`: «لینک به پنل‌های نوع sell»). بدون این
+    // فیلتر، این اکشن به ورودی متنیِ عمومیِ پایین می‌افتاد و ادمین باید
+    // شناسه‌ی پنل را دستی و کورکورانه تایپ می‌کرد.
+    const options = button.action === "sell" ? panels.filter((p) => p.type === "sell") : panels;
+    const placeholder = button.action === "sell" ? t.pickSellPanel : t.pickPanel;
+    if (button.action === "sell" && options.length === 0) {
+      return <p className="text-xs text-muted-foreground">{t.noSellPanelsYet}</p>;
+    }
     return (
       <Select value={button.value || "__none__"} onValueChange={(v) => onChange(v === "__none__" ? "" : v)}>
-        <SelectTrigger><SelectValue placeholder={t.pickPanel} /></SelectTrigger>
+        <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="__none__">{t.pickPanel}</SelectItem>
-          {panels.map((p) => (
+          <SelectItem value="__none__">{placeholder}</SelectItem>
+          {options.map((p) => (
             <SelectItem key={p.id} value={p.id}>{p.title || p.id}</SelectItem>
           ))}
         </SelectContent>

@@ -439,6 +439,12 @@ function ItemEditor({
       qc.invalidateQueries({ queryKey: itemsKey });
       toast({ title: current ? t.itemUpdated : t.itemCreated });
       setCurrent(res.item);
+      // ویرایشِ یک کالای موجود بعد از ذخیره بسته می‌شود — دقیقاً همان
+      // رفتاری که کاربر از یک فرمِ ویرایش انتظار دارد. برای یک کالای **تازه**
+      // (item === "new") عمداً باز می‌ماند: اولین ذخیره‌ست که current را پر
+      // می‌کند و بخش‌های گزینه‌ها/تحویل را نشان می‌دهد — بستنِ فوری یعنی
+      // کاربر هرگز نمی‌تواند همان لحظه آن‌ها را تنظیم کند.
+      if (item !== "new") onClose();
     },
     onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
   });

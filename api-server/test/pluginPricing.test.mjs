@@ -143,9 +143,13 @@ test("سفارشی: مبلغ از spec حساب می‌شود و `amount` کلا
 });
 
 test("پکیج آماده: قیمت پکیج + پلاگین‌ها، نه `amount` کلاینت", () => {
+  // پرو سهمیه‌ی ۶ پلاگینِ رایگان دارد؛ ۶ تای اول اینجا آن سهمیه را پر
+  // می‌کنند تا "ticket" (هفتمی) واقعاً پولی حساب شود — همان چیزی که این
+  // تست می‌خواهد نشان دهد: مبلغ از amount کلاینت نمی‌آید.
+  const filler = ["survey", "giveaway", "feedback", "waitlist", "files", "discount"];
   const resolved = resolvePurchasePrice({
     amount: 1,
-    buildSpec: { tierId: "pro", pluginIds: ["ticket"] },
+    buildSpec: { tierId: "pro", pluginIds: [...filler, "ticket"] },
   });
   assert.equal(resolved.source, "tier");
   assert.equal(resolved.total, BOT_TIER_PRICES.pro + pluginPrice("ticket"));
@@ -181,56 +185,73 @@ test("پلاگین‌های پرداخت‌شده همان‌هایی هستند
 });
 
 test("افزودنی روی پکیج آماده جدا هم قابل محاسبه است", () => {
-  const addons = quotePluginAddons(["survey", "giveaway"]);
+  // maxFreePlugins=0 یعنی سهمیه‌ی رایگان صفر — این تست جمعِ خامِ قیمت‌ها را
+  // می‌سنجد، نه رفتارِ سهمیه (که تست‌های خودش را پایین‌تر دارد).
+  const addons = quotePluginAddons(["survey", "giveaway"], undefined, 0);
   assert.equal(addons.total, pluginPrice("survey") + pluginPrice("giveaway"));
   assert.equal(quotePluginAddons(null).total, 0, "ورودی غیرآرایه = صفر، نه خطا");
   assert.equal(quotePluginAddons("booking").total, 0);
 });
 
-// ─── سقفِ پلاگین رایگان (مشکل بزرگِ گزارش‌شده) ──────────────────────────────
+// ─── سهمیه‌ی «پلاگین رایگانِ به‌انتخاب خودت» ────────────────────────────────
+// همه‌ی پلاگین‌ها پولی‌اند (بالا). این سهمیه دیگر «چند رایگان می‌شود برداشت»
+// نیست: کاربر هر چند پلاگینِ پولی که بخواهد انتخاب می‌کند، و اولین N تا
+// (به ترتیبِ همان انتخاب) رایگان حساب می‌شوند — نه اینکه مازاد کنار گذاشته
+// شود، فقط پولی می‌ماند.
 
-test("quotePluginAddons: پلاگین‌های رایگان از سقف رد نمی‌شوند، پولی‌ها هیچ‌وقت سقف نمی‌خورند", () => {
-  const many = [...FREE_PLUGIN_IDS, "booking", "crm"]; // ۴ رایگان + ۲ پولی
-  const capped = quotePluginAddons(many, undefined, 2);
+test("quotePluginAddons: از میانِ پلاگین‌های انتخابی، اولین N تا (به ترتیبِ انتخاب) رایگان می‌شوند", () => {
+  const chosen = ["survey", "giveaway", "loyalty", "crm"]; // هر ۴ تا پولی‌اند
+  const addons = quotePluginAddons(chosen, undefined, 2);
 
-  // فقط ۲ تای اول از رایگان‌ها نگه داشته می‌شود؛ ۲ تای بعدی کنار گذاشته می‌شود.
-  assert.deepEqual(capped.droppedFreePluginIds, FREE_PLUGIN_IDS.slice(2));
-  const keptIds = capped.plugins.map((p) => p.id);
-  assert.ok(keptIds.includes("booking") && keptIds.includes("crm"), "پولی‌ها هرگز کنار گذاشته نمی‌شوند");
-  assert.equal(keptIds.filter((id) => FREE_PLUGIN_IDS.includes(id)).length, 2);
-  // مازادِ کنارگذاشته‌شده رایگان بود، پس روی مبلغ اثری ندارد.
-  assert.equal(capped.total, pluginPrice("booking") + pluginPrice("crm"));
+  const byId = Object.fromEntries(addons.plugins.map((p) => [p.id, p.price]));
+  assert.equal(byId.survey, 0, "اولین انتخاب رایگان است");
+  assert.equal(byId.giveaway, 0, "دومین انتخاب هم رایگان است");
+  assert.equal(byId.loyalty, pluginPrice("loyalty"), "سومی از سهمیه رد شده، پس پولی است");
+  assert.equal(byId.crm, pluginPrice("crm"), "چهارمی هم پولی است");
+  // هیچ‌کدام کنار گذاشته نمی‌شود — هر ۴ تا نصب می‌شوند.
+  assert.equal(addons.plugins.length, 4);
+  assert.deepEqual(addons.droppedFreePluginIds, []);
+  assert.equal(addons.total, pluginPrice("loyalty") + pluginPrice("crm"));
 });
 
-test("quotePluginAddons: بدون سقف مشخص، همه‌ی رایگان‌ها می‌مانند (پیش‌فرض قدیمی دست‌نخورده)", () => {
+test("quotePluginAddons: پلاگینِ ذاتاً رایگان (قیمت‌گذاری‌نشده) از سهمیه چیزی کم نمی‌کند", () => {
+  // FREE_PLUGIN_IDS در جدولِ قیمت نیستند، پس صفرند و مستقل از سهمیه می‌مانند.
+  const chosen = [...FREE_PLUGIN_IDS, "survey", "giveaway", "loyalty"];
+  const addons = quotePluginAddons(chosen, undefined, 2);
+
+  const byId = Object.fromEntries(addons.plugins.map((p) => [p.id, p.price]));
+  for (const id of FREE_PLUGIN_IDS) assert.equal(byId[id], 0);
+  assert.equal(byId.survey, 0);
+  assert.equal(byId.giveaway, 0);
+  assert.equal(byId.loyalty, pluginPrice("loyalty"), "سهمیه فقط بینِ پولی‌ها مصرف شد، نه رایگان‌های ذاتی");
+  assert.equal(addons.total, pluginPrice("loyalty"));
+});
+
+test("quotePluginAddons: بدون سقف مشخص، همه‌ی رایگان‌های ذاتی می‌مانند (پیش‌فرض دست‌نخورده)", () => {
   const addons = quotePluginAddons(FREE_PLUGIN_IDS);
   assert.deepEqual(addons.droppedFreePluginIds, []);
   assert.equal(addons.plugins.length, FREE_PLUGIN_IDS.length);
 });
 
-test("resolvePurchasePrice: پکیجِ آماده بیش از سقفِ پلاگین رایگانش را قبول نمی‌کند", () => {
-  // استاندارد سقفش ۳ است — اینجا ۵ تا رایگان انتخاب شده.
+test("resolvePurchasePrice: پکیجِ استاندارد اولین ۳ پلاگینِ انتخابی را رایگان می‌کند، نه بیشتر", () => {
+  const chosen = ["survey", "giveaway", "feedback", "loyalty", "crm"]; // ۵ تا، سقف ۳
   const resolved = resolvePurchasePrice({
-    buildSpec: { tierId: "standard", pluginIds: [...FREE_PLUGIN_IDS, "freeplug-e"] },
+    buildSpec: { tierId: "standard", pluginIds: chosen },
   });
   assert.equal(resolved.source, "tier");
-  assert.equal(resolved.pluginIds.length, BOT_TIER_MAX_FREE_PLUGINS.standard);
-  assert.equal(resolved.droppedFreePluginIds.length, 5 - BOT_TIER_MAX_FREE_PLUGINS.standard);
-  // پلاگین‌های رایگانِ مازاد قیمتی ندارند، پس مبلغ فقط قیمت پکیج می‌ماند —
-  // نه اینکه رایگان‌های اضافه پولی حساب شوند و نه اینکه رایگان بمانند.
-  assert.equal(resolved.total, BOT_TIER_PRICES.standard);
+  // هیچ‌کدام کنار گذاشته نمی‌شود — هر ۵ تا نصب می‌شوند.
+  assert.equal(resolved.pluginIds.length, chosen.length);
+  assert.deepEqual(resolved.droppedFreePluginIds, []);
+  // فقط ۲ تای آخر (بعد از سهمیه‌ی ۳ تایی) پولی حساب می‌شوند.
+  assert.equal(resolved.total, BOT_TIER_PRICES.standard + pluginPrice("loyalty") + pluginPrice("crm"));
 });
 
-test("resolvePurchasePrice: پلاگین پولی هرگز جزو سقفِ رایگان پکیج حساب نمی‌شود", () => {
-  // پرو سقفش ۱۰ رایگان است؛ اینجا ۱۰ رایگان + یک پولی انتخاب شده — پولی
-  // نباید به‌خاطر پر بودن سهمیه‌ی رایگان کنار گذاشته شود.
-  const tenFree = Array.from({ length: BOT_TIER_MAX_FREE_PLUGINS.pro }, (_, i) => `freeplug-${i}`);
+test("resolvePurchasePrice: انتخابِ کمتر یا برابرِ سهمیه یعنی همه‌شان رایگان‌اند", () => {
   const resolved = resolvePurchasePrice({
-    buildSpec: { tierId: "pro", pluginIds: [...tenFree, "booking"] },
+    buildSpec: { tierId: "pro", pluginIds: ["survey", "giveaway"] }, // سقفِ پرو ۶ است
   });
-  assert.deepEqual(resolved.droppedFreePluginIds, []);
-  assert.ok(resolved.pluginIds.includes("booking"));
-  assert.equal(resolved.total, BOT_TIER_PRICES.pro + pluginPrice("booking"));
+  assert.equal(resolved.total, BOT_TIER_PRICES.pro);
+  assert.equal(resolved.pluginIds.length, 2);
 });
 
 test("resolvePurchasePrice: بات سفارشی سقفِ پلاگین رایگان ندارد", () => {

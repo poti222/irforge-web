@@ -153,7 +153,7 @@ export default function BuyBot() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 space-y-3">
-                  <ResourceRow maxUsers={tier.maxConcurrentUsers} />
+                  <ResourceRow ramGb={tier.ramGb} cpuCores={tier.cpuCores} maxUsers={tier.maxConcurrentUsers} />
                   {/* every feature, no "+N more" — a truncated list is exactly
                       what makes people leave to go and find the full one */}
                   <ul className="space-y-2.5 text-sm">

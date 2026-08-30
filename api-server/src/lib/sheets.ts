@@ -203,6 +203,41 @@ export async function readSheet(
 }
 
 /**
+ * چند range از یک اسپردشیت را در **یک** فراخوانی API می‌خواند — نه یکی به
+ * ازای هر range. سهمیه‌ی خواندنِ Sheets API («Read requests per minute per
+ * user») روی سطح خودِ سرویس‌اکانت مشترک است، یعنی بینِ همه‌ی بات‌های همه‌ی
+ * کاربرانِ سایت تقسیم می‌شود؛ جایی مثل `getLiveBotCounts` (routes/bots.ts)
+ * که به ازای هر بات ۳ تب را جدا می‌خواند، روی فهرستِ باتِ یک کاربر با N بات
+ * یعنی N×۳ درخواستِ خواندنِ هم‌زمان — دقیقاً همان چیزی که خطای
+ * «Quota exceeded ... Read requests per minute» را رقم زد. اینجا همان ۳ تب
+ * با یک HTTP request خوانده می‌شود، پس هزینه‌ی سهمیه‌اش هم فقط یکی است.
+ *
+ * ترتیبِ خروجی دقیقاً همانِ `ranges` ورودی است، نه چیزی که گوگل در
+ * `valueRanges[].range` برمی‌گرداند (که می‌تواند فرمتِ A1 را کمی فرق بنویسد) —
+ * پس اندیس، نه matching رشته‌ای.
+ */
+export async function readSheetRanges(
+  spreadsheetId: string,
+  ranges: string[]
+): Promise<string[][][]> {
+  try {
+    const sheets = getSheetsClient();
+    const res = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges });
+    const valueRanges = res.data.valueRanges ?? [];
+    return ranges.map((_, i) => (valueRanges[i]?.values as string[][]) ?? []);
+  } catch (err) {
+    // batchGet کلِ درخواست را رد می‌کند اگر حتی یکی از range ها نامعتبر باشد
+    // (مثلاً تبی که هنوز ساخته نشده) — isMissingTabError پایین همین فایل این
+    // را تشخیص می‌دهد؛ صداکننده (readTabRowsBatch در tenantSheets.ts) در آن
+    // حالت به خواندنِ تک‌به‌تکِ قدیمی برمی‌گردد، نه اینکه هر ۳ تب را گم کند.
+    if (!isMissingTabError(err)) {
+      logger.error({ err, spreadsheetId, ranges }, "readSheetRanges error");
+    }
+    throw err;
+  }
+}
+
+/**
  * چرا `RAW` و نه `USER_ENTERED` — ریشه‌ی چند باگ گزارش‌شده.
  * ─────────────────────────────────────────────────────────────────────────────
  * `USER_ENTERED` یعنی «این را طوری تفسیر کن که انگار کاربر در سلول تایپش

@@ -83,6 +83,15 @@ export const botsTable = pgTable("bots", {
   /** آیدی تلگرامی که هنگام خرید این بات وارد شده */
   orderTelegramId: text("order_telegram_id"),
 
+  /**
+   * پکیجِ خریداری‌شده — "standard" | "pro" (`lib/bot-tiers.ts` فرانت،
+   * `BOT_TIER_PRICES` در `lib/pluginPricing.ts` سرور). `null` یعنی باتی که
+   * پیش از این ستون ساخته شده یا از مسیر amount خام (بدون buildSpec) خریده
+   * شده — «نامعلوم»، نه یک تیرِ سومِ واقعی. سوپرادمین می‌تواند بعداً عوضش
+   * کند (`PATCH /superadmin/bots/:id/tier`).
+   */
+  tier: text("tier"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

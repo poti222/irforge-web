@@ -13,6 +13,7 @@
  */
 import {
   readSheet,
+  readSheetRanges,
   writeSheet,
   appendSheet,
   clearSheet,
@@ -86,6 +87,18 @@ export function serializeValue(value: unknown): string {
  * می‌سازد؛ این‌یکی توری‌ست برای شیت‌هایی که قبل از آن ساخته شده‌اند و برای
  * تب‌های پویا مثل `obj_<slug>` که در آن لیست نیستند.
  */
+/** خام‌ترین سطرهای `values.get`/`values.batchGet` → همان شکلِ `readTabRows`. */
+function rowsFromValues(rows: string[][]): TenantRow[] {
+  const out: TenantRow[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const key = rows[i]?.[0];
+    if (!key) continue;
+    const { value, raw } = parseCell(rows[i]?.[1]);
+    out.push({ key, value, raw });
+  }
+  return out;
+}
+
 export async function readTabRows(
   spreadsheetId: string,
   tab: string
@@ -97,14 +110,34 @@ export async function readTabRows(
     if (isMissingTabError(err)) return [];
     throw err;
   }
-  const out: TenantRow[] = [];
-  for (let i = 1; i < rows.length; i++) {
-    const key = rows[i]?.[0];
-    if (!key) continue;
-    const { value, raw } = parseCell(rows[i]?.[1]);
-    out.push({ key, value, raw });
+  return rowsFromValues(rows);
+}
+
+/**
+ * چند تبِ یک شیتِ تننت را با **یک** فراخوانی API می‌خواند (`readSheetRanges`) —
+ * ببینید کامنتِ آن تابع در `sheets.ts` برای اینکه چرا این مهم است (سهمیه‌ی
+ * خواندنِ Sheets API بینِ همه‌ی بات‌های سایت مشترک است). اگر حتی یکی از
+ * تب‌ها هنوز ساخته نشده باشد، خودِ batchGet کل درخواست را رد می‌کند — این‌جا
+ * آن حالت را با برگشت به خواندنِ تک‌به‌تکِ `readTabRows` (که تبِ ناموجود را
+ * خودش «خالی» حساب می‌کند) جبران می‌کند، تا یک تبِ تازه یا هنوز‌نساخته باعث
+ * گم‌شدنِ داده‌ی تب‌های دیگر نشود.
+ */
+export async function readTabRowsBatch(
+  spreadsheetId: string,
+  tabs: string[]
+): Promise<Record<string, TenantRow[]>> {
+  try {
+    const ranges = tabs.map((tab) => `${quoteTab(tab)}!A:B`);
+    const results = await readSheetRanges(spreadsheetId, ranges);
+    const out: Record<string, TenantRow[]> = {};
+    tabs.forEach((tab, i) => { out[tab] = rowsFromValues(results[i] ?? []); });
+    return out;
+  } catch (err) {
+    if (!isMissingTabError(err)) throw err;
+    const out: Record<string, TenantRow[]> = {};
+    await Promise.all(tabs.map(async (tab) => { out[tab] = await readTabRows(spreadsheetId, tab); }));
+    return out;
   }
-  return out;
 }
 
 /** 1-based row number of a key in column A, or -1. */

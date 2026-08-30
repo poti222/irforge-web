@@ -66,13 +66,35 @@ export default function BuyBotDetail() {
   const { data: pricing, isLoading: pricingLoading } = usePluginPricing();
   const availablePlugins = pricing?.plugins ?? [];
   const chosenPlugins = availablePlugins.filter((plugin) => selectedPlugins.has(plugin.id));
-  const pluginsTotal = chosenPlugins.reduce((sum, plugin) => sum + plugin.price, 0);
 
-  // سقفِ پلاگین رایگانِ همین پکیج (مثلاً طلایی = ۱۰ رایگان) — پولی‌ها هرگز
-  // جزو این سقف نیستند، دقیقاً همان قانونی که سرور در resolvePurchasePrice
-  // اجرا می‌کند (lib/pluginPricing.ts). «سفارشی» عمداً سقف ندارد.
+  // سقفِ پلاگینِ *رایگان* همین پکیج (مثلاً استاندارد = ۳ تا) — دیگر «چند تا
+  // از رایگان‌ها را می‌شود برداشت» نیست: همه‌ی پلاگین‌ها پولی‌اند، و کاربر
+  // از میانِ هر چه انتخاب می‌کند، اولین‌ها (به همان ترتیبِ تیک‌زدن) تا این
+  // سقف رایگان حساب می‌شوند — دقیقاً آینه‌ی quotePluginAddons سرور
+  // (lib/pluginPricing.ts). «سفارشی» عمداً سقف ندارد.
   const freeLimit = isCustom ? Infinity : (tier?.maxPlugins ?? Infinity);
-  const freeChosenCount = chosenPlugins.filter((plugin) => plugin.price <= 0).length;
+
+  // Set جاوااسکریپت ترتیبِ افزودن را حفظ می‌کند، پس این آرایه دقیقاً به
+  // ترتیبِ تیک‌خوردن است. پلاگینِ ذاتاً رایگان (اگر روزی چنین چیزی باز هم
+  // پیش بیاید) از این سهمیه چیزی کم نمی‌کند — سهمیه فقط بینِ پولی‌هاست.
+  const paidSelectionOrder = [...selectedPlugins].filter((id) => {
+    const plugin = availablePlugins.find((p) => p.id === id);
+    return plugin ? plugin.price > 0 : false;
+  });
+  const freeQuotaIds = new Set(
+    Number.isFinite(freeLimit) ? paidSelectionOrder.slice(0, freeLimit) : paidSelectionOrder
+  );
+
+  /** قیمتِ واقعیِ یک پلاگینِ انتخابی: صفر اگر ذاتاً رایگان باشد یا داخل سهمیه بیفتد. */
+  function effectivePrice(plugin: { id: string; price: number }): number {
+    if (plugin.price <= 0) return 0;
+    return freeQuotaIds.has(plugin.id) ? 0 : plugin.price;
+  }
+
+  const pluginsTotal = isCustom
+    ? chosenPlugins.reduce((sum, plugin) => sum + plugin.price, 0)
+    : chosenPlugins.reduce((sum, plugin) => sum + effectivePrice(plugin), 0);
+  const freeChosenCount = freeQuotaIds.size;
   const atFreeLimit = freeChosenCount >= freeLimit;
 
   // سفارشی: پایه + منابع + پلاگین‌ها. آماده: قیمت ثابت پکیج + پلاگین‌ها.
@@ -107,23 +129,14 @@ export default function BuyBotDetail() {
   }
 
   function togglePlugin(id: string) {
-    const plugin = availablePlugins.find((p) => p.id === id);
+    // هیچ انتخابی دیگر رد نمی‌شود — همه‌ی پلاگین‌ها پولی‌اند و همیشه
+    // قابل‌انتخاب: فقط اولین‌ها (به ترتیبِ همین Set) تا سهمیه رایگان
+    // می‌شوند، مازاد نصب می‌شود ولی پولی. برداشتنِ یک پلاگین از وسطِ
+    // انتخاب‌ها هم بی‌خطر است چون freeQuotaIds هر بار از نو حساب می‌شود.
     setSelectedPlugins((prev) => {
-      if (prev.has(id)) {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      }
-      // فقط انتخابِ یک پلاگینِ *رایگانِ تازه* وقتی سهمیه پر است رد می‌شود؛
-      // پلاگین پولی همیشه قابل‌انتخاب است.
-      if (plugin && plugin.price <= 0 && atFreeLimit) {
-        toast({
-          variant: "destructive",
-          title: tb.freePluginLimitReached.replace("{max}", String(freeLimit)),
-        });
-        return prev;
-      }
-      return new Set(prev).add(id);
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
     });
   }
 
@@ -201,8 +214,16 @@ export default function BuyBotDetail() {
                     <p className="font-semibold">{tier!.maxBots}</p>
                   </div>
                   <div className="rounded-md border p-3">
-                    <p className="text-muted-foreground">{tb.pluginsCount}</p>
+                    <p className="text-muted-foreground">{tb.freePluginsCount}</p>
                     <p className="font-semibold">{tier!.maxPlugins >= 999 ? tb.unlimited : tier!.maxPlugins}</p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-muted-foreground">{tb.ram}</p>
+                    <p className="font-semibold" dir="ltr">{tier!.ramGb} {tb.gb}</p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-muted-foreground">{tb.cpu}</p>
+                    <p className="font-semibold" dir="ltr">{tier!.cpuCores} {tb.cores}</p>
                   </div>
                 </div>
                 <div>
@@ -319,17 +340,16 @@ export default function BuyBotDetail() {
                 <div className="space-y-2">
                   {availablePlugins.map((plugin) => {
                     const checked = selectedPlugins.has(plugin.id);
-                    const lockedFree = !checked && plugin.price <= 0 && atFreeLimit;
+                    const priceNow = checked ? effectivePrice(plugin) : plugin.price;
+                    const isFreeNow = checked && priceNow <= 0;
                     return (
                       <label
                         key={plugin.id}
-                        title={lockedFree ? tb.freePluginLimitReached.replace("{max}", String(freeLimit)) : undefined}
-                        className={`flex items-start gap-3 rounded-md border p-3 text-sm transition-colors ${checked ? "border-primary bg-primary/5" : lockedFree ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-primary"}`}
+                        className={`flex items-start gap-3 rounded-md border p-3 text-sm transition-colors cursor-pointer hover:border-primary ${checked ? "border-primary bg-primary/5" : ""}`}
                       >
                         <Checkbox
                           className="mt-0.5"
                           checked={checked}
-                          disabled={lockedFree}
                           onCheckedChange={() => togglePlugin(plugin.id)}
                         />
                         <span className="min-w-0 flex-1">
@@ -340,8 +360,8 @@ export default function BuyBotDetail() {
                             </span>
                           )}
                         </span>
-                        <Badge variant={plugin.price > 0 ? "secondary" : "outline"} className="shrink-0">
-                          {plugin.price > 0 ? formatToman(plugin.price, lang) : tb.free}
+                        <Badge variant={isFreeNow ? "outline" : "secondary"} className="shrink-0">
+                          {isFreeNow ? tb.free : formatToman(priceNow, lang)}
                         </Badge>
                       </label>
                     );
@@ -403,7 +423,7 @@ export default function BuyBotDetail() {
                   )}
                 </span>
                 <span>
-                  {pluginsTotal > 0
+                  {chosenPlugins.length > 0
                     ? formatToman(pluginsTotal, lang)
                     : tb.noneSelected}
                 </span>
@@ -412,14 +432,17 @@ export default function BuyBotDetail() {
               {/* فهرست ریز پلاگین‌های انتخابی، تا کاربر ببیند پول برای چه می‌دهد. */}
               {chosenPlugins.length > 0 && (
                 <ul className="space-y-1 border-s ps-3 text-xs text-muted-foreground">
-                  {chosenPlugins.map((plugin) => (
-                    <li key={plugin.id} className="flex items-center justify-between gap-2">
-                      <span className="truncate">{pluginName(plugin, lang, plugin.id)}</span>
-                      <span className="shrink-0">
-                        {plugin.price > 0 ? formatToman(plugin.price, lang) : tb.free}
-                      </span>
-                    </li>
-                  ))}
+                  {chosenPlugins.map((plugin) => {
+                    const priceNow = isCustom ? plugin.price : effectivePrice(plugin);
+                    return (
+                      <li key={plugin.id} className="flex items-center justify-between gap-2">
+                        <span className="truncate">{pluginName(plugin, lang, plugin.id)}</span>
+                        <span className="shrink-0">
+                          {priceNow > 0 ? formatToman(priceNow, lang) : tb.free}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
 

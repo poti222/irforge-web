@@ -37,19 +37,36 @@ export const PLUGIN_PRICES: Record<string, Toman> = {
   catalog:      150_000,
   subscription: 130_000,
   booking:      130_000,
+  membership:   120_000,
   wallet:       120_000,
+  invoice:      110_000,
+
+  // ── هوش مصنوعی — امکانِ گران به‌خاطر هزینه‌ی خودِ سرویس ──
+  ai_assist:    140_000,
 
   // ── عملیات و نگه‌داشت مشتری ──
   ticket:        90_000,
+  affiliate:     90_000,
+  analytics:     85_000,
   loyalty:       80_000,
+  autoposter:    65_000,
   crm:           70_000,
   drip:          70_000,
+  inventory:     70_000,
+  events:        70_000,
+  group_tools:   55_000,
+  address:       50_000,
 
   // ── جانبی و ارزان ──
+  gamification:  40_000,
+  forms_pro:     40_000,
   discount:      35_000,
   referral:      35_000,
+  files:         30_000,
+  waitlist:      30_000,
   giveaway:      25_000,
   survey:        25_000,
+  feedback:      25_000,
 };
 
 export function pluginPrice(pluginId: string): Toman {
@@ -158,19 +175,22 @@ export function quoteCustomBuild(
  * اضافه می‌شوند.
  */
 /**
- * سقفِ تعداد پلاگین‌های *رایگان* قابل‌انتخاب روی هر پکیجِ آماده، هنگام خرید —
+ * سقفِ تعداد پلاگینی که هنگام خرید روی هر پکیجِ آماده *رایگان* حساب می‌شود —
  * آینه‌ی `maxPlugins` در `irforge/src/lib/bot-tiers.ts` (همان الگوی
  * `BOT_TIER_PRICES` بالا؛ تست drift پایین همین فایل برابری‌شان را چک می‌کند).
  *
- * پلاگینِ پولی هرگز جزو این سقف نیست — قیمتش را می‌دهی و می‌گیری، دقیقاً
- * همان قانونی که `lib/planLimits.ts` برای روشن‌کردن پلاگین روی بات موجود
- * دارد. عدد ۹۹۹ برای الماسی یعنی «عملاً نامحدود». «سفارشی» عمداً اینجا
- * نیست: بات سفارشی سقفی برای تعداد پلاگین ندارد (خودِ `bot-tiers.ts` هم
- * چنین فیلدی برایش تعریف نکرده).
+ * **همه‌ی پلاگین‌ها پولی‌اند** (جدولِ بالا) — این سقف دیگر «چند تا از
+ * پلاگین‌های رایگان را می‌شود برداشت» نیست، بلکه «کدام‌ها را از میان
+ * پولی‌ها به انتخابِ خودت رایگان حساب کنیم»: کاربر هر تعداد پلاگین که
+ * بخواهد انتخاب می‌کند، و از میانشان تا همین سقف (به ترتیبِ همان انتخاب)
+ * رایگان می‌شوند؛ باقی به قیمتِ خودشان اضافه می‌شوند. برخلافِ رفتارِ قبلی،
+ * دیگر چیزی «کنار گذاشته» نمی‌شود — هرچه انتخاب شود نصب می‌شود، فقط بعضی
+ * رایگان و بعضی پولی. «سفارشی» عمداً اینجا نیست: بات سفارشی سقفی برای
+ * تعداد پلاگین ندارد (خودِ `bot-tiers.ts` هم چنین فیلدی برایش تعریف نکرده).
  */
 export const BOT_TIER_MAX_FREE_PLUGINS: Record<string, number> = {
   standard: 3,
-  pro:      10,
+  pro:      6,
 };
 
 export function quotePluginAddons(
@@ -182,19 +202,26 @@ export function quotePluginAddons(
   const ids = [...new Set(Array.isArray(pluginIds) ? pluginIds.map(String) : [])]
     .filter((id) => (allowed ? allowed.has(id) : true));
 
-  // پولی‌ها هیچ‌وقت سقف نمی‌خورند؛ فقط تعداد رایگان‌ها به `maxFreePlugins`
-  // محدود می‌شود. مازاد نه نصب می‌شود و نه پولی حساب می‌شود — فقط کنار
-  // گذاشته می‌شود، همان رفتارِ بی‌خطرِ «id ساختگی» چند خط پایین‌تر.
+  // پلاگینی که خودش ذاتاً رایگان است (در جدولِ قیمت نیست — مثلاً پلاگینِ
+  // تازه‌ای در بات که هنوز قیمت‌گذاری نشده) همیشه رایگان می‌ماند و از سهمیه‌ی
+  // زیر چیزی کم نمی‌کند؛ آن سهمیه فقط برای پلاگین‌های واقعاً پولی است.
+  const intrinsicallyFreeIds = ids.filter((id) => pluginPrice(id) <= 0);
   const paidIds = ids.filter((id) => pluginPrice(id) > 0);
-  const freeIds = ids.filter((id) => pluginPrice(id) <= 0);
-  const keptFreeIds = freeIds.slice(0, Math.max(0, maxFreePlugins));
-  const droppedFreePluginIds = freeIds.slice(keptFreeIds.length);
 
-  const plugins = [...paidIds, ...keptFreeIds].map((id) => ({ id, price: pluginPrice(id) }));
+  // اولین N تای پولی‌ها — به همان ترتیبی که کاربر انتخاب کرده — رایگان
+  // حساب می‌شوند؛ مازاد به قیمتِ خودش اضافه می‌شود. هیچ‌کدام کنار گذاشته
+  // نمی‌شود، پس `droppedFreePluginIds` در این مدل همیشه خالی است — فیلد را
+  // برای سازگاریِ عقب‌رو (call siteهای موجود) نگه داشته‌ایم.
+  const freeQuotaIds = new Set(paidIds.slice(0, Math.max(0, maxFreePlugins)));
+
+  const plugins = [
+    ...intrinsicallyFreeIds.map((id) => ({ id, price: 0 })),
+    ...paidIds.map((id) => ({ id, price: freeQuotaIds.has(id) ? 0 : pluginPrice(id) })),
+  ];
   return {
     plugins,
     total: plugins.reduce((sum, p) => sum + p.price, 0),
-    droppedFreePluginIds,
+    droppedFreePluginIds: [],
   };
 }
 
@@ -227,7 +254,7 @@ export type ResolvedPrice = {
   /** از کجا آمد — برای لاگ و برای اینکه رفتار قابل توضیح باشد. */
   source: "custom-build" | "tier" | "client-amount";
   pluginIds: string[];
-  /** پلاگین‌های رایگانی که به‌خاطر رد شدن از سقفِ پکیج کنار گذاشته شدند (فقط پکیج‌های آماده). */
+  /** میراثِ مدلِ قبلی (سقفِ پلاگینِ رایگان) — در مدلِ تازه چیزی کنار گذاشته نمی‌شود، پس همیشه خالی است. */
   droppedFreePluginIds?: string[];
   breakdown?: CustomBuildQuote | { tier: Toman; plugins: Toman };
 };

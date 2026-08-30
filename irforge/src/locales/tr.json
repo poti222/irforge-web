@@ -541,6 +541,7 @@
     "back": "Geri",
     "botsCount": "Bot sayısı",
     "pluginsCount": "Eklenti sayısı",
+    "freePluginsCount": "Ücretsiz eklenti",
     "unlimited": "Sınırsız",
     "whatsIncluded": "Pakette neler var",
     "chooseParts": "Botunuzun parçalarını seçin",
@@ -1515,6 +1516,8 @@
     "buttonValue": "Hedef",
     "buttonStyle": "Stil",
     "pickPanel": "Bir panel seçin",
+    "pickSellPanel": "Bir satış paneli seçin",
+    "noSellPanelsYet": "Henüz satış paneli yok. Önce \"Satış\" türünde bir panel oluşturun.",
     "pickForm": "Bir form seçin",
     "pickProduct": "Bir ürün seçin",
     "loadingProducts": "Ürünler yükleniyor…",
@@ -2720,8 +2723,9 @@
       "tagline": "Küçük projeler için hızlı bir başlangıç",
       "features": [
         "1 aktif bot",
+        "1 GB RAM / 1 CPU çekirdeği",
         "Aynı anda 50 kullanıcıya kadar",
-        "3 eklentiye kadar",
+        "3 ücretsiz eklenti (kendi seçiminiz)",
         "Destek talebi ile destek",
         "Genel güncellemeler"
       ]
@@ -2731,8 +2735,9 @@
       "tagline": "Ciddi işletmeler için maksimum güç",
       "features": [
         "3 aktif bota kadar",
+        "3 GB RAM / 3 CPU çekirdeği",
         "Aynı anda 250 kullanıcıya kadar",
-        "10 eklentiye kadar",
+        "6 ücretsiz eklenti (kendi seçiminiz)",
         "Öncelikli destek",
         "Özel temalara erişim",
         "Gelişmiş analitik"

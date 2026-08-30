@@ -541,6 +541,7 @@
     "back": "Back",
     "botsCount": "Bots",
     "pluginsCount": "Plugins",
+    "freePluginsCount": "Free plugins",
     "unlimited": "Unlimited",
     "whatsIncluded": "What's included",
     "chooseParts": "Choose your bot's parts",
@@ -1515,6 +1516,8 @@
     "buttonValue": "Target",
     "buttonStyle": "Style",
     "pickPanel": "Pick a panel",
+    "pickSellPanel": "Pick a sale panel",
+    "noSellPanelsYet": "No sale panels yet. Create one with type \"Sale\" first.",
     "pickForm": "Pick a form",
     "pickProduct": "Pick a product",
     "loadingProducts": "Loading products…",
@@ -2720,8 +2723,9 @@
       "tagline": "A fast start for small projects",
       "features": [
         "1 active bot",
+        "1 GB RAM / 1 CPU core",
         "Up to 50 concurrent users",
-        "Up to 3 plugins",
+        "3 free plugins (your choice)",
         "Ticket-based support",
         "General updates"
       ]
@@ -2731,8 +2735,9 @@
       "tagline": "Maximum power for serious businesses",
       "features": [
         "Up to 3 active bots",
+        "3 GB RAM / 3 CPU cores",
         "Up to 250 concurrent users",
-        "Up to 10 plugins",
+        "6 free plugins (your choice)",
         "Priority support",
         "Access to premium themes",
         "Advanced analytics"

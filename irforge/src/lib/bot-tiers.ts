@@ -72,7 +72,7 @@ export const BOT_TIERS: BotTier[] = [
     tagline: { fa: "حداکثر امکانات برای کسب‌وکارهای جدی", en: "Maximum power for serious businesses" },
     price: 1100000,
     maxBots: 3,
-    maxPlugins: 10,
+    maxPlugins: 6,
     ramGb: 3,
     cpuCores: 3,
     maxConcurrentUsers: 250,

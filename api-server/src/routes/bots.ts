@@ -53,12 +53,12 @@ import {
   registrySheetId,
 } from "../lib/sheetsSync";
 import { renameSpreadsheet, sheetIsAccessible, resetSpreadsheet, ensureAllTenantTabs } from "../lib/sheets";
-import { readTabRows } from "../lib/tenantSheets.js";
+import { readTabRows, readTabRowsBatch } from "../lib/tenantSheets.js";
 import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
 import { createNotification, notifySuperAdmins, formatTomanFa } from "../lib/notify";
 import { botUserStats, type BotUserStats } from "../lib/botStats";
 // قیمت خرید از سرور حساب می‌شود، نه از بدنه‌ی درخواست — نگاه کن lib/pluginPricing.ts
-import { resolvePurchasePrice } from "../lib/pluginPricing.js";
+import { resolvePurchasePrice, BOT_TIER_PRICES } from "../lib/pluginPricing.js";
 import { getPluginCatalog } from "../lib/pluginCatalog.js";
 import { marketplaceItemIdFor } from "../lib/marketplaceSync.js";
 import { getUserPlanLimits, countUserBots } from "../lib/planLimits.js";
@@ -225,6 +225,7 @@ function formatBot(bot: any) {
     orderPhone: bot.orderPhone ?? null,
     orderTelegramId: bot.orderTelegramId ?? null,
     paymentStatus: bot.paymentStatus,
+    tier: bot.tier ?? null,
     isTrial: bot.isTrial ?? false,
     trialExpiresAt: bot.trialExpiresAt ? bot.trialExpiresAt.toISOString() : null,
     trialDaysLeft: bot.isTrial ? trialDaysLeft(bot.trialExpiresAt) : null,
@@ -291,11 +292,17 @@ async function getLiveBotCounts(sheetId: string) {
   const cached = liveCountsCache.get(sheetId);
   if (cached && Date.now() - cached.at < LIVE_COUNTS_CACHE_MS) return cached.counts;
 
-  const [usersRows, cmdRows, settingsRows] = await Promise.all([
-    readTabRows(sheetId, "users").catch(() => []),
-    readTabRows(sheetId, "custom_commands").catch(() => []),
-    readTabRows(sheetId, "bot_settings").catch(() => []),
-  ]);
+  // این ۳ تب قبلاً با ۳ فراخوانی جدا خوانده می‌شدند — روی فهرستِ باتِ یک
+  // کاربر با N بات یعنی N×۳ درخواستِ هم‌زمان به Sheets API، دقیقاً همان چیزی
+  // که سهمیه‌ی خواندن را می‌ترکاند («Quota exceeded ... Read requests per
+  // minute»، گزارش‌شده روی همین تابع). `readTabRowsBatch` این ۳ تب را با یک
+  // فراخوانی می‌خواند؛ `.catch(() => ({}))` هم مثل قبل یعنی یک خطای گذرا
+  // شمارش‌ها را صفر می‌کند، کل صفحه‌ی فهرستِ بات‌ها را ۵۰۰ نمی‌کند.
+  const rowsByTab = await readTabRowsBatch(sheetId, ["users", "custom_commands", "bot_settings"])
+    .catch(() => ({}) as Record<string, Awaited<ReturnType<typeof readTabRows>>>);
+  const usersRows = rowsByTab.users ?? [];
+  const cmdRows = rowsByTab.custom_commands ?? [];
+  const settingsRows = rowsByTab.bot_settings ?? [];
 
   let pluginCount = 0;
   const statesRow = settingsRows.find((r) => r.key === "__plugin_states__");
@@ -904,15 +911,6 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
       );
     }
     // اگر کلاینت بیش از سقفِ پلاگین‌های رایگانِ پکیج فرستاده باشد (باگ UI یا
-    // یک تماس دستی با API)، `resolvePurchasePrice` مازاد را کنار گذاشته —
-    // این‌جا فقط لاگ می‌شود تا اگر کسی سعی در دور زدن سقف داشت قابل ردیابی
-    // باشد؛ خودِ خرید با فهرست کوتاه‌شده ادامه پیدا می‌کند.
-    if (resolved.droppedFreePluginIds?.length) {
-      logger.warn(
-        { userId: req.userId, dropped: resolved.droppedFreePluginIds },
-        "wallet-purchase: free-plugin quota exceeded, extra plugins dropped",
-      );
-    }
     let finalAmount = price;
     let discountAmount = 0;
     let appliedCodeId: string | null = null;
@@ -986,6 +984,16 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
 
     const identity = await fetchBotIdentity(token);
 
+    // پکیجِ خریداری‌شده روی خودِ بات هم ذخیره می‌شود (نه فقط برای محاسبه‌ی
+    // قیمت لحظه‌ای بالا) تا overview بات و پنل سوپرادمین بتوانند نشانش
+    // بدهند. فقط وقتی `resolved.source` واقعاً یک پکیج/سفارشیِ شناخته‌شده
+    // بود ثبت می‌شود — مسیر قدیمیِ بدون spec (`client-amount`) چیزی برای
+    // ثبت ندارد و null می‌ماند.
+    const purchasedTier =
+      resolved.source === "tier" ? (req.body?.buildSpec?.tierId ?? null)
+      : resolved.source === "custom-build" ? "custom"
+      : null;
+
     const [bot] = await db.insert(botsTable).values({
       id: botId, name, description: description ?? null, token: encryptToken(token),
       userId: req.userId, status: "inactive", paymentStatus: "approved", sheetId, adminCode,
@@ -993,6 +1001,7 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
       username: identity.username,
       avatarFileId: identity.avatarFileId,
       avatar: identity.avatarFileId ? `/api/bots/${botId}/avatar` : null,
+      tier: purchasedTier,
     }).returning();
 
     await syncSheetTitle(sheetId, bot.name);
@@ -1967,6 +1976,31 @@ router.post("/admin/bots", requireSuperAdmin, async (req: any, res) => {
   }
 });
 
+// ─── PATCH /api/admin/bots/:botId/tier ───────────────────────────────────────
+// سوپرادمین می‌تواند پکیجِ ثبت‌شده‌ی یک بات را عوض کند (استاندارد ↔ پرو) —
+// مثلاً وقتی کاربر آفلاین ارتقا/تنزل خریده یا اشتباهی ثبت شده. این فقط
+// برچسبِ نمایشی/گزارشیِ `bots.tier` را عوض می‌کند، نه رم/CPU واقعیِ هاست
+// (که دستی روی زیرساخت انجام می‌شود) و نه کیف‌پول را دست می‌زند — همان‌قدر
+// بدون کسر که override پلن حساب در routes/plans.ts.
+router.patch("/admin/bots/:botId/tier", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const { tier } = req.body ?? {};
+    if (!Object.prototype.hasOwnProperty.call(BOT_TIER_PRICES, tier)) {
+      res.status(400).json({ error: `tier must be one of: ${Object.keys(BOT_TIER_PRICES).join(", ")}` });
+      return;
+    }
+    const [bot] = await db.update(botsTable).set({ tier }).where(eq(botsTable.id, req.params.botId)).returning();
+    if (!bot) {
+      res.status(404).json({ error: "Bot not found" });
+      return;
+    }
+    res.json(formatBot(bot));
+  } catch (err) {
+    logger.error({ err }, "Admin change bot tier error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── DELETE /api/admin/bots/:botId ───────────────────────────────────────────
 // R6: super-admin can remove any tenant's bot (not just their own), reusing
 // the same full-purge cleanup as the tenant-facing DELETE /bots/:botId.
@@ -2855,6 +2889,49 @@ router.delete("/bots/:botId/plugins/:pluginId", requireBotOwnership, async (req:
     await db.delete(installedPluginsTable).where(and(eq(installedPluginsTable.id, req.params.pluginId), eq(installedPluginsTable.botId, req.params.botId)));
     res.status(204).end();
   } catch (err) { logger.error({ err }, "Uninstall plugin error"); res.status(500).json({ error: "Internal server error" }); }
+});
+
+// ─── POST /api/bots/:botId/upgrade-tier — Standard → Pro, self-serve ─────────
+// این باتِ مشخص را از استاندارد به پرو ارتقا می‌دهد و فقط تفاوتِ قیمتِ ۲ پکیج
+// را از کیف‌پول کم می‌کند (همان منطقِ فاز ۱۳ برای ارتقای پلنِ حساب، اینجا برای
+// پکیجِ یک بات). فقط پرو مقصدِ معتبر است چون امروز فقط ۲ پکیج داریم و مسیر
+// دیگری (پرو → استاندارد) تنزل است، نه ارتقا. باتِ بدون tier ثبت‌شده (خریدِ
+// قدیمی/سفارشی) یا از قبل پرو، رد می‌شود — این مسیر فقط برای «استاندارد که
+// می‌خواهد پرو شود» است؛ عوضِ کاملِ tier دستیِ سوپرادمین از
+// PATCH /admin/bots/:botId/tier انجام می‌شود.
+router.post("/bots/:botId/upgrade-tier", requireBotOwnership, async (req: any, res) => {
+  try {
+    if (req.bot.tier !== "standard") {
+      res.status(400).json({
+        error: req.bot.tier === "pro"
+          ? "این بات از قبل پکیج پرو دارد."
+          : "این بات پکیج مشخصی برای ارتقا ندارد.",
+        code: "not_upgradable",
+      });
+      return;
+    }
+    const diff = BOT_TIER_PRICES.pro - BOT_TIER_PRICES.standard;
+    const ok = await deductWallet(req.userId, diff, `Bot upgrade to Pro: ${req.bot.name}`);
+    if (!ok) {
+      res.status(400).json({ error: "Insufficient wallet balance", code: "insufficient" });
+      return;
+    }
+    const [bot] = await db.update(botsTable).set({ tier: "pro" }).where(eq(botsTable.id, req.params.botId)).returning();
+
+    await createNotification({
+      userId: req.userId,
+      botId: req.params.botId,
+      type: "purchase_success",
+      severity: "info",
+      title: "بات به پرو ارتقا یافت",
+      message: `بات «${bot.name}» از استاندارد به پرو ارتقا یافت — ${formatTomanFa(diff)} از کیف پول کسر شد.`,
+    });
+
+    res.json(formatBot(bot));
+  } catch (err) {
+    logger.error({ err }, "Upgrade bot tier error");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ─── POST /api/bots/:botId/sheet — register/replace this bot's Google Sheet ───
