@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useLocation, useSearch } from "wouter";
 import {
@@ -42,7 +43,11 @@ import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
 import { useMotionDirection } from "@/hooks/use-motion-direction";
 import { SidebarBrandHeader } from "@/components/layout/brand-home";
-import { confirmDiscardUnsaved, setDiscardMessage } from "@/lib/unsaved-changes";
+import { hasUnsavedChanges, setDiscardMessage } from "@/lib/unsaved-changes";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CommandsEditor } from "@/components/bots/CommandsEditor";
 import { PluginsManager } from "@/components/bots/PluginsManager";
 import { BotStatsPanel } from "@/components/bots/BotStatsPanel";
@@ -328,10 +333,10 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
   // handles its own "plugin is off" state instead of relying on this gate.
   const section: SectionKey = match && !match.locked && visible(match) ? match.key : "overview";
 
-  function goTo(next: SectionKey) {
-    // Leaving a section with an unsaved form throws the user's work away
-    // silently — that's bug B1 on the bot side, and it must not repeat here.
-    if (!confirmDiscardUnsaved()) return;
+  /** سکشن مقصدی که منتظر تأیید «دور ریختن تغییرات» است. */
+  const [pendingSection, setPendingSection] = useState<SectionKey | null>(null);
+
+  function applyGoTo(next: SectionKey) {
     const params = new URLSearchParams(search);
     params.set("section", next);
     // Tab state belongs to the section being left, not the one being entered.
@@ -339,6 +344,24 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
     params.delete("panel");
     params.delete("form");
     navigate(`/bots/${bot.id}?${params.toString()}`);
+  }
+
+  function goTo(next: SectionKey) {
+    // Leaving a section with an unsaved form throws the user's work away
+    // silently — that's bug B1 on the bot side, and it must not repeat here.
+    // A `window.confirm()` gate here (the previous approach) is a genuine
+    // no-op inside Telegram's in-app WebView and similar embedded browsers —
+    // it returns falsy without ever showing anything, so a lingering dirty
+    // flag from an unrelated section silently blocked every further click on
+    // the sidebar with zero feedback ("I click Commands/Plugins and nothing
+    // happens"). An in-app AlertDialog is fully within our control, exactly
+    // like the tab-switch confirm in BotSettingsSection.tsx, so it always
+    // renders regardless of the host webview.
+    if (!hasUnsavedChanges()) {
+      applyGoTo(next);
+      return;
+    }
+    setPendingSection(next);
   }
 
   const nf = (n: number | undefined) => (n ?? 0).toLocaleString(fa ? "fa-IR" : "en-US");
@@ -489,6 +512,28 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
           </motion.div>
         </AnimatePresence>
       </div>
+
+      <AlertDialog open={pendingSection !== null} onOpenChange={(open) => !open && setPendingSection(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{ts.unsavedTitle}</AlertDialogTitle>
+            <AlertDialogDescription>{ts.unsavedDesc}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{ts.unsavedStay}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                const next = pendingSection;
+                setPendingSection(null);
+                if (next) applyGoTo(next);
+              }}
+            >
+              {ts.unsavedDiscard}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

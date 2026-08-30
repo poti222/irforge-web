@@ -45,17 +45,20 @@ export const PLUGIN_PRICES: Record<string, Toman> = {
   ai_assist:    140_000,
 
   // ── عملیات و نگه‌داشت مشتری ──
-  ticket:        90_000,
-  affiliate:     90_000,
-  analytics:     85_000,
-  loyalty:       80_000,
-  autoposter:    65_000,
-  crm:           70_000,
-  drip:          70_000,
-  inventory:     70_000,
-  events:        70_000,
-  group_tools:   55_000,
-  address:       50_000,
+  ticket:         90_000,
+  affiliate:      90_000,
+  analytics:      85_000,
+  loyalty:        80_000,
+  // با کلیدِ خودِ صاحبِ بات (BYOK، مثلِ ai_assist)، پس هزینه‌ی واقعیِ Google
+  // Translate روی خودِ اوست — قیمتِ این پلاگین صرفاً بابتِ خودِ قابلیت است.
+  translate_post: 75_000,
+  autoposter:     65_000,
+  crm:            70_000,
+  drip:           70_000,
+  inventory:      70_000,
+  events:         70_000,
+  group_tools:    55_000,
+  address:        50_000,
 
   // ── جانبی و ارزان ──
   gamification:  40_000,
