@@ -20,13 +20,14 @@ import { Input } from "@/components/ui/input";
 import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Bitcoin, CreditCard, Loader2, Save } from "lucide-react";
+import { Bitcoin, CreditCard, Loader2, Save, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 
 export type PaymentMethods = {
   usdt: { address: string; network: string; memo: string; tomanPerUsdt: number; note: string; enabled: boolean };
   card: { number: string; holder: string; bank: string; note: string; enabled: boolean };
+  blubank: { link: string; note: string; enabled: boolean };
 };
 
 export const PAYMENT_SETTINGS_KEY = ["admin-payment-settings"] as const;
@@ -58,6 +59,9 @@ export function PaymentMethodsSettings() {
   }
   function patchCard(patch: Partial<PaymentMethods["card"]>) {
     setDraft((d) => (d ? { ...d, card: { ...d.card, ...patch } } : d));
+  }
+  function patchBlubank(patch: Partial<PaymentMethods["blubank"]>) {
+    setDraft((d) => (d ? { ...d, blubank: { ...d.blubank, ...patch } } : d));
   }
 
   async function save() {
@@ -187,6 +191,37 @@ export function PaymentMethodsSettings() {
               <Label htmlFor="card-note">{fa ? "توضیح" : "Note"}</Label>
               <Input id="card-note" value={draft.card.note} onChange={(e) => patchCard({ note: e.target.value })} />
             </div>
+          </div>
+        </section>
+
+        {/* ─── شارژ خودکار (بلوبانک) ─── */}
+        <section className="space-y-3 border-t pt-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <Zap className="size-4 text-muted-foreground" />
+            <h4 className="text-sm font-semibold">{fa ? "شارژ خودکار (بلوبانک)" : "Automatic top-up (BluBank)"}</h4>
+            <div className="ms-auto flex items-center gap-2">
+              <Label htmlFor="blubank-enabled" className="text-xs text-muted-foreground">{fa ? "فعال" : "Enabled"}</Label>
+              <Switch id="blubank-enabled" checked={draft.blubank.enabled} onCheckedChange={(v) => patchBlubank({ enabled: v })} />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {fa
+              ? "یک لینکِ پرداختِ مبلغ‌بازِ بلوبانک — کاربر مبلغِ نهایی (مبلغ + پسوندِ یکتا) را خودش در آن تایپ می‌کند. تأیید با تشخیصِ خودکارِ پیامکِ بانکی انجام می‌شود."
+              : "A single open-amount BluBank link — the user types the exact final amount (requested + unique suffix) into it themselves. Confirmation happens automatically via bank SMS detection."}
+          </p>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="blubank-link">{fa ? "لینکِ پرداختِ مبلغ‌باز" : "Open-amount payment link"}</Label>
+            <Input
+              id="blubank-link" dir="ltr" className="font-mono text-xs"
+              placeholder="https://blubiz.sb24.ir/s/xxxxxxxx"
+              value={draft.blubank.link}
+              onChange={(e) => patchBlubank({ link: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="blubank-note">{fa ? "توضیح" : "Note"}</Label>
+            <Input id="blubank-note" value={draft.blubank.note} onChange={(e) => patchBlubank({ note: e.target.value })} />
           </div>
         </section>
 

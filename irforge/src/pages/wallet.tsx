@@ -8,13 +8,14 @@ import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wallet as WalletIcon, CreditCard, Landmark, Bitcoin, Upload, Loader2, X, Copy, Check, AlertTriangle } from "lucide-react";
+import { Wallet as WalletIcon, CreditCard, Landmark, Bitcoin, Upload, Loader2, X, Copy, Check, AlertTriangle, Zap, ExternalLink, Clock, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
 import { toWebpDataUrl } from "@/lib/image";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
+import type { Lang } from "@/lib/i18n";
 
 type WalletTx = {
   id: string; type: string; amount: number; status: string;
@@ -25,6 +26,7 @@ const TX_LABEL: Record<string, { fa: string; en: string }> = {
   deposit_card: { fa: "کارت به کارت", en: "Card deposit" },
   deposit_gateway: { fa: "درگاه بانکی", en: "Bank gateway" },
   deposit_usdt: { fa: "تتر (USDT)", en: "USDT" },
+  deposit_blubank: { fa: "شارژ خودکار (بلوبانک)", en: "Automatic top-up (BluBank)" },
   spend: { fa: "خرید", en: "Spend" },
   referral_credit: { fa: "پاداش", en: "Referral" },
 };
@@ -36,6 +38,14 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "dest
 type DepositInfo = {
   usdt: { address: string; network: string; memo: string; tomanPerUsdt: number; note: string; enabled: boolean };
   card: { number: string; holder: string; bank: string; note: string; enabled: boolean };
+  blubank: { link: string; note: string; enabled: boolean };
+};
+
+type TopupConfig = { link: string; enabled: boolean; note: string; presets: number[]; min: number; max: number };
+type TopupOrder = {
+  id: string; requestedAmount: number; suffix: number; finalAmount: number;
+  status: "pending" | "confirmed" | "expired" | "canceled"; createdAt: string; expiresAt: string | null; confirmedAt: string | null;
+  link?: string;
 };
 
 /**
@@ -85,6 +95,154 @@ function NotConfigured({ fa }: { fa: boolean }) {
           ? "اطلاعات این روش واریز هنوز توسط پشتیبانی وارد نشده. لطفاً از روش دیگری استفاده کنید یا با پشتیبانی تماس بگیرید."
           : "This deposit method hasn't been configured yet. Please use another method or contact support."}
       </span>
+    </div>
+  );
+}
+
+/**
+ * تبِ شارژِ خودکار: یک لینکِ بازِ بلوبانک برای همه‌ی مبالغ. کاربر مبلغ را
+ * انتخاب/تایپ می‌کند، سرور یک «مبلغِ نهایی» با پسوندِ سه‌رقمیِ یکتا می‌سازد،
+ * و کاربر دقیقاً همان عدد را در بلوبانک وارد می‌کند — نه مبلغِ اصلی را.
+ * تأیید خودکار است (پیامکِ بانکی)، پس اینجا فقط poll می‌کنیم تا وضعیت عوض شود.
+ */
+function BlubankTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [amount, setAmount] = useState("");
+  const [order, setOrder] = useState<TopupOrder | null>(null);
+  const [requesting, setRequesting] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+
+  const { data: config } = useQuery({
+    queryKey: ["wallet-topup-config"],
+    queryFn: () => customFetch<TopupConfig>("/api/wallet/topup/config"),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Poll the order's status every 4s while it's still pending — this is how
+  // the SMS-based auto-confirm surfaces to the user, no websocket needed.
+  useEffect(() => {
+    if (!order || order.status !== "pending") return;
+    const t = setInterval(async () => {
+      try {
+        const fresh = await customFetch<TopupOrder>(`/api/wallet/topup/${order.id}/status`);
+        setOrder((prev) => (prev ? { ...fresh, link: prev.link } : fresh));
+        if (fresh.status === "confirmed") {
+          toast({ title: fa ? "شارژ تأیید شد" : "Top-up confirmed", description: fa ? "موجودی شما اضافه شد." : "Your balance has been credited." });
+          queryClient.invalidateQueries({ queryKey: ["wallet"] });
+          queryClient.invalidateQueries({ queryKey: ["wallet-tx"] });
+        } else if (fresh.status === "expired") {
+          toast({ variant: "destructive", title: fa ? "سفارش منقضی شد" : "Order expired" });
+        }
+      } catch {
+        // یک شکستِ موقتِ شبکه نباید polling را کاملاً قطع کند — بارِ بعدی امتحان می‌شود.
+      }
+    }, 4000);
+    return () => clearInterval(t);
+  }, [order?.id, order?.status]);
+
+  async function requestOrder() {
+    const amt = Number(amount);
+    if (!amt || amt <= 0) { toast({ variant: "destructive", title: fa ? "مبلغ نامعتبر" : "Invalid amount" }); return; }
+    setRequesting(true);
+    try {
+      const created = await customFetch<TopupOrder>("/api/wallet/topup/request", {
+        method: "POST",
+        body: JSON.stringify({ amount: amt }),
+      });
+      setOrder(created);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: err?.message });
+    } finally {
+      setRequesting(false);
+    }
+  }
+
+  async function cancelOrder() {
+    if (!order) return;
+    setCanceling(true);
+    try {
+      await customFetch(`/api/wallet/topup/${order.id}/cancel`, { method: "POST" });
+      setOrder(null);
+      setAmount("");
+    } catch (err: any) {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: err?.message });
+    } finally {
+      setCanceling(false);
+    }
+  }
+
+  if (!config) return <div className="h-40 animate-pulse rounded-md bg-muted" />;
+  if (!config.enabled) return <NotConfigured fa={fa} />;
+
+  // یک سفارشِ فعال (pending/confirmed/expired) داریم — مبلغِ نهایی و لینک را نشان بده.
+  if (order) {
+    const link = order.link ?? config.link;
+    return (
+      <div className="space-y-3 pt-3">
+        {order.status === "pending" && (
+          <div className="space-y-3 rounded-md border border-primary/30 bg-primary/5 p-3">
+            <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+              <Clock className="size-3.5 shrink-0" />
+              {fa ? "منتظرِ تأییدِ خودکار — پس از پرداخت، چند لحظه صبر کنید." : "Awaiting automatic confirmation — please wait a bit after paying."}
+            </div>
+            <CopyField
+              label={fa ? "دقیقاً همین مبلغ را در بلوبانک وارد کنید (تومان)" : "Type exactly this amount into BluBank (Toman)"}
+              value={String(order.finalAmount)}
+              fa={fa}
+            />
+            <p className="text-xs text-muted-foreground">
+              {fa
+                ? "این عدد با مبلغِ درخواستی‌تان فرق دارد چون یک پسوندِ کوچک برای تشخیصِ خودکار به آن اضافه شده — نگران نباشید، همین مقدار به کیف‌پولتان اضافه می‌شود که خواسته بودید."
+                : "This differs from your requested amount by a small suffix used for automatic matching — don't worry, exactly the amount you requested will be credited."}
+            </p>
+            <Button asChild className="w-full">
+              <a href={link} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="me-2 size-4" /> {fa ? "پرداخت در بلوبانک" : "Pay via BluBank"}
+              </a>
+            </Button>
+            <Button variant="outline" className="w-full" disabled={canceling} onClick={cancelOrder}>
+              {canceling && <Loader2 className="me-2 size-4 animate-spin" />}{fa ? "انصراف" : "Cancel"}
+            </Button>
+          </div>
+        )}
+        {order.status === "confirmed" && (
+          <div className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="size-4 shrink-0" />
+            {fa ? `شارژِ ${formatToman(order.requestedAmount, lang)} تأیید شد.` : `Top-up of ${formatToman(order.requestedAmount, lang)} confirmed.`}
+            <Button size="sm" variant="ghost" className="ms-auto" onClick={() => { setOrder(null); setAmount(""); }}>{fa ? "بستن" : "Close"}</Button>
+          </div>
+        )}
+        {(order.status === "expired" || order.status === "canceled") && (
+          <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <XCircle className="size-4 shrink-0" />
+            {order.status === "expired" ? (fa ? "سفارش منقضی شد." : "Order expired.") : (fa ? "سفارش لغو شد." : "Order canceled.")}
+            <Button size="sm" variant="ghost" className="ms-auto" onClick={() => { setOrder(null); setAmount(""); }}>{fa ? "تلاش مجدد" : "Try again"}</Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 pt-3">
+      <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400">
+        {fa ? "سریع‌ترین روش — تأیید خودکار و معمولاً در چند دقیقه." : "The fastest method — automatic confirmation, usually within minutes."}
+      </p>
+      <div className="space-y-1.5">
+        <Label>{fa ? "مبلغ (تومان)" : "Amount (Toman)"}</Label>
+        <div className="flex flex-wrap gap-1.5">
+          {config.presets.map((p) => (
+            <Button key={p} type="button" size="sm" variant={amount === String(p) ? "default" : "outline"} onClick={() => setAmount(String(p))}>
+              {formatToman(p, lang)}
+            </Button>
+          ))}
+        </div>
+        <AmountInput value={amount} onChange={(e) => setAmount(e.target.value)} />
+      </div>
+      <Button onClick={requestOrder} disabled={requesting} className="w-full">
+        {requesting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}{fa ? "ادامه" : "Continue"}
+      </Button>
     </div>
   );
 }
@@ -187,14 +345,19 @@ export default function Wallet() {
         <Card>
           <CardHeader><CardTitle className="text-base">{fa ? "افزایش موجودی" : "Top up"}</CardTitle></CardHeader>
           <CardContent>
-            <Tabs defaultValue="card">
-              <TabsList className="grid w-full grid-cols-3">
+            <Tabs defaultValue="blubank">
+              <TabsList className="grid w-full grid-cols-4">
                 {/* روشی که سوپرادمین خاموش کرده اصلاً قابل انتخاب نیست — سرور هم
-                    همین را جدا چک می‌کند (POST /api/wallet/deposit). */}
+                    همین را جدا چک می‌کند (POST /api/wallet/deposit، /api/wallet/topup/request). */}
+                <TabsTrigger value="blubank" disabled={depositInfo?.blubank.enabled === false}><Zap className="me-1 h-4 w-4" /> {fa ? "شارژ خودکار" : "Auto"}</TabsTrigger>
                 <TabsTrigger value="card" disabled={depositInfo?.card.enabled === false}><CreditCard className="me-1 h-4 w-4" /> {fa ? "کارت" : "Card"}</TabsTrigger>
                 <TabsTrigger value="gateway" disabled><Landmark className="me-1 h-4 w-4" /> {fa ? "درگاه" : "Gateway"}</TabsTrigger>
                 <TabsTrigger value="usdt" disabled={depositInfo?.usdt.enabled === false}><Bitcoin className="me-1 h-4 w-4" /> USDT</TabsTrigger>
               </TabsList>
+
+              <TabsContent value="blubank">
+                <BlubankTopupPanel fa={fa} lang={lang} />
+              </TabsContent>
 
               <TabsContent value="card" className="space-y-3 pt-3">
                 <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">

@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
 import { PaymentMethodsSettings } from "./PaymentMethodsSettings";
+import { WalletTopupMonitor } from "./WalletTopupMonitor";
 
 type WalletDeposit = {
   id: string; type: string; amount: number; status: string;
@@ -62,6 +63,8 @@ export function PaymentApprovals() {
       {/* اطلاعات واریز — قبل از لیست تأییدها، چون تا این پر نشود اصلاً واریزی
           برای تأیید نمی‌آید (کاربر نمی‌داند پول را کجا بفرستد). */}
       <PaymentMethodsSettings />
+
+      <WalletTopupMonitor />
 
       {/* Wallet deposits */}
       <section className="space-y-3">

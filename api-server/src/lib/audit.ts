@@ -32,7 +32,9 @@ export type AuditAction =
   | "wallet_adjusted"
   // Mandatory Profile Completion & Identity System — Phase 4/7.
   | "flag_cleared"
-  | "user_deleted";
+  | "user_deleted"
+  // Wallet top-up (BluBank SMS webhook) — routes/walletTopupSmsWebhook.ts.
+  | "wallet_topup_confirmed";
 
 export async function writeAudit(input: {
   actorUserId: string;

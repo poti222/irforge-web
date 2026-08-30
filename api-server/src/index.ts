@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { registerTelegramWebhookIfConfigured } from "./lib/telegram";
 import { refreshExchangeRateFromApi } from "./lib/exchangeRate";
+import { expireStaleTopups } from "./lib/walletTopupService";
 
 const port = Number(process.env.PORT ?? 3000);
 
@@ -25,3 +26,10 @@ void registerTelegramWebhookIfConfigured();
 // را دست‌نخورده می‌گذارد.
 void refreshExchangeRateFromApi();
 setInterval(() => { void refreshExchangeRateFromApi(); }, 60 * 60 * 1000);
+
+// شارژِ کیف‌پول با بلوبانک: سفارش‌های pending بعد از ۲۰ دقیقه باید expired
+// شوند تا finalAmount شان آزاد شود (ایندکسِ یکتا فقط روی pending است) —
+// دوباره همان الگو، بدون هیچ زیرساختِ cron جدید.
+setInterval(() => {
+  void expireStaleTopups().catch((err) => logger.error({ err }, "expireStaleTopups failed"));
+}, 60 * 1000);

@@ -807,6 +807,46 @@ ON CONFLICT (id) DO NOTHING;
 -- سوپرادمین راهی برای تغییرش نداشت. NULL یعنی بات‌های قدیمی‌تر که پیش از
 -- این ستون ساخته شده‌اند — نه یک باگ، فقط «نامعلوم» است.
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS tier TEXT;
+
+-- ─── WALLET_TOPUPS (BluBank open-amount link + auto SMS matching) ─────────
+-- یک لینکِ پرداختِ بلوبانکِ مبلغ‌باز برای همه‌ی مبالغ. هر سفارش عددِ یکتای
+-- خودش را می‌گیرد (requested_amount + suffix سه‌رقمیِ تصادفی = final_amount)
+-- تا پیامکِ بانکی همیشه بدونِ ابهام به یک سفارش وصل شود — نه با محدودکردنِ
+-- تعداد سفارش‌های هم‌زمان (نوبت‌دهی)، بلکه با یکتاسازیِ خودِ عدد.
+CREATE TABLE IF NOT EXISTS wallet_topups (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  requested_amount INTEGER NOT NULL,
+  suffix INTEGER NOT NULL,
+  final_amount INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  matched_sms_id TEXT,
+  receipt_image_url TEXT,
+  receipt_uploaded_at TIMESTAMPTZ,
+  admin_notified_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ,
+  confirmed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_topups_user ON wallet_topups(user_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_topups_status ON wallet_topups(status);
+-- تنها قیدِ همزمانیِ واقعی: در هر لحظه دو سفارشِ pending نمی‌توانند یک
+-- final_amount یکسان داشته باشند — حتی زیرِ بارِ درخواست‌های کاملاً هم‌زمان.
+CREATE UNIQUE INDEX IF NOT EXISTS wallet_topups_pending_final_amount_uk
+  ON wallet_topups (final_amount) WHERE status = 'pending';
+
+-- هر پیامکِ واریزیِ خام — چه به سفارشی وصل شود چه نه، برای ممیزی/رسیدگیِ دستی.
+CREATE TABLE IF NOT EXISTS sms_logs (
+  id TEXT PRIMARY KEY,
+  raw_text TEXT NOT NULL,
+  sender TEXT,
+  parsed_amount INTEGER,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  matched_payment_id TEXT,
+  webhook_ip TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_sms_logs_parsed_amount ON sms_logs(parsed_amount);
 `;
 
 

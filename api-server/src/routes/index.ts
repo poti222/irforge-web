@@ -73,6 +73,8 @@ import loyaltySettingsRouter from "./loyaltySettings.js";
 import catalogRouter from "./catalog.js";
 import botWalletRouter from "./botWallet.js";
 import translatePostRouter from "./translatePost.js";
+import walletTopupRouter from "./walletTopup.js";
+import walletTopupSmsWebhookRouter from "./walletTopupSmsWebhook.js";
 
 const router: IRouter = Router();
 
@@ -89,6 +91,8 @@ router.use(sheetsRouter);
 router.use(ticketsRouter);
 router.use(botTicketsRouter);
 router.use(walletRouter);
+router.use(walletTopupRouter);
+router.use(walletTopupSmsWebhookRouter);
 router.use(databaseRouter);
 // FIX [Group 4]
 router.use(superAdminRouter);

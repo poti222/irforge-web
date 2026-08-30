@@ -54,6 +54,18 @@ export type PaymentMethodsSettings = {
     note: string;
     enabled: boolean;
   };
+  /**
+   * شارژِ خودکار با تشخیصِ پیامکِ بانکی — یک لینکِ پرداختِ **مبلغ‌باز**ِ
+   * بلوبانک برای همه‌ی سفارش‌ها (نه یک لینک به‌ازای هر مبلغ). یکتاسازیِ هر
+   * سفارش با پسوندِ تصادفی در `lib/walletTopupService.ts` انجام می‌شود؛
+   * اینجا فقط لینک و روشن/خاموش‌بودنش نگه‌داری می‌شود.
+   */
+  blubank: {
+    /** لینکِ صفحه‌ی پرداختِ مبلغ‌بازِ بلوبانک. */
+    link: string;
+    note: string;
+    enabled: boolean;
+  };
 };
 
 /** پیش‌فرض‌ها از env — تا سایت قبل از اولین ذخیره در پنل هم کار کند. */
@@ -74,6 +86,11 @@ function fromEnv(): PaymentMethodsSettings {
       note: "",
       enabled: true,
     },
+    blubank: {
+      link: process.env.BLUBANK_TOPUP_LINK ?? "https://blubiz.sb24.ir/s/skCuUhkl",
+      note: "",
+      enabled: true,
+    },
   };
 }
 
@@ -90,6 +107,7 @@ function merge(stored: unknown): PaymentMethodsSettings {
   const raw = stored as Partial<PaymentMethodsSettings>;
   const usdt = (raw.usdt ?? {}) as Partial<PaymentMethodsSettings["usdt"]>;
   const card = (raw.card ?? {}) as Partial<PaymentMethodsSettings["card"]>;
+  const blubank = (raw.blubank ?? {}) as Partial<PaymentMethodsSettings["blubank"]>;
   return {
     usdt: {
       address: typeof usdt.address === "string" ? usdt.address.trim() : base.usdt.address,
@@ -105,6 +123,11 @@ function merge(stored: unknown): PaymentMethodsSettings {
       bank: typeof card.bank === "string" ? card.bank.trim() : base.card.bank,
       note: typeof card.note === "string" ? card.note : base.card.note,
       enabled: typeof card.enabled === "boolean" ? card.enabled : base.card.enabled,
+    },
+    blubank: {
+      link: typeof blubank.link === "string" && blubank.link.trim() ? blubank.link.trim() : base.blubank.link,
+      note: typeof blubank.note === "string" ? blubank.note : base.blubank.note,
+      enabled: typeof blubank.enabled === "boolean" ? blubank.enabled : base.blubank.enabled,
     },
   };
 }
