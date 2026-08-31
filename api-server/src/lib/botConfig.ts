@@ -331,7 +331,12 @@ let cutoverLoadedAt = 0;
 let cutoverPool: pg.Pool | null = null;
 let cutoverPoolFailed = false;
 
-function getCutoverPool(): pg.Pool | null {
+/**
+ * صادر شده تا `sheetsSync.ts` هم بتواند از همین یک pool به
+ * `BUSINESS_DATABASE_URL` برای نوشتنِ رجیستری استفاده کند (تننت‌ها/sheet_pool)
+ * — نه یک اتصالِ دومِ جدا به همان دیتابیس.
+ */
+export function getCutoverPool(): pg.Pool | null {
   if (!process.env.BUSINESS_DATABASE_URL || cutoverPoolFailed) return null;
   if (cutoverPool) return cutoverPool;
   try {

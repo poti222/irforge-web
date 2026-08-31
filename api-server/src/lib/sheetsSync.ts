@@ -41,6 +41,8 @@
 
 import { appendSheet, readSheet, writeSheet, clearSheet, listTabs, addTab } from "./sheets.js";
 import { logger } from "./logger.js";
+import { encryptToken } from "./tokenCrypto.js";
+import { isEntityOnPostgres, getCutoverPool } from "./botConfig.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -218,6 +220,61 @@ export async function readAllKV<T = Record<string, unknown>>(
  *  anything, which these mirror calls have no use for. */
 function bg(fn: () => Promise<unknown>, label: string) {
   fn().catch((err) => logger.warn({ err }, `sheetsSync [${label}] failed (non-fatal)`));
+}
+
+// ─── registry cutover (PHASE 17.27, mainbot/utils/registry.py) ─────────────
+//
+// IRFORGE_BOTS_REGISTRY_POSTGRES_MIGRATION — unlike every other tab this
+// file mirrors (Postgres is already this service's own source of truth,
+// Sheets is just a best-effort backup), the REGISTRY tabs (`tenants`,
+// `sheet_pool`) are the opposite: mainbot's `utils/registry.py` reads them
+// as the authoritative list of which Telegram bots to actually run, and
+// mainbot's own PHASE 17.27 cutover framework can move that read over to
+// the shared `BUSINESS_DATABASE_URL` Postgres (`registry_tenants` /
+// `registry_sheet_pool`, kv_mode, gated by the `tenant_registry` flag in
+// `entity_cutover_flags`). If this service kept writing ONLY to Sheets
+// after that flag flips, a bot purchased on the website would silently
+// never reach mainbot's runtime — there is no request/response cycle here
+// to show an error on, this is a fire-and-forget background sync.
+//
+// So this is a genuine DUAL WRITE, not a "write to whichever is
+// authoritative" switch like `botConfig.ts` uses for `bot_settings`: keep
+// writing Sheets exactly as before (best-effort, unconditionally) AND, when
+// the flag is on, also best-effort write straight to the same Postgres
+// tables mainbot's `business_repository.py` (kv_mode) reads — mirroring its
+// exact upsert SQL, same `tenant_id = '__registry__'` partition. A stopped
+// Sheets write during the migration window is an acceptable staging risk;
+// mainbot's registry never seeing a purchased bot at all is not.
+const REGISTRY_PG_PARTITION = "__registry__";
+
+async function registryPgUpsert(
+  table: "registry_tenants" | "registry_sheet_pool",
+  key: string,
+  value: object,
+): Promise<void> {
+  if (!(await isEntityOnPostgres("tenant_registry"))) return;
+  const pool = getCutoverPool();
+  if (!pool) return;
+  try {
+    await pool.query(
+      `INSERT INTO ${table} (tenant_id, id, value) VALUES ($1, $2, $3) ` +
+        `ON CONFLICT (tenant_id, id) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+      [REGISTRY_PG_PARTITION, key, value],
+    );
+  } catch (err) {
+    logger.warn({ err, table, key }, "registryPgUpsert failed (non-fatal, Sheets write still applies)");
+  }
+}
+
+async function registryPgDelete(table: "registry_tenants" | "registry_sheet_pool", key: string): Promise<void> {
+  if (!(await isEntityOnPostgres("tenant_registry"))) return;
+  const pool = getCutoverPool();
+  if (!pool) return;
+  try {
+    await pool.query(`DELETE FROM ${table} WHERE tenant_id = $1 AND id = $2`, [REGISTRY_PG_PARTITION, key]);
+  } catch (err) {
+    logger.warn({ err, table, key }, "registryPgDelete failed (non-fatal, Sheets delete still applies)");
+  }
 }
 
 // ─── Public API — DATA sheet ─────────────────────────────────────────────────
@@ -460,7 +517,7 @@ export function syncBotSettingsUpsert(settings: {
 
 // ── TENANTS (bot token → bot info) ─────────────────────────────────────────
 
-export function syncTenantUpsert(tenant: {
+type TenantUpsertInput = {
   bot_token: string; bot_name: string; bot_username?: string | null;
   owner_user_id: string;                 // the site account id
   owner_telegram_id?: string | null;     // the owner's Telegram id — what the bots DM on
@@ -469,69 +526,112 @@ export function syncTenantUpsert(tenant: {
   status?: string;
   bot_purpose?: string | null;
   created_at?: Date | string;
-}) {
-  const spreadsheetId = registrySheetId();
-  if (!spreadsheetId) return;
+};
+
+/**
+ * Pure — no I/O — so the shape (and the fact that `bot_token` really is
+ * encrypted, not just documented as such) is unit-testable without a live
+ * Sheets or Postgres connection. Write the EXACT field names the main
+ * bot's utils/registry.py reads (`spreadsheet_id`, `owner_id`,
+ * `admin_password`, `status`, `bot_purpose`) so a tenant registered from
+ * the site is picked up by the bot runtime — plus the older site aliases
+ * for backward compatibility. `bot_token` is encrypted (tokenCrypto.ts, the
+ * exact same AES-256-GCM format mainbot's own
+ * utils/registry_token_crypto.py reads/writes) — never the live token in
+ * plain text, on either backend. The row's own *key* stays the plaintext
+ * token on both sides; that's how mainbot looks a tenant up by the token
+ * it already has in hand.
+ */
+function buildTenantRegistryValue(tenant: TenantUpsertInput) {
+  const sheet = tenant.sheet_id ?? "";
+  return {
+    bot_token: encryptToken(tenant.bot_token),
+    bot_name: tenant.bot_name,
+    bot_username: tenant.bot_username ?? null,
+    spreadsheet_id: sheet,
+    owner_id: tenant.owner_telegram_id ?? tenant.owner_user_id,
+    admin_password: tenant.admin_password ?? "",
+    status: tenant.status ?? "active",
+    bot_purpose: tenant.bot_purpose ?? "",
+    // legacy aliases (kept so nothing that read the old shape breaks)
+    sheet_id: sheet,
+    owner_user_id: tenant.owner_user_id,
+    created_at: tenant.created_at instanceof Date ? tenant.created_at.toISOString() : (tenant.created_at ?? new Date().toISOString()),
+  };
+}
+
+export function syncTenantUpsert(tenant: TenantUpsertInput) {
   bg(async () => {
-    const sheet = tenant.sheet_id ?? "";
-    // Write the EXACT field names the main bot's utils/registry.py reads
-    // (`spreadsheet_id`, `owner_id`, `admin_password`, `status`, `bot_purpose`)
-    // so a tenant registered from the site is picked up by the bot runtime —
-    // plus the older site aliases for backward compatibility. One shared row.
-    await upsertKV(spreadsheetId, "tenants", tenant.bot_token, {
-      bot_token: tenant.bot_token,
-      bot_name: tenant.bot_name,
-      bot_username: tenant.bot_username ?? null,
-      spreadsheet_id: sheet,
-      owner_id: tenant.owner_telegram_id ?? tenant.owner_user_id,
-      admin_password: tenant.admin_password ?? "",
-      status: tenant.status ?? "active",
-      bot_purpose: tenant.bot_purpose ?? "",
-      // legacy aliases (kept so nothing that read the old shape breaks)
-      sheet_id: sheet,
-      owner_user_id: tenant.owner_user_id,
-      created_at: tenant.created_at instanceof Date ? tenant.created_at.toISOString() : (tenant.created_at ?? new Date().toISOString()),
-    });
+    const value = buildTenantRegistryValue(tenant);
+
+    await registryPgUpsert("registry_tenants", tenant.bot_token, value);
+
+    const spreadsheetId = registrySheetId();
+    if (!spreadsheetId) return;
+    await upsertKV(spreadsheetId, "tenants", tenant.bot_token, value);
   }, `tenant-upsert:${tenant.owner_user_id}`);
 }
 
 export function syncTenantDelete(botToken: string) {
-  const spreadsheetId = registrySheetId();
-  if (!spreadsheetId) return;
-  bg(() => deleteKVByKey(spreadsheetId, "tenants", botToken), `tenant-delete`);
+  bg(async () => {
+    await registryPgDelete("registry_tenants", botToken);
+    const spreadsheetId = registrySheetId();
+    if (!spreadsheetId) return;
+    await deleteKVByKey(spreadsheetId, "tenants", botToken);
+  }, `tenant-delete`);
 }
 
 // ── SHEET POOL ─────────────────────────────────────────────────────────────
 
-export function syncSheetPoolUpsert(entry: {
+type SheetPoolUpsertInput = {
   sheet_id: string;
   assigned_to?: string | null; // Postgres bot id — kept in the call signature for callers, not written to the sheet
   used_by?: string | null;     // the bot's own Telegram token — what mainbot actually reads/writes
   status: "free" | "available" | "assigned";
   created_at?: Date | string;
-}) {
-  const spreadsheetId = registrySheetId();
-  if (!spreadsheetId) return;
+};
+
+/**
+ * Pure — matches mainbot's own row shape exactly: {spreadsheet_id, used_by}
+ * only (used_by truthy = taken, and it must be the bot's own Telegram
+ * token — the same thing mainbot writes when a tenant is created directly
+ * through the bot). No extra fields — nothing in this codebase reads this
+ * tab back, so anything beyond what mainbot itself expects just makes the
+ * row diverge from mainbot's own writes for no reason.
+ *
+ * `used_by` is deliberately left as the plain token here, matching
+ * mainbot's own registry.py choice: it's a same-value copy of the
+ * canonical (encrypted) token already on the `tenants` row, used only as
+ * an equality-comparable "is this sheet taken, by which token" marker
+ * (`_release_sheet_to_pool`'s `entry.used_by == bot_token`) — encrypting
+ * it (non-deterministic, random IV per call) would break that comparison
+ * on both backends.
+ */
+function buildSheetPoolValue(entry: SheetPoolUpsertInput) {
+  const usedBy = entry.status === "assigned" ? (entry.used_by ?? null) : null;
+  return { spreadsheet_id: entry.sheet_id, used_by: usedBy };
+}
+
+export function syncSheetPoolUpsert(entry: SheetPoolUpsertInput) {
   bg(async () => {
-    // Match mainbot's own row shape exactly: {spreadsheet_id, used_by} only
-    // (used_by truthy = taken, and it must be the bot's own Telegram token —
-    // the same thing mainbot writes when a tenant is created directly
-    // through the bot). No extra fields — nothing in this codebase reads
-    // this tab back, so anything beyond what mainbot itself expects just
-    // makes the row diverge from mainbot's own writes for no reason.
-    const usedBy = entry.status === "assigned" ? (entry.used_by ?? null) : null;
-    await upsertKV(spreadsheetId, "sheet_pool", entry.sheet_id, {
-      spreadsheet_id: entry.sheet_id,
-      used_by: usedBy,
-    });
+    const value = buildSheetPoolValue(entry);
+
+    await registryPgUpsert("registry_sheet_pool", entry.sheet_id, value);
+
+    const spreadsheetId = registrySheetId();
+    if (!spreadsheetId) return;
+    await upsertKV(spreadsheetId, "sheet_pool", entry.sheet_id, value);
   }, `sheet-pool-upsert:${entry.sheet_id}`);
 }
 
 /** Remove a sheet's row from the registry's `sheet_pool` tab (super-admin delete/replace). */
 export function syncSheetPoolDelete(sheetId: string) {
-  const spreadsheetId = registrySheetId();
-  if (!spreadsheetId) return;
-  bg(() => deleteKVByKey(spreadsheetId, "sheet_pool", sheetId), `sheet-pool-delete:${sheetId}`);
+  bg(async () => {
+    await registryPgDelete("registry_sheet_pool", sheetId);
+    const spreadsheetId = registrySheetId();
+    if (!spreadsheetId) return;
+    await deleteKVByKey(spreadsheetId, "sheet_pool", sheetId);
+  }, `sheet-pool-delete:${sheetId}`);
 }
 
 // ── DELETION QUEUE (manual delete / expiry coordination) ────────────────────
@@ -576,3 +676,6 @@ export function syncDeletionQueueAdd(entry: {
     ]]);
   }, `deletion-queue-add:${entry.bot_token}`);
 }
+
+/** فقط برای تست — منطقِ خالص (بدون I/O) و مسیرِ نوشتنِ رجیستری روی Postgres. */
+export const __testables = { buildTenantRegistryValue, buildSheetPoolValue, registryPgUpsert, registryPgDelete };
