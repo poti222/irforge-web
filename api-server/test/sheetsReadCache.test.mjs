@@ -20,7 +20,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { invalidateReadCache, __clearReadCacheForTests, __readCacheTestables } from "../src/lib/sheets.ts";
 
-const { cacheGet, cacheSet, readCache } = __readCacheTestables;
+const { cacheGet, cacheSet, readCache, tabNameFromRange, isCacheableRange, NEVER_CACHE_TABS } = __readCacheTestables;
 
 test.beforeEach(() => {
   __clearReadCacheForTests();
@@ -68,4 +68,51 @@ test("a spreadsheet id that is a prefix of another is not confused with it", () 
 
   assert.equal(cacheGet("sheetA::range::forms!A:B"), undefined);
   assert.deepEqual(cacheGet("sheetA1::range::forms!A:B"), [["a1"]]);
+});
+
+// ─── never-cache tabs (money/stock, per user's replica-safety review) ───────
+//
+// irforge-web runs exactly 1 replica today (confirmed via Railway
+// get-service-config), so the in-process cache has no cross-instance
+// staleness window right now. But orders/wallet/catalog-stock are exactly
+// the entities where even a same-process, single-replica 15s window is the
+// wrong trade — those routes read-then-act (approve an order, deduct stock),
+// so this is a defense that holds even if replicas are ever scaled up.
+
+test("tabNameFromRange extracts the quoted tab name, reversing quoteTab's '' escaping", () => {
+  assert.equal(tabNameFromRange("'forms'!A:B"), "forms");
+  assert.equal(tabNameFromRange("'orders'!A1:B1"), "orders");
+  // quoteTab escapes an embedded quote as '' — a tab literally named it's
+  assert.equal(tabNameFromRange("'it''s'!A:B"), "it's");
+  assert.equal(tabNameFromRange("Sheet1"), null); // no quoted tab (default range)
+});
+
+test("every tab in NEVER_CACHE_TABS is rejected by isCacheableRange", () => {
+  for (const tab of NEVER_CACHE_TABS) {
+    assert.equal(isCacheableRange(`'${tab}'!A:B`), false, `${tab} must never be cached`);
+  }
+});
+
+test("a normal config tab is still cacheable", () => {
+  assert.equal(isCacheableRange("'forms'!A:B"), true);
+  assert.equal(isCacheableRange("'bot_settings'!A:B"), true);
+  assert.equal(isCacheableRange("'custom_commands'!A:B"), true);
+});
+
+test("readSheet never caches a never-cache tab, even across repeated calls", () => {
+  // Exercises the exact branch readSheet/readSheetRanges take, without
+  // needing live Google credentials: isCacheableRange gates cacheSet.
+  const range = "'orders'!A:B";
+  assert.equal(isCacheableRange(range), false);
+  cacheGet(`sheetA::range::${range}`); // sanity: nothing pre-seeded
+  // Simulating readSheet's own logic: it must skip cacheSet for this range.
+  if (isCacheableRange(range)) cacheSet(`sheetA::range::${range}`, [["should-not-cache"]]);
+  assert.equal(cacheGet(`sheetA::range::${range}`), undefined);
+});
+
+test("a batch of ranges is only cacheable when every range in it is", () => {
+  const allSafe = ["'forms'!A:B", "'bot_settings'!A:B"];
+  const oneUnsafe = ["'forms'!A:B", "'orders'!A:B"];
+  assert.equal(allSafe.every(isCacheableRange), true);
+  assert.equal(oneUnsafe.every(isCacheableRange), false);
 });

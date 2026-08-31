@@ -221,6 +221,37 @@ function cacheSet(key: string, value: unknown): void {
   readCache.set(key, { at: Date.now(), value });
 }
 
+/**
+ * تب‌هایی که هرگز نباید کش شوند، حتی وقتی همه‌ی شرایط بالا برقرارند.
+ *
+ * این کش امروز فقط داخلِ یک پروسس است (سرویس `irforge-web` روی Railway با
+ * **یک** replica دیپلوی شده — تأییدشده)، پس هیچ instance دومی نیست که
+ * نوشته‌ی همین لحظه‌ی instance اول را نبیند. اگر روزی replica بیشتر شود،
+ * این فرض می‌شکند: instance B تا ۱۵ ثانیه بعد از نوشتنِ instance A همچنان
+ * مقدار کهنه می‌دهد — برای `bot_settings` بی‌ضرر است، برای موجودی یا
+ * سفارش نه. این لیست همان محدودسازی است، مستقل از تعداد replica: تب‌های
+ * پول/موجودی/سفارش هیچ‌وقت وارد کش نمی‌شوند، هر چند replica که باشد.
+ */
+const NEVER_CACHE_TABS = new Set([
+  "orders",
+  "wallet",
+  "transactions",
+  "payments",
+  "catalog_items", // has stock_qty/track_stock
+]);
+
+/** `'tab_name'!A:B` → `tab_name` (reverses `quoteTab`'s `''`-escaping). Null if not a simple single-tab range. */
+function tabNameFromRange(range: string): string | null {
+  const match = /^'((?:[^']|'')*)'!/.exec(range);
+  if (!match) return null;
+  return match[1].replace(/''/g, "'");
+}
+
+function isCacheableRange(range: string): boolean {
+  const tab = tabNameFromRange(range);
+  return tab === null || !NEVER_CACHE_TABS.has(tab);
+}
+
 /** Drop every cached read for one spreadsheet — call after any write to it. */
 export function invalidateReadCache(spreadsheetId: string): void {
   const prefix = `${spreadsheetId}::`;
@@ -235,21 +266,31 @@ export function __clearReadCacheForTests(): void {
 }
 
 /** Test-only direct access to the cache primitives — no live Google call needed. */
-export const __readCacheTestables = { cacheGet, cacheSet, readCache };
+export const __readCacheTestables = {
+  cacheGet,
+  cacheSet,
+  readCache,
+  tabNameFromRange,
+  isCacheableRange,
+  NEVER_CACHE_TABS,
+};
 
 /** Read all rows from a sheet. Returns string[][] */
 export async function readSheet(
   spreadsheetId: string,
   range: string = "Sheet1"
 ): Promise<string[][]> {
+  const cacheable = isCacheableRange(range);
   const cacheKey = `${spreadsheetId}::range::${range}`;
-  const cached = cacheGet<string[][]>(cacheKey);
-  if (cached) return cached;
+  if (cacheable) {
+    const cached = cacheGet<string[][]>(cacheKey);
+    if (cached) return cached;
+  }
   try {
     const sheets = getSheetsClient();
     const res = await sheets.spreadsheets.values.get({ spreadsheetId, range });
     const values = (res.data.values as string[][]) ?? [];
-    cacheSet(cacheKey, values);
+    if (cacheable) cacheSet(cacheKey, values);
     return values;
   } catch (err) {
     // تبِ ناموجود یک خطا نیست، یک «هنوز چیزی ننوشته‌ایم» است — و در سطح
@@ -282,15 +323,20 @@ export async function readSheetRanges(
   spreadsheetId: string,
   ranges: string[]
 ): Promise<string[][][]> {
+  // If ANY range in the batch touches a never-cache tab, skip caching the
+  // whole batch — safer than trying to cache the other ranges piecemeal.
+  const cacheable = ranges.every(isCacheableRange);
   const cacheKey = `${spreadsheetId}::ranges::${ranges.join("|")}`;
-  const cached = cacheGet<string[][][]>(cacheKey);
-  if (cached) return cached;
+  if (cacheable) {
+    const cached = cacheGet<string[][][]>(cacheKey);
+    if (cached) return cached;
+  }
   try {
     const sheets = getSheetsClient();
     const res = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges });
     const valueRanges = res.data.valueRanges ?? [];
     const out = ranges.map((_, i) => (valueRanges[i]?.values as string[][]) ?? []);
-    cacheSet(cacheKey, out);
+    if (cacheable) cacheSet(cacheKey, out);
     return out;
   } catch (err) {
     // batchGet کلِ درخواست را رد می‌کند اگر حتی یکی از range ها نامعتبر باشد
