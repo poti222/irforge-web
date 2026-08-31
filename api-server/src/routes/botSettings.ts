@@ -37,8 +37,10 @@ import {
   SETTINGS_MESSAGE_FIELDS,
   defaultWorkingHours,
   defaultAntiFlood,
+  defaultPaymentConfig,
   type WorkingHours,
   type AntiFlood,
+  type PaymentConfig,
   type Panel,
 } from "../lib/botTypes.js";
 
@@ -278,6 +280,70 @@ function validateAntiFlood(body: any): AntiFlood {
       31_536_000
     ),
     warn_message: validateMessage("warn_message", body.warn_message ?? base.warn_message),
+  };
+}
+
+/** شماره‌کارت: فاصله/خط‌تیره حذف می‌شود، بقیه باید فقط رقم و طولش ۱۶ یا ۱۹ باشد. خالی مجاز است. */
+function validateCardNumber(value: unknown): string {
+  const s = asString(value, "card_number").replace(/[\s-]/g, "");
+  if (s === "") return s;
+  if (!/^\d+$/.test(s)) throw bad("شماره کارت باید فقط رقم باشد.");
+  if (s.length !== 16 && s.length !== 19) throw bad("شماره کارت باید ۱۶ یا ۱۹ رقم باشد.");
+  return s;
+}
+
+/** آدرس درگاه: خالی مجاز، وگرنه فقط https (نه http). */
+function validateGatewayUrl(value: unknown): string {
+  const s = asString(value, "gateway_url").trim();
+  if (s === "") return s;
+  let url: URL;
+  try {
+    url = new URL(s);
+  } catch {
+    throw bad("آدرس درگاه معتبر نیست.");
+  }
+  if (url.protocol !== "https:") throw bad("آدرس درگاه باید با https شروع شود.");
+  return s;
+}
+
+/** گروه سفارش‌ها: یک chat_id تلگرام — خالی مجاز، وگرنه با «-» یا رقم شروع شود. */
+function validateOrderGroup(value: unknown): string {
+  const s = asString(value, "order_group").trim();
+  if (s === "") return s;
+  if (!/^[-\d]/.test(s)) throw bad("«گروه سفارش‌ها» باید یک آی‌دی چت تلگرام باشد (با - یا رقم شروع شود).");
+  return s;
+}
+
+function validatePaymentConfig(body: any, current: PaymentConfig): PaymentConfig {
+  if (!body || typeof body !== "object") throw bad("بدنه‌ی درخواست معتبر نیست.");
+  const base = defaultPaymentConfig();
+
+  const card_enabled = Boolean(body.card_enabled ?? current.card_enabled);
+  const card_number = validateCardNumber(body.card_number ?? current.card_number);
+  const card_owner = asString(body.card_owner ?? current.card_owner, "card_owner").trim().slice(0, 100);
+  const gateway_enabled = Boolean(body.gateway_enabled ?? current.gateway_enabled);
+  const gateway_url = validateGatewayUrl(body.gateway_url ?? current.gateway_url);
+  const gateway_label_raw = asString(body.gateway_label ?? current.gateway_label, "gateway_label")
+    .trim()
+    .slice(0, 64);
+  const gateway_label = gateway_label_raw === "" ? base.gateway_label : gateway_label_raw;
+  const order_group = validateOrderGroup(body.order_group ?? current.order_group);
+  const verify_required = Boolean(body.verify_required ?? current.verify_required);
+
+  // هرگز روش «کارت به کارت» را با شماره‌ی خالی فعال ذخیره نکن.
+  if (card_enabled && card_number === "")
+    throw bad("برای فعال‌کردن «کارت به کارت» باید شماره کارت را وارد کنید.");
+
+  return {
+    ...current,
+    card_enabled,
+    card_number,
+    card_owner,
+    gateway_enabled,
+    gateway_url,
+    gateway_label,
+    order_group,
+    verify_required,
   };
 }
 
@@ -561,7 +627,23 @@ router.put("/bots/:botId/settings/anti-flood", requireAuth, async (req: any, res
   }
 });
 
+// ─── پرداخت (کارت‌به‌کارت / درگاه) ─────────────────────────────────────────
+
+router.put("/bots/:botId/settings/payment", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    await assertSheetsAuthoritative(SETTINGS_TAB);
+
+    const current = (await readSettings(spreadsheetId)).payment_cfg;
+    const payment_cfg = validatePaymentConfig(req.body, current);
+    const updated = await patchSettings(spreadsheetId, { payment_cfg });
+    res.json({ payment_cfg: updated.payment_cfg });
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to save payment settings");
+  }
+});
+
 /** فقط برای تست — اعتبارسنج‌هایی که قرارداد بین سایت و بات را نگه می‌دارند. */
-export const __testables = { validateReplyKeyboard };
+export const __testables = { validateReplyKeyboard, validatePaymentConfig };
 
 export default router;

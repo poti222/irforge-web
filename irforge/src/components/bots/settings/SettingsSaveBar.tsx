@@ -15,16 +15,19 @@ export function SettingsSaveBar({
   saving,
   onSave,
   onRevert,
+  disabled = false,
 }: {
   dirty: boolean;
   saving: boolean;
   onSave: () => void;
   onRevert: () => void;
+  /** غیرفعال‌کردنِ اضافیِ دکمه‌ی ذخیره — مثلاً وقتی ولیدیشنِ سمتِ کلاینت رد شده. */
+  disabled?: boolean;
 }) {
   const t = useT("botSettings");
   return (
     <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-      <Button onClick={onSave} disabled={!dirty || saving}>
+      <Button onClick={onSave} disabled={!dirty || saving || disabled}>
         {saving ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Save className="me-2 h-4 w-4" />}
         {t.save}
       </Button>

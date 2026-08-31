@@ -27,6 +27,17 @@ export type AntiFlood = {
   warn_message: string;
 };
 
+export type PaymentConfig = {
+  card_enabled: boolean;
+  card_number: string;
+  card_owner: string;
+  gateway_enabled: boolean;
+  gateway_url: string;
+  gateway_label: string;
+  order_group: string;
+  verify_required: boolean;
+};
+
 export type BotSettings = {
   language: string;
   welcome_msg: string;
@@ -56,6 +67,7 @@ export type BotSettings = {
   force_join_message: string;
   working_hours: WorkingHours;
   anti_flood: AntiFlood;
+  payment_cfg: PaymentConfig;
   home_panel_id: string | null;
   support_username: string;
   support_message: string;
@@ -152,6 +164,20 @@ export function useSaveAntiFlood(botId: string) {
       customFetch<{ anti_flood: AntiFlood }>(`/api/bots/${botId}/settings/anti-flood`, {
         method: "PUT",
         body: JSON.stringify(antiFlood),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: botSettingsKey(botId) }),
+  });
+}
+
+// ─── پرداخت ─────────────────────────────────────────────────────────────────
+
+export function useSavePaymentConfig(botId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (paymentConfig: PaymentConfig) =>
+      customFetch<{ payment_cfg: PaymentConfig }>(`/api/bots/${botId}/settings/payment`, {
+        method: "PUT",
+        body: JSON.stringify(paymentConfig),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: botSettingsKey(botId) }),
   });

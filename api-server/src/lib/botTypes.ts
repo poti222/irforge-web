@@ -246,6 +246,28 @@ export type AntiFlood = {
   warn_message: string;
 };
 
+/**
+ * تنظیماتِ پرداخت — منبعِ حقیقت `irforge-app/handlers/payment.py:34-60`.
+ * دامنه‌ی این تایپ عمداً همان ۸ فیلدِ اول است؛ بقیه‌ی کلیدهایی که بات روی
+ * همین ردیف نگه می‌دارد (`buy_buttons`/`receipt_buttons`/.../`*_image`/
+ * `receipt_dedup_enabled`/`receipt_rate_limit_per_hour`) با
+ * `[k: string]: unknown` عبور می‌کنند — سایت هرگز آن‌ها را نمی‌شناسد و
+ * نباید موقعِ merge/PUT پاکشان کند.
+ */
+export type PaymentConfig = {
+  card_enabled: boolean;
+  /** فقط رقم، بدون فاصله/خط‌تیره. */
+  card_number: string;
+  card_owner: string;
+  gateway_enabled: boolean;
+  gateway_url: string;
+  gateway_label: string;
+  /** chat_id گروهِ سفارشات. */
+  order_group: string;
+  verify_required: boolean;
+  [k: string]: unknown;
+};
+
 export type BotSettings = {
   language: string;
   welcome_msg: string;
@@ -271,6 +293,7 @@ export type BotSettings = {
   force_join_message: string;
   working_hours: WorkingHours;
   anti_flood: AntiFlood;
+  payment_cfg: PaymentConfig;
   home_panel_id: string | null;
   support_username: string;
   support_message: string;
@@ -371,6 +394,21 @@ export function defaultAntiFlood(): AntiFlood {
   };
 }
 
+/** مو‌به‌مو با `irforge-app/handlers/payment.py:34-60` — اگر فرق کنند، سایت
+ * و بات دو چیزِ متفاوت نشان می‌دهند. */
+export function defaultPaymentConfig(): PaymentConfig {
+  return {
+    card_enabled: false,
+    card_number: "",
+    card_owner: "",
+    gateway_enabled: false,
+    gateway_url: "",
+    gateway_label: "💳 پرداخت آنلاین",
+    order_group: "",
+    verify_required: true,
+  };
+}
+
 export function defaultBotSettings(): BotSettings {
   return {
     language: "fa",
@@ -389,6 +427,7 @@ export function defaultBotSettings(): BotSettings {
     force_join_message: "برای استفاده از ربات ابتدا در کانال‌های زیر عضو شوید:",
     working_hours: defaultWorkingHours(),
     anti_flood: defaultAntiFlood(),
+    payment_cfg: defaultPaymentConfig(),
     home_panel_id: null,
     support_username: "",
     support_message: "برای پشتیبانی با {support} تماس بگیرید.",

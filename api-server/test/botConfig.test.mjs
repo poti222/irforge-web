@@ -154,6 +154,30 @@ test("readSettings مقدار ناقص working_hours را با پیش‌فرض m
   assert.equal(settings.working_hours.close_time, "21:00", "کلید غایب از پیش‌فرض می‌آید");
 });
 
+// IRFORGE_PAYMENT_SETTINGS_WEB_PROMPT Phase B2 — payment_cfg قبلاً اصلاً در
+// BotSettings تعریف نشده بود، پس این حلقه بی‌صدا دورش می‌ریخت (باگ ۳ خودِ
+// پرامپت). حالا هم مثل working_hours/anti_flood merge می‌شود.
+test("readSettings مقدار ناقص payment_cfg را با پیش‌فرض merge می‌کند", async () => {
+  const sheet = fakeSheet({ bot_settings: { payment_cfg: { card_enabled: true, card_number: "6037991234567890" } } });
+  install(sheet);
+
+  const settings = await botConfig.readSettings("SHEET1");
+  assert.equal(settings.payment_cfg.card_enabled, true);
+  assert.equal(settings.payment_cfg.card_number, "6037991234567890");
+  assert.equal(settings.payment_cfg.gateway_enabled, false, "کلید غایب از پیش‌فرض می‌آید");
+  assert.equal(settings.payment_cfg.verify_required, true, "کلید غایب از پیش‌فرض می‌آید");
+});
+
+test("readSettings کلیدهای خارج از دامنه‌ی payment_cfg (buy_buttons و مشابه) را حفظ می‌کند", async () => {
+  const sheet = fakeSheet({
+    bot_settings: { payment_cfg: { card_enabled: true, buy_buttons: [{ label: "خرید", url: "https://x" }] } },
+  });
+  install(sheet);
+
+  const settings = await botConfig.readSettings("SHEET1");
+  assert.deepEqual(settings.payment_cfg.buy_buttons, [{ label: "خرید", url: "https://x" }]);
+});
+
 test("putEntity مقدار را عیناً به لایه‌ی شیت می‌دهد و getEntity همان را برمی‌گرداند", async () => {
   const sheet = fakeSheet({});
   install(sheet);

@@ -28,6 +28,7 @@ import {
   defaultBotSettings,
   defaultWorkingHours,
   defaultAntiFlood,
+  defaultPaymentConfig,
   nowIso,
   type BotSettings,
 } from "./botTypes.js";
@@ -278,6 +279,15 @@ export async function readSettings(spreadsheetId: string): Promise<BotSettings> 
   out.anti_flood = {
     ...defaultAntiFlood(),
     ...(typeof out.anti_flood === "object" && out.anti_flood ? out.anti_flood : {}),
+  };
+  // IRFORGE_PAYMENT_SETTINGS_WEB_PROMPT Phase B2 — همان الگو: `payment_cfg`
+  // روی شیت ممکن است فقط زیرمجموعه‌ای از ۸ فیلد را داشته باشد (یا اصلاً
+  // نباشد)؛ merge با پیش‌فرض‌ها تضمین می‌کند کلاینت همیشه شکلِ کامل بگیرد،
+  // و کلیدهای خارج از دامنه (`buy_buttons`, ...) که روی همین آبجکت زندگی
+  // می‌کنند دست‌نخورده باقی می‌مانند چون spread شان می‌کنیم، نه فیلدبه‌فیلد.
+  out.payment_cfg = {
+    ...defaultPaymentConfig(),
+    ...(typeof out.payment_cfg === "object" && out.payment_cfg ? out.payment_cfg : {}),
   };
   if (!Array.isArray(out.force_join_channels)) out.force_join_channels = [];
   if (out.home_panel_id === "") out.home_panel_id = null;

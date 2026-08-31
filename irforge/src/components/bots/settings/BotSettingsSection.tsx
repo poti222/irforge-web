@@ -15,7 +15,7 @@
 import { useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import type { Bot } from "@workspace/api-client-react";
-import { Loader2, SlidersHorizontal, MessageSquare, ShieldAlert, Users2, Clock, Gauge, Archive, Keyboard } from "lucide-react";
+import { Loader2, SlidersHorizontal, MessageSquare, ShieldAlert, Users2, Clock, Gauge, Archive, Keyboard, CreditCard } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -30,12 +30,14 @@ import { TabDanger } from "./TabDanger";
 import { TabForceJoin } from "./TabForceJoin";
 import { TabWorkingHours } from "./TabWorkingHours";
 import { TabAntiFlood } from "./TabAntiFlood";
+import { TabPayment } from "./TabPayment";
 import { TabBackup } from "./TabBackup";
 import type { LocaleShape } from "@/hooks/use-translation";
 
 type TabKey =
   | "general"
   | "messages"
+  | "payment"
   | "forceJoin"
   | "workingHours"
   | "antiFlood"
@@ -45,6 +47,7 @@ type TabKey =
 const TABS: { key: TabKey; labelKey: keyof LocaleShape["botSettings"]; icon: typeof SlidersHorizontal }[] = [
   { key: "general", labelKey: "tabGeneral", icon: SlidersHorizontal },
   { key: "messages", labelKey: "tabMessages", icon: MessageSquare },
+  { key: "payment", labelKey: "tabPayment", icon: CreditCard },
   { key: "forceJoin", labelKey: "tabForceJoin", icon: Users2 },
   { key: "workingHours", labelKey: "tabWorkingHours", icon: Clock },
   { key: "antiFlood", labelKey: "tabAntiFlood", icon: Gauge },
@@ -122,6 +125,7 @@ export function BotSettingsSection({ bot }: { bot: Bot }) {
 
       {tab === "general" && <TabGeneral bot={bot} data={data} />}
       {tab === "messages" && <TabMessages botId={bot.id} data={data} />}
+      {tab === "payment" && <TabPayment botId={bot.id} data={data} />}
       {tab === "forceJoin" && <TabForceJoin botId={bot.id} data={data} />}
       {tab === "workingHours" && <TabWorkingHours botId={bot.id} data={data} />}
       {tab === "antiFlood" && <TabAntiFlood botId={bot.id} data={data} />}
