@@ -77,15 +77,20 @@ export function getSheetsClient() {
 
 /** List every tab (worksheet) title in a spreadsheet. */
 export async function listTabs(spreadsheetId: string): Promise<string[]> {
+  const cacheKey = `${spreadsheetId}::tabs`;
+  const cached = cacheGet<string[]>(cacheKey);
+  if (cached) return cached;
   try {
     const sheets = getSheetsClient();
     const res = await sheets.spreadsheets.get({
       spreadsheetId,
       fields: "sheets.properties.title",
     });
-    return (res.data.sheets ?? [])
+    const titles = (res.data.sheets ?? [])
       .map((s) => s.properties?.title)
       .filter((t): t is string => Boolean(t));
+    cacheSet(cacheKey, titles);
+    return titles;
   } catch (err) {
     logger.error({ err, spreadsheetId }, "listTabs error");
     throw err;
@@ -180,15 +185,72 @@ export function isMissingTabError(err: unknown): boolean {
   return message.includes("Unable to parse range");
 }
 
+// ─── Short-TTL read cache (IRFORGE_POSTGRES_FULL_MIGRATION_PROMPT, Phase 0) ──
+//
+// Root cause of "every bot section 500s": Google Sheets' "Read requests per
+// minute per user" quota is shared across the site's one service account and
+// every tenant's bot, and every read here — `readSheet`, `readSheetRanges`,
+// `listTabs` — hit the API fresh with zero caching. A single page (forms,
+// commands, panels, bot users, plugins each doing their own reads) or a few
+// concurrent users burns through the per-minute budget in seconds; a prior
+// pass (`dd71f6f`) batched the one worst offender (`getLiveBotCounts`) but
+// left every other call site — which is most of them — unprotected. Railway
+// logs confirmed this live: dozens of "Quota exceeded ... Read requests per
+// minute" GaxiosErrors across forms/commands/panels/bot-users/plugins/health,
+// not a single tokenCrypto/BOT_TOKEN_ENCRYPTION_KEY error anywhere.
+//
+// This cache doesn't change correctness beyond a short staleness window —
+// writes bust every cached entry for that spreadsheet immediately — it only
+// collapses the many near-simultaneous re-reads one page load or a burst of
+// users produces into one real API call.
+const READ_CACHE_TTL_MS = 15_000;
+type ReadCacheEntry = { at: number; value: unknown };
+const readCache = new Map<string, ReadCacheEntry>();
+
+function cacheGet<T>(key: string): T | undefined {
+  const hit = readCache.get(key);
+  if (!hit) return undefined;
+  if (Date.now() - hit.at > READ_CACHE_TTL_MS) {
+    readCache.delete(key);
+    return undefined;
+  }
+  return hit.value as T;
+}
+
+function cacheSet(key: string, value: unknown): void {
+  readCache.set(key, { at: Date.now(), value });
+}
+
+/** Drop every cached read for one spreadsheet — call after any write to it. */
+export function invalidateReadCache(spreadsheetId: string): void {
+  const prefix = `${spreadsheetId}::`;
+  for (const key of readCache.keys()) {
+    if (key.startsWith(prefix)) readCache.delete(key);
+  }
+}
+
+/** Test-only: force every cache entry to expire regardless of TTL. */
+export function __clearReadCacheForTests(): void {
+  readCache.clear();
+}
+
+/** Test-only direct access to the cache primitives — no live Google call needed. */
+export const __readCacheTestables = { cacheGet, cacheSet, readCache };
+
 /** Read all rows from a sheet. Returns string[][] */
 export async function readSheet(
   spreadsheetId: string,
   range: string = "Sheet1"
 ): Promise<string[][]> {
+  const cacheKey = `${spreadsheetId}::range::${range}`;
+  const cached = cacheGet<string[][]>(cacheKey);
+  if (cached) return cached;
   try {
     const sheets = getSheetsClient();
     const res = await sheets.spreadsheets.values.get({ spreadsheetId, range });
-    return (res.data.values as string[][]) ?? [];
+    const values = (res.data.values as string[][]) ?? [];
+    cacheSet(cacheKey, values);
+    return values;
   } catch (err) {
     // تبِ ناموجود یک خطا نیست، یک «هنوز چیزی ننوشته‌ایم» است — و در سطح
     // خودِ readSheet هم لاگِ error نمی‌خواهد، وگرنه لاگ پر می‌شود از چیزی
@@ -220,11 +282,16 @@ export async function readSheetRanges(
   spreadsheetId: string,
   ranges: string[]
 ): Promise<string[][][]> {
+  const cacheKey = `${spreadsheetId}::ranges::${ranges.join("|")}`;
+  const cached = cacheGet<string[][][]>(cacheKey);
+  if (cached) return cached;
   try {
     const sheets = getSheetsClient();
     const res = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges });
     const valueRanges = res.data.valueRanges ?? [];
-    return ranges.map((_, i) => (valueRanges[i]?.values as string[][]) ?? []);
+    const out = ranges.map((_, i) => (valueRanges[i]?.values as string[][]) ?? []);
+    cacheSet(cacheKey, out);
+    return out;
   } catch (err) {
     // batchGet کلِ درخواست را رد می‌کند اگر حتی یکی از range ها نامعتبر باشد
     // (مثلاً تبی که هنوز ساخته نشده) — isMissingTabError پایین همین فایل این
@@ -276,6 +343,7 @@ export async function writeSheet(
       valueInputOption: VALUE_INPUT_OPTION,
       requestBody: { values },
     });
+    invalidateReadCache(spreadsheetId);
   } catch (err) {
     logger.error({ err, spreadsheetId, range }, "writeSheet error");
     throw err;
@@ -297,6 +365,7 @@ export async function appendSheet(
       insertDataOption: "INSERT_ROWS",
       requestBody: { values },
     });
+    invalidateReadCache(spreadsheetId);
   } catch (err) {
     logger.error({ err, spreadsheetId, range }, "appendSheet error");
     throw err;
@@ -311,6 +380,7 @@ export async function clearSheet(
   try {
     const sheets = getSheetsClient();
     await sheets.spreadsheets.values.clear({ spreadsheetId, range });
+    invalidateReadCache(spreadsheetId);
   } catch (err) {
     logger.error({ err, spreadsheetId, range }, "clearSheet error");
     throw err;
@@ -370,6 +440,7 @@ export async function resetSpreadsheet(spreadsheetId: string): Promise<void> {
     // می‌گیره یه شیت خالیِ فقط-Sheet1 تحویل می‌گیره و اولین درخواستی که یه تب
     // (مثل «panels») رو می‌خونه با خطای «تب پیدا نشد» گوگل‌شیت می‌ترکه.
     await ensureAllTenantTabs(spreadsheetId);
+    invalidateReadCache(spreadsheetId);
   } catch (err) {
     logger.error({ err, spreadsheetId }, "resetSpreadsheet error");
     throw err;

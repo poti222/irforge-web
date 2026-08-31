@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -116,6 +117,19 @@ app.use(sanitizeBody);
 // for expensive endpoints (middleware/rateLimit.ts's perUserRateLimit).
 app.use("/api", globalRateLimit);
 app.use("/api", router);
+
+// IRFORGE_POSTGRES_FULL_MIGRATION_PROMPT Phase 0 — last-resort net for any
+// /api route that throws or rejects without going through its own try/catch
+// (most do, via sendBotConfigError in botConfig.ts, which already attaches
+// its own correlation id — this only fires for the rest). Express 5 forwards
+// a rejected async handler here automatically. Must be registered after
+// every route it's meant to protect, and before the SPA catch-all below.
+app.use("/api", (err: unknown, req: Request, res: Response, next: NextFunction) => {
+  if (res.headersSent) { next(err); return; }
+  const correlationId = crypto.randomUUID();
+  logger.error({ err, correlationId, url: req.originalUrl, method: req.method }, "unhandled API error");
+  res.status(500).json({ error: "خطای غیرمنتظره روی سرور. لطفاً دوباره تلاش کنید.", correlationId });
+});
 
 // dist/index.cjs lives at api-server/dist/, frontend is at irforge/dist
 const frontendDist = path.resolve(currentDir, "../../irforge/dist");

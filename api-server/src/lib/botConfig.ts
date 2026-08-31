@@ -17,6 +17,7 @@
  *      entity به Postgres مهاجرت کرده باشد، نوشتنِ ما روی شیت بی‌اثر است و
  *      باید ۴۰۹ بدهیم، نه اینکه کاربر فکر کند ذخیره شد.
  */
+import crypto from "crypto";
 import pg from "pg";
 import { db, botsTable, usersTable, botManagersTable } from "@workspace/db";
 import { eq, and, or, exists, sql } from "drizzle-orm";
@@ -79,8 +80,19 @@ export function sendBotConfigError(res: any, err: any, fallback: string): void {
     return;
   }
 
-  logger.error({ err }, fallback);
-  res.status(500).json({ error: "خطای غیرمنتظره روی سرور. لطفاً دوباره تلاش کنید." });
+  // IRFORGE_POSTGRES_FULL_MIGRATION_PROMPT Phase 0 — a truly unexpected error
+  // used to vanish into this one generic Persian sentence with nothing to
+  // grep for; a live incident (Sheets read-quota exhaustion, diagnosed via
+  // Railway logs) cost real debugging time precisely because of this. Every
+  // occurrence now gets a random id, logged alongside the full error here and
+  // handed back to the client so a user's bug report ("error abc123...") maps
+  // straight to one log line.
+  const correlationId = crypto.randomUUID();
+  logger.error({ err, correlationId }, fallback);
+  res.status(500).json({
+    error: "خطای غیرمنتظره روی سرور. لطفاً دوباره تلاش کنید.",
+    correlationId,
+  });
 }
 
 // ─── seam تست ───────────────────────────────────────────────────────────────
