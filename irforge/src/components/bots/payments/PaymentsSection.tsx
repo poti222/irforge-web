@@ -25,6 +25,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
+import { useBotSettings } from "../settings/api";
+import { TabPayment } from "../settings/TabPayment";
 
 type SettingsEnvelope = { settings: { payment_info: string }; cacheBust: boolean };
 type OrdersConfig = { config: Record<string, unknown>; keys: string[] };
@@ -112,6 +114,10 @@ export function PaymentsSection({ bot }: { bot: Bot }) {
     queryKey: settingsKey,
     queryFn: () => customFetch<SettingsEnvelope>(`/api/bots/${bot.id}/settings`),
   });
+  // همان اندپوینت، همان queryKey (`["bot-settings", botId]`) — فقط برای
+  // دسترسی به `payment_cfg` که تایپِ محلیِ بالا نمی‌شناسدش، چون تا همین
+  // فاز فقط `payment_info` را می‌خواست. کوئری تکراری روی شبکه نمی‌رود.
+  const fullSettings = useBotSettings(bot.id);
 
   const configKey = ["bot-orders-config", bot.id] as const;
   const { data: config, error: configError } = useQuery({
@@ -189,6 +195,11 @@ export function PaymentsSection({ bot }: { bot: Bot }) {
 
   return (
     <div className="max-w-2xl space-y-6">
+      {/* کارت‌به‌کارت/درگاه — قبلاً تبی جدا در «تنظیمات» بود، بینِ پیامِ
+          خوش‌آمد و واترمارک؛ همان اشتباهی که `payment_info` پایین‌تر قبلاً
+          داشت و از همین‌جا اصلاح شد: پرداخت کنارِ سفارش‌هاست، نه تنظیماتِ عمومی. */}
+      {fullSettings.data && <TabPayment botId={bot.id} data={fullSettings.data} />}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

@@ -27,6 +27,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useT } from "@/hooks/use-translation";
+import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
 import { useUnsavedGuard } from "@/lib/unsaved-changes";
 import { buttonsToRows, rowsToButtons, overfullRows, type PanelButton } from "@/lib/panel-buttons";
@@ -59,6 +60,35 @@ function useFormOptions(botId: string) {
   });
 }
 
+/**
+ * آیتم‌های catalog برای انتخابگرِ محصولِ پنل `sell` — همان اندپوینت و شکلِ
+ * دقیقاً مشابهِ `useCatalogItemsForPicker` در ButtonBuilder.tsx (اکشنِ
+ * «ثبت سفارش یک محصول»)، عمداً با همان queryKey تا کش بینِ دو تب مشترک شود.
+ */
+function useSellCatalogItems(botId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["bot-panel-catalog-items", botId],
+    queryFn: () =>
+      customFetch<{ items: Array<{ id: string; name: string; name_fa: string; status: string }> }>(
+        `/api/bots/${botId}/catalog/items`,
+      ),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+/** گزینه‌های (option) یک آیتمِ catalog — فقط وقتی که آیتمی برای پنل انتخاب شده. */
+function useSellCatalogOptions(botId: string, itemId: string) {
+  return useQuery({
+    queryKey: ["bot-panel-catalog-options", botId, itemId],
+    queryFn: () =>
+      customFetch<{ options: Array<{ id: string; label: string }> }>(
+        `/api/bots/${botId}/catalog/items/${itemId}/options`,
+      ),
+    enabled: Boolean(itemId),
+  });
+}
+
 /** مدیای پنل، به‌صورت یک لیست واحد — بدون توجه به اینکه روی شیت دو جا ذخیره می‌شود. */
 function mediaOf(panel: Panel): string[] {
   const carousel = Array.isArray(panel.settings?.carousel_ids)
@@ -86,6 +116,7 @@ export function PanelEditor({
   onDeleted: () => void;
 }) {
   const t = useT("botPanels");
+  const { lang } = useLanguage();
   const { toast } = useToast();
   const update = useUpdatePanel(botId);
   const setHome = useSetHomePanel(botId);
@@ -105,6 +136,16 @@ export function PanelEditor({
 
   const multiMedia = (catalog?.multiMediaTypes ?? ["carousel"]).includes(type);
   const textOnly = (catalog?.textOnlyTypes ?? ["text", "form", "sell"]).includes(type);
+
+  const sellCatalogItemId = String(settings.catalog_item_id ?? "");
+  const { data: sellCatalogItemsData, isLoading: sellCatalogItemsLoading } =
+    useSellCatalogItems(botId, type === "sell");
+  const { data: sellCatalogOptionsData } = useSellCatalogOptions(botId, sellCatalogItemId);
+  const sellCatalogItems = (sellCatalogItemsData?.items ?? []).filter((i) => i.status === "active");
+  const sellCatalogOptions = sellCatalogOptionsData?.options ?? [];
+  const sellCatalogItemMissing =
+    Boolean(sellCatalogItemId) && !sellCatalogItemsLoading &&
+    !sellCatalogItems.some((i) => i.id === sellCatalogItemId);
 
   const dirty = useMemo(() => {
     const before = {
@@ -359,39 +400,107 @@ export function PanelEditor({
                 </div>
 
                 {type === "sell" && (
-                  <div className="grid gap-4 rounded-md border p-3 sm:grid-cols-2">
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label htmlFor="pe-product">{t.settingProductName}</Label>
-                      <Input
-                        id="pe-product"
-                        value={String(settings.product_name ?? "")}
-                        onChange={(e) => setSetting("product_name", e.target.value)}
-                      />
-                    </div>
+                  <div className="space-y-4 rounded-md border p-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="pe-price">{t.settingPrice}</Label>
-                      <AmountInput
-                        id="pe-price"
-                        value={String(settings.price ?? 0)}
-                        onChange={(e) => setSetting("price", Number(e.target.value))}
-                      />
+                      <Label htmlFor="pe-sell-item">{t.settingSellCatalogItem}</Label>
+                      {sellCatalogItemsLoading ? (
+                        <p className="text-xs text-muted-foreground">{t.loadingProducts}</p>
+                      ) : (
+                        <Select
+                          value={sellCatalogItemId || "__manual__"}
+                          onValueChange={(v) => {
+                            setSetting("catalog_item_id", v === "__manual__" ? "" : v);
+                            setSetting("catalog_option_id", "");
+                          }}
+                        >
+                          <SelectTrigger id="pe-sell-item"><SelectValue placeholder={t.pickProduct} /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__manual__">{t.settingSellManualEntry}</SelectItem>
+                            {sellCatalogItems.map((item) => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {(lang === "fa" ? item.name_fa : item.name) || item.name || item.name_fa}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <p className="text-xs text-muted-foreground">{t.settingSellCatalogItemHint}</p>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="pe-receipt">{t.settingReceiptGroup}</Label>
-                      <Input
-                        id="pe-receipt" dir="ltr"
-                        value={String(settings.receipt_group ?? "")}
-                        onChange={(e) => setSetting("receipt_group", e.target.value)}
-                      />
+
+                    {sellCatalogItemMissing && (
+                      <p className="flex items-center gap-1.5 text-xs text-destructive">
+                        <AlertTriangle className="size-3.5 shrink-0" />
+                        {t.settingSellItemMissingWarning}
+                      </p>
+                    )}
+
+                    {Boolean(sellCatalogItemId) && sellCatalogOptions.length > 0 && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="pe-sell-option">{t.settingSellOption}</Label>
+                        <Select
+                          value={String(settings.catalog_option_id || "__none__")}
+                          onValueChange={(v) => setSetting("catalog_option_id", v === "__none__" ? "" : v)}
+                        >
+                          <SelectTrigger id="pe-sell-option"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">{t.settingSellOptionNone}</SelectItem>
+                            {sellCatalogOptions.map((opt) => (
+                              <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <Label htmlFor="pe-product">{t.settingProductName}</Label>
+                        <Input
+                          id="pe-product"
+                          disabled={Boolean(sellCatalogItemId)}
+                          value={String(settings.product_name ?? "")}
+                          onChange={(e) => setSetting("product_name", e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="pe-price">{t.settingPrice}</Label>
+                        {/* IRFORGE_SELL_PANEL_PROMPT Phase 7 — was `settings.price`,
+                            a key the bot has never read (handlers/panel_builder.py
+                            writes/reads `product_price`); every manual sell-panel
+                            price edited from the site was silently dropped. */}
+                        <AmountInput
+                          id="pe-price"
+                          disabled={Boolean(sellCatalogItemId)}
+                          value={String(settings.product_price ?? 0)}
+                          onChange={(e) => setSetting("product_price", Number(e.target.value))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="pe-receipt">{t.settingReceiptGroup}</Label>
+                        {/* was `settings.receipt_group` — the bot's own key is
+                            `target_group` (fsm_sell_target_group, panel_builder.py). */}
+                        <Input
+                          id="pe-receipt" dir="ltr"
+                          disabled={Boolean(sellCatalogItemId)}
+                          value={String(settings.target_group ?? "")}
+                          onChange={(e) => setSetting("target_group", e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <Label htmlFor="pe-product-desc">{t.settingProductDesc}</Label>
+                        {/* was `settings.product_description` — the bot's own key
+                            is `product_desc` (resolve_sell_product, utils/sell_panel.py). */}
+                        <Textarea
+                          id="pe-product-desc" rows={2}
+                          disabled={Boolean(sellCatalogItemId)}
+                          value={String(settings.product_desc ?? "")}
+                          onChange={(e) => setSetting("product_desc", e.target.value)}
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label htmlFor="pe-product-desc">{t.settingProductDesc}</Label>
-                      <Textarea
-                        id="pe-product-desc" rows={2}
-                        value={String(settings.product_description ?? "")}
-                        onChange={(e) => setSetting("product_description", e.target.value)}
-                      />
-                    </div>
+                    {Boolean(sellCatalogItemId) && (
+                      <p className="text-xs text-muted-foreground">{t.settingSellManualFieldsDisabledHint}</p>
+                    )}
                   </div>
                 )}
 
