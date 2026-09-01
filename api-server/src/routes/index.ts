@@ -30,6 +30,8 @@ import registrationRouter from "./registration.js";
 import completeProfileRouter from "./completeProfile.js";
 // مدیریت کاربران توسط super_admin (بازیابی، رمز، نقش، جعل هویت، ممیزی)
 import superAdminUsersRouter from "./superAdminUsers.js";
+// عیب‌یابیِ دسترسیِ Sheets برای super_admin (pg-migration checkpoint، آیتم ۲)
+import superAdminDiagnosticsRouter from "./superAdminDiagnostics.js";
 // دسترسی مهمان (توکن جدا، پیش‌فرض-رد)
 import guestRouter from "./guest.js";
 // مهاجرت پنل ادمین بات به سایت — تنظیمات بات روی تب `bot_settings` شیت تننت
@@ -105,6 +107,7 @@ router.use(updatesRouter);
 router.use(registrationRouter);
 router.use(completeProfileRouter);
 router.use(superAdminUsersRouter);
+router.use(superAdminDiagnosticsRouter);
 router.use(guestRouter);
 // باید بعد از botsRouter بیاید: مسیرهای اینجا زیرمسیرهای /bots/:botId هستند و
 // نباید یک روت عمومی‌تر در bots.ts زودتر آن‌ها را ببلعد.

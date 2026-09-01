@@ -1,5 +1,34 @@
+import crypto from "crypto";
 import { google } from "googleapis";
 import { logger } from "./logger.js";
+
+/**
+ * IRFORGE_POSTGRES_FULL_MIGRATION_PROMPT, pg-migration checkpoint — item 3.
+ *
+ * `botConfig.ts::sendBotConfigError` mints its own correlation id when a
+ * route's catch block hands it an error — but a live incident showed zero
+ * of those ids anywhere in 156 real error-log entries for the exact Sheets
+ * quota/permission failures this was built for, even though every route
+ * genuinely does route through it. Whatever the deployment-level cause
+ * turns out to be, the *log lines that actually carry the useful detail*
+ * (spreadsheetId, range, the real Google error) are minted right here, one
+ * level below sendBotConfigError, and today carry no id linking them to
+ * whatever (if anything) the client eventually sees. Stamping the id onto
+ * the error at the moment it's first observed — and having
+ * sendBotConfigError reuse it instead of minting a disconnected second one
+ * — means the low-level diagnostic line and the client-facing id are
+ * guaranteed to be the same string regardless of what happens in between.
+ */
+function attachCorrelationId(err: unknown): string {
+  const id = crypto.randomUUID();
+  try {
+    (err as { correlationId?: string }).correlationId = id;
+  } catch {
+    // err isn't extensible (frozen, or a primitive thrown as an error) —
+    // the id still gets logged and returned, just can't ride along on err.
+  }
+  return id;
+}
 
 // ─── Setup ─────────────────────────────────────────────────────────────────
 // In Railway, set these env vars:
@@ -40,7 +69,7 @@ function parseCredentialsJson(raw: string): { email: string; key: string } {
   return { email: client_email, key: private_key.replace(/\\n/g, "\n") };
 }
 
-function getAuth() {
+function resolveCredentials(): { email: string; key: string } {
   const credentialsJson = process.env.GOOGLE_CREDENTIALS_JSON;
 
   let email: string | undefined;
@@ -62,6 +91,11 @@ function getAuth() {
     );
   }
 
+  return { email, key };
+}
+
+function getAuth() {
+  const { email, key } = resolveCredentials();
   return new google.auth.GoogleAuth({
     credentials: {
       client_email: email,
@@ -73,6 +107,18 @@ function getAuth() {
 
 export function getSheetsClient() {
   return google.sheets({ version: "v4", auth: getAuth() });
+}
+
+/**
+ * The service account's own email — not a secret, this is the identity Google
+ * shows tenants in a sheet's Share dialog. Used for architecture/incident
+ * diagnostics (IRFORGE_POSTGRES_FULL_MIGRATION_PROMPT pg-migration checkpoint):
+ * telling an operator *which* Google identity needs to be re-added as an
+ * editor is the actual actionable fix for a "caller does not have permission"
+ * error — the raw error message alone doesn't name it.
+ */
+export function getActiveServiceAccountEmail(): string {
+  return resolveCredentials().email;
 }
 
 /** List every tab (worksheet) title in a spreadsheet. */
@@ -92,7 +138,8 @@ export async function listTabs(spreadsheetId: string): Promise<string[]> {
     cacheSet(cacheKey, titles);
     return titles;
   } catch (err) {
-    logger.error({ err, spreadsheetId }, "listTabs error");
+    const correlationId = attachCorrelationId(err);
+    logger.error({ err, spreadsheetId, correlationId }, "listTabs error");
     throw err;
   }
 }
@@ -137,6 +184,53 @@ export async function sheetIsAccessible(spreadsheetId: string): Promise<boolean>
     return true;
   } catch {
     return false;
+  }
+}
+
+export interface SheetAccessDiagnosis {
+  ok: boolean;
+  serviceAccountEmail: string;
+  httpStatus?: number;
+  googleReason?: string;
+  message?: string;
+}
+
+/**
+ * A live, uncached (bypasses the read cache entirely — this must reflect
+ * the API's answer right now, not a memoized old one) check of whether the
+ * active service account can currently open a spreadsheet, plus enough
+ * detail to tell "access was revoked on a sheet that still exists" (403,
+ * reason usually `PERMISSION_DENIED` or `forbidden`) apart from "the sheet
+ * itself is gone" (404, reason `notFound`) — the two failure modes need
+ * completely different fixes (re-share vs. nothing recoverable) and the
+ * plain error message alone ("The caller does not have permission") reads
+ * identically for both to a human skimming logs.
+ */
+/**
+ * Pure extraction of the fields diagnoseSheetAccess needs out of a raw
+ * error thrown by googleapis/gaxios — split out so the "which shape means
+ * revoked vs. deleted" logic is unit-testable without a live network call
+ * or real credentials (see sheetsAccessDiagnosis.test.mjs).
+ */
+export function describeSheetsError(err: unknown, serviceAccountEmail: string): SheetAccessDiagnosis {
+  const e = err as {
+    code?: number | string;
+    message?: string;
+    response?: { status?: number; data?: { error?: { status?: string; errors?: { reason?: string }[] } } };
+  };
+  const httpStatus = e.response?.status ?? (typeof e.code === "number" ? e.code : undefined);
+  const googleReason = e.response?.data?.error?.status ?? e.response?.data?.error?.errors?.[0]?.reason;
+  return { ok: false, serviceAccountEmail, httpStatus, googleReason, message: e.message };
+}
+
+export async function diagnoseSheetAccess(spreadsheetId: string): Promise<SheetAccessDiagnosis> {
+  const serviceAccountEmail = getActiveServiceAccountEmail();
+  try {
+    const sheets = getSheetsClient();
+    await sheets.spreadsheets.get({ spreadsheetId, fields: "spreadsheetId" });
+    return { ok: true, serviceAccountEmail };
+  } catch (err) {
+    return describeSheetsError(err, serviceAccountEmail);
   }
 }
 
@@ -300,7 +394,8 @@ export async function readSheet(
       logger.debug({ spreadsheetId, range }, "readSheet: tab does not exist");
       throw err;
     }
-    logger.error({ err, spreadsheetId, range }, "readSheet error");
+    const correlationId = attachCorrelationId(err);
+    logger.error({ err, spreadsheetId, range, correlationId }, "readSheet error");
     throw err;
   }
 }
@@ -344,7 +439,8 @@ export async function readSheetRanges(
     // را تشخیص می‌دهد؛ صداکننده (readTabRowsBatch در tenantSheets.ts) در آن
     // حالت به خواندنِ تک‌به‌تکِ قدیمی برمی‌گردد، نه اینکه هر ۳ تب را گم کند.
     if (!isMissingTabError(err)) {
-      logger.error({ err, spreadsheetId, ranges }, "readSheetRanges error");
+      const correlationId = attachCorrelationId(err);
+      logger.error({ err, spreadsheetId, ranges, correlationId }, "readSheetRanges error");
     }
     throw err;
   }
@@ -391,7 +487,8 @@ export async function writeSheet(
     });
     invalidateReadCache(spreadsheetId);
   } catch (err) {
-    logger.error({ err, spreadsheetId, range }, "writeSheet error");
+    const correlationId = attachCorrelationId(err);
+    logger.error({ err, spreadsheetId, range, correlationId }, "writeSheet error");
     throw err;
   }
 }
@@ -413,7 +510,8 @@ export async function appendSheet(
     });
     invalidateReadCache(spreadsheetId);
   } catch (err) {
-    logger.error({ err, spreadsheetId, range }, "appendSheet error");
+    const correlationId = attachCorrelationId(err);
+    logger.error({ err, spreadsheetId, range, correlationId }, "appendSheet error");
     throw err;
   }
 }
@@ -428,7 +526,8 @@ export async function clearSheet(
     await sheets.spreadsheets.values.clear({ spreadsheetId, range });
     invalidateReadCache(spreadsheetId);
   } catch (err) {
-    logger.error({ err, spreadsheetId, range }, "clearSheet error");
+    const correlationId = attachCorrelationId(err);
+    logger.error({ err, spreadsheetId, range, correlationId }, "clearSheet error");
     throw err;
   }
 }
@@ -488,7 +587,8 @@ export async function resetSpreadsheet(spreadsheetId: string): Promise<void> {
     await ensureAllTenantTabs(spreadsheetId);
     invalidateReadCache(spreadsheetId);
   } catch (err) {
-    logger.error({ err, spreadsheetId }, "resetSpreadsheet error");
+    const correlationId = attachCorrelationId(err);
+    logger.error({ err, spreadsheetId, correlationId }, "resetSpreadsheet error");
     throw err;
   }
 }

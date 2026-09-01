@@ -87,7 +87,17 @@ export function sendBotConfigError(res: any, err: any, fallback: string): void {
   // occurrence now gets a random id, logged alongside the full error here and
   // handed back to the client so a user's bug report ("error abc123...") maps
   // straight to one log line.
-  const correlationId = crypto.randomUUID();
+  //
+  // pg-migration checkpoint, item 3 — reuse err.correlationId when
+  // sheets.ts already minted one at the point the failure actually happened
+  // (readSheet/writeSheet/etc.), instead of generating a second, disconnected
+  // id here: the low-level log line with the real diagnostic detail
+  // (spreadsheetId, range) and this line must share one id, or "error
+  // abc123" in a user's report only finds half the story.
+  const correlationId =
+    typeof (err as { correlationId?: unknown })?.correlationId === "string"
+      ? (err as { correlationId: string }).correlationId
+      : crypto.randomUUID();
   logger.error({ err, correlationId }, fallback);
   res.status(500).json({
     error: "خطای غیرمنتظره روی سرور. لطفاً دوباره تلاش کنید.",
