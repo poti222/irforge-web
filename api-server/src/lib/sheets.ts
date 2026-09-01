@@ -38,6 +38,17 @@ function attachCorrelationId(err: unknown): string {
 //   GOOGLE_SERVICE_ACCOUNT_EMAIL  → (legacy fallback) service account email
 //   GOOGLE_SERVICE_ACCOUNT_KEY    → (legacy fallback) private key (with \n
 //     as literal \n) — only read if GOOGLE_CREDENTIALS_JSON isn't set.
+//   GOOGLE_CREDENTIALS_JSON_POOL  → (pg-migration checkpoint, item 1 — optional)
+//     a JSON array of {client_email, private_key} objects, one per Google
+//     service account. Every tenant spreadsheet's reads/writes are pinned to
+//     exactly one account in this array (see accountIndexForSheet below),
+//     instead of one account carrying the whole platform's quota. Omit this
+//     var (the default) and everything behaves exactly as a 1-account pool
+//     built from GOOGLE_CREDENTIALS_JSON above — no config change needed to
+//     keep today's behavior. See PROGRESS.md's pg-migration entry for the
+//     full writeup: why one shared account caps the platform at 60 Sheets
+//     reads/minute regardless of Google's 300/minute *project* quota, and
+//     the migration path for actually using more than one account.
 //   SHEETS_<NAME>_ID              → sheet ID for each named spreadsheet.
 //     This project uses exactly two: SHEETS_DATA_ID and SHEETS_REGISTRY_ID
 //     (see sheetsSync.ts for how entities map to tabs within SHEETS_DATA_ID,
@@ -94,8 +105,70 @@ function resolveCredentials(): { email: string; key: string } {
   return { email, key };
 }
 
-function getAuth() {
-  const { email, key } = resolveCredentials();
+/**
+ * The full pool of service accounts, in the exact order GOOGLE_CREDENTIALS_
+ * JSON_POOL lists them (order matters -- see accountIndexForSheet). Falls
+ * back to a 1-element pool built from the single-account vars when the pool
+ * var isn't set, so every existing deployment is a pool of size 1 with zero
+ * config changes.
+ */
+function resolveCredentialsPool(): { email: string; key: string }[] {
+  const poolJson = process.env.GOOGLE_CREDENTIALS_JSON_POOL;
+  if (!poolJson) {
+    return [resolveCredentials()];
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(poolJson);
+  } catch {
+    throw new Error("GOOGLE_CREDENTIALS_JSON_POOL is set but is not valid JSON (expected an array).");
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error("GOOGLE_CREDENTIALS_JSON_POOL must be a non-empty JSON array.");
+  }
+  return parsed.map((entry, i) => {
+    const { client_email, private_key } = (entry ?? {}) as { client_email?: string; private_key?: string };
+    if (!client_email || !private_key) {
+      throw new Error(`GOOGLE_CREDENTIALS_JSON_POOL[${i}] is missing client_email or private_key.`);
+    }
+    return { email: client_email, key: private_key.replace(/\\n/g, "\n") };
+  });
+}
+
+/**
+ * Which pool index a given spreadsheet is pinned to. Deterministic and
+ * stateless (a pure function of the sheet ID and pool size, no DB lookup) --
+ * so *within one pool size* it never needs to be stored anywhere; both this
+ * service and irforge-app's utils/sheets_client.py compute the identical
+ * index for the identical sheet ID using the identical formula (proven by
+ * accountPool.test.mjs's cross-language parity test), which is the only
+ * thing that makes it safe for the bot and the site to independently agree
+ * on which account owns a given tenant's spreadsheet.
+ *
+ * Growing the pool changes almost every existing sheet's index (the classic
+ * modulo-hashing problem) -- that's why sheet_pool persists the index each
+ * entry was assigned at creation (see routes/bots.ts) instead of always
+ * recomputing against the *current* pool size: existing tenants keep the
+ * account that's already shared with their sheet; only brand-new pool
+ * entries use the larger pool. Rebalancing existing tenants onto new
+ * accounts is a deliberate, separate, human-supervised step (see
+ * PROGRESS.md) -- this function is what you'd recompute against to do it,
+ * not something that runs automatically.
+ */
+export function accountIndexForSheet(sheetId: string, poolSize: number): number {
+  if (poolSize < 1) throw new Error("poolSize must be at least 1");
+  if (poolSize === 1) return 0;
+  const digest = crypto.createHash("sha256").update(sheetId).digest();
+  // Read the full 32-byte digest as one big unsigned integer -- must match
+  // utils/sheets_client.py's `int(hashlib.sha256(sheet_id).hexdigest(), 16)
+  // % pool_size` exactly, digit for digit, or the two services would
+  // disagree about which account a given sheet belongs to.
+  const asBigInt = BigInt("0x" + digest.toString("hex"));
+  return Number(asBigInt % BigInt(poolSize));
+}
+
+function getAuth(credentials?: { email: string; key: string }) {
+  const { email, key } = credentials ?? resolveCredentials();
   return new google.auth.GoogleAuth({
     credentials: {
       client_email: email,
@@ -105,20 +178,49 @@ function getAuth() {
   });
 }
 
+const _clientCacheByIndex = new Map<number, ReturnType<typeof google.sheets>>();
+
+/** The Sheets client for one specific pool slot, built once and cached. */
+export function getSheetsClientForAccount(index: number) {
+  const cached = _clientCacheByIndex.get(index);
+  if (cached) return cached;
+  const pool = resolveCredentialsPool();
+  if (index < 0 || index >= pool.length) {
+    throw new Error(`account pool index ${index} out of range (pool size ${pool.length})`);
+  }
+  const client = google.sheets({ version: "v4", auth: getAuth(pool[index]) });
+  _clientCacheByIndex.set(index, client);
+  return client;
+}
+
+/** The Sheets client whose account a given spreadsheet is pinned to. */
+export function getSheetsClientForSheet(spreadsheetId: string) {
+  const poolSize = resolveCredentialsPool().length;
+  return getSheetsClientForAccount(accountIndexForSheet(spreadsheetId, poolSize));
+}
+
 export function getSheetsClient() {
   return google.sheets({ version: "v4", auth: getAuth() });
 }
 
 /**
- * The service account's own email — not a secret, this is the identity Google
- * shows tenants in a sheet's Share dialog. Used for architecture/incident
- * diagnostics (IRFORGE_POSTGRES_FULL_MIGRATION_PROMPT pg-migration checkpoint):
- * telling an operator *which* Google identity needs to be re-added as an
- * editor is the actual actionable fix for a "caller does not have permission"
- * error — the raw error message alone doesn't name it.
+ * The default (pool index 0) service account's own email — not a secret,
+ * this is the identity Google shows tenants in a sheet's Share dialog.
  */
 export function getActiveServiceAccountEmail(): string {
   return resolveCredentials().email;
+}
+
+/**
+ * The email of whichever pool account a specific spreadsheet is pinned to
+ * -- what an operator actually needs for "caller does not have permission"
+ * diagnostics once more than one account exists: the raw error message
+ * doesn't name which of N identities needs to be re-added as an editor,
+ * and with a pool it's very often NOT the default one.
+ */
+export function getServiceAccountEmailForSheet(spreadsheetId: string): string {
+  const pool = resolveCredentialsPool();
+  return pool[accountIndexForSheet(spreadsheetId, pool.length)].email;
 }
 
 /** List every tab (worksheet) title in a spreadsheet. */
@@ -127,7 +229,7 @@ export async function listTabs(spreadsheetId: string): Promise<string[]> {
   const cached = cacheGet<string[]>(cacheKey);
   if (cached) return cached;
   try {
-    const sheets = getSheetsClient();
+    const sheets = getSheetsClientForSheet(spreadsheetId);
     const res = await sheets.spreadsheets.get({
       spreadsheetId,
       fields: "sheets.properties.title",
@@ -148,7 +250,7 @@ export async function listTabs(spreadsheetId: string): Promise<string[]> {
 export async function addTab(spreadsheetId: string, title: string): Promise<void> {
   const existing = await listTabs(spreadsheetId);
   if (existing.includes(title)) return;
-  const sheets = getSheetsClient();
+  const sheets = getSheetsClientForSheet(spreadsheetId);
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: { requests: [{ addSheet: { properties: { title } } }] },
@@ -167,7 +269,7 @@ export function quoteTab(tab: string): string {
  * only needs the spreadsheets scope (no Drive scope required).
  */
 export async function renameSpreadsheet(spreadsheetId: string, title: string): Promise<void> {
-  const sheets = getSheetsClient();
+  const sheets = getSheetsClientForSheet(spreadsheetId);
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: {
@@ -179,7 +281,7 @@ export async function renameSpreadsheet(spreadsheetId: string, title: string): P
 /** Whether the service account can open a spreadsheet (used to validate a pasted ID). */
 export async function sheetIsAccessible(spreadsheetId: string): Promise<boolean> {
   try {
-    const sheets = getSheetsClient();
+    const sheets = getSheetsClientForSheet(spreadsheetId);
     await sheets.spreadsheets.get({ spreadsheetId, fields: "spreadsheetId" });
     return true;
   } catch {
@@ -224,9 +326,9 @@ export function describeSheetsError(err: unknown, serviceAccountEmail: string): 
 }
 
 export async function diagnoseSheetAccess(spreadsheetId: string): Promise<SheetAccessDiagnosis> {
-  const serviceAccountEmail = getActiveServiceAccountEmail();
+  const serviceAccountEmail = getServiceAccountEmailForSheet(spreadsheetId);
   try {
-    const sheets = getSheetsClient();
+    const sheets = getSheetsClientForSheet(spreadsheetId);
     await sheets.spreadsheets.get({ spreadsheetId, fields: "spreadsheetId" });
     return { ok: true, serviceAccountEmail };
   } catch (err) {
@@ -381,7 +483,7 @@ export async function readSheet(
     if (cached) return cached;
   }
   try {
-    const sheets = getSheetsClient();
+    const sheets = getSheetsClientForSheet(spreadsheetId);
     const res = await sheets.spreadsheets.values.get({ spreadsheetId, range });
     const values = (res.data.values as string[][]) ?? [];
     if (cacheable) cacheSet(cacheKey, values);
@@ -427,7 +529,7 @@ export async function readSheetRanges(
     if (cached) return cached;
   }
   try {
-    const sheets = getSheetsClient();
+    const sheets = getSheetsClientForSheet(spreadsheetId);
     const res = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges });
     const valueRanges = res.data.valueRanges ?? [];
     const out = ranges.map((_, i) => (valueRanges[i]?.values as string[][]) ?? []);
@@ -478,7 +580,7 @@ export async function writeSheet(
   values: (string | number | boolean | null)[][]
 ): Promise<void> {
   try {
-    const sheets = getSheetsClient();
+    const sheets = getSheetsClientForSheet(spreadsheetId);
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range,
@@ -500,7 +602,7 @@ export async function appendSheet(
   values: (string | number | boolean | null)[][]
 ): Promise<void> {
   try {
-    const sheets = getSheetsClient();
+    const sheets = getSheetsClientForSheet(spreadsheetId);
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range,
@@ -522,7 +624,7 @@ export async function clearSheet(
   range: string
 ): Promise<void> {
   try {
-    const sheets = getSheetsClient();
+    const sheets = getSheetsClientForSheet(spreadsheetId);
     await sheets.spreadsheets.values.clear({ spreadsheetId, range });
     invalidateReadCache(spreadsheetId);
   } catch (err) {
@@ -541,7 +643,7 @@ export async function clearSheet(
  */
 export async function resetSpreadsheet(spreadsheetId: string): Promise<void> {
   try {
-    const sheets = getSheetsClient();
+    const sheets = getSheetsClientForSheet(spreadsheetId);
     const current = await sheets.spreadsheets.get({
       spreadsheetId,
       fields: "sheets.properties(sheetId,title)",
@@ -644,7 +746,7 @@ export async function ensureTabsExist(spreadsheetId: string, titles: readonly st
   const missing = titles.filter((t) => !existing.includes(t));
   if (missing.length === 0) return;
 
-  const sheets = getSheetsClient();
+  const sheets = getSheetsClientForSheet(spreadsheetId);
   try {
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
