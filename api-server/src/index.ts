@@ -3,8 +3,16 @@ import { logger } from "./lib/logger";
 import { registerTelegramWebhookIfConfigured } from "./lib/telegram";
 import { refreshExchangeRateFromApi } from "./lib/exchangeRate";
 import { expireStaleTopups } from "./lib/walletTopupService";
+import { runStartupCryptoSelfCheck } from "./lib/tokenCrypto.js";
 
 const port = Number(process.env.PORT ?? 3000);
+
+// pg-migration checkpoint, condition 3 replacement -- see
+// tokenCrypto.ts::runStartupCryptoSelfCheck for why this exists (a real
+// cross-service round-trip can't be run from outside a live container) and
+// irforge-app's utils/registry_token_crypto.py for the matching bot-side
+// check. Never throws.
+runStartupCryptoSelfCheck();
 
 app.listen(port, (err?: Error) => {
   if (err) {
