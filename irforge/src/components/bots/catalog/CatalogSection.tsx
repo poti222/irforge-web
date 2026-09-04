@@ -52,7 +52,21 @@ type ItemOption = {
   stock_qty: number; is_active: boolean; sort_order: number;
 };
 
-const FULFILLMENT_TYPES = ["manual", "template", "file", "api", "webhook", "wallet_credit"] as const;
+/**
+ * IRFORGE_WEB_LIST_SYNC_PROMPT فاز ۲ — «pool» (استخرِ آیتمِ یکتا) از
+ * `plugins/catalog/pool.py`ی بات کاملاً پیاده و تست شده بود
+ * (`fulfillment.register_fulfillment_type("pool", pool.deliver_from_pool)`)
+ * ولی این لیست جا مانده بود، یعنی از سایت اصلاً قابلِ انتخاب نبود.
+ *
+ * توجه: بر خلافِ شش نوعِ دیگر، pool پیکربندی‌اش را در
+ * `metadata['pool']` نگه می‌دارد، نه `metadata['fulfillment']`ای که
+ * `FulfillmentConfigEditor` پایین‌تر می‌خواند/می‌نویسد — یعنی آن ادیتور برای
+ * pool صرفاً یک JSON بلااستفاده است (دقیقاً مثل «دستی» که هم به پیکربندی
+ * نیاز ندارد)، نه یک ابزار مدیریتِ استخر. مدیریتِ واقعیِ موجودی/آیتم‌های
+ * استخر امروز فقط از داخلِ بات ممکن است (`pool_admin.py`، Telegram) — سایت
+ * چنین رابطی ندارد؛ `fulfillmentHelpPool` همین را صادقانه به ادمین می‌گوید.
+ */
+const FULFILLMENT_TYPES = ["manual", "template", "file", "api", "webhook", "wallet_credit", "pool"] as const;
 const STATUSES = ["active", "draft", "archived"] as const;
 
 function errMessage(err: any, fallback: string): string {

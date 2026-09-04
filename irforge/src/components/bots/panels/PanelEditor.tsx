@@ -292,7 +292,7 @@ export function PanelEditor({
                     <SelectTrigger id="pe-type"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {(catalog?.panelTypes ?? [type]).map((x) => (
-                        <SelectItem key={x} value={x}>{panelTypeLabel(t, x)}</SelectItem>
+                        <SelectItem key={x} value={x}>{panelTypeLabel(t, x, catalog?.panelTypeLabels)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

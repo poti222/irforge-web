@@ -44,6 +44,7 @@ import {
 import { putEntities } from "../lib/botConfig.js";
 import { isPluginEnabled } from "../lib/pluginGate.js";
 import { PLUGIN_BUTTON_ACTIONS, CATALOG_ORDER_ACTION } from "../lib/pluginButtonActions.js";
+import { PLUGIN_PANEL_TYPES } from "../lib/pluginPanelTypes.js";
 
 const router = Router();
 
@@ -420,17 +421,35 @@ router.post("/bots/:botId/panels/:panelId/link", requireAuth, async (req: any, r
 /**
  * انواع پنل و اکشن دکمه که UI باید نشان دهد.
  *
- * `buttonActions` دیگر فقط `CORE_BTN_ACTIONS` نیست — اکشن هر پلاگینی که
- * *روی همین بات* فعال است هم اضافه می‌شود (بات خودش این‌ها را در پیکرِ
- * تلگرامی‌اش از قبل نشان می‌داد؛ اینجا همان چیز به سایت هم می‌رسد). فقط
- * برای همین ۸ تا که یک مقصدِ ثابت دارند، `buttonFixedValues` هم برمی‌گردد تا
- * `ButtonBuilder.tsx` بتواند «مقداری لازم نیست» را همان‌طور که برای «درخواست
- * شماره» نشان می‌دهد، نشان دهد و خودش مقدار را پر کند — بدون این نگاشت،
- * فرانت نمی‌دانست هر اکشن پلاگینی دقیقاً چه callback_dataای باید بگیرد.
+ * `panelTypes`/`buttonActions` دیگر فقط `CORE_PANEL_TYPES`/`CORE_BTN_ACTIONS`
+ * نیستند — نوع پنل و اکشن هر پلاگینی که *روی همین بات* فعال است هم اضافه
+ * می‌شود (بات خودش این‌ها را در پیکرِ تلگرامی‌اش از قبل نشان می‌داد؛ اینجا
+ * همان چیز به سایت هم می‌رسد — `handlers/panel_builder.py::PANEL_TYPES()`ی
+ * بات دقیقاً همین merge را با `extension_points.py`ی خودش انجام می‌دهد).
+ * `panelTypeLabels` فقط برای انواعِ پلاگینی برگردانده می‌شود؛ انواعِ هسته از
+ * قبل کلید locale ثابتِ خودشان را دارند (`labels.ts::panelTypeLabel`) —
+ * برچسبِ فارسیِ اینجا باید عیناً همان چیزی بماند که خودِ پلاگین به
+ * `register_panel_type(label=...)` داده، دقیقاً مثلِ `buttonFixedValues`
+ * پایین‌تر که همان الگو را برای اکشن‌های دکمه دنبال می‌کند. اگر خواندنِ
+ * وضعیتِ فعال/غیرفعالِ یک پلاگین شکست بخورد، `isPluginEnabled` هرگز throw
+ * نمی‌کند (پیش‌فرضِ امن از کاتالوگِ پلاگین برمی‌گرداند) — پس این مسیر هم
+ * خودبه‌خود به همان fallback امن می‌رسد، نه خطا.
+ *
+ * `buttonActions` فقط برای همین ۸ تا که یک مقصدِ ثابت دارند،
+ * `buttonFixedValues` هم برمی‌گردد تا `ButtonBuilder.tsx` بتواند «مقداری
+ * لازم نیست» را همان‌طور که برای «درخواست شماره» نشان می‌دهد، نشان دهد و
+ * خودش مقدار را پر کند — بدون این نگاشت، فرانت نمی‌دانست هر اکشن پلاگینی
+ * دقیقاً چه callback_dataای باید بگیرد.
  */
 router.get("/bots/:botId/panel-catalog", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+
+    const enabledPanelTypes = (
+      await Promise.all(
+        PLUGIN_PANEL_TYPES.map(async (p) => ((await isPluginEnabled(spreadsheetId, p.pluginId)) ? p : null)),
+      )
+    ).filter((p): p is (typeof PLUGIN_PANEL_TYPES)[number] => p !== null);
 
     const enabledPluginActions = (
       await Promise.all(
@@ -440,7 +459,8 @@ router.get("/bots/:botId/panel-catalog", requireAuth, async (req: any, res) => {
     const catalogOrderEnabled = await isPluginEnabled(spreadsheetId, CATALOG_ORDER_ACTION.pluginId);
 
     res.json({
-      panelTypes: CORE_PANEL_TYPES,
+      panelTypes: [...CORE_PANEL_TYPES, ...enabledPanelTypes.map((p) => p.key)],
+      panelTypeLabels: Object.fromEntries(enabledPanelTypes.map((p) => [p.key, p.label])),
       buttonActions: [
         ...CORE_BTN_ACTIONS,
         ...enabledPluginActions.map((a) => a.key),

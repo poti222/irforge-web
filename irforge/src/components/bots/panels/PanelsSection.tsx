@@ -292,7 +292,7 @@ export function PanelsSection({ bot }: { bot: Bot }) {
           <SelectContent>
             <SelectItem value="all">{t.filterAllTypes}</SelectItem>
             {(catalog?.panelTypes ?? []).map((x) => (
-              <SelectItem key={x} value={x}>{panelTypeLabel(t, x)}</SelectItem>
+              <SelectItem key={x} value={x}>{panelTypeLabel(t, x, catalog?.panelTypeLabels)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -354,7 +354,7 @@ export function PanelsSection({ bot }: { bot: Bot }) {
                       {p.title || t.untitledPanel}
                     </button>
                   </td>
-                  <td className="p-2"><Badge variant="outline">{panelTypeLabel(t, p.type)}</Badge></td>
+                  <td className="p-2"><Badge variant="outline">{panelTypeLabel(t, p.type, catalog?.panelTypeLabels)}</Badge></td>
                   <td className="p-2">
                     <div className="flex items-center gap-1">
                       {p.is_home && <Home className="size-3.5 text-emerald-500" aria-label={t.badgeHome} />}

@@ -54,6 +54,12 @@ export type HealthIssue = {
 
 export type PanelCatalog = {
   panelTypes: string[];
+  /** برچسبِ فارسیِ خودِ پلاگین برای انواعِ پنلِ پلاگینی (نه هسته) — همان
+   *  مقداری که `register_panel_type(label=...)` سمتِ بات ثبت کرده. هسته از
+   *  قبل کلید locale ثابتِ خودش را دارد (`labels.ts::panelTypeLabel`)، پس
+   *  این map معمولاً فقط fallback است، نه منبعِ اصلیِ نمایش — مگر برای نوعی
+   *  که هنوز کلید locale برایش اضافه نشده. */
+  panelTypeLabels?: Record<string, string>;
   buttonActions: string[];
   /** مقدارِ ثابتی که با انتخابِ یک اکشنِ پلاگینی (مثلاً «رزرو نوبت») خودکار در value می‌نشیند. */
   buttonFixedValues?: Record<string, string>;
