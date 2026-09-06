@@ -133,7 +133,10 @@ ALTER TABLE commands ADD COLUMN IF NOT EXISTS workflow JSONB;
 CREATE TABLE IF NOT EXISTS plans (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  price REAL NOT NULL,
+  -- INTEGER, Rial (IRFORGE_RIAL_MIGRATION Phase 2 — was REAL/Toman) — an
+  -- existing install's column is converted by migrateToRial() below, this
+  -- declaration only matters for a genuinely fresh install).
+  price INTEGER NOT NULL,
   interval TEXT NOT NULL DEFAULT 'monthly',
   features TEXT[] NOT NULL DEFAULT '{}',
   max_bots INTEGER NOT NULL DEFAULT 1,
@@ -215,7 +218,9 @@ CREATE TABLE IF NOT EXISTS marketplace_items (
   name TEXT NOT NULL,
   description TEXT,
   category TEXT,
-  price REAL NOT NULL DEFAULT 0,
+  -- INTEGER, Rial (IRFORGE_RIAL_MIGRATION Phase 2 — was REAL/Toman) — see the
+  -- same note on the "plans" table above).
+  price INTEGER NOT NULL DEFAULT 0,
   author_id TEXT,
   downloads INTEGER NOT NULL DEFAULT 0,
   rating REAL NOT NULL DEFAULT 0,
@@ -847,6 +852,18 @@ CREATE TABLE IF NOT EXISTS sms_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_sms_logs_parsed_amount ON sms_logs(parsed_amount);
+
+-- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
+-- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
+-- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT
+-- EXISTS, or a backfill UPDATE guarded by its own WHERE), which a scale
+-- conversion like "multiply every wallet balance by 10" cannot be — running
+-- it twice would multiply by 100. This table is the run-exactly-once marker
+-- for that class of migration (see migrateToRial() below).
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  id TEXT PRIMARY KEY,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `;
 
 
@@ -969,6 +986,96 @@ async function postSteps(client) {
   }
 }
 
+// Mirrors api-server/src/lib/currency.ts's bounds exactly (this file is
+// plain JS run standalone before any TypeScript build, so it can't import
+// that module) — see that file's own comment for why these numbers.
+const MIN_PLAUSIBLE_RIAL_PER_USD = 100_000;
+const MAX_PLAUSIBLE_RIAL_PER_USD = 100_000_000;
+
+/**
+ * IRFORGE_RIAL_MIGRATION Phase 2 — one-time Toman → Rial conversion for
+ * every money column this repo actually has live consumers for:
+ * wallets.balance, wallet_transactions.amount, wallet_topups.*,
+ * sms_logs.parsed_amount, payments.amount, plans.price, marketplace_items.
+ * price. (discount_redemptions.order_amount/discount_amount are NOT
+ * touched — that table is dropped a few lines below in this same file,
+ * `DROP TABLE IF EXISTS discount_redemptions`, so there is nothing to
+ * migrate; the live discount system is entirely Sheets-backed, see
+ * lib/discountStore.ts.)
+ *
+ * ⛔️ Rule #1 (this migration's own): never guess. Before touching a single
+ * row, this samples a handful of real `exchange_rates` rows and checks they
+ * actually look Rial-scale (roughly 6-7 digits for USD in 2026), not
+ * Toman-scale (an admin's colloquial rate, 4-5 digits). If any sampled row
+ * looks wrong, this ABORTS the whole migration — no row anywhere is
+ * touched — rather than compounding a possible existing unit mistake with a
+ * blind ×10 on top of it. This is deliberately a sanity check on the
+ * migration's own premise, not a guarantee: it can't prove every historical
+ * row is correct, only that the ones it can see aren't obviously wrong.
+ *
+ * Idempotent via `schema_migrations`: guaranteed to run its ×10 conversion
+ * (and the plans/marketplace_items real→integer column-type change) exactly
+ * once, ever, no matter how many times this script runs across redeploys.
+ */
+async function migrateToRial(client) {
+  const MIGRATION_ID = "2026_toman_to_rial_v1";
+  const { rows: already } = await client.query(
+    "SELECT 1 FROM schema_migrations WHERE id = $1", [MIGRATION_ID]
+  );
+  if (already.length > 0) return;
+
+  const { rows: rateSample } = await client.query(
+    "SELECT rial_per_usd FROM exchange_rates ORDER BY fetched_at DESC LIMIT 5"
+  );
+  if (rateSample.length > 0) {
+    const bad = rateSample.filter((r) => {
+      const v = Number(r.rial_per_usd);
+      return !Number.isFinite(v) || v < MIN_PLAUSIBLE_RIAL_PER_USD || v > MAX_PLAUSIBLE_RIAL_PER_USD;
+    });
+    if (bad.length > 0) {
+      console.error(
+        "[migrate] ABORTING Rial migration (IRFORGE_RIAL_MIGRATION Phase 2): " +
+        `exchange_rates.rial_per_usd has row(s) outside the expected Rial-scale range ` +
+        `(${MIN_PLAUSIBLE_RIAL_PER_USD.toLocaleString()}-${MAX_PLAUSIBLE_RIAL_PER_USD.toLocaleString()}):\n` +
+        bad.map((r) => `  rial_per_usd = ${r.rial_per_usd}`).join("\n") +
+        "\n[migrate] This looks like Toman-scale data stored where Rial was expected. " +
+        "Multiplying wallets/payments/plans by 10 on top of a wrong exchange-rate " +
+        "assumption would be exactly the 10x real-money error this migration exists " +
+        "to prevent. NO ROWS WERE CHANGED. Investigate exchange_rates by hand, fix or " +
+        "confirm it, then re-run."
+      );
+      process.exit(1);
+    }
+    console.log(`[migrate] Rial migration guard: ${rateSample.length} exchange_rates row(s) sampled, all Rial-scale. Proceeding.`);
+  } else {
+    console.warn("[migrate] Rial migration guard: exchange_rates is empty — nothing to sample, skipping the scale check (fresh install).");
+  }
+
+  console.log("[migrate] Rial migration: converting Toman columns to Rial (×10)...");
+  await client.query("BEGIN");
+  try {
+    await client.query("UPDATE wallets SET balance = balance * 10");
+    await client.query("UPDATE wallet_transactions SET amount = amount * 10");
+    await client.query(
+      "UPDATE wallet_topups SET requested_amount = requested_amount * 10, " +
+      "suffix = suffix * 10, final_amount = final_amount * 10"
+    );
+    await client.query("UPDATE sms_logs SET parsed_amount = parsed_amount * 10 WHERE parsed_amount IS NOT NULL");
+    await client.query("UPDATE payments SET amount = amount * 10 WHERE amount IS NOT NULL");
+    // real → integer AND Toman → Rial in one step: both plansTable.price and
+    // marketplaceItemsTable.price were declared `real` (a pre-existing
+    // float-money bug independent of the unit question), fixed here too.
+    await client.query("ALTER TABLE plans ALTER COLUMN price TYPE INTEGER USING ROUND(price * 10)::INTEGER");
+    await client.query("ALTER TABLE marketplace_items ALTER COLUMN price TYPE INTEGER USING ROUND(price * 10)::INTEGER");
+    await client.query("INSERT INTO schema_migrations (id) VALUES ($1)", [MIGRATION_ID]);
+    await client.query("COMMIT");
+    console.log("[migrate] Rial migration: done. wallets/wallet_transactions/wallet_topups/sms_logs/payments/plans/marketplace_items are now Rial-denominated.");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  }
+}
+
 /**
  * پاک‌سازی رکوردهای منقضی.
  *
@@ -1006,6 +1113,10 @@ async function migrate() {
     console.log("[migrate] Running migrations...");
     await client.query(SQL);
     await postSteps(client);
+    // Runs after postSteps() so a fresh install's exchange_rates bootstrap
+    // row (seeded just above, already Rial-scale) exists before the guard
+    // samples it.
+    await migrateToRial(client);
     await cleanupExpired(client);
     console.log("[migrate] Done.");
   } catch (err) {

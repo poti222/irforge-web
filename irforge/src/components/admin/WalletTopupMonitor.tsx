@@ -106,7 +106,7 @@ export function WalletTopupMonitor() {
                   <tr className="border-b text-start text-xs text-muted-foreground">
                     <th className="p-2 text-start">{fa ? "کاربر" : "User"}</th>
                     <th className="p-2 text-start">{fa ? "مبلغ درخواستی" : "Requested"}</th>
-                    <th className="p-2 text-start">{fa ? "مبلغ نهایی" : "Final amount"}</th>
+                    <th className="p-2 text-start">{fa ? "مبلغ نهایی (ریال)" : "Final amount (Rial)"}</th>
                     <th className="p-2 text-start">{fa ? "وضعیت" : "Status"}</th>
                     <th className="p-2 text-start">{fa ? "زمان" : "Time"}</th>
                     <th className="p-2" />
@@ -117,7 +117,12 @@ export function WalletTopupMonitor() {
                     <tr key={t.id} className="border-b last:border-0">
                       <td className="p-2">{t.user ? `${t.user.name} · ${t.user.email}` : "—"}</td>
                       <td className="p-2">{formatToman(t.requestedAmount, lang)}</td>
-                      <td className="p-2 font-mono">{formatToman(t.finalAmount, lang)}</td>
+                      {/* IRFORGE_RIAL_MIGRATION Phase 2: finalAmount is the one
+                          field the API leaves as raw Rial (it's the exact
+                          figure the customer types into Blubank's Rial field)
+                          — formatToman() would silently divide it by 10, so
+                          it's shown as a plain grouped number instead. */}
+                      <td className="p-2 font-mono">{t.finalAmount.toLocaleString(fa ? "fa-IR" : "en-US")}</td>
                       <td className="p-2">
                         <Badge variant={statusVariant(t.status)}>
                           {fa

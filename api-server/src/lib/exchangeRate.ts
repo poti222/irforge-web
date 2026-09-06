@@ -44,14 +44,18 @@ export function isRateStale(fetchedAt: Date, now: Date = new Date()): boolean {
 }
 
 /**
- * `Math.ceil((usdPrice * rialPerUsd / 10) / 10000) * 10000` — decision
- * locked in with Ali in identityverificationspec.md. `/10` converts Rial to
- * Toman; rounding up to the nearest 10,000 Toman keeps prices looking like
- * every other hand-set price in this product instead of a jagged
- * live-converted number.
+ * IRFORGE_RIAL_MIGRATION Phase 2 — was `priceInToman()`, with a `/10` step
+ * to convert the Rial `rialPerUsd` figure down to Toman before rounding
+ * (decision locked in with Ali in identityverificationspec.md). Now that
+ * `plans.price` (what this feeds, via `effectivePriceRial()` in
+ * routes/plans.ts) is itself Rial-denominated, that `/10` is gone and the
+ * rounding step targets the nearest 100,000 Rial instead of 10,000 Toman —
+ * the exact same granularity in the new unit (100,000 Rial = 10,000 Toman),
+ * so prices still look like every other hand-set price in this product
+ * instead of a jagged live-converted number.
  */
-export function priceInToman(usdPrice: number, rialPerUsd: number): number {
-  return Math.ceil((usdPrice * rialPerUsd / 10) / 10000) * 10000;
+export function priceInRial(usdPrice: number, rialPerUsd: number): number {
+  return Math.ceil((usdPrice * rialPerUsd) / 100000) * 100000;
 }
 
 /**

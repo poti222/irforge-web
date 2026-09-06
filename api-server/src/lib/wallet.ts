@@ -12,6 +12,18 @@
  * این کسر/شارژ عمداً `type: "admin_credit"/"admin_debit"` می‌گیرد، نه
  * `"spend"`/یکی از انواعِ واریز — `lib/adminRevenue.ts` فقط `type = "spend"`
  * را درآمد می‌شمارد، و تصحیحِ دستیِ یک ادمین درآمدِ واقعی نیست.
+ *
+ * IRFORGE_RIAL_MIGRATION Phase 2: `amount` on `deductWallet`/`creditWallet`
+ * is now Rial, not Toman — matching `wallets.balance`/`wallet_transactions
+ * .amount`, both migrated to Rial. This is a deliberate boundary: every
+ * caller here still THINKS in Toman (admin-typed amounts, plan prices,
+ * plugin prices), so each one wraps its value with `tomanToRial()` right at
+ * the call site — except the wallet-topup confirmation callers
+ * (`routes/walletTopup.ts`, `routes/walletTopupSmsWebhook.ts`), which pass
+ * an already-genuine Rial figure straight through with zero conversion.
+ * That's the whole point of the migration: the bank's SMS amount is Rial,
+ * so a topup that started from a real SMS match never round-trips through
+ * a lossy Toman rounding step on its way into the ledger.
  */
 import { db, walletsTable, walletTransactionsTable } from "@workspace/db";
 import { eq, and, gte, sql } from "drizzle-orm";

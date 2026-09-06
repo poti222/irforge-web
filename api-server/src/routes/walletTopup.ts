@@ -19,6 +19,7 @@ import { getPaymentMethods } from "../lib/platformSettings";
 import { creditWallet } from "../lib/wallet";
 import { createNotification, formatTomanFa } from "../lib/notify";
 import { writeAudit } from "../lib/audit";
+import { rialToToman } from "../lib/currency";
 import {
   requestTopup,
   getTopupForUser,
@@ -46,8 +47,13 @@ function requireSuperAdmin(req: any, res: any, next: any) {
 function formatTopup(t: WalletTopup) {
   return {
     id: t.id,
-    requestedAmount: t.requestedAmount,
-    suffix: t.suffix,
+    // requestedAmount/suffix are Rial (IRFORGE_RIAL_MIGRATION Phase 2) —
+    // converted back to Toman for the API, matching every other amount field.
+    requestedAmount: rialToToman(t.requestedAmount),
+    suffix: rialToToman(t.suffix),
+    // finalAmount is the ONE field that must NOT be Toman-converted: it's the
+    // exact figure the user is told to type into Blubank's Rial-denominated
+    // input (irforge/src/pages/wallet.tsx's CopyField), so it stays raw Rial.
     finalAmount: t.finalAmount,
     status: t.status,
     createdAt: t.createdAt.toISOString(),
@@ -145,7 +151,10 @@ function formatSmsLog(l: typeof smsLogsTable.$inferSelect) {
     id: l.id,
     rawText: l.rawText,
     sender: l.sender,
-    parsedAmount: l.parsedAmount,
+    // sms_logs.parsedAmount is Rial (IRFORGE_RIAL_MIGRATION Phase 2); the
+    // admin monitoring table (WalletTopupMonitor.tsx) displays it via
+    // formatToman(), so convert back here rather than touching that UI.
+    parsedAmount: l.parsedAmount === null ? null : rialToToman(l.parsedAmount),
     matchedPaymentId: l.matchedPaymentId,
     receivedAt: l.receivedAt.toISOString(),
   };
@@ -196,7 +205,9 @@ router.post("/admin/wallet-topups/:id/manual-confirm", requireSuperAdmin, async 
       return;
     }
 
-    const balance = await creditWallet(
+    // topup.requestedAmount is already Rial — creditWallet() is Rial-native,
+    // direct passthrough, zero conversion (IRFORGE_RIAL_MIGRATION Phase 2).
+    const balanceRial = await creditWallet(
       topup.userId,
       topup.requestedAmount,
       `تأییدِ دستیِ سوپرادمین برایِ سفارشِ شارژِ بلوبانک ${topup.id}`,
@@ -208,7 +219,7 @@ router.post("/admin/wallet-topups/:id/manual-confirm", requireSuperAdmin, async 
       type: "wallet_topup_confirmed",
       severity: "info",
       title: "شارژ کیف پول تأیید شد",
-      message: `واریز ${formatTomanFa(topup.requestedAmount)} تأیید شد و به کیف پول اضافه شد. موجودی فعلی: ${formatTomanFa(balance)}.`,
+      message: `واریز ${formatTomanFa(rialToToman(topup.requestedAmount))} تأیید شد و به کیف پول اضافه شد. موجودی فعلی: ${formatTomanFa(rialToToman(balanceRial))}.`,
       refId: topup.id,
     });
 
@@ -219,7 +230,7 @@ router.post("/admin/wallet-topups/:id/manual-confirm", requireSuperAdmin, async 
       metadata: { topupId: topup.id, requestedAmount: topup.requestedAmount, finalAmount: topup.finalAmount, manual: true, sourceIp: clientIp(req) },
     });
 
-    res.json({ success: true, balance });
+    res.json({ success: true, balance: rialToToman(balanceRial) });
   } catch (err) {
     logger.error({ err }, "Manual confirm wallet topup error");
     res.status(500).json({ error: "Internal server error" });

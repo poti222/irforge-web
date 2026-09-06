@@ -12,6 +12,7 @@ import { createNotification, createNotificationsBulk, severityForAnnouncementTyp
 import { writeAudit } from "../lib/audit";
 import { getActorName, adminChangeMessage } from "./superAdminUsers";
 import { getRevenueEntries, sumRevenue, type RevenueKind } from "../lib/adminRevenue.js";
+import { rialToToman } from "../lib/currency.js";
 
 const router = Router();
 
@@ -242,13 +243,17 @@ router.get("/admin/stats", requireAdmin, async (req: any, res) => {
      * (شارژ کیف پول عمداً شمرده نمی‌شود — پولی که هنوز خرج نشده فروش نیست، و
      * با خرجش دوباره شمرده می‌شد.)
      */
+    // payments.amount/wallet_transactions.amount are Rial since
+    // IRFORGE_RIAL_MIGRATION Phase 2 — getRevenueEntries()/sumRevenue() stay
+    // Rial-native (summing precise Rial avoids compounding per-entry
+    // rounding), converted back to Toman only here, at the response boundary.
     const earnings = await getRevenueEntries();
 
-    const totalRevenue = sumRevenue(earnings);
+    const totalRevenue = rialToToman(sumRevenue(earnings));
     const revenueBreakdown = {
-      bots: sumRevenue(earnings.filter(e => e.kind === "bot")),
-      plugins: sumRevenue(earnings.filter(e => e.kind === "plugin")),
-      other: sumRevenue(earnings.filter(e => e.kind === "other")),
+      bots: rialToToman(sumRevenue(earnings.filter(e => e.kind === "bot"))),
+      plugins: rialToToman(sumRevenue(earnings.filter(e => e.kind === "plugin"))),
+      other: rialToToman(sumRevenue(earnings.filter(e => e.kind === "other"))),
     };
 
     const now = new Date();
@@ -261,7 +266,7 @@ router.get("/admin/stats", requireAdmin, async (req: any, res) => {
       return {
         month: from.toLocaleString("default", { month: "short" }),
         key: `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}`,
-        revenue: sumRevenue(earnings.filter(e => e.at >= from && e.at < to)),
+        revenue: rialToToman(sumRevenue(earnings.filter(e => e.at >= from && e.at < to))),
       };
     });
 
@@ -287,8 +292,9 @@ router.get("/admin/stats", requireAdmin, async (req: any, res) => {
       if (up.planId) perPlan.set(up.planId, (perPlan.get(up.planId) ?? 0) + 1);
     }
 
+    // plansTable.price is Rial since IRFORGE_RIAL_MIGRATION Phase 2.
     const planBreakdown = allPlans
-      .map(p => ({ planId: p.id, plan: p.name, price: p.price ?? 0, count: perPlan.get(p.id) ?? 0 }))
+      .map(p => ({ planId: p.id, plan: p.name, price: rialToToman(p.price ?? 0), count: perPlan.get(p.id) ?? 0 }))
       .sort((a, b) => b.count - a.count || a.plan.localeCompare(b.plan));
 
     res.json({
@@ -367,7 +373,7 @@ router.get("/admin/revenue-details", requireSuperAdmin, async (req: any, res) =>
       truncated: entries.length > page.length,
       entries: page.map((e) => ({
         id: e.id,
-        amount: e.amount,
+        amount: rialToToman(e.amount),
         at: e.at.toISOString(),
         kind: e.kind,
         source: e.source,

@@ -11,6 +11,7 @@ import { Router } from "express";
 import { requireSuperAdmin } from "./auth.js";
 import { blockWhileImpersonating } from "../middleware/impersonation.js";
 import { getCurrentExchangeRate, setManualExchangeRate } from "../lib/exchangeRate.js";
+import { isPlausibleRialPerUsd, MIN_PLAUSIBLE_RIAL_PER_USD, MAX_PLAUSIBLE_RIAL_PER_USD } from "../lib/currency.js";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
@@ -32,6 +33,20 @@ router.post("/admin/exchange-rate", requireSuperAdmin, blockWhileImpersonating, 
     const rialPerUsd = Number(req.body?.rialPerUsd);
     if (!Number.isFinite(rialPerUsd) || rialPerUsd <= 0) {
       res.status(400).json({ error: "rialPerUsd must be a positive number" });
+      return;
+    }
+    // This field is Rial, not Toman — trusting the label alone let an admin
+    // silently enter a colloquial Toman-scale rate (or a value with stray
+    // extra zeros), which `priceInRial()` would then use as-is, mispricing
+    // every live-USD plan by 10x (or 1/10th). Reject it before it's stored.
+    if (!isPlausibleRialPerUsd(rialPerUsd)) {
+      res.status(400).json({
+        error:
+          `rialPerUsd باید بین ${MIN_PLAUSIBLE_RIAL_PER_USD.toLocaleString("fa-IR")} و ` +
+          `${MAX_PLAUSIBLE_RIAL_PER_USD.toLocaleString("fa-IR")} باشد. این فیلد ریال است، نه تومان — ` +
+          `اگر نرخ را به تومان دارید، در ۱۰ ضرب کنید.`,
+        code: "implausible_scale",
+      });
       return;
     }
     const rate = await setManualExchangeRate(rialPerUsd, req.userId);

@@ -5,7 +5,12 @@ import { z } from "zod";
 export const plansTable = pgTable("plans", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  price: real("price").notNull(),
+  /**
+   * IRFORGE_RIAL_MIGRATION Phase 2 — integer, Rial (was `real`/Toman; the
+   * `real` type was itself a pre-existing float-money bug, independent of
+   * the unit question, fixed by the same migration).
+   */
+  price: integer("price").notNull(),
   /**
    * Optional live-priced USD amount (Phase 10 of
    * identityverificationspec.md). When set, this — not the flat `price`

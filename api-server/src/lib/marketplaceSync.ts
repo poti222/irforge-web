@@ -25,6 +25,7 @@ import { db, marketplaceItemsTable, installedPluginsTable } from "@workspace/db"
 import { eq } from "drizzle-orm";
 import { getPluginCatalog, type PluginManifest } from "./pluginCatalog.js";
 import { pluginPrice } from "./pluginPricing.js";
+import { tomanToRial } from "./currency.js";
 import { logger } from "./logger.js";
 
 export const PLUGIN_ITEM_PREFIX = "plugin-";
@@ -100,7 +101,9 @@ export async function syncPluginMarketplaceItems(): Promise<SyncResult> {
       nameFa: manifest.name_fa || "",
       descriptionFa: manifest.description_fa || "",
       category: PLUGIN_CATEGORY,
-      price,
+      // pluginPrice() is Toman; marketplaceItemsTable.price is Rial since
+      // IRFORGE_RIAL_MIGRATION Phase 2. `isFree`/`price <= 0` are scale-agnostic.
+      price: tomanToRial(price),
       isFree: price <= 0,
       author: manifest.author || "IrForge",
       version: manifest.version || "1.0.0",

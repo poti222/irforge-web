@@ -2,8 +2,10 @@
  * schema/wallet.ts
  * Z5 — کیف پول
  *
- * توجه: مبالغ به «تومان» (عدد صحیح) ذخیره می‌شوند تا با بقیهٔ اپ (payment.amount,
- * plan.price و formatToman) یکدست باشند — نه cents.
+ * IRFORGE_RIAL_MIGRATION Phase 2: مبالغ در این فایل حالا به «ریال» (عدد صحیح)
+ * ذخیره می‌شوند، نه تومان — هماهنگ با payment.amount/plan.price که همان فاز
+ * تبدیل شدند. تومان فقط واحدِ نمایشی است (formatToman و کل سطحِ API سایت)؛
+ * تبدیل دقیقاً در مرزِ API انجام می‌شود (api-server/src/lib/currency.ts).
  */
 import { pgTable, text, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
@@ -12,7 +14,7 @@ import { z } from "zod";
 export const walletsTable = pgTable("wallets", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().unique(),
-  /** موجودی به تومان */
+  /** موجودی به ریال (IRFORGE_RIAL_MIGRATION Phase 2) */
   balance: integer("balance").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -23,7 +25,7 @@ export const walletTransactionsTable = pgTable("wallet_transactions", {
   userId: text("user_id").notNull(),
   /** deposit_card | deposit_gateway | deposit_usdt | spend | referral_credit */
   type: text("type").notNull(),
-  /** مبلغ به تومان */
+  /** مبلغ به ریال (IRFORGE_RIAL_MIGRATION Phase 2) */
   amount: integer("amount").notNull(),
   /** pending | approved | rejected */
   status: text("status").notNull().default("pending"),
@@ -61,11 +63,11 @@ export type WalletTransaction = typeof walletTransactionsTable.$inferSelect;
 export const walletTopupsTable = pgTable("wallet_topups", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
-  /** مبلغی که کاربر واقعاً می‌خواهد به کیف‌پولش اضافه شود (تومان). */
+  /** مبلغی که کاربر واقعاً می‌خواهد به کیف‌پولش اضافه شود (ریال). */
   requestedAmount: integer("requested_amount").notNull(),
-  /** پسوندِ تصادفیِ سه‌رقمی که برای یکتاسازی به requestedAmount اضافه می‌شود. */
+  /** پسوندِ تصادفی که برای یکتاسازی به requestedAmount اضافه می‌شود (ریال). */
   suffix: integer("suffix").notNull(),
-  /** requestedAmount + suffix — همان عددی که کاربر باید در بلوبانک وارد کند. */
+  /** requestedAmount + suffix — همان عددی (ریال) که کاربر باید در بلوبانک وارد کند. */
   finalAmount: integer("final_amount").notNull(),
   /** pending | confirmed | expired | canceled */
   status: text("status").notNull().default("pending"),
@@ -84,7 +86,7 @@ export const smsLogsTable = pgTable("sms_logs", {
   id: text("id").primaryKey(),
   rawText: text("raw_text").notNull(),
   sender: text("sender"),
-  /** مبلغِ استخراج‌شده به تومان (بعد از تبدیلِ احتمالیِ ریال÷۱۰) — null یعنی پارس نشد. */
+  /** مبلغِ استخراج‌شده به ریال (IRFORGE_RIAL_MIGRATION Phase 2 — دیگر بدونِ ÷۱۰) — null یعنی پارس نشد. */
   parsedAmount: integer("parsed_amount"),
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
   matchedPaymentId: text("matched_payment_id"),

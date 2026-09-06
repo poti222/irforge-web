@@ -11,6 +11,7 @@ import { db, marketplaceItemsTable } from "@workspace/db";
 import { eq, like, or } from "drizzle-orm";
 import { requireAuth, requireSuperAdmin } from "./auth";
 import { ensurePluginItemsSynced, syncPluginMarketplaceItems } from "../lib/marketplaceSync.js";
+import { rialToToman } from "../lib/currency.js";
 import {
   CUSTOM_BUILD, PLUGIN_PRICES, quoteCustomBuild,
 } from "../lib/pluginPricing.js";
@@ -28,7 +29,9 @@ function formatItem(item: any) {
     name_fa: item.nameFa ?? "",
     description_fa: item.descriptionFa ?? "",
     category: item.category,
-    price: item.price,
+    // marketplaceItemsTable.price is Rial since IRFORGE_RIAL_MIGRATION Phase 2;
+    // the API surface stays Toman, matching every other price field.
+    price: rialToToman(item.price),
     isFree: item.isFree,
     author: item.author,
     version: item.version,

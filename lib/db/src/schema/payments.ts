@@ -13,7 +13,7 @@ export const paymentsTable = pgTable("payments", {
   /** کاربری که فیش ارسال کرده */
   userId: text("user_id").notNull(),
 
-  /** مبلغ پرداختی به تومان (Z3 — برای نمایش در فاکتورها). nullable برای رکوردهای قدیمی */
+  /** مبلغ پرداختی به ریال (IRFORGE_RIAL_MIGRATION Phase 2؛ Z3 — برای نمایش در فاکتورها). nullable برای رکوردهای قدیمی */
   amount: integer("amount"),
 
   /**

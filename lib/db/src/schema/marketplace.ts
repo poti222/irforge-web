@@ -12,7 +12,8 @@ export const marketplaceItemsTable = pgTable("marketplace_items", {
   nameFa: text("name_fa").notNull().default(""),
   descriptionFa: text("description_fa").notNull().default(""),
   category: text("category").notNull(),
-  price: real("price").notNull().default(0),
+  /** IRFORGE_RIAL_MIGRATION Phase 2 — integer, Rial (was `real`/Toman). */
+  price: integer("price").notNull().default(0),
   isFree: boolean("is_free").notNull().default(true),
   author: text("author").notNull(),
   version: text("version").notNull().default("1.0.0"),

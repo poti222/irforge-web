@@ -9,6 +9,7 @@ import { requireAuth } from "./auth";
 import { createNotification, notifySuperAdmins, formatTomanFa } from "../lib/notify";
 import { getPaymentMethods, setPaymentMethods } from "../lib/platformSettings";
 import { ensureWallet } from "../lib/wallet.js";
+import { tomanToRial, rialToToman } from "../lib/currency.js";
 
 const router = Router();
 
@@ -23,9 +24,11 @@ function requireSuperAdmin(req: any, res: any, next: any) {
   });
 }
 
+// wallet_transactions.amount is Rial since IRFORGE_RIAL_MIGRATION Phase 2;
+// every API response stays Toman, matching `formatToman()`'s existing contract.
 function formatTx(t: any) {
   return {
-    id: t.id, userId: t.userId, type: t.type, amount: t.amount, status: t.status,
+    id: t.id, userId: t.userId, type: t.type, amount: rialToToman(t.amount), status: t.status,
     receiptUrl: t.receiptUrl, txHash: t.txHash, reviewNote: t.reviewNote,
     createdAt: t.createdAt.toISOString(),
   };
@@ -35,7 +38,7 @@ function formatTx(t: any) {
 router.get("/wallet", requireAuth, async (req: any, res) => {
   try {
     const wallet = await ensureWallet(req.userId);
-    res.json({ balance: wallet?.balance ?? 0 });
+    res.json({ balance: rialToToman(wallet?.balance ?? 0) });
   } catch (err) {
     logger.error({ err }, "Get wallet error");
     res.status(500).json({ error: "Internal server error" });
@@ -122,7 +125,7 @@ router.post("/wallet/deposit", requireAuth, blockWhileImpersonating, requireComp
     }
     await ensureWallet(req.userId);
     const [tx] = await db.insert(walletTransactionsTable).values({
-      id: crypto.randomUUID(), userId: req.userId, type, amount: Math.round(amt),
+      id: crypto.randomUUID(), userId: req.userId, type, amount: tomanToRial(Math.round(amt)),
       status: "pending", receiptUrl: receiptUrl ?? null, txHash: txHash ?? null,
     }).returning();
 
@@ -149,22 +152,25 @@ router.post("/wallet/spend", requireAuth, blockWhileImpersonating, async (req: a
     const amt = Number(req.body?.amount);
     if (!amt || amt <= 0) { res.status(400).json({ error: "A positive amount is required" }); return; }
     await ensureWallet(req.userId);
+    // `amt` is Toman (client-facing); wallets.balance/wallet_transactions.amount
+    // are Rial since IRFORGE_RIAL_MIGRATION Phase 2 — converted once here.
+    const amtRial = tomanToRial(Math.round(amt));
     // کسر مشروط در یک دستور — همان دلیلِ `deductWallet` در `routes/bots.ts`:
     // «بخوان، چک کن، بنویس» اجازه می‌داد دو خرجِ هم‌زمان هر دو رد شوند و
     // موجودی منفی یا یکی از کسرها گم شود.
     const [updated] = await db.update(walletsTable)
-      .set({ balance: sql`${walletsTable.balance} - ${Math.round(amt)}` })
-      .where(and(eq(walletsTable.userId, req.userId), gte(walletsTable.balance, Math.round(amt))))
+      .set({ balance: sql`${walletsTable.balance} - ${amtRial}` })
+      .where(and(eq(walletsTable.userId, req.userId), gte(walletsTable.balance, amtRial)))
       .returning();
     if (!updated) {
       res.status(400).json({ error: "Insufficient wallet balance", code: "insufficient" });
       return;
     }
     const [tx] = await db.insert(walletTransactionsTable).values({
-      id: crypto.randomUUID(), userId: req.userId, type: "spend", amount: Math.round(amt),
+      id: crypto.randomUUID(), userId: req.userId, type: "spend", amount: amtRial,
       status: "approved", reviewNote: req.body?.note ?? null,
     }).returning();
-    res.json({ balance: updated.balance, transaction: formatTx(tx) });
+    res.json({ balance: rialToToman(updated.balance), transaction: formatTx(tx) });
   } catch (err) {
     logger.error({ err }, "Wallet spend error");
     res.status(500).json({ error: "Internal server error" });
@@ -220,6 +226,8 @@ router.post("/admin/wallet-deposits/:txId/approve", requireSuperAdmin, async (re
     await ensureWallet(tx.userId);
     // افزایش در خودِ SQL، نه `موجودیِ خوانده‌شده + مبلغ`: آن شکل، خرجی که
     // بین خواندن و نوشتن انجام شده باشد را پاک می‌کرد (lost update).
+    // tx.amount is already Rial (the deposit insert converted it) —
+    // walletsTable.balance is Rial too, so this is a direct, unit-consistent add.
     const [updated] = await db.update(walletsTable)
       .set({ balance: sql`${walletsTable.balance} + ${tx.amount}` })
       .where(eq(walletsTable.userId, tx.userId)).returning();
@@ -229,11 +237,11 @@ router.post("/admin/wallet-deposits/:txId/approve", requireSuperAdmin, async (re
       type: "deposit_approved",
       severity: "info",
       title: "شارژ کیف پول تأیید شد",
-      message: `واریز ${formatTomanFa(tx.amount)} تأیید شد و به کیف پول اضافه شد. موجودی فعلی: ${formatTomanFa(updated.balance)}.`
+      message: `واریز ${formatTomanFa(rialToToman(tx.amount))} تأیید شد و به کیف پول اضافه شد. موجودی فعلی: ${formatTomanFa(rialToToman(updated.balance))}.`
         + (req.body?.reviewNote ? `\n\nیادداشت بررسی‌کننده: ${req.body.reviewNote}` : ""),
     });
 
-    res.json({ success: true, balance: updated.balance });
+    res.json({ success: true, balance: rialToToman(updated.balance) });
   } catch (err) {
     logger.error({ err }, "Approve wallet deposit error");
     res.status(500).json({ error: "Internal server error" });
@@ -256,7 +264,7 @@ router.post("/admin/wallet-deposits/:txId/reject", requireSuperAdmin, async (req
       type: "deposit_rejected",
       severity: "warning",
       title: "شارژ کیف پول تأیید نشد",
-      message: `واریز ${formatTomanFa(tx.amount)} تأیید نشد و به کیف پول اضافه نشد.`
+      message: `واریز ${formatTomanFa(rialToToman(tx.amount))} تأیید نشد و به کیف پول اضافه نشد.`
         + (req.body?.reviewNote ? `\n\nدلیل: ${req.body.reviewNote}` : "")
         + `\n\nاگر فکر می‌کنی اشتباهی رخ داده، فیش را دوباره با کیفیت بهتر ارسال کن یا تیکت بزن.`,
     });

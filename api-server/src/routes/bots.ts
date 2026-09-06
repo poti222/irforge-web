@@ -63,6 +63,7 @@ import { getPluginCatalog } from "../lib/pluginCatalog.js";
 import { marketplaceItemIdFor } from "../lib/marketplaceSync.js";
 import { getUserPlanLimits, countUserBots } from "../lib/planLimits.js";
 import { deductWallet, InsufficientBalanceError } from "../lib/wallet.js";
+import { tomanToRial, rialToToman } from "../lib/currency.js";
 import { verifyCaptchaToken } from "../lib/captchaVerify.js";
 import { buildSheetPoolView } from "../lib/sheetPoolView.js";
 
@@ -631,7 +632,13 @@ router.post("/bots", requireAuth, perUserRateLimit("bot_create", 10, 60 * 60 * 1
         botId: botId,
         receiptUrl,
         description: paymentDescription ?? null,
-        amount: typeof amount === "number" ? amount : (amount ? Number(amount) : null),
+        // `amount` is the client-supplied Toman receipt figure (display-only,
+        // per the schema comment — never gates approval); paymentsTable.amount
+        // is Rial since IRFORGE_RIAL_MIGRATION Phase 2.
+        amount: (() => {
+          const toman = typeof amount === "number" ? amount : (amount ? Number(amount) : null);
+          return toman === null ? null : tomanToRial(toman);
+        })(),
         status: "pending",
       })
       .returning();
@@ -846,7 +853,7 @@ router.get("/payments/me", requireAuth, async (req: any, res) => {
           id: p.id,
           botId: p.botId,
           botName: bot?.name ?? null,
-          amount: p.amount ?? null,
+          amount: p.amount === null || p.amount === undefined ? null : rialToToman(p.amount),
           receiptUrl: p.receiptUrl,
           description: p.description,
           status: p.status,
@@ -933,7 +940,12 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
 
     try {
       await db.transaction(async (tx: any) => {
-        const ok = await deductWallet(req.userId, finalAmount, `Bot purchase: ${name}`, tx);
+        // finalAmount is Toman (resolvePurchasePrice()/reserveDiscount() both
+        // compute in Toman); deductWallet() is Rial-native since
+        // IRFORGE_RIAL_MIGRATION Phase 2 — convert only at this call site so
+        // every other reference to finalAmount below (notifications, sync,
+        // discount commit) keeps meaning Toman, unchanged.
+        const ok = await deductWallet(req.userId, tomanToRial(finalAmount), `Bot purchase: ${name}`, tx);
         if (!ok) {
           // Roll back the wallet transaction — the discount-code reservation is
           // released (never committed) right below, so an order that can't be
@@ -1365,7 +1377,7 @@ router.post("/bots/pending-payments/:paymentId/cancel", requireSuperAdmin, async
     const orderLabel = cancelledBotName
       ? `بات «${cancelledBotName}»`
       : payment.amount
-        ? `سفارش ${formatTomanFa(payment.amount)}`
+        ? `سفارش ${formatTomanFa(rialToToman(payment.amount))}`
         : "سفارش شما";
 
     await createNotification({
@@ -2895,6 +2907,9 @@ router.post("/bots/:botId/plugins", requireBotOwnership, async (req: any, res) =
     }
     // Z6: cart checkout can pay from wallet. Charge the item's real (server-side)
     // price so the client can't understate it.
+    // item.price comes straight from marketplaceItemsTable, which is
+    // Rial-denominated since IRFORGE_RIAL_MIGRATION Phase 2 — deductWallet()
+    // is Rial-native too, so this is a direct passthrough, no conversion.
     if (payFromWallet && !item.isFree && item.price > 0) {
       const ok = await deductWallet(req.userId, item.price, `Plugin: ${item.name}`);
       if (!ok) { res.status(400).json({ error: "Insufficient wallet balance", code: "insufficient" }); return; }
@@ -2902,7 +2917,7 @@ router.post("/bots/:botId/plugins", requireBotOwnership, async (req: any, res) =
     const id = crypto.randomUUID();
     const [plugin] = await db.insert(installedPluginsTable).values({ id, botId: req.params.botId, marketplaceItemId, name: item.name, version: item.version, enabled: true }).returning();
 
-    const pricePart = item.isFree || item.price <= 0 ? "رایگان" : formatTomanFa(item.price);
+    const pricePart = item.isFree || item.price <= 0 ? "رایگان" : formatTomanFa(rialToToman(item.price));
     await createNotification({
       userId: req.userId,
       botId: req.params.botId,
@@ -2942,8 +2957,11 @@ router.post("/bots/:botId/upgrade-tier", requireBotOwnership, async (req: any, r
       });
       return;
     }
+    // BOT_TIER_PRICES is Toman; deductWallet() is Rial-native since
+    // IRFORGE_RIAL_MIGRATION Phase 2 — diff itself stays Toman below
+    // (notification text), only the call site converts.
     const diff = BOT_TIER_PRICES.pro - BOT_TIER_PRICES.standard;
-    const ok = await deductWallet(req.userId, diff, `Bot upgrade to Pro: ${req.bot.name}`);
+    const ok = await deductWallet(req.userId, tomanToRial(diff), `Bot upgrade to Pro: ${req.bot.name}`);
     if (!ok) {
       res.status(400).json({ error: "Insufficient wallet balance", code: "insufficient" });
       return;

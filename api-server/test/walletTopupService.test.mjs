@@ -4,7 +4,14 @@
  * `lib/walletTopupService.ts`: `requestTopup`'s suffix-retry-on-23505 loop,
  * amount bounds, `cancelTopup`/`getTopupForUser`/`expireStaleTopups`'s
  * conditional-update shape, and the BluBank SMS parser (`parseBlubankDepositSms`)
- * — the piece that turns a real bank SMS into a matchable Toman amount.
+ * — the piece that turns a real bank SMS into a matchable Rial amount.
+ *
+ * IRFORGE_RIAL_MIGRATION Phase 2: `requestTopup(userId, requestedAmount)`
+ * still takes a Toman argument (validated against the Toman
+ * MIN/MAX_TOPUP_AMOUNT bounds — that's what the customer-facing UI shows),
+ * but the row it inserts is Rial (`requestedAmount`/`suffix`/`finalAmount`
+ * all ×10). `parseBlubankDepositSms()` no longer returns `amountToman` at
+ * all — just the raw `amountRial` it parsed, unconverted.
  *
  * Same `db.insert/update/select` module-mutation mock as test/wallet.test.mjs
  * (ESM named exports are read-only from the importing side).
@@ -27,7 +34,7 @@ function pgUniqueViolation() {
 
 // ─── requestTopup ───────────────────────────────────────────────────────────
 
-test("requestTopup: مسیرِ موفق → یک ردیفِ pending با finalAmount = requestedAmount + suffix", async () => {
+test("requestTopup: مسیرِ موفق → requestedAmount/suffix/finalAmount همه ریال (×۱۰ نسبت به ورودیِ تومانی)", async () => {
   const inserted = [];
   db.insert = (table) => ({
     values: (value) => {
@@ -39,10 +46,10 @@ test("requestTopup: مسیرِ موفق → یک ردیفِ pending با finalAm
   const row = await mod.requestTopup("u1", 100000);
   assert.equal(inserted.length, 1);
   assert.equal(row.userId, "u1");
-  assert.equal(row.requestedAmount, 100000);
+  assert.equal(row.requestedAmount, 1_000_000, "۱۰۰,۰۰۰ تومان → ۱,۰۰۰,۰۰۰ ریال");
   assert.equal(row.status, "pending");
-  assert.ok(row.suffix >= 100 && row.suffix <= 999);
-  assert.equal(row.finalAmount, 100000 + row.suffix);
+  assert.ok(row.suffix >= 1000 && row.suffix <= 9999, "پسوند حالا ریال است (۱۰۰۰..۹۹۹۹)");
+  assert.equal(row.finalAmount, 1_000_000 + row.suffix);
 });
 
 test("requestTopup: برخوردِ یکتاییِ finalAmount (23505) → یک پسوندِ دیگر امتحان می‌کند", async () => {
@@ -59,7 +66,7 @@ test("requestTopup: برخوردِ یکتاییِ finalAmount (23505) → یک �
 
   const row = await mod.requestTopup("u1", 50000);
   assert.equal(calls, 3, "باید دقیقاً بعد از دو برخورد، بارِ سوم موفق شود");
-  assert.equal(row.requestedAmount, 50000);
+  assert.equal(row.requestedAmount, 500_000, "۵۰,۰۰۰ تومان → ۵۰۰,۰۰۰ ریال");
 });
 
 test("requestTopup: بعد از تمامِ تلاش‌ها هنوز 23505 → TopupSuffixExhaustedError", async () => {
@@ -150,11 +157,20 @@ const SAMPLE_DEPOSIT_SMS = [
   "۱۴۰۵.۰۶.۰۸",
 ].join("\n");
 
-test("parseBlubankDepositSms: نمونه‌ی واقعی → ریال درست پارس و به تومان تبدیل می‌شود (÷۱۰)", () => {
+test("parseBlubankDepositSms: نمونه‌ی واقعی → دقیقاً همان مبلغِ ریال، بدون هیچ تبدیلی", () => {
   const parsed = mod.parseBlubankDepositSms(SAMPLE_DEPOSIT_SMS);
   assert.ok(parsed);
   assert.equal(parsed.amountRial, 1_000_000);
-  assert.equal(parsed.amountToman, 100_000);
+  assert.equal("amountToman" in parsed, false, "IRFORGE_RIAL_MIGRATION Phase 2 — دیگر amountToman ندارد");
+});
+
+test("parseBlubankDepositSms: مبلغِ غیرگرد → بدونِ افتِ دقتِ ÷۱۰ (باگِ اصلیِ قبل از این مهاجرت)", () => {
+  // یک پیامکِ واقعی: ۲,۷۶۸,۶۵۴ ریال. قبلاً Math.round(2768654/10)=276865 ذخیره
+  // می‌شد و finalAmount هیچ‌وقت با آن برابر نمی‌شد (276865*10=2768650≠2768654).
+  const text = "بلو\nواریز پول\n فاطمه عزیز، 2,768,654 ریال به حساب شما نشست.\n موجودی: 9,999,999 ریال";
+  const parsed = mod.parseBlubankDepositSms(text);
+  assert.ok(parsed);
+  assert.equal(parsed.amountRial, 2_768_654);
 });
 
 test("parseBlubankDepositSms: پیامکی که «واریز» ندارد (مثلاً برداشت) → null", () => {
@@ -170,5 +186,5 @@ test("parseBlubankDepositSms: نامِ صاحبِ حساب متغیر است و 
   const text = "بلو\nواریز پول\n علی عزیز، 250,000 ریال به حساب شما نشست.\n موجودی: 900,000 ریال";
   const parsed = mod.parseBlubankDepositSms(text);
   assert.ok(parsed);
-  assert.equal(parsed.amountToman, 25_000);
+  assert.equal(parsed.amountRial, 250_000);
 });

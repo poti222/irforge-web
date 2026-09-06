@@ -45,6 +45,7 @@ import { writeAudit } from "../lib/audit";
 import { sendTelegramMessage } from "../lib/telegram";
 import { syncSessionDelete } from "../lib/sheetsSync";
 import { ensureWallet, creditWallet, deductWallet } from "../lib/wallet.js";
+import { tomanToRial, rialToToman } from "../lib/currency.js";
 import { createNotification, formatTomanFa } from "../lib/notify.js";
 
 const router = Router();
@@ -212,7 +213,8 @@ router.get("/superadmin/users/:id", requireSuperAdmin, async (req: any, res) => 
     const now = new Date();
     const planExpired = userPlan?.status === "active" && userPlan.expiresAt !== null && userPlan.expiresAt < now;
     const billing = {
-      walletBalance: wallet?.balance ?? 0,
+      // wallets.balance is Rial since IRFORGE_RIAL_MIGRATION Phase 2.
+      walletBalance: rialToToman(wallet?.balance ?? 0),
       planId: userPlan ? userPlan.planId : "free",
       planName: userPlan ? userPlan.planName : "Free",
       planStatus: planExpired ? "expired" : (userPlan?.status ?? "active"),
@@ -826,19 +828,26 @@ router.post("/superadmin/users/:id/wallet-adjust", requireSuperAdmin, async (req
       return;
     }
 
+    // `amount` above is the Toman figure the admin typed; creditWallet()/
+    // deductWallet() are Rial-native since IRFORGE_RIAL_MIGRATION Phase 2, so
+    // it's converted only at these two call sites. `balance` comes back Rial
+    // (the raw wallets.balance) — converted back to Toman below for the
+    // notification text and the audit-log metadata that
+    // irforge/src/lib/auditLog.ts's "wallet_adjusted" case renders.
     const note = `Admin ${direction}: ${reason}`;
-    let balance: number;
+    let balanceRial: number;
     if (direction === "credit") {
-      balance = await creditWallet(user.id, amount, note, "admin_credit");
+      balanceRial = await creditWallet(user.id, tomanToRial(amount), note, "admin_credit");
     } else {
-      const ok = await deductWallet(user.id, amount, note, db, "admin_debit");
+      const ok = await deductWallet(user.id, tomanToRial(amount), note, db, "admin_debit");
       if (!ok) {
         res.status(400).json({ error: "موجودی کیف پول کاربر کمتر از مبلغِ کسر است", code: "insufficient" });
         return;
       }
       const wallet = await ensureWallet(user.id);
-      balance = wallet.balance;
+      balanceRial = wallet.balance;
     }
+    const balance = rialToToman(balanceRial);
 
     await writeAudit({
       actorUserId: req.userId,

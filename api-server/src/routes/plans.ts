@@ -9,7 +9,8 @@ import { deductWallet } from "../lib/wallet.js";
 import { createNotification, formatTomanFa } from "../lib/notify.js";
 import { FREE_PLAN_LIMITS } from "../lib/planLimits.js";
 import { decidePlanChange } from "../lib/planChange.js";
-import { getCurrentExchangeRate, priceInToman, type CurrentExchangeRate } from "../lib/exchangeRate.js";
+import { getCurrentExchangeRate, priceInRial, type CurrentExchangeRate } from "../lib/exchangeRate.js";
+import { rialToToman, tomanToRial } from "../lib/currency.js";
 
 const router = Router();
 
@@ -21,16 +22,22 @@ const router = Router();
  * case where no exchange rate row exists yet. A plan with no `priceUsd`
  * (any pre-existing/admin-created plan) is unaffected — its flat `price`
  * is exactly as before.
+ *
+ * IRFORGE_RIAL_MIGRATION Phase 2 — `plan.price` (the raw DB column) is now
+ * Rial-denominated, and `priceInRial()` (was `priceInToman()`) already
+ * returns Rial too, so this always returns Rial regardless of branch. This
+ * is the figure `deductWallet()` (Rial-native) is charged; the API/JSON
+ * surface converts back to Toman in `formatPlan()` below.
  */
-function effectivePrice(plan: { price: number; priceUsd?: number | null }, rate: CurrentExchangeRate | null): number {
-  return plan.priceUsd != null && rate ? priceInToman(plan.priceUsd, rate.rialPerUsd) : plan.price;
+function effectivePriceRial(plan: { price: number; priceUsd?: number | null }, rate: CurrentExchangeRate | null): number {
+  return plan.priceUsd != null && rate ? priceInRial(plan.priceUsd, rate.rialPerUsd) : plan.price;
 }
 
 function formatPlan(p: any, rate: CurrentExchangeRate | null = null) {
   return {
     id: p.id,
     name: p.name,
-    price: effectivePrice(p, rate),
+    price: rialToToman(effectivePriceRial(p, rate)),
     priceUsd: p.priceUsd ?? null,
     interval: p.interval,
     features: p.features,
@@ -150,15 +157,17 @@ router.post("/plans/subscribe", requireAuth, async (req: any, res) => {
     let currentPrice = 0;
     if (currentActive) {
       const [currentPlan] = await db.select().from(plansTable).where(eq(plansTable.id, existing!.planId)).limit(1);
-      currentPrice = currentPlan ? effectivePrice(currentPlan, rate) : 0;
+      currentPrice = currentPlan ? effectivePriceRial(currentPlan, rate) : 0;
     }
 
     // همین‌جاست که «هم اشتراک، هم تمدید همیشه نرخ لحظه‌ای» تضمین می‌شود: این
     // مسیر تنها راهِ تغییرِ پلن است (بدون تمدید خودکار/زمان‌بندی‌شده — تصمیمِ
     // قفل‌شده با علی)، پس قیمتِ لحظه‌ی همین کلیک همان چیزی است که محاسبه و
     // کسر می‌شود، هرگز نرخِ منجمدشده‌ی زمانِ دیگری.
+    // `charge`/`currentPrice` are Rial from here on (IRFORGE_RIAL_MIGRATION
+    // Phase 2) — `decidePlanChange()` itself is unit-agnostic arithmetic.
     const { action, charge, nextExpiresAt, nextRenewsAt } = decidePlanChange(
-      { id: plan.id, price: effectivePrice(plan, rate), interval: plan.interval },
+      { id: plan.id, price: effectivePriceRial(plan, rate), interval: plan.interval },
       existing ?? null,
       currentPrice,
       now,
@@ -172,7 +181,7 @@ router.post("/plans/subscribe", requireAuth, async (req: any, res) => {
           type: "purchase_failed",
           severity: "warning",
           title: "تغییر پلن ناموفق بود",
-          message: `موجودی کیف پول برای ${action === "renew" ? "تمدید" : "ارتقای"} پلن «${plan.name}» به مبلغ ${formatTomanFa(charge)} کافی نبود.`,
+          message: `موجودی کیف پول برای ${action === "renew" ? "تمدید" : "ارتقای"} پلن «${plan.name}» به مبلغ ${formatTomanFa(rialToToman(charge))} کافی نبود.`,
         });
         res.status(400).json({ error: "Insufficient wallet balance", code: "insufficient" });
         return;
@@ -205,7 +214,7 @@ router.post("/plans/subscribe", requireAuth, async (req: any, res) => {
         type: "purchase_success",
         severity: "info",
         title: action === "renew" ? "پلن تمدید شد" : "پلن ارتقا یافت",
-        message: `پلن «${plan.name}» به مبلغ ${formatTomanFa(charge)} از کیف پول پرداخت شد.`,
+        message: `پلن «${plan.name}» به مبلغ ${formatTomanFa(rialToToman(charge))} از کیف پول پرداخت شد.`,
       });
     }
 
@@ -219,7 +228,7 @@ router.post("/plans/subscribe", requireAuth, async (req: any, res) => {
       expiresAt: userPlan.expiresAt?.toISOString() ?? null,
       renewsAt: userPlan.renewsAt?.toISOString() ?? null,
       action,
-      charged: charge,
+      charged: rialToToman(charge),
     });
   } catch (err) {
     logger.error({ err }, "Subscribe to plan error");
@@ -256,7 +265,9 @@ router.post("/admin/plans", requireSuperAdmin, async (req: any, res) => {
     const [plan] = await db.insert(plansTable).values({
       id: id?.trim() || slugify(name),
       name,
-      price: hasPrice ? Number(price) : 0,
+      // `price` comes in as Toman (admin-facing form) — `plansTable.price`
+      // itself is Rial since IRFORGE_RIAL_MIGRATION Phase 2.
+      price: hasPrice ? tomanToRial(Number(price)) : 0,
       priceUsd: hasPriceUsd ? Number(priceUsd) : null,
       interval: interval ?? "monthly",
       features: Array.isArray(features) ? features : [],
@@ -284,7 +295,8 @@ router.patch("/admin/plans/:planId", requireSuperAdmin, async (req: any, res) =>
     const update: Record<string, any> = {};
     const { name, price, priceUsd, interval, features, maxBots, maxPlugins, maxUsers, ramGb, cpuCores, popular } = req.body;
     if (name !== undefined) update.name = name;
-    if (price !== undefined) update.price = Number(price);
+    // Same Toman(admin form)→Rial(DB column) conversion as the create route above.
+    if (price !== undefined) update.price = tomanToRial(Number(price));
     // null explicitly turns a plan back into a flat-Toman plan (drops live pricing).
     if (priceUsd !== undefined) update.priceUsd = priceUsd === null ? null : Number(priceUsd);
     if (interval !== undefined) update.interval = interval;

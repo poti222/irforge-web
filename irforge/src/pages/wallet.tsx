@@ -186,8 +186,12 @@ function BlubankTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
               <Clock className="size-3.5 shrink-0" />
               {fa ? "منتظرِ تأییدِ خودکار — پس از پرداخت، چند لحظه صبر کنید." : "Awaiting automatic confirmation — please wait a bit after paying."}
             </div>
+            {/* IRFORGE_RIAL_MIGRATION Phase 2: order.finalAmount is Rial now
+                (the one field the API deliberately does NOT convert back to
+                Toman) — it's the exact figure Blubank's own Rial-denominated
+                input expects, so the label must say Rial, not Toman. */}
             <CopyField
-              label={fa ? "دقیقاً همین مبلغ را در بلوبانک وارد کنید (تومان)" : "Type exactly this amount into BluBank (Toman)"}
+              label={fa ? "دقیقاً همین مبلغ را در بلوبانک وارد کنید (ریال)" : "Type exactly this amount into BluBank (Rial)"}
               value={String(order.finalAmount)}
               fa={fa}
             />

@@ -18,8 +18,9 @@
  * forwarder) نمی‌تواند دوبار شارژ بزند: بارِ دوم چیزی برای آپدیت پیدا
  * نمی‌کند چون سفارش دیگر `pending` نیست.
  *
- * به کیف‌پول `requestedAmount` واریز می‌شود، نه `finalAmount` — پسوندِ
- * سه‌رقمی فقط برایِ تطبیق است، جزوِ پولِ واقعی نیست.
+ * به کیف‌پول `requestedAmount` واریز می‌شود، نه `finalAmount` — پسوند فقط
+ * برایِ تطبیق است، جزوِ پولِ واقعی نیست. (IRFORGE_RIAL_MIGRATION Phase 2:
+ * هر دو، مثلِ بقیه‌ی ستون‌هایِ `wallet_topups`، حالا ریال‌اند.)
  */
 import { Router } from "express";
 import crypto from "crypto";
@@ -31,6 +32,7 @@ import { writeAudit } from "../lib/audit";
 import { createNotification, formatTomanFa } from "../lib/notify";
 import { creditWallet } from "../lib/wallet";
 import { parseBlubankDepositSms } from "../lib/walletTopupService";
+import { rialToToman } from "../lib/currency";
 
 const router = Router();
 
@@ -66,10 +68,14 @@ router.post("/internal/wallet-topup/sms-webhook", authRateLimit("wallet_topup_sm
     let matchedTopup: WalletTopup | null = null;
 
     if (parsed) {
+      // Both sides are now Rial (IRFORGE_RIAL_MIGRATION Phase 2) — an exact
+      // equality match with no lossy Toman rounding on either side, which is
+      // the entire reason this migration exists (see parseBlubankDepositSms()'s
+      // header comment for the real non-round-amount case that used to miss).
       const [row] = await db.update(walletTopupsTable)
         .set({ status: "confirmed", confirmedAt: new Date(), matchedSmsId: smsLogId })
         .where(and(
-          eq(walletTopupsTable.finalAmount, parsed.amountToman),
+          eq(walletTopupsTable.finalAmount, parsed.amountRial),
           eq(walletTopupsTable.status, "pending"),
         ))
         .returning();
@@ -81,13 +87,15 @@ router.post("/internal/wallet-topup/sms-webhook", authRateLimit("wallet_topup_sm
       id: smsLogId,
       rawText,
       sender,
-      parsedAmount: parsed?.amountToman ?? null,
+      parsedAmount: parsed?.amountRial ?? null,
       matchedPaymentId: matchedTopup?.id ?? null,
       webhookIp: clientIp(req),
     });
 
     if (matchedTopup) {
-      const balance = await creditWallet(
+      // matchedTopup.requestedAmount is already Rial — creditWallet() is
+      // Rial-native, so this is a direct passthrough with zero conversion.
+      const balanceRial = await creditWallet(
         matchedTopup.userId,
         matchedTopup.requestedAmount,
         `شارژ خودکار کیف‌پول از طریق بلوبانک (سفارش ${matchedTopup.id})`,
@@ -99,7 +107,7 @@ router.post("/internal/wallet-topup/sms-webhook", authRateLimit("wallet_topup_sm
         type: "wallet_topup_confirmed",
         severity: "info",
         title: "شارژ کیف پول تأیید شد",
-        message: `واریز ${formatTomanFa(matchedTopup.requestedAmount)} با موفقیت تأیید شد و به کیف پول اضافه شد. موجودی فعلی: ${formatTomanFa(balance)}.`,
+        message: `واریز ${formatTomanFa(rialToToman(matchedTopup.requestedAmount))} با موفقیت تأیید شد و به کیف پول اضافه شد. موجودی فعلی: ${formatTomanFa(rialToToman(balanceRial))}.`,
         refId: matchedTopup.id,
       });
 
@@ -107,6 +115,7 @@ router.post("/internal/wallet-topup/sms-webhook", authRateLimit("wallet_topup_sm
         actorUserId: "system:sms-webhook",
         action: "wallet_topup_confirmed",
         targetUserId: matchedTopup.userId,
+        // Rial, kept raw for audit precision (not display-rounded).
         metadata: {
           topupId: matchedTopup.id,
           requestedAmount: matchedTopup.requestedAmount,
@@ -116,7 +125,7 @@ router.post("/internal/wallet-topup/sms-webhook", authRateLimit("wallet_topup_sm
         },
       });
     } else {
-      logger.warn({ parsedAmount: parsed?.amountToman ?? null, smsLogId }, "Wallet topup SMS: no matching pending order");
+      logger.warn({ parsedAmountRial: parsed?.amountRial ?? null, smsLogId }, "Wallet topup SMS: no matching pending order");
     }
 
     res.status(201).json({ ok: true, matched: !!matchedTopup });
