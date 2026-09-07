@@ -33,7 +33,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { formatToman } from "@/lib/format";
 import { useListProductCategories, useListProducts, type Product, type ProductCategory } from "@/hooks/use-products";
 import { productIcon } from "@/lib/product-icons";
-import { pluginName, pluginDescription } from "@/lib/plugin-text";
+import { productName, productDescription } from "@/lib/plugin-text";
 import { TrialDialog } from "@/components/bots/TrialDialog";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 
@@ -431,9 +431,9 @@ function CategoryProductGrid({
       {products.map((product) => (
         <MotionCard key={product.id} className="flex flex-col">
           <CardHeader>
-            <CardTitle className="text-lg">{pluginName(product, lang, product.id)}</CardTitle>
-            {pluginDescription(product, lang) && (
-              <p className="text-sm text-muted-foreground">{pluginDescription(product, lang)}</p>
+            <CardTitle className="text-lg">{productName(product, lang, product.id)}</CardTitle>
+            {productDescription(product, lang) && (
+              <p className="text-sm text-muted-foreground">{productDescription(product, lang)}</p>
             )}
           </CardHeader>
           <CardContent className="flex-1">

@@ -92,6 +92,38 @@ test("formatProduct: قیمت از ریالِ دیتابیس به تومانِ A
   assert.deepEqual(out.metadata, { ramGb: 1 });
 });
 
+// رگرسیونِ باگِ marketplace_items (Phase 6): آنجا یک ستونِ تکی بود که همیشه
+// نوشته‌ی فارسیِ sync را می‌گرفت، پس کاربرِ انگلیسی هم فارسی می‌دید.
+// products.name/nameFa و description/descriptionFa از ابتدا دو ستونِ جدا
+// طراحی شدند (PROGRESS.md، فازِ ۱) — این تست قفل می‌کند که formatProduct()
+// این دو زبان را واقعاً جدا نگه می‌دارد و با هم قاطی/جایگزین نمی‌کند، حتی
+// وقتی هر دو مقدار دارند و حتی وقتی یکی خالی است.
+test("formatProduct: name/nameFa و description/descriptionFa واقعاً دو فیلدِ جدا می‌مانند (رگرسیونِ باگِ marketplace_items)", () => {
+  const row = {
+    id: "x", categoryId: "api", name: "API Access", nameFa: "دسترسی API",
+    description: "Programmatic access", descriptionFa: "دسترسیِ برنامه‌نویسی",
+    price: 0, isActive: true, icon: null, sortOrder: 0, metadata: {},
+  };
+  const out = formatProduct(row);
+  assert.equal(out.name, "API Access");
+  assert.equal(out.nameFa, "دسترسی API");
+  assert.notEqual(out.name, out.nameFa, "name و nameFa نباید به یک مقدار collapse شوند");
+  assert.equal(out.description, "Programmatic access");
+  assert.equal(out.descriptionFa, "دسترسیِ برنامه‌نویسی");
+  assert.notEqual(out.description, out.descriptionFa);
+});
+
+test("formatProduct: nameFa/descriptionFa خالی، همان‌طور خالی برمی‌گردد — نه با name جایگزین/پر می‌شود (fallback وظیفه‌ی فرانت است، نه این تابع)", () => {
+  const row = {
+    id: "y", categoryId: "api", name: "Beta Feature", nameFa: "",
+    description: "", descriptionFa: "", price: 0, isActive: true,
+    icon: null, sortOrder: 0, metadata: {},
+  };
+  const out = formatProduct(row);
+  assert.equal(out.name, "Beta Feature");
+  assert.equal(out.nameFa, "", "formatProduct نباید خودش name را به‌جایِ nameFaی خالی بگذارد");
+});
+
 test("formatCategory: فیلدهای عمومی را بدونِ تغییر منتقل می‌کند", () => {
   const row = { id: "bot", labelFa: "بات", labelEn: "Bot", icon: "Bot", sortOrder: 0, isActive: true };
   assert.deepEqual(formatCategory(row), row);

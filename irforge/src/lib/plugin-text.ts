@@ -36,3 +36,36 @@ export function pluginName(plugin: PluginTextSource, lang: string, fallback = ""
 export function pluginDescription(plugin: PluginTextSource, lang: string): string {
   return pick(plugin.description_fa, plugin.description, lang === "fa");
 }
+
+/**
+ * IRFORGE_PRODUCTS_PHASES_3_TO_6_PROMPT Phase 6: `products` rows come back
+ * from the API as `{name, nameFa, description, descriptionFa}` (camelCase —
+ * routes/products.ts's `formatProduct()`, matching this whole repo's REST
+ * convention), not the snake_case `{name_fa, description_fa}` plugin
+ * manifests use above. `PluginTextSource`'s fields are all optional, so
+ * TypeScript accepts a `Product` passed straight into `pluginName()`/
+ * `pluginDescription()` with zero error — every field it reads (`name_fa`,
+ * `description_fa`) is silently `undefined`, and the fa/en fallback
+ * degrades exactly like the `marketplace_items` bug this file's own header
+ * comment cites: an English-language viewer would see `name` fine (English
+ * is the fallback branch), but a Farsi viewer would see `name` too, not
+ * `nameFa` — the opposite direction of that bug, same root cause (the two
+ * language columns not lining up with what the picker function reads).
+ * `productName()`/`productDescription()` below are the camelCase-aware
+ * counterparts — the correct thing to call for anything shaped like a
+ * `products` row.
+ */
+export type ProductTextSource = {
+  name?: string | null;
+  nameFa?: string | null;
+  description?: string | null;
+  descriptionFa?: string | null;
+};
+
+export function productName(product: ProductTextSource, lang: string, fallback = ""): string {
+  return pick(product.nameFa, product.name, lang === "fa") || fallback;
+}
+
+export function productDescription(product: ProductTextSource, lang: string): string {
+  return pick(product.descriptionFa, product.description, lang === "fa");
+}
