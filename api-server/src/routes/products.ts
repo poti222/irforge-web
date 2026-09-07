@@ -46,6 +46,35 @@ function coerceMetadata(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+const BOT_CATEGORY_ID = "bot";
+
+/**
+ * IRFORGE_PRODUCTS_PHASES_3_TO_6_PROMPT Phase 4, section D: the "bot"
+ * category's product roster is fixed at exactly the two rows Phase 2 seeded
+ * (Standard/Pro, id="standard"/"pro") — `bots.tier`/`buildSpec.tierId` and
+ * `getBotTierProduct()` all assume those two literal ids exist and nothing
+ * else does. A third bot-category product would be a real row that can
+ * never actually be charged through, so POST/DELETE reject it outright.
+ */
+function isBotCategoryId(categoryId: unknown): boolean {
+  return categoryId === BOT_CATEGORY_ID;
+}
+
+/**
+ * PATCH guard for the same rule: a product that is (or would become, via a
+ * `categoryId` change) a bot-category product may only have its `price`
+ * touched — not `isActive` (soft-remove/add-a-third-plan by another name),
+ * not `categoryId` (smuggle a plan in/out of the category), not name/desc/
+ * icon/metadata either, since the prompt's own wording is "only editing
+ * ... price is allowed", not "price plus cosmetic fields". Returns the
+ * disallowed keys actually present in the body, or [] if the request is fine.
+ */
+function botCategoryPatchViolation(existingCategoryId: string, body: Record<string, unknown>): string[] {
+  const targetCategoryId = body.categoryId !== undefined ? body.categoryId : existingCategoryId;
+  if (existingCategoryId !== BOT_CATEGORY_ID && !isBotCategoryId(targetCategoryId)) return [];
+  return Object.keys(body).filter((k) => k !== "price");
+}
+
 function formatCategory(c: typeof productCategoriesTable.$inferSelect) {
   return {
     id: c.id,
@@ -236,6 +265,13 @@ router.post("/admin/products", requireSuperAdmin, async (req: any, res) => {
       res.status(400).json({ error: "name and categoryId are required" });
       return;
     }
+    if (isBotCategoryId(categoryId)) {
+      res.status(403).json({
+        error: "دسته‌ی «بات» ثابت است (فقط Standard/Pro): افزودنِ پلنِ سوم مجاز نیست.",
+        code: "bot_category_locked",
+      });
+      return;
+    }
     let priceToman: number;
     try {
       priceToman = parsePriceToman(price);
@@ -277,8 +313,21 @@ router.post("/admin/products", requireSuperAdmin, async (req: any, res) => {
 // PATCH /api/admin/products/:id
 router.patch("/admin/products/:id", requireSuperAdmin, async (req: any, res) => {
   try {
+    const [existing] = await db.select({ categoryId: productsTable.categoryId }).from(productsTable)
+      .where(eq(productsTable.id, req.params.id)).limit(1);
+    if (!existing) { res.status(404).json({ error: "Product not found" }); return; }
+
+    const body = req.body ?? {};
+    if (botCategoryPatchViolation(existing.categoryId, body).length > 0) {
+      res.status(403).json({
+        error: "دسته‌ی «بات» ثابت است: فقط قیمتِ Standard/Pro قابل‌ویرایش است؛ نام، فعال‌سازی یا جابه‌جاییِ دسته مجاز نیست.",
+        code: "bot_category_locked",
+      });
+      return;
+    }
+
     const update: Record<string, any> = {};
-    const { categoryId, name, nameFa, description, descriptionFa, price, isActive, icon, sortOrder, metadata } = req.body ?? {};
+    const { categoryId, name, nameFa, description, descriptionFa, price, isActive, icon, sortOrder, metadata } = body;
     if (categoryId !== undefined) {
       const [category] = await db.select({ id: productCategoriesTable.id }).from(productCategoriesTable)
         .where(eq(productCategoriesTable.id, categoryId)).limit(1);
@@ -318,9 +367,16 @@ router.patch("/admin/products/:id", requireSuperAdmin, async (req: any, res) => 
 // DELETE /api/admin/products/:id
 router.delete("/admin/products/:id", requireSuperAdmin, async (req: any, res) => {
   try {
-    const [product] = await db.select({ id: productsTable.id }).from(productsTable)
+    const [product] = await db.select({ id: productsTable.id, categoryId: productsTable.categoryId }).from(productsTable)
       .where(eq(productsTable.id, req.params.id)).limit(1);
     if (!product) { res.status(404).json({ error: "Product not found" }); return; }
+    if (isBotCategoryId(product.categoryId)) {
+      res.status(403).json({
+        error: "دسته‌ی «بات» ثابت است (فقط Standard/Pro): حذفِ محصولاتِ این دسته مجاز نیست.",
+        code: "bot_category_locked",
+      });
+      return;
+    }
     await db.delete(productsTable).where(eq(productsTable.id, req.params.id));
     res.status(204).end();
   } catch (err) {
@@ -329,6 +385,9 @@ router.delete("/admin/products/:id", requireSuperAdmin, async (req: any, res) =>
   }
 });
 
-export const __testables = { slugify, parsePriceToman, coerceMetadata, formatProduct, formatCategory };
+export const __testables = {
+  slugify, parsePriceToman, coerceMetadata, formatProduct, formatCategory,
+  isBotCategoryId, botCategoryPatchViolation,
+};
 
 export default router;

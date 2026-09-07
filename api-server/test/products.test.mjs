@@ -27,7 +27,10 @@ import fs from "node:fs";
 process.env.DATABASE_URL ??= "postgresql://test:test@127.0.0.1:1/testdb";
 
 const { __testables } = await import("../src/routes/products.ts");
-const { slugify, parsePriceToman, coerceMetadata, formatProduct, formatCategory } = __testables;
+const {
+  slugify, parsePriceToman, coerceMetadata, formatProduct, formatCategory,
+  isBotCategoryId, botCategoryPatchViolation,
+} = __testables;
 
 // ─── slugify ────────────────────────────────────────────────────────────────
 
@@ -123,4 +126,38 @@ test("سیدِ اولیه: metadataی محصولاتِ بات، maxFreePlugins �
   const block = migrateSource.split("INSERT INTO products")[1]?.split("ON CONFLICT")[0] ?? "";
   assert.ok(block.includes("maxFreePlugins"), "maxFreePlugins در metadataی سید پیدا نشد");
   assert.ok(!block.includes('"maxPlugins"'), "نامِ قدیمیِ maxPlugins نباید در metadataی محصولِ بات باقی مانده باشد");
+});
+
+// ─── isBotCategoryId / botCategoryPatchViolation (Phase 4، بخشِ D) ───────────
+// دسته‌ی «بات» ثابت است: دقیقاً همان دو محصولِ Standard/Pro که Phase 2 seed
+// کرده — نه پلنِ سوم، نه ویرایشِ فیلدهایی جز قیمت.
+
+test("isBotCategoryId: فقط رشته‌ی دقیقِ 'bot' را تشخیص می‌دهد", () => {
+  assert.equal(isBotCategoryId("bot"), true);
+  assert.equal(isBotCategoryId("virtual_account"), false);
+  assert.equal(isBotCategoryId(undefined), false);
+  assert.equal(isBotCategoryId(null), false);
+});
+
+test("botCategoryPatchViolation: محصولِ دسته‌ی بات — تغییرِ فقط price مجاز است", () => {
+  assert.deepEqual(botCategoryPatchViolation("bot", { price: 600000 }), []);
+});
+
+test("botCategoryPatchViolation: محصولِ دسته‌ی بات — تغییرِ isActive رد می‌شود (حذفِ نرم/افزودنِ پلنِ سوم)", () => {
+  assert.deepEqual(botCategoryPatchViolation("bot", { isActive: false }), ["isActive"]);
+  assert.deepEqual(botCategoryPatchViolation("bot", { isActive: true }), ["isActive"]);
+});
+
+test("botCategoryPatchViolation: محصولِ دسته‌ی بات — تغییرِ name/categoryId/metadata همراهِ price هم رد می‌شود", () => {
+  const violation = botCategoryPatchViolation("bot", { price: 600000, name: "New name", categoryId: "api" });
+  assert.deepEqual(violation.sort(), ["categoryId", "name"]);
+});
+
+test("botCategoryPatchViolation: محصولِ یک دسته‌ی دیگر که با این درخواست به «بات» منتقل می‌شود هم قفل می‌خورد", () => {
+  const violation = botCategoryPatchViolation("api", { categoryId: "bot", name: "x" });
+  assert.deepEqual(violation.sort(), ["categoryId", "name"]);
+});
+
+test("botCategoryPatchViolation: محصولِ دسته‌های دیگر آزادانه ویرایش می‌شود", () => {
+  assert.deepEqual(botCategoryPatchViolation("virtual_account", { name: "x", price: 1, isActive: false }), []);
 });

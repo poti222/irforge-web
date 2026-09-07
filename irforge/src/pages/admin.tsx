@@ -16,6 +16,7 @@ import { AllBotsTable, ADMIN_BOTS_KEY } from "@/components/admin/AllBotsTable";
 import { PaymentApprovals, WALLET_KEY } from "@/components/admin/PaymentApprovals";
 import { UsersTable } from "@/components/admin/UsersTable";
 import { PlansManager, ADMIN_PLANS_KEY } from "@/components/admin/PlansManager";
+import { ProductsManager, ADMIN_PRODUCTS_KEY, ADMIN_PRODUCT_CATEGORIES_KEY } from "@/components/admin/ProductsManager";
 import { ExchangeRateSettings } from "@/components/admin/ExchangeRateSettings";
 import { AnnouncementsManager } from "@/components/admin/AnnouncementsManager";
 import { UpdatesManager, ADMIN_UPDATES_KEY } from "@/components/admin/UpdatesManager";
@@ -25,7 +26,7 @@ import { SupportLinksSettings, ADMIN_SUPPORT_LINKS_KEY } from "@/components/admi
 import { CurrencyDisplaySettings, ADMIN_CURRENCY_DISPLAY_KEY } from "@/components/admin/CurrencyDisplaySettings";
 import { CaptchaSettings, ADMIN_CAPTCHA_KEY } from "@/components/admin/CaptchaSettings";
 import { PluginReleaseNotesManager, ADMIN_PLUGIN_RELEASE_NOTES_KEY } from "@/components/admin/PluginReleaseNotesManager";
-import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, Percent, Sparkles, UserPlus, LifeBuoy, Blocks } from "lucide-react";
+import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, ShoppingBag, Percent, Sparkles, UserPlus, LifeBuoy, Blocks } from "lucide-react";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
 
@@ -38,6 +39,7 @@ const TAB_KEYS: Record<string, QueryKey[]> = {
   users: [getAdminListUsersQueryKey()],
   payments: [WALLET_KEY],
   plans: [ADMIN_PLANS_KEY, getListPlansQueryKey()],
+  products: [ADMIN_PRODUCTS_KEY, ADMIN_PRODUCT_CATEGORIES_KEY],
   announcements: [getListAnnouncementsQueryKey()],
   updates: [ADMIN_UPDATES_KEY],
   pluginReleaseNotes: [ADMIN_PLUGIN_RELEASE_NOTES_KEY],
@@ -93,6 +95,7 @@ export default function Admin() {
           <TabsTrigger value="users"><Users className="me-2 h-4 w-4" /> {fa ? "کاربران" : "Users"}</TabsTrigger>
           {isSuperAdmin && <TabsTrigger value="payments"><CreditCard className="me-2 h-4 w-4" /> {fa ? "پرداخت‌ها" : "Payments"}</TabsTrigger>}
           {isSuperAdmin && <TabsTrigger value="plans"><Package className="me-2 h-4 w-4" /> {fa ? "پلن‌ها" : "Plans"}</TabsTrigger>}
+          {isSuperAdmin && <TabsTrigger value="products"><ShoppingBag className="me-2 h-4 w-4" /> {fa ? "محصولات" : "Products"}</TabsTrigger>}
           <TabsTrigger value="announcements"><Megaphone className="me-2 h-4 w-4" /> {fa ? "اعلان‌ها" : "Announcements"}</TabsTrigger>
           <TabsTrigger value="updates"><Sparkles className="me-2 h-4 w-4" /> {fa ? "آپدیت‌ها" : "Updates"}</TabsTrigger>
           {isSuperAdmin && <TabsTrigger value="pluginReleaseNotes"><Blocks className="me-2 h-4 w-4" /> {fa ? "یادداشتِ پلاگین‌ها" : "Plugin notes"}</TabsTrigger>}
@@ -109,6 +112,11 @@ export default function Admin() {
           <TabsContent value="plans" className="space-y-4">
             <ExchangeRateSettings />
             <PlansManager />
+          </TabsContent>
+        )}
+        {isSuperAdmin && (
+          <TabsContent value="products" className="space-y-4">
+            <ProductsManager />
           </TabsContent>
         )}
         <TabsContent value="announcements"><AnnouncementsManager /></TabsContent>
