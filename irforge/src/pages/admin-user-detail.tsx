@@ -27,7 +27,7 @@ import { useLanguage } from "@/hooks/use-language";
 import { isRtlLang } from "@/lib/i18n";
 import { auditActionLabel, describeAuditDetail } from "@/lib/auditLog";
 import { useAuth } from "@/contexts/AuthContext";
-import { getBotTier } from "@/lib/bot-tiers";
+import { useListProducts } from "@/hooks/use-products";
 
 /**
  * جزئیات کاربر برای super_admin.
@@ -130,6 +130,10 @@ export default function AdminUserDetail() {
     queryFn: () => customFetch<AdminUserBot[]>(`/api/superadmin/users/${id}/bots`),
     enabled: Boolean(id),
   });
+  // IRFORGE_PRODUCTS_PHASES_3_TO_6_PROMPT Phase 5: the tier-name lookup below
+  // used to read bot-tiers.ts's hardcoded getBotTier() — now the same
+  // products table Phase 2 charges from (products.id="standard"/"pro").
+  const { data: botProducts } = useListProducts("bot");
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: key });
@@ -569,7 +573,8 @@ export default function AdminUserDetail() {
                 </p>
               ) : (
                 bots.map((b) => {
-                  const tierLabel = b.tier ? getBotTier(b.tier)?.name[fa ? "fa" : "en"] : null;
+                  const tierProduct = b.tier ? botProducts?.find((p) => p.id === b.tier) : null;
+                  const tierLabel = tierProduct ? (fa ? tierProduct.nameFa || tierProduct.name : tierProduct.name) : null;
                   return (
                     <div
                       key={b.id}

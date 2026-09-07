@@ -28,7 +28,6 @@ import { BotChatMockup } from "@/components/landing/BotChatMockup";
 import { MiniAnalyticsChart } from "@/components/landing/MiniAnalyticsChart";
 import { PluginRail } from "@/components/landing/PluginRail";
 import { FaqSection } from "@/components/landing/FaqSection";
-import { LandingPlans } from "@/components/landing/LandingPlans";
 import { PublicFooter } from "@/components/layout/public-footer";
 import { useLanguage } from "@/hooks/use-language";
 import { articleFor, type ArticleSlug } from "@/lib/learn-content";
@@ -386,13 +385,14 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* ── Plans ───────────────────────────────────────────────────────
-            بعد از «چه چیزی می‌گیری» و قبل از سؤال‌های متداول: کسی که تا اینجا
-            آمده، سؤال بعدی‌اش قیمت است. */}
-        <LandingPlans reduce={!!reduce} />
-
         {/* ── FAQ ─────────────────────────────────────────────────────────
-            Also the source of the FAQPage schema on this page. */}
+            Also the source of the FAQPage schema on this page. IRFORGE_
+            PRODUCTS_PHASES_3_TO_6_PROMPT Phase 5: the price-list section
+            (`<LandingPlans />`) used to sit here — removed along with the
+            file itself since prices now live behind /products, not the
+            landing page; FaqSection's own `border-t` still draws the
+            divider against the feature section above, so no extra spacing
+            adjustment was needed once the block was gone. */}
         <FaqSection reduce={!!reduce} stagger={reduce || isMobile ? 0 : 0.08} />
 
         {/* ── CTA ─────────────────────────────────────────────────────────── */}

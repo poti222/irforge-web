@@ -138,8 +138,8 @@ export default function BuyBotDetail() {
     );
   }
 
-  // بستهٔ سفارشی فعلاً موقتاً غیرفعال است — نه فقط از buy-bot.tsx/LandingPlans.tsx
-  // پنهان، بلکه اگر کسی مستقیم این آدرس را باز کند هم همین پیام را می‌بیند.
+  // بستهٔ سفارشی فعلاً موقتاً غیرفعال است — نه فقط از buy-bot.tsx پنهان،
+  // بلکه اگر کسی مستقیم این آدرس را باز کند هم همین پیام را می‌بیند.
   if (isCustom) {
     return (
       <div className="mx-auto max-w-lg space-y-4 py-16 text-center">
