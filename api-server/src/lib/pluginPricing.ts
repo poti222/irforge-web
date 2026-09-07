@@ -1,8 +1,16 @@
 /**
  * lib/pluginPricing.ts — قیمت پلاگین‌ها و قیمت‌گذاری بات سفارشی.
  * ─────────────────────────────────────────────────────────────────────────────
- * **این فایل تنها منبع قیمت است.** نه فرانت، نه سبد خرید، نه هیچ‌جای دیگر
- * نباید عددی از خودش دربیاورد.
+ * **این فایل تنها منبع قیمتِ پلاگین‌ها و بات سفارشی است.** نه فرانت، نه سبد
+ * خرید، نه هیچ‌جای دیگر نباید عددی از خودش دربیاورد.
+ *
+ * قیمتِ پکیج‌های آماده (استاندارد/پرو) دیگر اینجا هاردکد نیست —
+ * IRFORGE_PRODUCTS_SECTION_PROMPT Phase 2 آن را به جدولِ `products` منتقل
+ * کرد (`getBotTierProduct()` پایینِ همین فایل)، دقیقاً برای همین دلیل: یک
+ * مسیرِ «فقط منبعِ نمایش عوض شود» ادمینی که از پنلِ تازه قیمتِ یک محصولِ
+ * بات را عوض می‌کند را ساکت نادیده می‌گرفت، چون سرور همچنان از یک مقدارِ
+ * هاردکدشده‌ی جدا شارژ می‌کرد — نگاه کن PROGRESS.md's `[products-section]
+ * Phase 1` برایِ توضیحِ کامل.
  *
  * چرا این‌قدر تأکید: `POST /bots/wallet-purchase` تا امروز `amount` را از
  * **کلاینت** می‌گرفت و همان را از کیف پول کم می‌کرد (کامنت خودش هم می‌گوید
@@ -20,6 +28,9 @@
  * فروش. پس یک پلاگین تازه در بات، بدون قیمت‌گذاری هم در سایت کار می‌کند و
  * فقط رایگان است — که رفتار بی‌خطرتری از «قابل خرید نیست» است.
  */
+import { db, productsTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+import { rialToToman } from "./currency.js";
 
 /** ریال؟ نه — تومان، همان واحدی که کل سایت با `formatToman` نشان می‌دهد. */
 export type Toman = number;
@@ -172,30 +183,21 @@ export function quoteCustomBuild(
 }
 
 /**
- * قیمت پلاگین‌های انتخاب‌شده روی یک پکیج *آماده* (نقره‌ای/طلایی/الماسی).
+ * قیمت پلاگین‌های انتخاب‌شده روی یک پکیج *آماده* (استاندارد/پرو).
  *
  * پکیج آماده قیمت ثابت دارد و منابعش هم ثابت است، پس فقط پلاگین‌ها به آن
  * اضافه می‌شوند.
- */
-/**
- * سقفِ تعداد پلاگینی که هنگام خرید روی هر پکیجِ آماده *رایگان* حساب می‌شود —
- * آینه‌ی `maxPlugins` در `irforge/src/lib/bot-tiers.ts` (همان الگوی
- * `BOT_TIER_PRICES` بالا؛ تست drift پایین همین فایل برابری‌شان را چک می‌کند).
  *
- * **همه‌ی پلاگین‌ها پولی‌اند** (جدولِ بالا) — این سقف دیگر «چند تا از
- * پلاگین‌های رایگان را می‌شود برداشت» نیست، بلکه «کدام‌ها را از میان
- * پولی‌ها به انتخابِ خودت رایگان حساب کنیم»: کاربر هر تعداد پلاگین که
- * بخواهد انتخاب می‌کند، و از میانشان تا همین سقف (به ترتیبِ همان انتخاب)
- * رایگان می‌شوند؛ باقی به قیمتِ خودشان اضافه می‌شوند. برخلافِ رفتارِ قبلی،
- * دیگر چیزی «کنار گذاشته» نمی‌شود — هرچه انتخاب شود نصب می‌شود، فقط بعضی
- * رایگان و بعضی پولی. «سفارشی» عمداً اینجا نیست: بات سفارشی سقفی برای
- * تعداد پلاگین ندارد (خودِ `bot-tiers.ts` هم چنین فیلدی برایش تعریف نکرده).
+ * سقفِ پلاگینِ رایگانِ هر پکیج دیگر اینجا هاردکد نیست — از
+ * `products.metadata.maxFreePlugins` می‌آید (`getBotTierProduct()` پایین‌تر).
+ * **همه‌ی پلاگین‌ها پولی‌اند** (جدولِ بالا) — این سقف «چند تا از پلاگین‌های
+ * رایگان را می‌شود برداشت» نیست، بلکه «کدام‌ها را از میانِ پولی‌ها به
+ * انتخابِ خودت رایگان حساب کنیم»: کاربر هر تعداد پلاگین که بخواهد انتخاب
+ * می‌کند، و از میانشان تا همین سقف (به ترتیبِ همان انتخاب) رایگان می‌شوند؛
+ * باقی به قیمتِ خودشان اضافه می‌شوند. هیچ‌کدام «کنار گذاشته» نمی‌شود — هرچه
+ * انتخاب شود نصب می‌شود، فقط بعضی رایگان و بعضی پولی. «سفارشی» عمداً این
+ * سقف را ندارد.
  */
-export const BOT_TIER_MAX_FREE_PLUGINS: Record<string, number> = {
-  standard: 3,
-  pro:      6,
-};
-
 export function quotePluginAddons(
   pluginIds: unknown,
   knownPlugins?: Iterable<string>,
@@ -231,18 +233,27 @@ export function quotePluginAddons(
 // ─── پکیج‌های آماده ─────────────────────────────────────────────────────────
 
 /**
- * قیمت پکیج‌های آماده.
+ * یک پکیجِ آماده (`category_id = 'bot'`) را از جدولِ `products` می‌خواند —
+ * `null` اگر `tierId` هیچ محصولِ فعالی در آن دسته نباشد (پکیجِ ناشناخته یا
+ * غیرفعال‌شده). قیمت به تومان برمی‌گردد چون بقیه‌ی این فایل (PLUGIN_PRICES،
+ * CUSTOM_BUILD) تومانی است و `resolvePurchasePrice()` باید همان قراردادِ
+ * خروجی را حفظ کند — تبدیل تومان↔ریال فقط همین‌جا، یک‌بار، اتفاق می‌افتد.
  *
- * آینه‌ی `price` در `irforge/src/lib/bot-tiers.ts` — که بقیه‌ی محتوای نمایشیِ
- * پکیج (امکانات، آیکون، شرح) را نگه می‌دارد و باید همان‌جا بماند. فقط عدد
- * قیمت اینجا هم لازم است، چون *سرور* باید بتواند مبلغ را حساب کند و نه
- * کلاینت. تست `pluginPricing.test.mjs` برابری این دو را چک می‌کند، پس عوض
- * کردن یکی بدون دیگری تست را می‌شکند.
+ * `PATCH /admin/bots/:botId/tier` و `POST /bots/:botId/upgrade-tier`
+ * (routes/bots.ts) هم مستقیماً از همین تابع استفاده می‌کنند — یک منبعِ
+ * واحد برایِ «این tierId معتبر است؟» و «قیمتش چقدر است؟»، نه سه‌جا جدا.
  */
-export const BOT_TIER_PRICES: Record<string, Toman> = {
-  standard: 500_000,
-  pro:      1_100_000,
-};
+export async function getBotTierProduct(
+  tierId: string,
+): Promise<{ id: string; priceToman: Toman; maxFreePlugins: number } | null> {
+  const [row] = await db.select().from(productsTable)
+    .where(and(eq(productsTable.categoryId, "bot"), eq(productsTable.id, tierId), eq(productsTable.isActive, true)))
+    .limit(1);
+  if (!row) return null;
+  const metadata = row.metadata ?? {};
+  const maxFreePlugins = typeof metadata.maxFreePlugins === "number" ? metadata.maxFreePlugins : Infinity;
+  return { id: row.id, priceToman: rialToToman(row.price), maxFreePlugins };
+}
 
 /** مشخصات ساختی که کلاینت همراه خرید می‌فرستد. */
 export type BuildSpec = {
@@ -276,11 +287,16 @@ export type ResolvedPrice = {
  * مسیر سوم عمداً حفظ شده: خریدهایی که از جای دیگری (بدون spec) می‌آیند نباید
  * با این تغییر بشکنند. ولی هر مسیری که این فاز اضافه می‌کند spec می‌فرستد،
  * پس در عمل قیمتش سروری است.
+ *
+ * IRFORGE_PRODUCTS_SECTION_PROMPT Phase 2 — پکیجِ آماده دیگر از یک جدولِ
+ * هاردکد نمی‌آید، از `getBotTierProduct()` (یک `SELECT`) می‌آید، پس این
+ * تابع async شد. هر سه فراخوانی‌اش در routes/bots.ts از قبل داخلِ یک
+ * route handlerِ async بودند، پس این فقط یک `await` است، نه بازطراحی.
  */
-export function resolvePurchasePrice(
+export async function resolvePurchasePrice(
   body: { amount?: unknown; buildSpec?: BuildSpec | null },
   knownPlugins?: Iterable<string>,
-): ResolvedPrice {
+): Promise<ResolvedPrice> {
   const spec = body.buildSpec;
 
   if (spec && spec.tierId === "custom") {
@@ -293,16 +309,15 @@ export function resolvePurchasePrice(
     };
   }
 
-  if (spec && spec.tierId && spec.tierId in BOT_TIER_PRICES) {
-    const tier = BOT_TIER_PRICES[spec.tierId];
-    const maxFreePlugins = BOT_TIER_MAX_FREE_PLUGINS[spec.tierId] ?? Infinity;
-    const addons = quotePluginAddons(spec.pluginIds, knownPlugins, maxFreePlugins);
+  const tierProduct = spec?.tierId ? await getBotTierProduct(spec.tierId) : null;
+  if (tierProduct) {
+    const addons = quotePluginAddons(spec!.pluginIds, knownPlugins, tierProduct.maxFreePlugins);
     return {
-      total: tier + addons.total,
+      total: tierProduct.priceToman + addons.total,
       source: "tier",
       pluginIds: addons.plugins.map((p) => p.id),
       droppedFreePluginIds: addons.droppedFreePluginIds,
-      breakdown: { tier, plugins: addons.total },
+      breakdown: { tier: tierProduct.priceToman, plugins: addons.total },
     };
   }
 

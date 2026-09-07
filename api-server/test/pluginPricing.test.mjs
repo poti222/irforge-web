@@ -8,9 +8,15 @@
  * قیمتش به رم، پردازنده و فهرست پلاگین‌های انتخابی بستگی دارد، یعنی هر کسی
  * می‌توانست بات کامل را با مبلغ صفر بخرد. تست‌های زیر همان مسیر را قفل می‌کنند.
  *
- * به‌علاوه یک محافظ drift: قیمت پکیج‌های آماده در دو جا نوشته شده (سرور برای
- * محاسبه، فرانت برای نمایش). این تست برابری‌شان را چک می‌کند، پس عوض کردن یکی
- * بدون دیگری قابل merge نیست.
+ * IRFORGE_PRODUCTS_SECTION_PROMPT Phase 2 — پکیجِ آماده (استاندارد/پرو) دیگر
+ * از یک ثابتِ هاردکد نمی‌آید، از جدولِ `products` می‌آید (`getBotTierProduct()`)،
+ * پس `resolvePurchasePrice()` async شد و این تست‌ها `db.select` را با یک
+ * fakeی کوچک جایگزین می‌کنند — همان ترکِ استانداردِ این مجموعه‌تست
+ * (`planLimits.test.mjs`/`platformSettings.test.mjs`: چون `@workspace/db` یک
+ * نمونه‌ی واقعیِ Drizzle است، `db.select` فقط برای طولِ هر تست عوض می‌شود، نه
+ * یک Postgresِ واقعی). محافظِ drift‌ِ قدیمی (مقایسه‌ی BOT_TIER_PRICES با
+ * bot-tiers.ts) از بین رفت چون آن ثابت دیگر وجود ندارد — یک منبعِ واحد
+ * (جدولِ products) دیگر چیزی برای drift‌کردن با آن ندارد.
  *
  * اجرا: pnpm --filter @workspace/api-server run test
  */
@@ -20,16 +26,45 @@ import fs from "node:fs";
 
 process.env.DATABASE_URL ??= "postgresql://test:test@127.0.0.1:1/testdb";
 
+const { db, productsTable } = await import("@workspace/db");
 const pricing = await import("../src/lib/pluginPricing.ts");
 const sync = await import("../src/lib/marketplaceSync.ts");
 
 const {
-  PLUGIN_PRICES, BOT_TIER_PRICES, BOT_TIER_MAX_FREE_PLUGINS, CUSTOM_BUILD,
-  pluginPrice, isPluginFree, quoteCustomBuild, quotePluginAddons, resolvePurchasePrice,
+  PLUGIN_PRICES, CUSTOM_BUILD,
+  pluginPrice, isPluginFree, quoteCustomBuild, quotePluginAddons, resolvePurchasePrice, getBotTierProduct,
 } = pricing;
 
 /** یک id پلاگین رایگان که در `PLUGIN_PRICES` نیست (پس `pluginPrice` صفر می‌دهد). */
 const FREE_PLUGIN_IDS = ["freeplug-a", "freeplug-b", "freeplug-c", "freeplug-d"];
+
+// همان دو عددِ قدیمیِ BOT_TIER_PRICES، حالا فقط برای خواناییِ تست‌ها محلی —
+// منبعِ واقعیِ قیمت دیگر همین‌جا نیست، جدولِ seed شده‌ی SEEDED_BOT_PRODUCTS است.
+const STANDARD_PRICE_TOMAN = 500_000;
+const PRO_PRICE_TOMAN = 1_100_000;
+
+/** بازتابِ سیدِ اولیه‌ی migrate.mjs (PROGRESS.md's Phase 1/2) — همان دو ردیفِ واقعی، برای اینکه تست‌ها همان چیزی را می‌سنجند که در پروداکشن هم واقعاً نشسته. */
+const SEEDED_BOT_PRODUCTS = {
+  standard: { id: "standard", categoryId: "bot", price: 5_000_000, isActive: true, metadata: { maxFreePlugins: 3 } },
+  pro:      { id: "pro",      categoryId: "bot", price: 11_000_000, isActive: true, metadata: { maxFreePlugins: 6 } },
+};
+
+/**
+ * `getBotTierProduct()` هر بار دقیقاً یک `tierId` می‌خواهد، پس این fake نیازی
+ * به parseکردنِ AST شرطِ Drizzleی `.where()` ندارد — کافی است بداند برای
+ * *این* درخواست کدام ردیف (یا هیچ‌کدام) باید برگردد. هر تست، قبل از
+ * فراخوانی، دقیقاً همان ردیفی را نصب می‌کند که انتظار دارد `getBotTierProduct`
+ * ببیند — همان سادگیِ فِیکِ `planLimits.test.mjs`.
+ */
+function installBotTierRow(row) {
+  db.select = () => ({
+    from: (table) => ({
+      where: () => ({
+        limit: async () => (table === productsTable && row ? [row] : []),
+      }),
+    }),
+  });
+}
 
 // ─── قیمت پلاگین ────────────────────────────────────────────────────────────
 
@@ -72,7 +107,7 @@ test("سفارشیِ حداقلی = قیمت پایه", () => {
 test("سفارشیِ حداقلی ارزان‌تر از ارزان‌ترین پکیجِ آماده درنمی‌آید", () => {
   // وگرنه پکیج‌های آماده بی‌معنی می‌شدند: همه سفارشیِ حداقلی می‌خریدند.
   const minimum = quoteCustomBuild({ ramGb: 1, cpuCores: 1, pluginIds: [] }).total;
-  assert.ok(minimum >= BOT_TIER_PRICES.standard);
+  assert.ok(minimum >= STANDARD_PRICE_TOMAN);
 });
 
 test("منابع بیشتر، قیمت را بالا می‌برد — دقیقاً به اندازه‌ی مازاد", () => {
@@ -130,8 +165,8 @@ test("پلاگینی که در کاتالوگ نیست، کنار گذاشته �
 
 // ─── مبلغ قابل پرداخت ───────────────────────────────────────────────────────
 
-test("سفارشی: مبلغ از spec حساب می‌شود و `amount` کلاینت نادیده گرفته می‌شود", () => {
-  const resolved = resolvePurchasePrice({
+test("سفارشی: مبلغ از spec حساب می‌شود و `amount` کلاینت نادیده گرفته می‌شود", async () => {
+  const resolved = await resolvePurchasePrice({
     amount: 0, // ← تلاش برای صفر کردن
     buildSpec: { tierId: "custom", ramGb: 4, cpuCores: 4, pluginIds: ["catalog", "wallet"] },
   });
@@ -142,43 +177,55 @@ test("سفارشی: مبلغ از spec حساب می‌شود و `amount` کلا
   assert.ok(resolved.total > 0, "مبلغ صفرِ فرستاده‌شده نباید پذیرفته شود");
 });
 
-test("پکیج آماده: قیمت پکیج + پلاگین‌ها، نه `amount` کلاینت", () => {
+test("پکیج آماده: قیمت پکیج + پلاگین‌ها، نه `amount` کلاینت", async () => {
   // پرو سهمیه‌ی ۶ پلاگینِ رایگان دارد؛ ۶ تای اول اینجا آن سهمیه را پر
   // می‌کنند تا "ticket" (هفتمی) واقعاً پولی حساب شود — همان چیزی که این
   // تست می‌خواهد نشان دهد: مبلغ از amount کلاینت نمی‌آید.
+  installBotTierRow(SEEDED_BOT_PRODUCTS.pro);
   const filler = ["survey", "giveaway", "feedback", "waitlist", "files", "discount"];
-  const resolved = resolvePurchasePrice({
+  const resolved = await resolvePurchasePrice({
     amount: 1,
     buildSpec: { tierId: "pro", pluginIds: [...filler, "ticket"] },
   });
   assert.equal(resolved.source, "tier");
-  assert.equal(resolved.total, BOT_TIER_PRICES.pro + pluginPrice("ticket"));
+  assert.equal(resolved.total, PRO_PRICE_TOMAN + pluginPrice("ticket"));
 });
 
-test("بدون spec، مسیر قدیمی دست‌نخورده می‌ماند", () => {
+test("بدون spec، مسیر قدیمی دست‌نخورده می‌ماند", async () => {
   // خریدهایی که از جای دیگری می‌آیند نباید با این تغییر بشکنند.
-  const resolved = resolvePurchasePrice({ amount: 250_000 });
+  const resolved = await resolvePurchasePrice({ amount: 250_000 });
   assert.equal(resolved.source, "client-amount");
   assert.equal(resolved.total, 250_000);
   assert.deepEqual(resolved.pluginIds, []);
 });
 
-test("مبلغ منفی از کلاینت پذیرفته نمی‌شود", () => {
+test("مبلغ منفی از کلاینت پذیرفته نمی‌شود", async () => {
   // وگرنه «خرید» می‌توانست به کیف پول اضافه کند.
-  assert.equal(resolvePurchasePrice({ amount: -500_000 }).total, 0);
+  assert.equal((await resolvePurchasePrice({ amount: -500_000 })).total, 0);
 });
 
-test("پکیج ناشناخته به مسیر amount می‌افتد، نه به قیمت صفر", () => {
-  const resolved = resolvePurchasePrice({ amount: 99_000, buildSpec: { tierId: "platinum", pluginIds: [] } });
+test("پکیج ناشناخته به مسیر amount می‌افتد، نه به قیمت صفر", async () => {
+  installBotTierRow(null); // "platinum" هیچ‌وقت در products وجود نداشته
+  const resolved = await resolvePurchasePrice({ amount: 99_000, buildSpec: { tierId: "platinum", pluginIds: [] } });
   assert.equal(resolved.source, "client-amount");
   assert.equal(resolved.total, 99_000);
 });
 
-test("پلاگین‌های پرداخت‌شده همان‌هایی هستند که نصب می‌شوند", () => {
+test("پکیجِ غیرفعال هم مثلِ ناموجود رفتار می‌کند، نه اینکه قیمتِ آخرین‌بار را نگه دارد", async () => {
+  // IRFORGE_PRODUCTS_SECTION_PROMPT Phase 2 — getBotTierProduct() خودش
+  // isActive=true را در where شرط می‌کند، پس یک ردیفِ غیرفعال برای این fake
+  // یعنی «هیچ ردیفی برنگشت»، دقیقاً مثلِ tierId ناموجود.
+  installBotTierRow(null);
+  const resolved = await resolvePurchasePrice({ amount: 42_000, buildSpec: { tierId: "standard", pluginIds: [] } });
+  assert.equal(resolved.source, "client-amount");
+  assert.equal(resolved.total, 42_000);
+});
+
+test("پلاگین‌های پرداخت‌شده همان‌هایی هستند که نصب می‌شوند", async () => {
   // روت خرید از همین فهرست برای ساختن ردیف‌های installed_plugins استفاده
   // می‌کند؛ اگر با آنچه حساب شده یکی نبود، کاربر پول چیزی را می‌داد که نصب
   // نمی‌شد (یا برعکس).
-  const resolved = resolvePurchasePrice({
+  const resolved = await resolvePurchasePrice({
     buildSpec: { tierId: "custom", ramGb: 2, cpuCores: 2, pluginIds: ["booking", "crm", "booking"] },
   });
   assert.deepEqual(resolved.pluginIds.sort(), ["booking", "crm"]);
@@ -233,9 +280,10 @@ test("quotePluginAddons: بدون سقف مشخص، همه‌ی رایگان‌�
   assert.equal(addons.plugins.length, FREE_PLUGIN_IDS.length);
 });
 
-test("resolvePurchasePrice: پکیجِ استاندارد اولین ۳ پلاگینِ انتخابی را رایگان می‌کند، نه بیشتر", () => {
+test("resolvePurchasePrice: پکیجِ استاندارد اولین ۳ پلاگینِ انتخابی را رایگان می‌کند، نه بیشتر", async () => {
+  installBotTierRow(SEEDED_BOT_PRODUCTS.standard);
   const chosen = ["survey", "giveaway", "feedback", "loyalty", "crm"]; // ۵ تا، سقف ۳
-  const resolved = resolvePurchasePrice({
+  const resolved = await resolvePurchasePrice({
     buildSpec: { tierId: "standard", pluginIds: chosen },
   });
   assert.equal(resolved.source, "tier");
@@ -243,66 +291,46 @@ test("resolvePurchasePrice: پکیجِ استاندارد اولین ۳ پلاگ
   assert.equal(resolved.pluginIds.length, chosen.length);
   assert.deepEqual(resolved.droppedFreePluginIds, []);
   // فقط ۲ تای آخر (بعد از سهمیه‌ی ۳ تایی) پولی حساب می‌شوند.
-  assert.equal(resolved.total, BOT_TIER_PRICES.standard + pluginPrice("loyalty") + pluginPrice("crm"));
+  assert.equal(resolved.total, STANDARD_PRICE_TOMAN + pluginPrice("loyalty") + pluginPrice("crm"));
 });
 
-test("resolvePurchasePrice: انتخابِ کمتر یا برابرِ سهمیه یعنی همه‌شان رایگان‌اند", () => {
-  const resolved = resolvePurchasePrice({
+test("resolvePurchasePrice: انتخابِ کمتر یا برابرِ سهمیه یعنی همه‌شان رایگان‌اند", async () => {
+  installBotTierRow(SEEDED_BOT_PRODUCTS.pro);
+  const resolved = await resolvePurchasePrice({
     buildSpec: { tierId: "pro", pluginIds: ["survey", "giveaway"] }, // سقفِ پرو ۶ است
   });
-  assert.equal(resolved.total, BOT_TIER_PRICES.pro);
+  assert.equal(resolved.total, PRO_PRICE_TOMAN);
   assert.equal(resolved.pluginIds.length, 2);
 });
 
-test("resolvePurchasePrice: بات سفارشی سقفِ پلاگین رایگان ندارد", () => {
+test("resolvePurchasePrice: بات سفارشی سقفِ پلاگین رایگان ندارد", async () => {
   // «سفارشی» عمداً از این سقف مستثناست — قبلاً هم تست‌های بالا با بات سفارشی
   // چند پلاگین پولی جمع می‌زدند بدون هیچ محدودیتی؛ اینجا با رایگان هم همینه.
-  const resolved = resolvePurchasePrice({
+  const resolved = await resolvePurchasePrice({
     buildSpec: { tierId: "custom", ramGb: 1, cpuCores: 1, pluginIds: FREE_PLUGIN_IDS },
   });
   assert.equal(resolved.pluginIds.length, FREE_PLUGIN_IDS.length);
 });
 
-// ─── محافظ drift بین سرور و فرانت ───────────────────────────────────────────
+// ─── getBotTierProduct ──────────────────────────────────────────────────────
 
-test("قیمت پکیج‌های آماده در سرور و فرانت یکی است", () => {
-  // سرور برای محاسبه‌ی مبلغ از BOT_TIER_PRICES استفاده می‌کند و فرانت برای
-  // نمایش از bot-tiers.ts. اگر از هم فاصله بگیرند، کاربر یک عدد می‌بیند و عدد
-  // دیگری پرداخت می‌کند.
-  const source = fs.readFileSync(
-    new URL("../../irforge/src/lib/bot-tiers.ts", import.meta.url),
-    "utf8",
-  );
-
-  for (const [tierId, serverPrice] of Object.entries(BOT_TIER_PRICES)) {
-    const block = source.split(`id: "${tierId}"`)[1];
-    assert.ok(block, `پکیج ${tierId} در bot-tiers.ts پیدا نشد`);
-    const match = block.match(/price:\s*(\d+)/);
-    assert.ok(match, `قیمت ${tierId} در bot-tiers.ts پیدا نشد`);
-    assert.equal(
-      Number(match[1]), serverPrice,
-      `قیمت «${tierId}» در فرانت (${match[1]}) با سرور (${serverPrice}) یکی نیست`,
-    );
-  }
+test("getBotTierProduct: قیمتِ ریالِ دیتابیس به تومان تبدیل می‌شود و maxFreePlugins از metadata می‌آید", async () => {
+  installBotTierRow(SEEDED_BOT_PRODUCTS.standard);
+  const product = await getBotTierProduct("standard");
+  assert.equal(product.priceToman, STANDARD_PRICE_TOMAN);
+  assert.equal(product.maxFreePlugins, 3);
 });
 
-test("سقفِ پلاگین رایگان در سرور و فرانت یکی است", () => {
-  // همان محافظِ drift بالا، این‌بار برای `maxPlugins` هر پکیج در bot-tiers.ts.
-  const source = fs.readFileSync(
-    new URL("../../irforge/src/lib/bot-tiers.ts", import.meta.url),
-    "utf8",
-  );
+test("getBotTierProduct: ردیفِ ناموجود یا غیرفعال null برمی‌گرداند، نه پرتاب خطا", async () => {
+  installBotTierRow(null);
+  assert.equal(await getBotTierProduct("does-not-exist"), null);
+});
 
-  for (const [tierId, serverMax] of Object.entries(BOT_TIER_MAX_FREE_PLUGINS)) {
-    const block = source.split(`id: "${tierId}"`)[1];
-    assert.ok(block, `پکیج ${tierId} در bot-tiers.ts پیدا نشد`);
-    const match = block.match(/maxPlugins:\s*(\d+)/);
-    assert.ok(match, `maxPlugins برای ${tierId} در bot-tiers.ts پیدا نشد`);
-    assert.equal(
-      Number(match[1]), serverMax,
-      `سقفِ پلاگینِ رایگانِ «${tierId}» در فرانت (${match[1]}) با سرور (${serverMax}) یکی نیست`,
-    );
-  }
+test("getBotTierProduct: metadataی بدونِ maxFreePlugins به Infinity می‌افتد، نه صفر", async () => {
+  // یک محصولِ بات که هنوز این کلید را ندارد نباید همه‌ی پلاگین‌هایش پولی شود.
+  installBotTierRow({ id: "standard", categoryId: "bot", price: 5_000_000, isActive: true, metadata: {} });
+  const product = await getBotTierProduct("standard");
+  assert.equal(product.maxFreePlugins, Infinity);
 });
 
 test("سقف منابع سفارشی در سرور و فرانت یکی است", () => {

@@ -58,7 +58,7 @@ import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
 import { createNotification, notifySuperAdmins, formatTomanFa } from "../lib/notify";
 import { botUserStats, type BotUserStats } from "../lib/botStats";
 // قیمت خرید از سرور حساب می‌شود، نه از بدنه‌ی درخواست — نگاه کن lib/pluginPricing.ts
-import { resolvePurchasePrice, BOT_TIER_PRICES } from "../lib/pluginPricing.js";
+import { resolvePurchasePrice, getBotTierProduct } from "../lib/pluginPricing.js";
 import { getPluginCatalog } from "../lib/pluginCatalog.js";
 import { marketplaceItemIdFor } from "../lib/marketplaceSync.js";
 import { getUserPlanLimits, countUserBots } from "../lib/planLimits.js";
@@ -909,7 +909,7 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
     // from the build spec against the server's own price table; a request with no
     // spec still falls back to `amount`, so pre-existing callers are unaffected.
     const knownPluginIds = (await getPluginCatalog()).plugins.map((plugin) => plugin.id);
-    const resolved = resolvePurchasePrice(req.body ?? {}, knownPluginIds);
+    const resolved = await resolvePurchasePrice(req.body ?? {}, knownPluginIds);
     const price = resolved.total;
     if (resolved.source !== "client-amount") {
       logger.info(
@@ -1997,8 +1997,10 @@ router.post("/admin/bots", requireSuperAdmin, async (req: any, res) => {
 router.patch("/admin/bots/:botId/tier", requireSuperAdmin, async (req: any, res) => {
   try {
     const { tier } = req.body ?? {};
-    if (!Object.prototype.hasOwnProperty.call(BOT_TIER_PRICES, tier)) {
-      res.status(400).json({ error: `tier must be one of: ${Object.keys(BOT_TIER_PRICES).join(", ")}` });
+    // IRFORGE_PRODUCTS_SECTION_PROMPT Phase 2 — تعریفِ «tier معتبر» دیگر یک
+    // آبجکتِ هاردکد نیست، یک محصولِ فعالِ دسته‌ی bot در جدولِ products است.
+    if (!(await getBotTierProduct(String(tier ?? "")))) {
+      res.status(400).json({ error: "tier must be an active product in the bot category" });
       return;
     }
     const [bot] = await db.update(botsTable).set({ tier }).where(eq(botsTable.id, req.params.botId)).returning();
@@ -2957,10 +2959,19 @@ router.post("/bots/:botId/upgrade-tier", requireBotOwnership, async (req: any, r
       });
       return;
     }
-    // BOT_TIER_PRICES is Toman; deductWallet() is Rial-native since
-    // IRFORGE_RIAL_MIGRATION Phase 2 — diff itself stays Toman below
-    // (notification text), only the call site converts.
-    const diff = BOT_TIER_PRICES.pro - BOT_TIER_PRICES.standard;
+    // IRFORGE_PRODUCTS_SECTION_PROMPT Phase 2 — قیمت دو پکیج دیگر هاردکد
+    // نیست، از products.price (ریال) می‌آید؛ getBotTierProduct() به تومان
+    // برمی‌گرداند تا این بلوک دقیقاً همان شکلِ قبلی (diff تومانی، تبدیل به
+    // ریال فقط در فراخوانیِ deductWallet) را حفظ کند.
+    const [standardProduct, proProduct] = await Promise.all([
+      getBotTierProduct("standard"),
+      getBotTierProduct("pro"),
+    ]);
+    if (!standardProduct || !proProduct) {
+      res.status(503).json({ error: "Bot packages are not configured", code: "tiers_unavailable" });
+      return;
+    }
+    const diff = proProduct.priceToman - standardProduct.priceToman;
     const ok = await deductWallet(req.userId, tomanToRial(diff), `Bot upgrade to Pro: ${req.bot.name}`);
     if (!ok) {
       res.status(400).json({ error: "Insufficient wallet balance", code: "insufficient" });

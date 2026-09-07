@@ -31,3 +31,5 @@ export * from "./uploadSessions";
 export * from "./botManagers";
 // نرخ دلار به ریال، مرجعِ صورتحساب (فاز ۱۰ identityverificationspec.md)
 export * from "./exchangeRates";
+// محصولاتِ سطحِ پلتفرم (بات، اکانت مجازی، کارت مجازی، API، حسابیار، مدرسه)
+export * from "./products";

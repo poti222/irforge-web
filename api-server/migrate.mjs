@@ -853,6 +853,94 @@ CREATE TABLE IF NOT EXISTS sms_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_sms_logs_parsed_amount ON sms_logs(parsed_amount);
 
+-- ─── PRODUCT_CATEGORIES / PRODUCTS ────────────────────────────────────────
+-- IRFORGE_PRODUCTS_SECTION_PROMPT Phase 2 — irforge/src/lib/bot-tiers.ts's
+-- hardcoded Standard/Pro packages and api-server/src/lib/pluginPricing.ts's
+-- hardcoded BOT_TIER_PRICES mirror both become live reads of this table
+-- instead (see PROGRESS.md's Phase 1 entry for the full rationale). Six
+-- categories today, admin-extendable via POST /api/admin/product-categories
+-- without a deploy.
+--
+-- product_categories.id is an admin-chosen slug (slugify(name) fallback),
+-- the same convention plans.id already uses, not a UUID -- a small,
+-- human-curated list. products.id is normally crypto.randomUUID(), except
+-- the two category=bot rows below, which deliberately reuse the literal
+-- ids "standard"/"pro" already stored on every existing bot (bots.tier)
+-- and already sent by the client (buildSpec.tierId) -- no bot row needs
+-- migrating, and resolvePurchasePrice() can look a purchase's tierId up
+-- directly with zero new indirection column.
+CREATE TABLE IF NOT EXISTS product_categories (
+  id TEXT PRIMARY KEY,
+  label_fa TEXT NOT NULL,
+  label_en TEXT NOT NULL,
+  icon TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS products (
+  id TEXT PRIMARY KEY,
+  category_id TEXT NOT NULL REFERENCES product_categories(id),
+  name TEXT NOT NULL,
+  name_fa TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  description_fa TEXT NOT NULL DEFAULT '',
+  -- INTEGER, Rial -- platform convention since IRFORGE_RIAL_MIGRATION Phase 2
+  -- (same note as the "plans"/"marketplace_items" tables above), never REAL/Toman.
+  price INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  icon TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  metadata JSONB NOT NULL DEFAULT '{}',
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS products_category_id_idx ON products(category_id);
+
+-- Seed: the six categories the prompt names. sort_order fixes their display
+-- order on /products -- bot stays first since it is today's only populated one.
+INSERT INTO product_categories (id, label_fa, label_en, icon, sort_order)
+VALUES
+  ('bot',             'بات',                'Bot',              'Bot',        0),
+  ('virtual_account', 'اکانت مجازی',        'Virtual Account',  'CreditCard', 1),
+  ('virtual_card',    'کارت مجازی (mpay)',  'Virtual Card',     'Wallet',     2),
+  ('api',             'API',                'API',              'Code',       3),
+  ('accountant',      'حسابیار',            'Accountant',       'Calculator', 4),
+  ('school',          'مدیریت مدرسه',       'School Management','School',     5)
+ON CONFLICT (id) DO NOTHING;
+
+-- Seed: the two Standard/Pro bot packages, migrated verbatim from
+-- bot-tiers.ts/pluginPricing.ts's BOT_TIER_PRICES (500,000/1,100,000 Toman
+-- = 5,000,000/11,000,000 Rial). metadata carries the rest of BotTier's own
+-- shape (ramGb/cpuCores/maxBots/maxFreePlugins/maxConcurrentUsers/popular/
+-- accent) so buy-bot.tsx's card UI needs no visual change once it switches
+-- its data source in Phase 3. maxFreePlugins is renamed from bot-tiers.ts's
+-- own "maxPlugins" to avoid colliding with the *bot-limit* maxPlugins in
+-- the same metadata blob -- two different "max plugins" concepts the
+-- original BotTier interface conflated under one name.
+--
+-- Deliberately NOT copied into metadata: bot-tiers.ts's own name/tagline/
+-- features text. buy-bot.tsx/buy-bot-detail.tsx already source that display
+-- copy from the botTiers i18n namespace (useT("botTiers")), not from
+-- bot-tiers.ts's own fields, for every one of the site's 5 languages --
+-- copying stale duplicate text here would just be unused weight.
+INSERT INTO products (id, category_id, name, name_fa, description, description_fa, price, metadata, sort_order)
+VALUES
+  ('standard', 'bot', 'Standard', 'استاندارد',
+   'A fast start for small projects', 'برای شروع سریع و پروژه‌های کوچک',
+   5000000,
+   '{"ramGb":1,"cpuCores":1,"maxBots":1,"maxFreePlugins":3,"maxConcurrentUsers":50,"popular":false,"accent":"from-slate-400 to-slate-300"}',
+   0),
+  ('pro', 'bot', 'Pro', 'پرو',
+   'Maximum power for serious businesses', 'حداکثر امکانات برای کسب‌وکارهای جدی',
+   11000000,
+   '{"ramGb":3,"cpuCores":3,"maxBots":3,"maxFreePlugins":6,"maxConcurrentUsers":250,"popular":true,"accent":"from-amber-400 to-yellow-300"}',
+   1)
+ON CONFLICT (id) DO NOTHING;
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT
