@@ -186,6 +186,65 @@ test("deleteItemHard actually removes the row", async () => {
   assert.equal(tabs.get("catalog_items").has(item.id), false);
 });
 
+// ── media / body_html (IRFORGE_CATALOG_RICH_EDITOR_PROMPT Part B) ──────────
+
+test("createItem stores media and sanitizes body_html", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    media: [{ type: "photo", file_id: "AgAD1", caption: "cover" }],
+    body_html: "<b>ویژگی‌ها</b><script>alert(1)</script>",
+  }, UID);
+  assert.deepEqual(item.media, [{ type: "photo", file_id: "AgAD1", caption: "cover" }]);
+  assert.equal(item.body_html, "<b>ویژگی‌ها</b>alert(1)");
+});
+
+test("createItem derives legacy image_file_id from the first photo in media", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    media: [
+      { type: "video", file_id: "VID1" },
+      { type: "photo", file_id: "PHOTO1" },
+    ],
+  }, UID);
+  assert.equal(item.image_file_id, "PHOTO1");
+});
+
+test("createItem rejects a media item missing file_id or with a bad type", async () => {
+  installSheet();
+  await assert.rejects(() => store.createItem(SID, { ...VALID_ITEM, media: [{ type: "photo", file_id: "" }] }, UID));
+  await assert.rejects(() => store.createItem(SID, { ...VALID_ITEM, media: [{ type: "pdf", file_id: "X" }] }, UID));
+  await assert.rejects(() => store.createItem(SID, { ...VALID_ITEM, media: "not-an-array" }, UID));
+});
+
+test("getItem/listItems normalize a legacy image_file_id-only item into media on read", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, image_file_id: "LEGACY1" }, UID);
+  const fetched = await store.getItem(SID, item.id);
+  assert.deepEqual(fetched.media, [{ type: "photo", file_id: "LEGACY1", caption: "" }]);
+
+  const [listed] = await store.listItems(SID);
+  assert.deepEqual(listed.media, [{ type: "photo", file_id: "LEGACY1", caption: "" }]);
+});
+
+test("updateItem sanitizes body_html again and keeps media untouched when omitted", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    media: [{ type: "photo", file_id: "PHOTO1", caption: "" }],
+  }, UID);
+  const updated = await store.updateItem(SID, item.id, { body_html: "<div>plain</div><i>ok</i>" });
+  assert.equal(updated.body_html, "plain<i>ok</i>");
+  assert.deepEqual(updated.media, [{ type: "photo", file_id: "PHOTO1", caption: "" }]);
+});
+
+test("createItem accepts fulfillment_type 'pool'", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "pool" }, UID);
+  assert.equal(item.fulfillment_type, "pool");
+});
+
 // ── fulfillment config ──────────────────────────────────────────────────
 
 test("getFulfillmentConfig is empty for a freshly created item", async () => {

@@ -26,6 +26,7 @@ import {
 } from "./botConfig.js";
 import { nowIso } from "./botTypes.js";
 import { newRecordId } from "./pluginCollections.js";
+import { sanitizeTelegramHtml } from "./catalogHtml.js";
 
 const CATEGORIES_TAB = "catalog_categories";
 const ITEMS_TAB = "catalog_items";
@@ -36,7 +37,21 @@ export const STATUS_DRAFT = "draft";
 export const STATUS_ARCHIVED = "archived";
 export const VALID_STATUSES = [STATUS_ACTIVE, STATUS_DRAFT, STATUS_ARCHIVED] as const;
 
-export const FULFILLMENT_TYPES = ["manual", "template", "file", "api", "webhook", "wallet_credit"] as const;
+export const FULFILLMENT_TYPES = ["manual", "template", "file", "api", "webhook", "wallet_credit", "pool"] as const;
+
+/**
+ * IRFORGE_CATALOG_RICH_EDITOR_PROMPT Part B — mirrors
+ * `plugins/catalog/domain.py::MEDIA_TYPES` field-for-field: both repos
+ * write into the exact same `catalog_items.media` Sheet field, so the
+ * shape (and the type strings) must match exactly for interop.
+ */
+export const MEDIA_TYPES = ["photo", "video", "animation", "document"] as const;
+
+export interface CatalogMedia {
+  type: (typeof MEDIA_TYPES)[number];
+  file_id: string;
+  caption: string;
+}
 
 export interface Category {
   id: string;
@@ -64,7 +79,12 @@ export interface CatalogItem {
   track_stock: boolean;
   stock_qty: number;
   status: string;
+  /** Legacy single-image field — kept for back-compat; `media` is the current one. */
   image_file_id: string;
+  /** IRFORGE_CATALOG_RICH_EDITOR_PROMPT Part B — multi-media (photo/video/animation/document). */
+  media: CatalogMedia[];
+  /** Telegram-HTML-formatted description, sanitized on every write (see sanitizeTelegramHtml()). Empty = fall back to plain `description`, same as delivery.py's own `_resolve_body_html()`. */
+  body_html: string;
   metadata: Record<string, unknown>;
   created_by?: string;
   created_at?: string;
@@ -141,7 +161,15 @@ export async function deleteCategory(spreadsheetId: string, id: string): Promise
 
 // ─── کالا/سرویس ──────────────────────────────────────────────────────────────
 
-function validateItemFields(data: Partial<CatalogItem>): string[] {
+/**
+ * `rawMedia` is the caller's un-coerced input (or `undefined` if the field
+ * wasn't sent at all) — checked separately from `data.media` because
+ * `parseMediaInput()` always returns an array (its job is best-effort shape
+ * coercion, not validation), so validating `data.media` itself can never
+ * see a non-array input. Mirrors `plugins/catalog/domain.py::validate_item_data`,
+ * which validates the raw `data.get("media")` directly for the same reason.
+ */
+function validateItemFields(data: Partial<CatalogItem>, rawMedia?: unknown): string[] {
   const errors: string[] = [];
   const name = String(data.name ?? "").trim();
   if (!name) errors.push("نام کالا/سرویس اجباری است.");
@@ -162,7 +190,46 @@ function validateItemFields(data: Partial<CatalogItem>): string[] {
     const qty = Number(data.stock_qty);
     if (!Number.isInteger(qty) || qty < 0) errors.push("موجودی انبار باید یک عدد صحیح صفر یا بزرگ‌تر باشد.");
   }
+
+  if (rawMedia !== undefined) {
+    if (!Array.isArray(rawMedia)) errors.push("رسانه‌ها باید یک لیست باشند.");
+    else {
+      for (const m of rawMedia) {
+        if (!m || typeof m !== "object" || !String((m as CatalogMedia).file_id || "").trim()) {
+          errors.push("هر آیتمِ رسانه باید file_id داشته باشد.");
+          break;
+        }
+        if (!(MEDIA_TYPES as readonly string[]).includes((m as CatalogMedia).type)) {
+          errors.push(`نوعِ رسانه باید یکی از ${MEDIA_TYPES.join("/")} باشد.`);
+          break;
+        }
+      }
+    }
+  }
   return errors;
+}
+
+/** Best-effort shape coercion — actual type/file_id validation happens in validateItemFields() so the error message is a proper 400, not a thrown TypeError. */
+function parseMediaInput(raw: any): CatalogMedia[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((m) => ({
+    type: String(m?.type ?? "photo") as CatalogMedia["type"],
+    file_id: String(m?.file_id ?? "").trim(),
+    caption: String(m?.caption ?? ""),
+  }));
+}
+
+/**
+ * یک آیتمِ قدیمی که فقط image_file_id داشت (media خالی) باید همچنان یک
+ * تصویر در ویرایشگرِ media نشان دهد — دقیقاً همان fallbackِ
+ * `plugins/catalog/domain.py::_normalize_item()` سمتِ بات، اینجا هم روی
+ * خواندن اعمال می‌شود تا ادمین چیزِ ازدست‌رفته‌ای نبیند.
+ */
+function normalizeItem(item: CatalogItem): CatalogItem {
+  const bodyHtml = item.body_html ?? "";
+  if ((item.media?.length ?? 0) > 0) return { ...item, body_html: bodyHtml };
+  if (!item.image_file_id) return { ...item, media: item.media ?? [], body_html: bodyHtml };
+  return { ...item, media: [{ type: "photo", file_id: item.image_file_id, caption: "" }], body_html: bodyHtml };
 }
 
 function parseItemInput(body: any, base: Partial<CatalogItem> = {}): Omit<CatalogItem, "id" | "created_at" | "updated_at"> {
@@ -184,27 +251,40 @@ function parseItemInput(body: any, base: Partial<CatalogItem> = {}): Omit<Catalo
     stock_qty: "stock_qty" in body ? Number(body.stock_qty) || 0 : (base.stock_qty ?? 0),
     status: "status" in body ? String(body.status ?? STATUS_ACTIVE) : (base.status ?? STATUS_ACTIVE),
     image_file_id: "image_file_id" in body ? String(body.image_file_id ?? "").trim() : (base.image_file_id ?? ""),
+    media: "media" in body ? parseMediaInput(body.media) : (base.media ?? []),
+    // هرگز HTML خام از کلاینت ذخیره نمی‌شود — دقیقاً همان‌جایی که
+    // plugins/catalog/domain.py هم روی نوشتن sanitize می‌کند، اینجا هم قبل
+    // از رسیدن به Sheet.
+    body_html: "body_html" in body ? sanitizeTelegramHtml(String(body.body_html ?? "")) : (base.body_html ?? ""),
     // fulfillment config لایه‌ی جدا دارد (setFulfillmentConfig) تا یک ویرایشِ
     // فیلدهای اصلیِ کالا metadata.fulfillment را بی‌خبر پاک نکند.
     metadata: base.metadata ?? {},
   };
+  // media جایگزینِ image_file_id شد؛ ولی هر کدی که هنوز مستقیم
+  // image_file_id می‌خواند (مثلاً یک integration قدیمی) باید همچنان چیزِ
+  // معناداری ببیند — همیشه از رویِ اولین تصویرِ media مشتق می‌شود، نه یک
+  // فیلدِ جداگانه که می‌تواند از media عقب بیفتد.
+  if ("media" in body) {
+    const firstPhoto = data.media!.find((m) => m.type === "photo");
+    data.image_file_id = firstPhoto?.file_id ?? data.image_file_id ?? "";
+  }
   if (!(FULFILLMENT_TYPES as readonly string[]).includes(data.fulfillment_type as string))
     throw bad(`نوع تحویلِ «${data.fulfillment_type}» پشتیبانی نمی‌شود.`, "bad_fulfillment_type");
-  const errors = validateItemFields(data);
+  const errors = validateItemFields(data, "media" in body ? body.media : undefined);
   if (errors.length) throw bad(errors.join(" "));
   return data as Omit<CatalogItem, "id" | "created_at" | "updated_at">;
 }
 
 export async function listItems(spreadsheetId: string, opts: { includeArchived?: boolean } = {}): Promise<CatalogItem[]> {
   const rows = await listEntity<CatalogItem>(spreadsheetId, ITEMS_TAB);
-  let items = rows.filter((r) => r.value && typeof r.value === "object").map((r) => ({ ...(r.value as CatalogItem), id: r.key }));
+  let items = rows.filter((r) => r.value && typeof r.value === "object").map((r) => normalizeItem({ ...(r.value as CatalogItem), id: r.key }));
   if (!opts.includeArchived) items = items.filter((i) => i.status !== STATUS_ARCHIVED);
   return items.sort((a, b) => (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase()));
 }
 
 export async function getItem(spreadsheetId: string, id: string): Promise<CatalogItem | null> {
   const row = await getEntity<CatalogItem>(spreadsheetId, ITEMS_TAB, id);
-  return row ? { ...row, id } : null;
+  return row ? normalizeItem({ ...row, id }) : null;
 }
 
 export async function createItem(spreadsheetId: string, body: any, createdBy: string): Promise<CatalogItem> {

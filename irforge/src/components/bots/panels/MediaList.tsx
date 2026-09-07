@@ -34,6 +34,11 @@ type MediaStatus = { available: boolean; maxBytes: number; reason?: string; code
 /** فرمت‌هایی که هم تلگرام می‌پذیرد و هم سرور اجازه می‌دهد. */
 const ACCEPT = "image/*,audio/*";
 
+/** `accept="image/*"` → `["image/"]`؛ برای رد کردن محلیِ فایل‌های نوعِ نادرست قبل از آپلود، پیش از اینکه سرور همان محدودیت را برگرداند. */
+function acceptedPrefixes(accept: string): string[] {
+  return accept.split(",").map((part) => part.trim().replace(/\*$/, "")).filter(Boolean);
+}
+
 function useMediaStatus(botId: string) {
   return useQuery({
     queryKey: ["bot-media-status", botId],
@@ -170,6 +175,7 @@ export function MediaList({
   botId,
   fileIds,
   multiple,
+  accept = ACCEPT,
   onChange,
   onMetaChange,
   onWantMore,
@@ -178,6 +184,9 @@ export function MediaList({
   fileIds: string[];
   /** نوع carousel چند فایل می‌گیرد؛ بقیه فقط یکی. */
   multiple: boolean;
+  /** پیش‌فرض عکس+صوت (همان محدودیتِ پنل‌ها)؛ کاربردهای دیگر (مثلاً تصویرِ
+      محصولِ کاتالوگ) می‌توانند با `"image/*"` محدودش کنند. */
+  accept?: string;
   onChange: (next: string[]) => void;
   /** نوع واقعیِ هر فایل (از پاسخ آپلود) — برای اینکه پیش‌نمایش هم بداند، نه
       اینکه خودش دوباره از روی خطای <img> حدس بزند. */
@@ -204,6 +213,7 @@ export function MediaList({
   };
 
   const atLimit = !multiple && fileIds.length >= 1;
+  const audioAllowed = accept.includes("audio/");
 
   // آپلود در دسترس نیست → بخش دستی باید از اول باز باشد، وگرنه کاربر هیچ راهی
   // برای افزودن مدیا نمی‌بیند.
@@ -225,8 +235,9 @@ export function MediaList({
 
   async function upload(file: File) {
     // همان محدودیتی که سرور اعمال می‌کند، فقط زودتر و با پیام بهتر.
-    if (!file.type.startsWith("image/") && !file.type.startsWith("audio/")) {
-      toast({ variant: "destructive", title: t.mediaTypeUnsupported });
+    const prefixes = acceptedPrefixes(accept);
+    if (!prefixes.some((prefix) => file.type.startsWith(prefix))) {
+      toast({ variant: "destructive", title: audioAllowed ? t.mediaTypeUnsupported : t.mediaTypeUnsupportedImageOnly });
       return;
     }
     const max = status?.maxBytes ?? 7 * 1024 * 1024;
@@ -328,7 +339,7 @@ export function MediaList({
               <input
                 ref={inputRef}
                 type="file"
-                accept={ACCEPT}
+                accept={accept}
                 multiple={multiple}
                 className="hidden"
                 onChange={(e) => {
@@ -337,7 +348,7 @@ export function MediaList({
               />
               <div className="flex items-center gap-1.5 text-muted-foreground">
                 <ImageIcon className="size-4" />
-                <Music className="size-4" />
+                {audioAllowed && <Music className="size-4" />}
               </div>
               <p className="text-sm text-muted-foreground">{t.mediaDropHint}</p>
               <Button variant="outline" size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>
@@ -345,7 +356,7 @@ export function MediaList({
                 {t.mediaUpload}
               </Button>
               <p className="text-xs text-muted-foreground">
-                {t.mediaAcceptHint.replace("{mb}", String(Math.round((status.maxBytes ?? 0) / 1024 / 1024)))}
+                {(audioAllowed ? t.mediaAcceptHint : t.mediaAcceptHintImageOnly).replace("{mb}", String(Math.round((status.maxBytes ?? 0) / 1024 / 1024)))}
               </p>
             </div>
           )}

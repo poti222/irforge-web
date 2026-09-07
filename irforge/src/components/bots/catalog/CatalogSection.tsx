@@ -38,14 +38,17 @@ import {
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
+import { MediaList } from "../panels/MediaList";
 
 type Category = {
   id: string; name: string; name_fa: string; parent_id: string; sort_order: number; is_active: boolean;
 };
+type CatalogMedia = { type: string; file_id: string; caption: string };
 type CatalogItem = {
   id: string; name: string; name_fa: string; description: string; category_id: string;
   price: number; currency: string; compare_at_price: number | null; item_type: string;
   fulfillment_type: string; track_stock: boolean; stock_qty: number; status: string; image_file_id: string;
+  media: CatalogMedia[]; body_html: string;
 };
 type ItemOption = {
   id: string; item_id: string; label: string; price: number; track_stock: boolean;
@@ -432,7 +435,8 @@ function ItemEditor({
   const [trackStock, setTrackStock] = useState(base?.track_stock ?? false);
   const [stockQty, setStockQty] = useState(String(base?.stock_qty ?? 0));
   const [status, setStatus] = useState(base?.status ?? "active");
-  const [imageFileId, setImageFileId] = useState(base?.image_file_id ?? "");
+  const [mediaFileIds, setMediaFileIds] = useState<string[]>(base?.media?.map((m) => m.file_id) ?? []);
+  const [bodyHtml, setBodyHtml] = useState(base?.body_html ?? "");
 
   const itemsKey = ["bot-catalog-items", botId] as const;
   const save = useMutation({
@@ -443,7 +447,9 @@ function ItemEditor({
         compare_at_price: compareAtPrice === "" ? null : Number(compareAtPrice),
         item_type: itemType, fulfillment_type: fulfillmentType,
         track_stock: trackStock, stock_qty: Number(stockQty) || 0,
-        status, image_file_id: imageFileId,
+        status,
+        media: mediaFileIds.map((fileId) => ({ type: "photo", file_id: fileId, caption: "" })),
+        body_html: bodyHtml,
       };
       return current
         ? customFetch<{ item: CatalogItem }>(`/api/bots/${botId}/catalog/items/${current.id}`, { method: "PATCH", body: JSON.stringify(body) })
@@ -552,9 +558,23 @@ function ItemEditor({
             </Select>
           </div>
 
-          <div className="space-y-1">
-            <Label>{t.fieldImageFileId}</Label>
-            <Input dir="ltr" value={imageFileId} onChange={(e) => setImageFileId(e.target.value)} placeholder={t.imageFileIdHint} />
+          <div className="space-y-2 border-t pt-3">
+            <div>
+              <p className="text-sm font-medium">{t.contentSectionTitle}</p>
+              <p className="text-xs text-muted-foreground">{t.contentSectionDesc}</p>
+            </div>
+            <MediaList botId={botId} fileIds={mediaFileIds} multiple accept="image/*" onChange={setMediaFileIds} />
+            <div className="space-y-1 pt-1">
+              <Label>{t.fieldBodyHtml}</Label>
+              <Textarea
+                dir="rtl" rows={4}
+                value={bodyHtml}
+                maxLength={4096}
+                placeholder={t.bodyHtmlPlaceholder}
+                onChange={(e) => setBodyHtml(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">{t.bodyHtmlHint}</p>
+            </div>
           </div>
 
           <Button onClick={() => save.mutate()} disabled={!name.trim() || save.isPending} className="w-full">
@@ -637,17 +657,27 @@ function ItemsTab({ botId, categories }: { botId: string; categories: Category[]
         <div className="space-y-2">
           {items.map((it) => (
             <div key={it.id} className="flex items-center justify-between gap-2 rounded-md border p-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className={`truncate font-medium ${it.status === "archived" ? "text-muted-foreground line-through" : ""}`}>
-                    {it.name_fa || it.name}
+              <div className="flex min-w-0 items-center gap-3">
+                {it.media?.[0]?.file_id && (
+                  <img
+                    src={`/api/bots/${botId}/media/${encodeURIComponent(it.media[0].file_id)}`}
+                    alt=""
+                    loading="lazy"
+                    className="size-10 shrink-0 rounded border object-cover"
+                  />
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className={`truncate font-medium ${it.status === "archived" ? "text-muted-foreground line-through" : ""}`}>
+                      {it.name_fa || it.name}
+                    </p>
+                    {it.status === "draft" && <Badge variant="outline">{t.status_draft}</Badge>}
+                    {it.status === "archived" && <Badge variant="outline">{t.status_archived}</Badge>}
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {categoryName(it.category_id) ?? t.uncategorized} · {formatPrice(it.price, it.currency)}
                   </p>
-                  {it.status === "draft" && <Badge variant="outline">{t.status_draft}</Badge>}
-                  {it.status === "archived" && <Badge variant="outline">{t.status_archived}</Badge>}
                 </div>
-                <p className="truncate text-xs text-muted-foreground">
-                  {categoryName(it.category_id) ?? t.uncategorized} · {formatPrice(it.price, it.currency)}
-                </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <Button size="icon" variant="ghost" onClick={() => setEditing(it)}><Pencil className="size-4" /></Button>
