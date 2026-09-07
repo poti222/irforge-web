@@ -1,5 +1,5 @@
 import { useEffect, lazy, Suspense } from "react";
-import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect, useLocation, useParams } from "wouter";
 import { navigate } from "wouter/use-browser-location";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig } from "framer-motion";
@@ -142,6 +142,16 @@ function ProtectedRoute({ component: Component, adminOnly = false, superAdminOnl
 }
 
 /**
+ * IRFORGE_PRODUCTS_SECTION_PROMPT Phase 3 — `/buy-bot/:tierId` → `/products/:tierId`,
+ * param preserved. wouter's `Redirect to=` doesn't interpolate params itself,
+ * so this reads `:tierId` and builds the destination by hand.
+ */
+function BuyBotTierRedirect() {
+  const { tierId } = useParams<{ tierId: string }>();
+  return <Redirect to={`/products/${tierId}`} replace />;
+}
+
+/**
  * برای خودِ /complete-profile: نیاز به لاگین دارد، ولی عمداً کاملیِ پروفایل
  * را چک نمی‌کند — وگرنه ProtectedRoute همین صفحه را به خودش ریدایرکت
  * می‌کرد. و عمداً DashboardShell (سایدبار/هدر داشبورد) هم ندارد: این یک
@@ -244,8 +254,13 @@ function Router() {
       <Route path="/complete-profile"><AuthOnlyRoute component={CompleteProfile} /></Route>
       <Route path="/dashboard"><ProtectedRoute component={Dashboard} /></Route>
       <Route path="/bots"><ProtectedRoute component={Bots} /></Route>
-      <Route path="/buy-bot"><ProtectedRoute component={BuyBot} /></Route>
-      <Route path="/buy-bot/:tierId"><ProtectedRoute component={BuyBotDetail} /></Route>
+      <Route path="/products"><ProtectedRoute component={BuyBot} /></Route>
+      <Route path="/products/:tierId"><ProtectedRoute component={BuyBotDetail} /></Route>
+      {/* IRFORGE_PRODUCTS_SECTION_PROMPT Phase 3 — "Buy Bot" renamed to
+          "Products"/محصولات; these keep any existing /buy-bot bookmark or
+          internal link working via a client-side redirect rather than a 404. */}
+      <Route path="/buy-bot"><Redirect to="/products" replace /></Route>
+      <Route path="/buy-bot/:tierId"><BuyBotTierRedirect /></Route>
       {/* Must come before /bots/:botId so "cart" isn't parsed as a bot id */}
       <Route path="/bots/cart"><ProtectedRoute component={Checkout} /></Route>
       <Route path="/bots/:botId"><ProtectedRoute component={BotWorkspace} /></Route>

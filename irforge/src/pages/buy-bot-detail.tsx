@@ -18,13 +18,26 @@ import { formatToman } from "@/lib/format";
 import { pluginName, pluginDescription } from "@/lib/plugin-text";
 import { useT } from "@/hooks/use-translation";
 import {
-  getBotTier,
   CUSTOM_MODULES,
   CUSTOM_MAX_RAM_GB,
   CUSTOM_MAX_CPU_CORES,
 } from "@/lib/bot-tiers";
+import { useGetProduct } from "@/hooks/use-products";
+import { productIcon } from "@/lib/product-icons";
 import { usePluginPricing, quoteCustom } from "@/hooks/use-plugin-pricing";
 
+/**
+ * IRFORGE_PRODUCTS_SECTION_PROMPT Phase 3 — a bot package's price/resources
+ * now come from `GET /api/products/:id` (Phase 2's real catalog) instead of
+ * the hardcoded `getBotTier()` from `bot-tiers.ts`. This is the fix Phase 1's
+ * design flagged: before this, this page displayed a frozen constant while
+ * `pluginPricing.ts` charged from the (then-just-added) `products` table —
+ * same number today by coincidence, but editable independently. Now both
+ * read the same row.
+ *
+ * "custom" stays entirely on the old path (`CUSTOM_MODULES`/`CUSTOM_MAX_*`
+ * from `bot-tiers.ts`) — deliberately out of scope for this migration.
+ */
 export default function BuyBotDetail() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
@@ -34,16 +47,17 @@ export default function BuyBotDetail() {
   const { addBot } = useCart();
 
   const isCustom = tierId === "custom";
-  const tier = !isCustom ? getBotTier(tierId) : undefined;
+  const { data: product, isLoading: productLoading } = useGetProduct(!isCustom ? tierId : undefined);
+  const meta = (product?.metadata ?? {}) as Record<string, any>;
 
   const tb = useT("buyBot");
-  // متن پکیج‌ها و ماژول‌ها از ترجمه‌ها، نه از `bot-tiers.ts` که فقط fa/en داشت.
+  // متن پکیج و ماژول‌ها از ترجمه‌ها، نه از products.metadata — قیمت/منابع تنها چیزی‌اند که از سرور می‌آیند.
   const tt = useT("botTiers");
 
-  /** متن ترجمه‌شده‌ی همین پکیج (قیمت و منابع همچنان از `BOT_TIERS`). */
+  /** متن ترجمه‌شده‌ی همین پکیج (قیمت و منابع از product.metadata می‌آید). */
   const tierText =
-    tier?.id === "standard" ? tt.standard
-    : tier?.id === "pro" ? tt.pro
+    product?.id === "standard" ? tt.standard
+    : product?.id === "pro" ? tt.pro
     : null;
 
   /** برچسب ترجمه‌شده‌ی یک ماژولِ پکیج سفارشی. */
@@ -67,12 +81,12 @@ export default function BuyBotDetail() {
   const availablePlugins = pricing?.plugins ?? [];
   const chosenPlugins = availablePlugins.filter((plugin) => selectedPlugins.has(plugin.id));
 
-  // سقفِ پلاگینِ *رایگان* همین پکیج (مثلاً استاندارد = ۳ تا) — دیگر «چند تا
-  // از رایگان‌ها را می‌شود برداشت» نیست: همه‌ی پلاگین‌ها پولی‌اند، و کاربر
-  // از میانِ هر چه انتخاب می‌کند، اولین‌ها (به همان ترتیبِ تیک‌زدن) تا این
+  // سقفِ پلاگینِ *رایگان* همین پکیج (از products.metadata.maxFreePlugins می‌آید —
+  // دیگر «چند تا از رایگان‌ها را می‌شود برداشت» نیست: همه‌ی پلاگین‌ها پولی‌اند، و
+  // کاربر از میانِ هر چه انتخاب می‌کند، اولین‌ها (به همان ترتیبِ تیک‌زدن) تا این
   // سقف رایگان حساب می‌شوند — دقیقاً آینه‌ی quotePluginAddons سرور
   // (lib/pluginPricing.ts). «سفارشی» عمداً سقف ندارد.
-  const freeLimit = isCustom ? Infinity : (tier?.maxPlugins ?? Infinity);
+  const freeLimit = isCustom ? Infinity : (Number.isFinite(Number(meta.maxFreePlugins)) ? Number(meta.maxFreePlugins) : Infinity);
 
   // Set جاوااسکریپت ترتیبِ افزودن را حفظ می‌کند، پس این آرایه دقیقاً به
   // ترتیبِ تیک‌خوردن است. پلاگینِ ذاتاً رایگان (اگر روزی چنین چیزی باز هم
@@ -99,17 +113,26 @@ export default function BuyBotDetail() {
 
   // سفارشی: پایه + منابع + پلاگین‌ها. آماده: قیمت ثابت پکیج + پلاگین‌ها.
   const customQuote = quoteCustom(pricing?.customBuild, customRam, customCpu, chosenPlugins);
-  const packagePrice = isCustom ? customQuote.total : (tier?.price ?? 0) + pluginsTotal;
+  const packagePrice = isCustom ? customQuote.total : (product?.price ?? 0) + pluginsTotal;
 
   const BackArrow = fa ? ArrowRight : ArrowLeft;
   const NextArrow = fa ? ArrowLeft : ArrowRight;
 
-  if (!isCustom && !tier) {
+  if (!isCustom && productLoading) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-6">
+        <div className="h-8 w-24 animate-pulse rounded-md bg-muted" />
+        <div className="h-96 animate-pulse rounded-lg bg-card" />
+      </div>
+    );
+  }
+
+  if (!isCustom && !product) {
     return (
       <div className="mx-auto max-w-lg space-y-4 py-16 text-center">
         <p className="text-muted-foreground">{tb.notFound}</p>
         <Button asChild variant="outline">
-          <Link href="/buy-bot">{tb.backToBuyBot}</Link>
+          <Link href="/products">{tb.backToBuyBot}</Link>
         </Button>
       </div>
     );
@@ -122,7 +145,7 @@ export default function BuyBotDetail() {
       <div className="mx-auto max-w-lg space-y-4 py-16 text-center">
         <p className="text-muted-foreground">{tb.customUnavailable}</p>
         <Button asChild variant="outline">
-          <Link href="/buy-bot">{tb.backToBuyBot}</Link>
+          <Link href="/products">{tb.backToBuyBot}</Link>
         </Button>
       </div>
     );
@@ -158,10 +181,10 @@ export default function BuyBotDetail() {
       // این عدد فقط برای نمایش در سبد است؛ مبلغی که واقعاً کم می‌شود را سرور
       // از همین `buildSpec` دوباره حساب می‌کند (lib/pluginPricing.ts).
       price: packagePrice,
-      tierId: isCustom ? "custom" : tier?.id,
+      tierId: isCustom ? "custom" : product?.id,
       tierName: isCustom ? tt.custom.name : tierText?.name,
       buildSpec: {
-        tierId: isCustom ? "custom" : (tier?.id ?? ""),
+        tierId: isCustom ? "custom" : (product?.id ?? ""),
         ramGb: isCustom ? customRam : undefined,
         cpuCores: isCustom ? customCpu : undefined,
         pluginIds: [...selectedPlugins],
@@ -174,24 +197,23 @@ export default function BuyBotDetail() {
     setLocation("/bots/cart");
   }
 
+  const Icon = isCustom ? Settings2 : productIcon(product?.icon);
+  const accent = isCustom ? "from-violet-400 to-fuchsia-300" : (typeof meta.accent === "string" ? meta.accent : "from-slate-400 to-slate-300");
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <Button variant="ghost" size="sm" asChild className="-ms-2">
-        <Link href="/buy-bot"><BackArrow className="me-2 h-4 w-4" /> {tb.back}</Link>
+        <Link href="/products"><BackArrow className="me-2 h-4 w-4" /> {tb.back}</Link>
       </Button>
 
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Left: preview */}
         <Card className="lg:col-span-3 overflow-hidden">
-          <div
-            className={`h-2 w-full bg-gradient-to-r ${isCustom ? "from-violet-400 to-fuchsia-300" : tier!.accent}`}
-          />
+          <div className={`h-2 w-full bg-gradient-to-r ${accent}`} />
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div
-                className={`flex size-12 items-center justify-center rounded-lg bg-gradient-to-br text-white ${isCustom ? "from-violet-400 to-fuchsia-300" : tier!.accent}`}
-              >
-                {isCustom ? <Settings2 className="size-6" /> : (() => { const Icon = tier!.icon; return <Icon className="size-6" />; })()}
+              <div className={`flex size-12 items-center justify-center rounded-lg bg-gradient-to-br text-white ${accent}`}>
+                <Icon className="size-6" />
               </div>
               <div>
                 <CardTitle className="text-2xl">{isCustom ? tt.custom.name : tierText?.name}</CardTitle>
@@ -205,25 +227,25 @@ export default function BuyBotDetail() {
             {!isCustom && (
               <>
                 <div className="flex items-baseline gap-2 text-3xl font-extrabold">
-                  {formatToman(tier!.price, lang)}
+                  {formatToman(product!.price, lang)}
                 </div>
                 <Separator />
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="rounded-md border p-3">
                     <p className="text-muted-foreground">{tb.botsCount}</p>
-                    <p className="font-semibold">{tier!.maxBots}</p>
+                    <p className="font-semibold">{meta.maxBots ?? "—"}</p>
                   </div>
                   <div className="rounded-md border p-3">
                     <p className="text-muted-foreground">{tb.freePluginsCount}</p>
-                    <p className="font-semibold">{tier!.maxPlugins >= 999 ? tb.unlimited : tier!.maxPlugins}</p>
+                    <p className="font-semibold">{!Number.isFinite(freeLimit) || freeLimit >= 999 ? tb.unlimited : freeLimit}</p>
                   </div>
                   <div className="rounded-md border p-3">
                     <p className="text-muted-foreground">{tb.ram}</p>
-                    <p className="font-semibold" dir="ltr">{tier!.ramGb} {tb.gb}</p>
+                    <p className="font-semibold" dir="ltr">{meta.ramGb ?? "—"} {tb.gb}</p>
                   </div>
                   <div className="rounded-md border p-3">
                     <p className="text-muted-foreground">{tb.cpu}</p>
-                    <p className="font-semibold" dir="ltr">{tier!.cpuCores} {tb.cores}</p>
+                    <p className="font-semibold" dir="ltr">{meta.cpuCores ?? "—"} {tb.cores}</p>
                   </div>
                 </div>
                 <div>
@@ -411,7 +433,7 @@ export default function BuyBotDetail() {
               ) : (
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">{tb.packagePrice}</span>
-                  <span>{formatToman(tier!.price, lang)}</span>
+                  <span>{formatToman(product!.price, lang)}</span>
                 </div>
               )}
 

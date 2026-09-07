@@ -236,7 +236,7 @@ export default function Dashboard() {
         <div className="space-y-2">
           {attentionItems.map(({ bot, reason }) => {
             const Icon = ATTENTION_ICONS[reason];
-            const href = reason === "expired" || reason === "trialEndingSoon" ? "/buy-bot" : `/bots/${bot.id}`;
+            const href = reason === "expired" || reason === "trialEndingSoon" ? "/products" : `/bots/${bot.id}`;
             return (
               <div
                 key={bot.id}

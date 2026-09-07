@@ -75,7 +75,7 @@ export function NotificationBell() {
         <div className="space-y-1.5 border-t p-2">
           {notifications.some((n) => n.type.startsWith("trial_")) && (
             <Button variant="outline" size="sm" className="w-full" asChild>
-              <Link href="/buy-bot" onClick={() => setOpen(false)}>
+              <Link href="/products" onClick={() => setOpen(false)}>
                 {t.ctaBuyBot}
               </Link>
             </Button>

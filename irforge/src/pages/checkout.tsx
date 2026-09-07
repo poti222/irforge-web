@@ -240,7 +240,7 @@ export default function Checkout() {
         <ShoppingCart className="mx-auto size-10 text-muted-foreground" />
         <p className="text-muted-foreground">{t.emptyCart}</p>
         <Button asChild variant="outline">
-          <Link href="/buy-bot">{t.buyNewBot}</Link>
+          <Link href="/products">{t.buyNewBot}</Link>
         </Button>
       </div>
     );

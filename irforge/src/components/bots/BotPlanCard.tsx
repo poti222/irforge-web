@@ -74,7 +74,7 @@ export function BotPlanCard({ bot }: { bot: Bot }) {
           )}
           {!tier && (
             <Button variant="outline" size="sm" className="ms-auto gap-1.5" asChild>
-              <Link href="/buy-bot">
+              <Link href="/products">
                 <ArrowUpCircle className="size-4" /> {t.upgradeCta}
               </Link>
             </Button>

@@ -49,7 +49,7 @@ export function TrialWarningDialog() {
             {fa ? "متوجه شدم" : "Got it"}
           </AlertDialogCancel>
           <AlertDialogAction asChild className="w-full sm:w-auto">
-            <Link href="/buy-bot" onClick={handleClose}>
+            <Link href="/products" onClick={handleClose}>
               <ShoppingBag className="me-2 h-4 w-4" /> {fa ? "مشاهده پکیج‌ها" : "View packages"}
             </Link>
           </AlertDialogAction>

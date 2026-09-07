@@ -1,7 +1,7 @@
 {
   "common": {
     "dashboard": "Panel",
-    "buyBot": "Bot Satın Al",
+    "buyBot": "Ürünler",
     "myBots": "Botlarım",
     "myInvoices": "Faturalarım",
     "support": "Destek",
@@ -299,7 +299,7 @@
     "support": "Destek",
     "database": "Veritabanı",
     "admin": "Yönetim paneli",
-    "buyBot": "Bot satın al",
+    "products": "Ürünler",
     "checkout": "Ödeme",
     "botWorkspace": "Bot çalışma alanı",
     "plans": "Planlar"
@@ -564,6 +564,12 @@
     "noneSelected": "Seçilmedi",
     "total": "Toplam",
     "checkoutNote": "Satın alma, ödeme sayfasında tamamlanır."
+  },
+  "products": {
+    "pageTitle": "Ürünler",
+    "pageSub": "Hazır paketlerden birini seç, ya da diğer kategorilere göz at.",
+    "categoryEmpty": "Bu kategoride henüz ürün yok.",
+    "comingSoon": "Yakında"
   },
   "notifications": {
     "title": "Bildirimler",

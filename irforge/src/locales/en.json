@@ -1,7 +1,7 @@
 {
   "common": {
     "dashboard": "Dashboard",
-    "buyBot": "Buy Bot",
+    "buyBot": "Products",
     "myBots": "My Bots",
     "myInvoices": "My Invoices",
     "support": "Support",
@@ -299,7 +299,7 @@
     "support": "Support",
     "database": "Database",
     "admin": "Admin panel",
-    "buyBot": "Buy a bot",
+    "products": "Products",
     "checkout": "Checkout",
     "botWorkspace": "Bot workspace",
     "plans": "Plans"
@@ -564,6 +564,12 @@
     "noneSelected": "None selected",
     "total": "Total",
     "checkoutNote": "The purchase itself is completed on the checkout page."
+  },
+  "products": {
+    "pageTitle": "Products",
+    "pageSub": "Pick one of the ready-made packages, or browse the other categories.",
+    "categoryEmpty": "No products in this category yet.",
+    "comingSoon": "Coming soon"
   },
   "notifications": {
     "title": "Notifications",

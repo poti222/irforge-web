@@ -117,8 +117,8 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location.startsWith("/buy-bot")} tooltip={nav.buyBot}>
-                  <Link href="/buy-bot" data-testid="nav-buy-bot" onClick={closeMobileMenu}>
+                <SidebarMenuButton asChild isActive={location.startsWith("/products")} tooltip={nav.buyBot}>
+                  <Link href="/products" data-testid="nav-buy-bot" onClick={closeMobileMenu}>
                     <ShoppingBag />
                     <span>{nav.buyBot}</span>
                   </Link>

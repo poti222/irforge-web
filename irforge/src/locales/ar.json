@@ -1,7 +1,7 @@
 {
   "common": {
     "dashboard": "لوحة التحكم",
-    "buyBot": "شراء بوت",
+    "buyBot": "المنتجات",
     "myBots": "بوتاتي",
     "myInvoices": "فواتيري",
     "support": "الدعم",
@@ -299,7 +299,7 @@
     "support": "الدعم",
     "database": "قاعدة البيانات",
     "admin": "لوحة الإدارة",
-    "buyBot": "شراء بوت",
+    "products": "المنتجات",
     "checkout": "الدفع",
     "botWorkspace": "مساحة عمل البوت",
     "plans": "الخطط"
@@ -564,6 +564,12 @@
     "noneSelected": "لم يُختر شيء",
     "total": "الإجمالي",
     "checkoutNote": "يتم إتمام الشراء في صفحة الدفع."
+  },
+  "products": {
+    "pageTitle": "المنتجات",
+    "pageSub": "أحد الباقات الجاهزة، أو تصفّح بقية الفئات.",
+    "categoryEmpty": "لا توجد منتجات في هذه الفئة بعد.",
+    "comingSoon": "قريبًا"
   },
   "notifications": {
     "title": "الإشعارات",

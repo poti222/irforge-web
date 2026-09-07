@@ -68,7 +68,7 @@ export function ctaForType(
   if (type.startsWith("purchase_") || type.startsWith("payment_") || type.startsWith("order_")) {
     return { href: "/invoices", key: "invoices" };
   }
-  if (type.startsWith("trial_")) return { href: "/buy-bot", key: "buyBot" };
+  if (type.startsWith("trial_")) return { href: "/products", key: "buyBot" };
   if (type.startsWith("deposit_")) return { href: "/wallet", key: "wallet" };
   if (type === "plugin_purchased") return { href: "/bots", key: "bots" };
   return null;

@@ -927,16 +927,16 @@ ON CONFLICT (id) DO NOTHING;
 -- copy from the botTiers i18n namespace (useT("botTiers")), not from
 -- bot-tiers.ts's own fields, for every one of the site's 5 languages --
 -- copying stale duplicate text here would just be unused weight.
-INSERT INTO products (id, category_id, name, name_fa, description, description_fa, price, metadata, sort_order)
+INSERT INTO products (id, category_id, name, name_fa, description, description_fa, price, icon, metadata, sort_order)
 VALUES
   ('standard', 'bot', 'Standard', 'استاندارد',
    'A fast start for small projects', 'برای شروع سریع و پروژه‌های کوچک',
-   5000000,
+   5000000, 'Medal',
    '{"ramGb":1,"cpuCores":1,"maxBots":1,"maxFreePlugins":3,"maxConcurrentUsers":50,"popular":false,"accent":"from-slate-400 to-slate-300"}',
    0),
   ('pro', 'bot', 'Pro', 'پرو',
    'Maximum power for serious businesses', 'حداکثر امکانات برای کسب‌وکارهای جدی',
-   11000000,
+   11000000, 'Trophy',
    '{"ramGb":3,"cpuCores":3,"maxBots":3,"maxFreePlugins":6,"maxConcurrentUsers":250,"popular":true,"accent":"from-amber-400 to-yellow-300"}',
    1)
 ON CONFLICT (id) DO NOTHING;

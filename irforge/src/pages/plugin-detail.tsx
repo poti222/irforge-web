@@ -248,7 +248,7 @@ export default function PluginDetail() {
                 <div className="space-y-3 rounded-lg border border-dashed p-4 text-center">
                   <p className="text-sm text-muted-foreground">{t.needABotFirst}</p>
                   <Button asChild variant="outline" size="sm">
-                    <Link href="/buy-bot">{t.goBuyBot}</Link>
+                    <Link href="/products">{t.goBuyBot}</Link>
                   </Button>
                 </div>
               ) : (

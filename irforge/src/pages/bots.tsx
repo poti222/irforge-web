@@ -20,7 +20,7 @@ export default function Bots() {
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t.title}</h1>
         {/* Creating a bot now always starts from the Buy Bot flow. */}
         <Button asChild className="w-full sm:w-auto">
-          <Link href="/buy-bot">
+          <Link href="/products">
             <Plus className="me-2 h-4 w-4" /> {t.createNewBot}
           </Link>
         </Button>
@@ -131,7 +131,7 @@ export default function Bots() {
             {t.noBotsDesc}
           </p>
           <Button asChild>
-            <Link href="/buy-bot">
+            <Link href="/products">
               <Plus className="me-2 h-4 w-4" /> {t.createFirstBot}
             </Link>
           </Button>

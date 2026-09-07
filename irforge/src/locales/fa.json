@@ -1,7 +1,7 @@
 {
   "common": {
     "dashboard": "داشبورد",
-    "buyBot": "خرید ربات",
+    "buyBot": "محصولات",
     "myBots": "ربات‌های من",
     "myInvoices": "فاکتورهای من",
     "support": "پشتیبانی",
@@ -299,7 +299,7 @@
     "support": "پشتیبانی",
     "database": "دیتابیس",
     "admin": "پنل مدیریت",
-    "buyBot": "خرید بات",
+    "products": "محصولات",
     "checkout": "تسویه حساب",
     "botWorkspace": "مدیریت بات",
     "plans": "پلن‌ها"
@@ -564,6 +564,12 @@
     "noneSelected": "انتخاب نشده",
     "total": "مجموع",
     "checkoutNote": "خرید نهایی از صفحه‌ی تسویه‌حساب انجام می‌شود."
+  },
+  "products": {
+    "pageTitle": "محصولات",
+    "pageSub": "یکی از پکیج‌های آماده را انتخاب کن یا از بین دسته‌های دیگر بگرد.",
+    "categoryEmpty": "این دسته هنوز محصولی ندارد.",
+    "comingSoon": "به‌زودی"
   },
   "notifications": {
     "title": "اعلان‌ها",

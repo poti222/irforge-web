@@ -46,6 +46,8 @@ Disallow: /profile
 Disallow: /*/profile
 Disallow: /buy-bot
 Disallow: /*/buy-bot
+Disallow: /products
+Disallow: /*/products
 Disallow: /checkout
 Disallow: /*/checkout
 Disallow: /admin
