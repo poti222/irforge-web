@@ -182,12 +182,22 @@ export async function getPluginCatalog(): Promise<{ plugins: PluginManifest[]; p
 
   try {
     const rows = await catalogSheetLayer.readTabRows(spreadsheetId, CATALOG_TAB);
-    const plugins: PluginManifest[] = [];
+    // Bug report: every plugin was showing up 3x in both the marketplace and
+    // a bot's Plugins section. Root cause: this loop pushed one manifest per
+    // RAW SHEET ROW with no dedup by id — if `plugin_catalog` ever ends up
+    // with several rows sharing the same key/id (a leftover from an
+    // append-instead-of-update on the bot's publishing side), every
+    // consumer of getPluginCatalog() shows each of them. Keyed by id (not
+    // pushed positionally) so a later row for the same id replaces an
+    // earlier one — "last write wins" is the closest approximation of
+    // "most recent" available from a flat row order.
+    const byId = new Map<string, PluginManifest>();
     for (const row of rows) {
       if (row.key === META_KEY) continue;
       const manifest = parseManifest(row.key, row.value);
-      if (manifest) plugins.push(manifest);
+      if (manifest) byId.set(manifest.id, manifest);
     }
+    const plugins: PluginManifest[] = [...byId.values()];
 
     if (plugins.length === 0) {
       // تب هست ولی خالی است — بات هنوز یک بار بالا نیامده. این «صفر پلاگین»

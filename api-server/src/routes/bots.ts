@@ -62,7 +62,7 @@ import { resolvePurchasePrice, getBotTierProduct } from "../lib/pluginPricing.js
 import { getPluginCatalog } from "../lib/pluginCatalog.js";
 import { marketplaceItemIdFor } from "../lib/marketplaceSync.js";
 import { getUserPlanLimits, countUserBots } from "../lib/planLimits.js";
-import { deductWallet, InsufficientBalanceError } from "../lib/wallet.js";
+import { deductWallet, creditWallet, InsufficientBalanceError } from "../lib/wallet.js";
 import { tomanToRial, rialToToman } from "../lib/currency.js";
 import { verifyCaptchaToken } from "../lib/captchaVerify.js";
 import { buildSheetPoolView } from "../lib/sheetPoolView.js";
@@ -205,6 +205,55 @@ function requireBotOwnership(req: any, res: any, next: any) {
   });
 }
 
+// ─── requireBotAccess ───────────────────────────────────────────────────────
+// Owner OR super_admin — the same "R6" bypass GET /bots/:botId and
+// lib/botConfig.ts::resolveBotSheet() already grant, applied to the rest of
+// this bot's management routes (plugin install/uninstall, managers, stats,
+// telegram profile) so a super admin opening a user's bot via the site's
+// admin "Manage" button (which just reuses this same /bots/:botId page and
+// the admin's own real session — there is no separate impersonation token
+// here) can actually manage it, not only view it. Also sets req.isSuperAdmin
+// so a handler that moves money or sends an "X happened to your bot"
+// notification can charge/notify the bot's real owner instead of whichever
+// admin happens to be driving (see POST /bots/:botId/plugins below).
+//
+// Deliberately NOT applied to:
+//   - DELETE /bots/:botId and POST /bots/:botId/regenerate-admin-code, which
+//     stay on requireBotOwnership/their own literal-owner check — see the
+//     comment on POST /bots/claim above for why those two stay owner-only.
+//   - POST /bots/:botId/upgrade-tier (stays on requireBotOwnership) — a
+//     super admin changing a bot's tier already has a purpose-built route,
+//     PATCH /admin/bots/:botId/tier, with no wallet math to get wrong;
+//     this self-serve wallet-charging endpoint doesn't need a second path.
+async function requireBotAccess(req: any, res: any, next: any) {
+  requireAuth(req, res, async () => {
+    try {
+      const [requester] = await db
+        .select({ role: usersTable.role })
+        .from(usersTable)
+        .where(eq(usersTable.id, req.userId))
+        .limit(1);
+      const isSuperAdmin = requester?.role === "super_admin";
+
+      const where = isSuperAdmin
+        ? eq(botsTable.id, req.params.botId)
+        : and(eq(botsTable.id, req.params.botId), eq(botsTable.userId, req.userId));
+
+      const [bot] = await db.select().from(botsTable).where(where).limit(1);
+      if (!bot) {
+        res.status(404).json({ error: "Bot not found" });
+        return;
+      }
+      req.bot = bot;
+      req.isSuperAdmin = isSuperAdmin;
+      next();
+    } catch (err) {
+      logger.error({ err }, "requireBotAccess error");
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function formatBot(bot: any) {
@@ -264,6 +313,90 @@ async function isTokenAlreadyUsed(token: string): Promise<boolean> {
       return false;
     }
   });
+}
+
+/**
+ * Bug report: creating one bot produced several Postgres rows for it, only
+ * one of which actually worked. Root cause: `bots.token` is AES-GCM
+ * ciphertext with a random IV per row (see the encryptToken/decryptToken
+ * comment below), so it can never carry a real unique index — duplicate
+ * protection was purely a check-then-insert in application code
+ * (`isTokenAlreadyUsed` above, called separately from the later `.insert()`
+ * a few lines down), with nothing between the two. Two overlapping requests
+ * for the same token — the common real case is `reconcileBotsFromRegistry`,
+ * which runs on every single GET /bots and imports any tenant it doesn't
+ * find in Postgres yet, so two tabs/devices loading the dashboard around
+ * the same moment both see "no row" and both insert one — could both pass
+ * the check and both insert.
+ *
+ * A transaction-scoped Postgres advisory lock (`pg_advisory_xact_lock`,
+ * auto-released at commit/rollback) keyed by the plaintext token via
+ * Postgres's own `hashtext()` closes this without a schema change: two
+ * concurrent calls for the SAME token now serialize on the lock, so
+ * whichever gets it first fully commits its decision (insert, or "already
+ * there, skip") before the second one's own check inside the lock even
+ * runs — that second check is what actually matters here; the lock alone
+ * only serializes timing, not the decision. Different tokens use different
+ * lock keys and never block each other.
+ */
+async function withTokenCreationLock<T>(token: string, fn: (tx: any) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx: any) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${token}))`);
+    return fn(tx);
+  });
+}
+
+/** Thrown from inside withTokenCreationLock's re-check — the caller lost the race. */
+class DuplicateTokenError extends Error {}
+
+async function tokenUsedInTx(tx: any, token: string): Promise<boolean> {
+  const rows = await tx.select().from(botsTable);
+  return rows.some((b: any) => {
+    try {
+      return decryptToken(b.token) === token;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
+ * Defensive net for bot rows that duplicated BEFORE withTokenCreationLock
+ * existed (or from any future gap this doesn't cover) — collapses rows that
+ * decrypt to the same token, since a listing showing 2-3 entries for what
+ * the user experiences as one bot is exactly the reported symptom, whether
+ * or not the write side that caused it has since been fixed. Keeps the row
+ * most likely to be "the real one": one with a sheet already assigned (a
+ * bot leftover from a lost race typically never got one, since sheet
+ * assignment happens once per successful create/import), else the oldest
+ * row (the original, not a later duplicate insert).
+ */
+function dedupeBotsByToken(
+  bots: (typeof botsTable.$inferSelect)[]
+): (typeof botsTable.$inferSelect)[] {
+  type Bot = typeof botsTable.$inferSelect;
+  const byToken = new Map<string, Bot>();
+  const undecryptable: Bot[] = [];
+  for (const bot of bots) {
+    let token: string;
+    try {
+      token = decryptToken(bot.token);
+    } catch {
+      undecryptable.push(bot);
+      continue;
+    }
+    const current = byToken.get(token);
+    if (!current) {
+      byToken.set(token, bot);
+      continue;
+    }
+    const currentIsBetter =
+      Boolean(current.sheetId) === Boolean(bot.sheetId)
+        ? current.createdAt <= bot.createdAt
+        : Boolean(current.sheetId);
+    if (!currentIsBetter) byToken.set(token, bot);
+  }
+  return [...byToken.values(), ...undecryptable];
 }
 
 // ─── Live stats overlay ───────────────────────────────────────────────────────
@@ -482,22 +615,43 @@ async function reconcileBotsFromRegistry(userId: string, telegramId: string | nu
     // No Postgres row at all — this tenant was created entirely outside the
     // site (through the bot itself). Import it so the rest of the app
     // (commands, plugins, stats, settings) has something to attach to.
-    const newId = crypto.randomUUID();
-    const [imported] = await db
-      .insert(botsTable)
-      .values({
-        id: newId,
-        name: t.bot_name || "Bot",
-        description: null,
-        token: encryptToken(t.bot_token),
-        userId,
-        username: t.bot_username ?? null,
-        status: t.status === "active" ? "active" : "inactive",
-        paymentStatus: "approved",
-        sheetId,
-        adminCode: t.admin_password || null,
-      })
-      .returning();
+    //
+    // This runs on every single GET /bots, so two tabs/devices loading the
+    // dashboard around the same moment both reach this branch for the same
+    // tenant with the `byToken` map built above (from a single early SELECT,
+    // now stale for the duration of this loop) still saying "not there yet"
+    // — a real check-then-insert race, the actual root cause behind the
+    // "creating one bot made several" bug report. withTokenCreationLock
+    // serializes on the token; the re-check inside it (not just the map
+    // above) is what actually closes the race — the lock alone only orders
+    // timing, the losing caller still has to see the winner's committed row.
+    const imported = await withTokenCreationLock(t.bot_token, async (tx) => {
+      const raced = await tx.select().from(botsTable);
+      for (const b of raced) {
+        try {
+          if (decryptToken(b.token) === t.bot_token) return b;
+        } catch {
+          /* corrupt/legacy row — skip */
+        }
+      }
+      const newId = crypto.randomUUID();
+      const [inserted] = await tx
+        .insert(botsTable)
+        .values({
+          id: newId,
+          name: t.bot_name || "Bot",
+          description: null,
+          token: encryptToken(t.bot_token),
+          userId,
+          username: t.bot_username ?? null,
+          status: t.status === "active" ? "active" : "inactive",
+          paymentStatus: "approved",
+          sheetId,
+          adminCode: t.admin_password || null,
+        })
+        .returning();
+      return inserted;
+    });
     byToken.set(t.bot_token, imported);
   }
 }
@@ -535,7 +689,8 @@ router.get("/bots", requireAuth, async (req: any, res) => {
           ),
         ),
       );
-    const withIdentity = await Promise.all(bots.map(backfillBotIdentityIfStale));
+    const deduped = dedupeBotsByToken(bots);
+    const withIdentity = await Promise.all(deduped.map(backfillBotIdentityIfStale));
     const evaluated = await Promise.all(
       withIdentity.map((b) => (b.isTrial ? evaluateBotTrial(b) : b))
     );
@@ -606,22 +761,37 @@ router.post("/bots", requireAuth, perUserRateLimit("bot_create", 10, 60 * 60 * 1
     // و لیست بات‌های خود کاربر @username واقعی دیده بشه، نه "@undefined".
     const identity = await fetchBotIdentity(token);
 
-    // ساخت بات با وضعیت pending_payment
-    const [bot] = await db
-      .insert(botsTable)
-      .values({
-        id: botId,
-        name,
-        description: description ?? null,
-        token: encryptToken(token),
-        userId: req.userId,
-        status: "pending_payment",
-        paymentStatus: "pending",
-        username: identity.username,
-        avatarFileId: identity.avatarFileId,
-        avatar: identity.avatarFileId ? `/api/bots/${botId}/avatar` : null,
-      })
-      .returning();
+    // ساخت بات با وضعیت pending_payment. isTokenAlreadyUsed() above only
+    // catches a non-concurrent duplicate — the lock + re-check inside is
+    // what actually closes the race (see withTokenCreationLock's comment).
+    let bot: typeof botsTable.$inferSelect;
+    try {
+      bot = await withTokenCreationLock(token, async (tx) => {
+        if (await tokenUsedInTx(tx, token)) throw new DuplicateTokenError();
+        const [inserted] = await tx
+          .insert(botsTable)
+          .values({
+            id: botId,
+            name,
+            description: description ?? null,
+            token: encryptToken(token),
+            userId: req.userId,
+            status: "pending_payment",
+            paymentStatus: "pending",
+            username: identity.username,
+            avatarFileId: identity.avatarFileId,
+            avatar: identity.avatarFileId ? `/api/bots/${botId}/avatar` : null,
+          })
+          .returning();
+        return inserted;
+      });
+    } catch (err) {
+      if (err instanceof DuplicateTokenError) {
+        res.status(409).json({ error: "This bot token is already registered", code: "duplicate_token" });
+        return;
+      }
+      throw err;
+    }
 
     // ذخیره فیش پرداخت
     const [payment] = await db
@@ -701,6 +871,18 @@ router.post("/bots/trial", requireAuth, perUserRateLimit("bot_create", 10, 60 * 
       return;
     }
 
+    // این مسیر تا امروز هیچ چکِ توکنِ تکراری‌ای نداشت — برخلافِ POST /bots و
+    // POST /bots/wallet-purchase که هر دو isTokenAlreadyUsed() را قبل از
+    // ساخت صدا می‌زنند. یک توکنِ از قبل ثبت‌شده (مثلاً باتِ پولیِ همان کاربر)
+    // بی‌هیچ رد شدنی یک بات تریالِ دوم روی همان توکن می‌ساخت. چکِ سریع اینجا،
+    // قبل از گرفتنِ شیت از pool — تا یک توکنِ آشکارا تکراری قبل از مصرفِ یک
+    // شیتِ کمیاب رد شود؛ چکِ واقعاً اتمیک (برای مسابقه‌ی هم‌زمان) داخلِ
+    // withTokenCreationLock پایین‌تر است.
+    if (await isTokenAlreadyUsed(token.trim())) {
+      res.status(409).json({ error: "این توکنِ بات قبلاً ثبت شده است.", code: "duplicate_token" });
+      return;
+    }
+
     const [user] = await db
       .select()
       .from(usersTable)
@@ -758,25 +940,49 @@ router.post("/bots/trial", requireAuth, perUserRateLimit("bot_create", 10, 60 * 
     const trialToken = token.trim();
     const identity = await fetchBotIdentity(trialToken);
 
-    const [bot] = await db
-      .insert(botsTable)
-      .values({
-        id: botId,
-        name: name.trim(),
-        description: "تریال ۷ روزه (معادل پکیج نقره‌ای)",
-        token: encryptToken(trialToken),
-        userId: req.userId,
-        status: "active",
-        paymentStatus: "approved",
-        sheetId: freeSheet.sheetId,
-        adminCode,
-        isTrial: true,
-        trialExpiresAt,
-        username: identity.username,
-        avatarFileId: identity.avatarFileId,
-        avatar: identity.avatarFileId ? `/api/bots/${botId}/avatar` : null,
-      })
-      .returning();
+    // withTokenCreationLock + re-check closes the same race POST /bots has
+    // (two concurrent requests for the same token both passing the
+    // pre-check above and both inserting). Unlike that route, this one
+    // already spent a scarce pool sheet before reaching here — a duplicate
+    // caught by the re-check must hand that sheet back, or it leaks as
+    // "assigned" to a bot that was never actually created.
+    let bot: typeof botsTable.$inferSelect;
+    try {
+      bot = await withTokenCreationLock(trialToken, async (tx) => {
+        if (await tokenUsedInTx(tx, trialToken)) throw new DuplicateTokenError();
+        const [inserted] = await tx
+          .insert(botsTable)
+          .values({
+            id: botId,
+            name: name.trim(),
+            description: "تریال ۷ روزه (معادل پکیج نقره‌ای)",
+            token: encryptToken(trialToken),
+            userId: req.userId,
+            status: "active",
+            paymentStatus: "approved",
+            sheetId: freeSheet.sheetId,
+            adminCode,
+            isTrial: true,
+            trialExpiresAt,
+            username: identity.username,
+            avatarFileId: identity.avatarFileId,
+            avatar: identity.avatarFileId ? `/api/bots/${botId}/avatar` : null,
+          })
+          .returning();
+        return inserted;
+      });
+    } catch (err) {
+      if (err instanceof DuplicateTokenError) {
+        await db
+          .update(sheetPoolTable)
+          .set({ status: "available", assignedBotId: null })
+          .where(eq(sheetPoolTable.id, freeSheet.id));
+        syncSheetPoolUpsert({ sheet_id: freeSheet.sheetId, assigned_to: null, status: "available" });
+        res.status(409).json({ error: "این توکنِ بات قبلاً ثبت شده است.", code: "duplicate_token" });
+        return;
+      }
+      throw err;
+    }
 
     await db.update(usersTable).set({ hasUsedTrial: true }).where(eq(usersTable.id, req.userId));
 
@@ -1006,15 +1212,51 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
       : resolved.source === "custom-build" ? "custom"
       : null;
 
-    const [bot] = await db.insert(botsTable).values({
-      id: botId, name, description: description ?? null, token: encryptToken(token),
-      userId: req.userId, status: "inactive", paymentStatus: "approved", sheetId, adminCode,
-      orderPhone: String(phone), orderTelegramId: String(telegramId),
-      username: identity.username,
-      avatarFileId: identity.avatarFileId,
-      avatar: identity.avatarFileId ? `/api/bots/${botId}/avatar` : null,
-      tier: purchasedTier,
-    }).returning();
+    // Payment already cleared above (wallet deducted, discount committed) by
+    // the time we get here, so the isTokenAlreadyUsed() pre-check earlier
+    // can't be the only guard — two concurrent purchases for the identical
+    // token could both pass it and both reach this insert. The lock +
+    // re-check closes that for the bot ROW itself; a caller that loses the
+    // race gets refunded (the sheet, if one was assigned, is released too)
+    // rather than silently keeping their money for a bot that was never
+    // created. The one piece this can't undo is an already-applied discount
+    // code's usedCount (committed before payment, not reversible without a
+    // dedicated un-commit path) — an acceptable, disclosed gap for what is
+    // already a same-token double-submit edge case.
+    let bot: typeof botsTable.$inferSelect;
+    try {
+      bot = await withTokenCreationLock(token, async (tx) => {
+        if (await tokenUsedInTx(tx, token)) throw new DuplicateTokenError();
+        const [inserted] = await tx.insert(botsTable).values({
+          id: botId, name, description: description ?? null, token: encryptToken(token),
+          userId: req.userId, status: "inactive", paymentStatus: "approved", sheetId, adminCode,
+          orderPhone: String(phone), orderTelegramId: String(telegramId),
+          username: identity.username,
+          avatarFileId: identity.avatarFileId,
+          avatar: identity.avatarFileId ? `/api/bots/${botId}/avatar` : null,
+          tier: purchasedTier,
+        }).returning();
+        return inserted;
+      });
+    } catch (err) {
+      if (err instanceof DuplicateTokenError) {
+        if (sheetId) {
+          await db.update(sheetPoolTable).set({ status: "available", assignedBotId: null }).where(eq(sheetPoolTable.id, freeSheet!.id));
+          syncSheetPoolUpsert({ sheet_id: sheetId, assigned_to: null, status: "available" });
+        }
+        await creditWallet(req.userId, tomanToRial(finalAmount), `Refund: duplicate token, bot "${name}"`, "refund");
+        await createNotification({
+          userId: req.userId,
+          type: "purchase_failed",
+          severity: "warning",
+          title: "خرید بات ناموفق بود",
+          message: `این توکن هم‌زمان برای ساختِ باتِ دیگری استفاده شد. مبلغِ ${formatTomanFa(finalAmount)} به کیف پولتان بازگردانده شد.`,
+        });
+        res.status(409).json({ error: "This bot token is already registered", code: "duplicate_token" });
+        return;
+      }
+      throw err;
+    }
 
     await syncSheetTitle(sheetId, bot.name);
 
@@ -1519,8 +1761,8 @@ router.post("/bots/claim", requireAuth, blockWhileImpersonating, async (req: any
   }
 });
 
-/** مدیرانی که مالک به آن‌ها دسترسی داده. فقط مالک می‌بیند. */
-router.get("/bots/:botId/managers", requireBotOwnership, async (req: any, res) => {
+/** مدیرانی که مالک به آن‌ها دسترسی داده. مالک، یا سوپرادمین در حالِ مدیریتِ این بات. */
+router.get("/bots/:botId/managers", requireBotAccess, async (req: any, res) => {
   try {
     const rows = await db
       .select({
@@ -1549,8 +1791,8 @@ router.get("/bots/:botId/managers", requireBotOwnership, async (req: any, res) =
   }
 });
 
-/** ابطال دسترسی. فقط مالک. */
-router.delete("/bots/:botId/managers/:managerId", requireBotOwnership, async (req: any, res) => {
+/** ابطال دسترسی. مالک، یا سوپرادمین در حالِ مدیریتِ این بات. */
+router.delete("/bots/:botId/managers/:managerId", requireBotAccess, async (req: any, res) => {
   try {
     const removed = await db
       .delete(botManagersTable)
@@ -2611,14 +2853,12 @@ router.post("/bots/:botId/regenerate-admin-code", requireBotOwnership, async (re
 
 // ─── باقی routeها (stats, commands, plugins) بدون تغییر ─────────────────────
 
-router.get("/bots/:botId/stats", requireBotOwnership, async (req: any, res) => {
+router.get("/bots/:botId/stats", requireBotAccess, async (req: any, res) => {
   try {
-    const [bot] = await db
-      .select()
-      .from(botsTable)
-      .where(and(eq(botsTable.id, req.params.botId), eq(botsTable.userId, req.userId)))
-      .limit(1);
-    if (!bot) { res.status(404).json({ error: "Bot not found" }); return; }
+    // req.bot is already resolved (owner OR super_admin) by requireBotAccess
+    // — re-querying with a hardcoded owner-only filter here, as this used to,
+    // would silently 404 a super admin the middleware just let through.
+    const bot = req.bot;
     const commands = await db.select().from(commandsTable).where(eq(commandsTable.botId, bot.id));
     const plugins = await db.select().from(installedPluginsTable).where(eq(installedPluginsTable.botId, bot.id));
     const totalMessages = bot.messageCount;
@@ -2740,7 +2980,7 @@ async function syncBotAvatar(botId: string, token: string, current: string | nul
   }
 }
 
-router.get("/bots/:botId/telegram-profile", requireBotOwnership, async (req: any, res) => {
+router.get("/bots/:botId/telegram-profile", requireBotAccess, async (req: any, res) => {
   try {
     const token = decryptToken(req.bot.token);
     const [nameRes, descRes, shortDescRes, avatarFileId] = await Promise.all([
@@ -2761,7 +3001,7 @@ router.get("/bots/:botId/telegram-profile", requireBotOwnership, async (req: any
   }
 });
 
-router.patch("/bots/:botId/telegram-profile", requireBotOwnership, async (req: any, res) => {
+router.patch("/bots/:botId/telegram-profile", requireBotAccess, async (req: any, res) => {
   try {
     const { name, description, shortDescription } = req.body ?? {};
     if (name === undefined && description === undefined && shortDescription === undefined) {
@@ -2810,7 +3050,7 @@ router.patch("/bots/:botId/telegram-profile", requireBotOwnership, async (req: a
   }
 });
 
-router.post("/bots/:botId/telegram-profile/photo", requireBotOwnership, async (req: any, res) => {
+router.post("/bots/:botId/telegram-profile/photo", requireBotAccess, async (req: any, res) => {
   try {
     const dataUrl = String(req.body?.photo ?? "");
     const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
@@ -2847,7 +3087,7 @@ router.post("/bots/:botId/telegram-profile/photo", requireBotOwnership, async (r
   }
 });
 
-router.delete("/bots/:botId/telegram-profile/photo", requireBotOwnership, async (req: any, res) => {
+router.delete("/bots/:botId/telegram-profile/photo", requireBotAccess, async (req: any, res) => {
   try {
     const token = decryptToken(req.bot.token);
     const result = await tgApi(token, "removeMyProfilePhoto");
@@ -2886,7 +3126,7 @@ router.delete("/bots/:botId/telegram-profile/photo", requireBotOwnership, async 
 // خرید (POST) و حذفِ رکورد خرید (DELETE) همچنان اینجا می‌مانند، چون واقعاً
 // مال سایت‌اند.
 
-router.post("/bots/:botId/plugins", requireBotOwnership, async (req: any, res) => {
+router.post("/bots/:botId/plugins", requireBotAccess, async (req: any, res) => {
   try {
     const { marketplaceItemId, payFromWallet } = req.body;
     if (!marketplaceItemId) { res.status(400).json({ error: "marketplaceItemId is required" }); return; }
@@ -2912,16 +3152,26 @@ router.post("/bots/:botId/plugins", requireBotOwnership, async (req: any, res) =
     // item.price comes straight from marketplaceItemsTable, which is
     // Rial-denominated since IRFORGE_RIAL_MIGRATION Phase 2 — deductWallet()
     // is Rial-native too, so this is a direct passthrough, no conversion.
-    if (payFromWallet && !item.isFree && item.price > 0) {
+    //
+    // A super admin installing this for someone else's bot (requireBotAccess)
+    // never pays — same "super admin owes nothing, on any bot" policy
+    // routes/botPlugins.ts's toggle route already enforces for the free-quota
+    // and purchase-required checks. Without this, req.userId here is the
+    // ADMIN, not the bot owner, and this would have silently charged the
+    // admin's own wallet for someone else's plugin.
+    if (!req.isSuperAdmin && payFromWallet && !item.isFree && item.price > 0) {
       const ok = await deductWallet(req.userId, item.price, `Plugin: ${item.name}`);
       if (!ok) { res.status(400).json({ error: "Insufficient wallet balance", code: "insufficient" }); return; }
     }
     const id = crypto.randomUUID();
     const [plugin] = await db.insert(installedPluginsTable).values({ id, botId: req.params.botId, marketplaceItemId, name: item.name, version: item.version, enabled: true }).returning();
 
-    const pricePart = item.isFree || item.price <= 0 ? "رایگان" : formatTomanFa(rialToToman(item.price));
+    // Always the bot's real owner, never the caller — req.userId is the
+    // admin when requireBotAccess let a super admin in on someone else's bot,
+    // and it's the owner's bot that just changed, not the admin's.
+    const pricePart = req.isSuperAdmin ? "رایگان (توسط ادمین)" : item.isFree || item.price <= 0 ? "رایگان" : formatTomanFa(rialToToman(item.price));
     await createNotification({
-      userId: req.userId,
+      userId: req.bot.userId,
       botId: req.params.botId,
       type: "plugin_purchased",
       severity: "info",
@@ -2933,7 +3183,7 @@ router.post("/bots/:botId/plugins", requireBotOwnership, async (req: any, res) =
   } catch (err) { logger.error({ err }, "Install plugin error"); res.status(500).json({ error: "Internal server error" }); }
 });
 
-router.delete("/bots/:botId/plugins/:pluginId", requireBotOwnership, async (req: any, res) => {
+router.delete("/bots/:botId/plugins/:pluginId", requireBotAccess, async (req: any, res) => {
   try {
     await db.delete(installedPluginsTable).where(and(eq(installedPluginsTable.id, req.params.pluginId), eq(installedPluginsTable.botId, req.params.botId)));
     res.status(204).end();
@@ -3117,5 +3367,10 @@ router.post("/bots/:botId/sheet", requireSuperAdmin, async (req: any, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+export const __testables = {
+  requireBotOwnership, requireBotAccess,
+  dedupeBotsByToken, withTokenCreationLock, tokenUsedInTx, DuplicateTokenError,
+};
 
 export default router;

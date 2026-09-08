@@ -135,6 +135,35 @@ test("سلول خراب روی شیت، کل فهرست را از کار نمی�
   assert.deepEqual(plugins.map((p) => p.id), ["booking"]);
 });
 
+test("سه ردیفِ هم‌کلید در تب، فقط یک پلاگین می‌دهد — نه سه‌تا", async () => {
+  // باگِ گزارش‌شده: هر پلاگین هم توی مارکت‌پلیس هم توی سکشن پلاگین‌های بات
+  // ۳ بار دیده می‌شد. اگر تبِ plugin_catalog یک کلید را چند بار داشته باشد
+  // (مثلاً append به‌جای update در سمتِ publisher)، این حلقه دیگر نباید هر
+  // ردیف را جدا بشمارد.
+  process.env.REGISTRY_SPREADSHEET_ID = "sheet-registry";
+  useSheet([
+    ["booking", { ...BOOKING_ROW, version: "1.0.0" }],
+    ["booking", { ...BOOKING_ROW, version: "1.0.1" }],
+    ["booking", { ...BOOKING_ROW, version: "1.0.2" }],
+  ]);
+
+  const { plugins } = await catalogMod.getPluginCatalog();
+  assert.equal(plugins.length, 1, "سه ردیفِ «booking» باید یک پلاگین بشوند");
+  assert.equal(plugins[0].id, "booking");
+  assert.equal(plugins[0].version, "1.0.2", "آخرین ردیف باید برنده باشد");
+});
+
+test("id تکراری از طریق فیلدِ id (نه کلیدِ ردیف)، هم‌چنان دوبار شمرده نمی‌شود", async () => {
+  process.env.REGISTRY_SPREADSHEET_ID = "sheet-registry";
+  useSheet([
+    ["row-key-1", { ...BOOKING_ROW, id: "booking" }],
+    ["row-key-2", { ...BOOKING_ROW, id: "booking" }],
+  ]);
+
+  const { plugins } = await catalogMod.getPluginCatalog();
+  assert.equal(plugins.length, 1, "دو ردیف با همان id باید یک پلاگین بشوند");
+});
+
 test("مانیفست ناقص، پیش‌فرض بی‌خطر می‌گیرد", async () => {
   process.env.REGISTRY_SPREADSHEET_ID = "sheet-registry";
   useSheet([["bare", { id: "bare" }]]);

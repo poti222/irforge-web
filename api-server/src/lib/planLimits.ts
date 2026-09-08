@@ -16,7 +16,8 @@
  * the same thing.
  */
 import { db, plansTable, userPlansTable, botsTable } from "@workspace/db";
-import { eq, and, ne, sql } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
+import { decryptToken } from "./tokenCrypto.js";
 
 export type PlanLimits = { planId: string; maxBots: number; maxPlugins: number };
 
@@ -43,11 +44,30 @@ export async function getUserPlanLimits(userId: string): Promise<PlanLimits> {
  * (فیشی که ردّ شده هیچ‌وقت واقعاً بات نشده، پس نباید سهمیه بخورد). بات‌های
  * pending_payment/expired عمداً شمرده می‌شوند: در غیر این صورت یک کاربر
  * می‌توانست با ساختن بات‌های pending نامحدود، محدودیت را دور بزند.
+ *
+ * یک `count(*)` خام روی همان توکنِ تکراری‌ای که routes/bots.ts::
+ * withTokenCreationLock تازه بست هم می‌شمرد — یک بات که به‌خاطر مسابقه‌ی قدیمی
+ * دو ردیف شده بود سهمیه‌ی کاربر را واقعاً دو برابر مصرف می‌کرد و می‌توانست
+ * بی‌جهت جلوی ساختِ باتِ بعدیِ او را بگیرد. شمارشِ واقعی نیازمندِ رمزگشاییِ
+ * توکن است (AES-GCM با IV تصادفی، پس `DISTINCT` روی خودِ ستون کار نمی‌کند)،
+ * پس این تابع دیگر یک `count(*)` نیست — ردیف‌ها را می‌خواند و بر اساسِ
+ * توکنِ رمزگشایی‌شده یکتا می‌کند؛ هزینه‌اش فقط به تعدادِ بات‌های همین یک
+ * کاربر است، نه کلِ جدول.
  */
 export async function countUserBots(userId: string): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)` })
+  const rows = await db
+    .select({ token: botsTable.token })
     .from(botsTable)
     .where(and(eq(botsTable.userId, userId), ne(botsTable.status, "payment_rejected")));
-  return Number(row?.count ?? 0);
+
+  const tokens = new Set<string>();
+  let undecryptable = 0;
+  for (const row of rows) {
+    try {
+      tokens.add(decryptToken(row.token));
+    } catch {
+      undecryptable += 1;
+    }
+  }
+  return tokens.size + undecryptable;
 }

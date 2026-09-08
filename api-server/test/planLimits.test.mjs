@@ -16,9 +16,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 process.env.DATABASE_URL ??= "postgresql://test:test@127.0.0.1:1/testdb";
+// countUserBots() now decrypts each bot's token to dedupe by it -- tokenCrypto.ts
+// reads this into a module-level const at its own import time (see
+// tokenCryptoSelfCheck.test.mjs's header comment), so it must be set before
+// planLimits.ts (which imports tokenCrypto.ts) is first imported below.
+process.env.BOT_TOKEN_ENCRYPTION_KEY ??= "c".repeat(64);
 
-const { db, plansTable, userPlansTable } = await import("@workspace/db");
+const { db, plansTable, userPlansTable, botsTable } = await import("@workspace/db");
 const mod = await import("../src/lib/planLimits.ts");
+const { encryptToken } = await import("../src/lib/tokenCrypto.ts");
 
 /**
  * @param {{ userPlan?: object | null, plan?: object | null }} rows
@@ -123,4 +129,53 @@ test("خطای دیتابیس در حین select → throw می‌شود (این
   });
 
   await assert.rejects(() => mod.getUserPlanLimits("user_1"));
+});
+
+// ─── countUserBots — dedup by decrypted token ──────────────────────────────
+// Bug report: creating one bot produced several Postgres rows for it (a
+// check-then-insert race, fixed in routes/bots.ts::withTokenCreationLock),
+// and this raw count(*) counted every one of them — a user whose token
+// happened to duplicate could get wrongly blocked from creating a
+// legitimate additional bot ("bot_limit_reached") despite really owning
+// fewer bots than their plan allows.
+
+function installBotsDb(tokens) {
+  db.select = () => ({
+    from: (table) => ({
+      where: async () => {
+        if (table !== botsTable) return [];
+        return tokens.map((t) => ({ token: encryptToken(t) }));
+      },
+    }),
+  });
+}
+
+test("سه ردیفِ هم‌توکن یک بات شمرده می‌شود، نه سه‌تا", async () => {
+  installBotsDb(["123:aaa", "123:aaa", "123:aaa"]);
+  assert.equal(await mod.countUserBots("user_1"), 1);
+});
+
+test("توکن‌های واقعاً متفاوت جدا شمرده می‌شوند", async () => {
+  installBotsDb(["123:aaa", "456:bbb", "789:ccc"]);
+  assert.equal(await mod.countUserBots("user_1"), 3);
+});
+
+test("بدون هیچ باتی → صفر", async () => {
+  installBotsDb([]);
+  assert.equal(await mod.countUserBots("user_1"), 0);
+});
+
+test("ردیفِ رمزگشایی‌نشدنی (خراب/دستکاری‌شده) به‌جای گم‌شدن، جداگانه شمرده می‌شود", async () => {
+  db.select = () => ({
+    from: (table) => ({
+      where: async () => {
+        if (table !== botsTable) return [];
+        // یک IV نامعتبر (باید ۱۲ بایت باشد) — decryptToken واقعاً throw می‌کند،
+        // برخلافِ رشته‌ی «۳ تکه نیست» که خودش به‌عنوانِ توکنِ قدیمیِ رمزنشده
+        // پذیرفته می‌شود (decryptToken's legacy-row fallback).
+        return [{ token: encryptToken("123:aaa") }, { token: "aabb:ccdd:eeff" }];
+      },
+    }),
+  });
+  assert.equal(await mod.countUserBots("user_1"), 2, "یک بات واقعی + یک ردیفِ خراب که نمی‌شود رمزگشایی کرد");
 });
