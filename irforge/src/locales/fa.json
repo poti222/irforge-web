@@ -382,6 +382,7 @@
     "sectionAdmins": "ادمین‌ها و نقش‌ها",
     "sectionOrders": "سفارش‌ها",
     "sectionPayments": "پرداخت‌ها",
+    "sectionInvoices": "فاکتورها",
     "sectionDiscounts": "کدهای تخفیف",
     "sectionBroadcast": "پیام همگانی",
     "sectionTickets": "تیکت‌ها",
@@ -1972,7 +1973,16 @@
     "statusSavedNoMessage": "وضعیت به‌روز شد، ولی پیام به مشتری نرسید",
     "prevPage": "صفحه‌ی قبل",
     "nextPage": "صفحه‌ی بعد",
-    "pageOf": "صفحه {page} از {total}"
+    "pageOf": "صفحه {page} از {total}",
+    "colInvoiceNumber": "شماره فاکتور",
+    "invoiceSearchPlaceholder": "جستجو بر اساس نام خریدار یا شماره فاکتور…",
+    "noInvoices": "هنوز فاکتوری وجود ندارد.",
+    "noInvoiceMatches": "هیچ فاکتوری با این فیلتر مطابقت ندارد.",
+    "bucketOpen": "باز",
+    "bucketClosed": "بسته",
+    "invoiceDetailTitle": "جزئیات فاکتور",
+    "stageCreated": "دریافت رسید",
+    "stageReviewed": "بررسی‌شده"
   },
   "botPlugins": {
     "loading": "در حال بارگذاری پلاگین‌ها…",

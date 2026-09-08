@@ -48,8 +48,32 @@ type Order = {
   description?: string;
   status: string;
   created_at?: string;
+  // IRFORGE_RECEIPT_DEBUG_INVOICES_PROMPT Part 2 — stamped by
+  // handlers/payment.py::fsm_upload_receipt at order-creation time (bot
+  // commit e648b20). Optional here because orders written before that
+  // change have no such field and must still render (dash, not a crash).
+  invoice_number?: number;
   [key: string]: unknown;
 };
+
+// IRFORGE_RECEIPT_DEBUG_INVOICES_PROMPT Part 2 — the Invoices admin list
+// wants exactly two buckets, not the bot's own four statuses: "open" (still
+// needs an admin, or the buyer, to do something — pending awaiting review,
+// or postponed) and "closed" (the order reached a final outcome — verified
+// OR rejected; a rejected order is still "closed" in the invoice sense,
+// it's just closed unfavorably). Kept as one pure function so the list
+// filter and the summary counts below can never disagree about the mapping.
+export type OrderBucket = "open" | "closed";
+
+export function bucketOf(status: string): OrderBucket {
+  return status === "verified" || status === "rejected" ? "closed" : "open";
+}
+
+export function computeBucketCounts(orders: Order[]): Record<OrderBucket, number> {
+  const counts: Record<OrderBucket, number> = { open: 0, closed: 0 };
+  for (const o of orders) counts[bucketOf(o.status ?? "pending")]++;
+  return counts;
+}
 
 async function readOrders(spreadsheetId: string): Promise<Order[]> {
   const rows = await listEntity<Order>(spreadsheetId, PAYMENTS_TAB);
@@ -99,14 +123,21 @@ router.get("/bots/:botId/orders", requireAuth, async (req: any, res) => {
 
     const search = String(req.query.search ?? "").trim().toLowerCase();
     const status = String(req.query.status ?? "all");
+    // "bucket" is the Invoices view's own open/closed filter, independent of
+    // (and combinable with) the existing per-status filter above — see
+    // bucketOf() for why these two never disagree about the mapping.
+    const bucket = String(req.query.bucket ?? "all");
     const page = Math.max(1, Number(req.query.page ?? 1) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 30) || 30));
 
     let filtered = all;
     if (status !== "all") filtered = filtered.filter((o) => (o.status ?? "pending") === status);
+    if (bucket === "open" || bucket === "closed") {
+      filtered = filtered.filter((o) => bucketOf(o.status ?? "pending") === bucket);
+    }
     if (search) {
       filtered = filtered.filter((o) =>
-        [o.order_id, o.user_id, o.username, o.description]
+        [o.order_id, o.user_id, o.username, o.description, o.invoice_number]
           .map((v) => String(v ?? "").toLowerCase())
           .some((v) => v.includes(search))
       );
@@ -115,6 +146,7 @@ router.get("/bots/:botId/orders", requireAuth, async (req: any, res) => {
 
     const counts: Record<string, number> = { all: all.length };
     for (const s of ORDER_STATUSES) counts[s] = all.filter((o) => (o.status ?? "pending") === s).length;
+    const bucketCounts = computeBucketCounts(all);
 
     const start = (page - 1) * limit;
     res.json({
@@ -124,6 +156,7 @@ router.get("/bots/:botId/orders", requireAuth, async (req: any, res) => {
       total: filtered.length,
       totalPages: Math.max(1, Math.ceil(filtered.length / limit)),
       counts,
+      bucketCounts,
       statuses: ORDER_STATUSES,
       currency,
     });

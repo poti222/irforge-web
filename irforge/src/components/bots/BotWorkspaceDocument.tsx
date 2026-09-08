@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   CreditCard,
+  Receipt,
   Ticket,
   Megaphone,
   LifeBuoy,
@@ -60,6 +61,7 @@ import { UsersSection } from "@/components/bots/users/UsersSection";
 import { BroadcastSection } from "@/components/bots/broadcast/BroadcastSection";
 import { OrdersSection } from "@/components/bots/orders/OrdersSection";
 import { PaymentsSection } from "@/components/bots/payments/PaymentsSection";
+import { InvoicesSection } from "@/components/bots/invoices/InvoicesSection";
 import { ObjectsSection } from "@/components/bots/advanced/ObjectsSection";
 import { RelationsSection } from "@/components/bots/advanced/RelationsSection";
 import { WorkflowsSection } from "@/components/bots/advanced/WorkflowsSection";
@@ -96,6 +98,7 @@ type SectionKey =
   | "admins"
   | "orders"
   | "payments"
+  | "invoices"
   | "discounts"
   | "broadcast"
   | "tickets"
@@ -197,6 +200,9 @@ const SECTION_GROUPS: SectionGroup[] = [
       // templates) that used to be Telegram-command-only. Same
       // `showWhenDisabled` pattern as booking/address/crm below.
       { key: "wallet", icon: Wallet, labelKey: "sectionWallet", requiresPlugin: "wallet", showWhenDisabled: true },
+      // IRFORGE_RECEIPT_DEBUG_INVOICES_PROMPT Part 2 — a new view on the
+      // same `payments` data Orders already reads, not a new data source.
+      { key: "invoices", icon: Receipt, labelKey: "sectionInvoices", requiresPlugin: "wallet" },
       // Deliberately still locked, and the only one left. "Discounts" means two
       // different things here: the platform's own discount codes (routes/
       // discounts.ts, site Postgres) and the bot's `discount` plugin with its
@@ -495,6 +501,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "broadcast" && <BroadcastSection bot={bot} />}
             {section === "orders" && <OrdersSection bot={bot} />}
             {section === "payments" && <PaymentsSection bot={bot} />}
+            {section === "invoices" && <InvoicesSection bot={bot} />}
             {section === "objects" && <ObjectsSection bot={bot} />}
             {section === "relations" && <RelationsSection bot={bot} />}
             {section === "workflows" && <WorkflowsSection bot={bot} />}

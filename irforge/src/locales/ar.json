@@ -382,6 +382,7 @@
     "sectionAdmins": "المشرفون والأدوار",
     "sectionOrders": "الطلبات",
     "sectionPayments": "المدفوعات",
+    "sectionInvoices": "الفواتير",
     "sectionDiscounts": "أكواد الخصم",
     "sectionBroadcast": "رسالة جماعية",
     "sectionTickets": "التذاكر",
@@ -1972,7 +1973,16 @@
     "statusSavedNoMessage": "تم تحديث الحالة لكن تعذّر إبلاغ العميل",
     "prevPage": "الصفحة السابقة",
     "nextPage": "الصفحة التالية",
-    "pageOf": "الصفحة {page} من {total}"
+    "pageOf": "الصفحة {page} من {total}",
+    "colInvoiceNumber": "رقم الفاتورة",
+    "invoiceSearchPlaceholder": "البحث حسب اسم المشتري أو رقم الفاتورة…",
+    "noInvoices": "لا توجد فواتير بعد.",
+    "noInvoiceMatches": "لا توجد فاتورة تطابق هذا الفلتر.",
+    "bucketOpen": "مفتوحة",
+    "bucketClosed": "مغلقة",
+    "invoiceDetailTitle": "تفاصيل الفاتورة",
+    "stageCreated": "تم استلام الإيصال",
+    "stageReviewed": "تمت المراجعة"
   },
   "botPlugins": {
     "loading": "جارٍ تحميل الإضافات…",

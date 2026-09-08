@@ -382,6 +382,7 @@
     "sectionAdmins": "Admins & roles",
     "sectionOrders": "Orders",
     "sectionPayments": "Payments",
+    "sectionInvoices": "Invoices",
     "sectionDiscounts": "Discount codes",
     "sectionBroadcast": "Broadcast",
     "sectionTickets": "Tickets",
@@ -1972,7 +1973,16 @@
     "statusSavedNoMessage": "Status updated, but the customer could not be notified",
     "prevPage": "Previous page",
     "nextPage": "Next page",
-    "pageOf": "Page {page} of {total}"
+    "pageOf": "Page {page} of {total}",
+    "colInvoiceNumber": "Invoice #",
+    "invoiceSearchPlaceholder": "Search by buyer name or invoice number…",
+    "noInvoices": "No invoices yet.",
+    "noInvoiceMatches": "No invoice matches this filter.",
+    "bucketOpen": "Open",
+    "bucketClosed": "Closed",
+    "invoiceDetailTitle": "Invoice details",
+    "stageCreated": "Receipt received",
+    "stageReviewed": "Reviewed"
   },
   "botPlugins": {
     "loading": "Loading plugins…",

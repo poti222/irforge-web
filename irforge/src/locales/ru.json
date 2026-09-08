@@ -382,6 +382,7 @@
     "sectionAdmins": "Админы и роли",
     "sectionOrders": "Заказы",
     "sectionPayments": "Платежи",
+    "sectionInvoices": "Счета",
     "sectionDiscounts": "Промокоды",
     "sectionBroadcast": "Рассылка",
     "sectionTickets": "Тикеты",
@@ -1972,7 +1973,16 @@
     "statusSavedNoMessage": "Статус обновлён, но уведомить клиента не удалось",
     "prevPage": "Предыдущая страница",
     "nextPage": "Следующая страница",
-    "pageOf": "Страница {page} из {total}"
+    "pageOf": "Страница {page} из {total}",
+    "colInvoiceNumber": "№ счёта",
+    "invoiceSearchPlaceholder": "Поиск по имени покупателя или номеру счёта…",
+    "noInvoices": "Пока нет счетов.",
+    "noInvoiceMatches": "Нет счетов, соответствующих фильтру.",
+    "bucketOpen": "Открыт",
+    "bucketClosed": "Закрыт",
+    "invoiceDetailTitle": "Детали счёта",
+    "stageCreated": "Квитанция получена",
+    "stageReviewed": "Проверено"
   },
   "botPlugins": {
     "loading": "Загрузка плагинов…",

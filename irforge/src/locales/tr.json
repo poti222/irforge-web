@@ -382,6 +382,7 @@
     "sectionAdmins": "Yöneticiler ve roller",
     "sectionOrders": "Siparişler",
     "sectionPayments": "Ödemeler",
+    "sectionInvoices": "Faturalar",
     "sectionDiscounts": "İndirim kodları",
     "sectionBroadcast": "Toplu mesaj",
     "sectionTickets": "Destek talepleri",
@@ -1972,7 +1973,16 @@
     "statusSavedNoMessage": "Durum güncellendi ama müşteriye bildirilemedi",
     "prevPage": "Önceki sayfa",
     "nextPage": "Sonraki sayfa",
-    "pageOf": "Sayfa {page}/{total}"
+    "pageOf": "Sayfa {page}/{total}",
+    "colInvoiceNumber": "Fatura No",
+    "invoiceSearchPlaceholder": "Alıcı adına veya fatura numarasına göre ara…",
+    "noInvoices": "Henüz fatura yok.",
+    "noInvoiceMatches": "Bu filtreyle eşleşen fatura yok.",
+    "bucketOpen": "Açık",
+    "bucketClosed": "Kapalı",
+    "invoiceDetailTitle": "Fatura ayrıntıları",
+    "stageCreated": "Makbuz alındı",
+    "stageReviewed": "İncelendi"
   },
   "botPlugins": {
     "loading": "Eklentiler yükleniyor…",
