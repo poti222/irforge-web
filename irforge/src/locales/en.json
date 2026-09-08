@@ -2736,7 +2736,9 @@
     "saved": "Saved.",
     "created": "Created.",
     "deleted": "Deleted.",
-    "items": "items"
+    "items": "items",
+    "catalogItemNone": "No link (use the Perk text instead)",
+    "catalogItemMissing": "The linked catalog product no longer exists or has been archived."
   },
   "botTiers": {
     "popular": "Most popular",

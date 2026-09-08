@@ -340,6 +340,6 @@ router.delete("/bots/:botId/plugin-data/:collection/:id", requireAuth, async (re
   }
 });
 
-export const __testables = { subscriptionExtendSideEffect };
+export const __testables = { subscriptionExtendSideEffect, coerce, buildPayload };
 
 export default router;

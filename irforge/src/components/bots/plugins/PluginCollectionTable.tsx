@@ -44,7 +44,12 @@ export type Localized = { en: string; fa: string };
 export type FieldSpec = {
   key: string;
   label: Localized;
-  type: "text" | "textarea" | "number" | "boolean" | "select" | "datetime" | "image" | "readonly";
+  type:
+    | "text" | "textarea" | "number" | "boolean" | "select" | "datetime" | "image" | "readonly"
+    // IRFORGE_SUBSCRIPTION_CATALOG_LINK_PROMPT Phase B1 -- like "select",
+    // but its options come from this bot's live catalog instead of a
+    // spec-defined static list. See RecordForm's own branch below.
+    | "catalog_item";
   required?: boolean;
   options?: Array<{ value: string; label: Localized }>;
   min?: number;
@@ -72,6 +77,26 @@ type Record_ = Record<string, unknown> & { id: string };
 
 function errMessage(err: any, fallback: string): string {
   return err?.data?.error ?? err?.message ?? fallback;
+}
+
+/**
+ * این بات چه محصولاتِ فعالی در کاتالوگ دارد — همان endpoint و همان فیلتر
+ * (`status === "active"`) که `PanelEditor.tsx`ی پنلِ فروش استفاده می‌کند
+ * (`IRFORGE_SELL_PANEL_PROMPT` فازِ ۷)، این‌جا برایِ فیلدِ نوعِ
+ * `catalog_item` — دومین مصرف‌کننده‌ی همین endpoint، نه یک کپیِ دیگر از
+ * منطقِ آن.
+ */
+function useCatalogItems(botId: string, enabled: boolean) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["bot-plugin-data-catalog-items", botId],
+    queryFn: () =>
+      customFetch<{ items: Array<{ id: string; name: string; name_fa: string; status: string }> }>(
+        `/api/bots/${botId}/catalog/items`,
+      ),
+    enabled,
+    staleTime: 60_000,
+  });
+  return { items: (data?.items ?? []).filter((i) => i.status === "active"), isLoading };
 }
 
 /**
@@ -155,7 +180,10 @@ function RecordForm({
   lang: string;
   botId: string;
 }) {
+  const t = useT("botPluginData");
   const editable = spec.fields.filter((f) => f.type !== "readonly");
+  const { items: catalogItems, isLoading: catalogItemsLoading } =
+    useCatalogItems(botId, editable.some((f) => f.type === "catalog_item"));
 
   function set(key: string, value: unknown) {
     onChange({ ...initial, [key]: value });
@@ -249,6 +277,31 @@ function RecordForm({
                   ))}
                 </SelectContent>
               </Select>
+            )}
+
+            {field.type === "catalog_item" && (
+              <>
+                <Select
+                  value={String(value || "__none__")}
+                  onValueChange={(next) => set(field.key, next === "__none__" ? "" : next)}
+                  disabled={catalogItemsLoading}
+                >
+                  <SelectTrigger id={id}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{t.catalogItemNone}</SelectItem>
+                    {catalogItems.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {(lang === "fa" ? item.name_fa : item.name) || item.name || item.name_fa}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {Boolean(value) && !catalogItemsLoading && !catalogItems.some((i) => i.id === value) && (
+                  <p className="text-xs text-destructive">{t.catalogItemMissing}</p>
+                )}
+              </>
             )}
 
             {field.help && <p className="text-xs text-muted-foreground">{loc(field.help, lang)}</p>}

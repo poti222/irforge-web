@@ -2736,7 +2736,9 @@
     "saved": "Kaydedildi.",
     "created": "Oluşturuldu.",
     "deleted": "Silindi.",
-    "items": "öğe"
+    "items": "öğe",
+    "catalogItemNone": "Bağlantı yok (metin açıklamasını kullan)",
+    "catalogItemMissing": "Bağlı katalog ürünü artık mevcut değil veya arşivlendi."
   },
   "botTiers": {
     "popular": "En çok seçilen",

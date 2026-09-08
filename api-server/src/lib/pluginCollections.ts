@@ -38,7 +38,17 @@ export type FieldType =
   | "select"
   | "datetime"
   | "image"
-  | "readonly";
+  | "readonly"
+  // IRFORGE_SUBSCRIPTION_CATALOG_LINK_PROMPT Phase B1 -- a plain string
+  // field, exactly like "text", except the client fetches its *options*
+  // live from this bot's catalog (`GET /api/bots/:id/catalog/items`)
+  // instead of a spec-defined static list. Left out of coerce()'s switch
+  // in routes/botPluginData.ts on purpose: it falls through to the same
+  // default (free-string, maxLength-checked) branch "text" already uses --
+  // there is no static option list here to validate against server-side,
+  // matching how other unchecked foreign-key-ish fields (e.g.
+  // booking-services' photo_file_id) already work in this schema.
+  | "catalog_item";
 
 export type FieldSpec = {
   key: string;
@@ -200,6 +210,14 @@ export const COLLECTIONS: CollectionSpec[] = [
         help: t("Granted only once per user.", "فقط یک بار به هر کاربر داده می‌شود."),
       },
       { key: "perk", label: t("Perk (free text)", "مزیت (متن آزاد)"), type: "text", maxLength: 120 },
+      {
+        key: "catalog_item_id", label: t("Linked catalog product (optional)", "محصولِ کاتالوگِ متصل (اختیاری)"),
+        type: "catalog_item", maxLength: 60,
+        help: t(
+          "Content (media, buttons, formatted text) delivered on purchase or renewal comes from this product. Leave empty to use the Perk text instead.",
+          "محتوایی (رسانه، دکمه، متنِ فرمت‌دار) که موقعِ خرید یا تمدید تحویل داده می‌شود از همین محصول می‌آید. برای استفاده از متنِ «مزیت»، خالی بگذارید.",
+        ),
+      },
       { key: "is_active", label: t("Active", "فعال"), type: "boolean", default: true },
     ],
     listColumns: ["name", "price", "period_days", "trial_days", "is_active"],
