@@ -24,7 +24,9 @@
 import {
   getEntity, putEntity, listEntity, removeEntity, assertSheetsAuthoritative, BotConfigError,
 } from "./botConfig.js";
-import { nowIso } from "./botTypes.js";
+import {
+  nowIso, newButton, normalizeButtonLayout, BUTTON_STYLES, MAX_BUTTONS_PER_ROW, type PanelButton,
+} from "./botTypes.js";
 import { newRecordId } from "./pluginCollections.js";
 import { sanitizeTelegramHtml } from "./catalogHtml.js";
 
@@ -85,6 +87,20 @@ export interface CatalogItem {
   media: CatalogMedia[];
   /** Telegram-HTML-formatted description, sanitized on every write (see sanitizeTelegramHtml()). Empty = fall back to plain `description`, same as delivery.py's own `_resolve_body_html()`. */
   body_html: string;
+  /**
+   * IRFORGE_FULFILLMENT_FORMS_BUTTONS_PROMPT Phase B4 — mirrors
+   * `plugins/catalog/domain.py`'s own `buttons` field (irforge-app), which
+   * already exists there but was never wired up on this side. Independent
+   * of `fulfillment_type`: these are the product's own generic call-to-action
+   * buttons, sent alongside `media`/`body_html` every time the buyer gets
+   * the product's content (see `send_catalog_item_to_buyer`). Deliberately
+   * the exact same `PanelButton` shape panels already use (`action`/`value`/
+   * `style`/`row`/`col`/`row_start`) so `ButtonBuilder.tsx` and
+   * `buttonsToRows`/`rowsToButtons` work unmodified — restricted at write
+   * time (see `validateProductButtons` below) to `url`/`panel`/`mini_app`,
+   * since a product has no destination for the other core/plugin actions.
+   */
+  buttons: PanelButton[];
   metadata: Record<string, unknown>;
   created_by?: string;
   created_at?: string;
@@ -209,6 +225,59 @@ function validateItemFields(data: Partial<CatalogItem>, rawMedia?: unknown): str
   return errors;
 }
 
+/**
+ * IRFORGE_FULFILLMENT_FORMS_BUTTONS_PROMPT Phase B4 — a product's own
+ * generic buttons. Same shape/normalization as a panel's buttons
+ * (`botPanels.ts::validateButtons`), but the action whitelist is narrower:
+ * a product has no destination for `form`/`sell` or any plugin action,
+ * only `url`/`panel`/`mini_app` (the ButtonBuilder UI is restricted to the
+ * same three, but this is the actual enforcement point).
+ */
+const PRODUCT_BUTTON_ACTIONS = ["url", "panel", "mini_app"] as const;
+
+function validateProductButtons(value: unknown): PanelButton[] {
+  if (!Array.isArray(value)) throw bad("فهرست دکمه‌ها باید آرایه باشد.", "bad_buttons");
+  if (value.length > 20) throw bad("حداکثر ۲۰ دکمه برای یک محصول مجاز است.", "bad_buttons");
+
+  const buttons = value.map((raw: any, i: number) => {
+    if (!raw || typeof raw !== "object") throw bad(`دکمه‌ی شماره ${i + 1} معتبر نیست.`, "bad_buttons");
+    const label = String(raw.label ?? "").trim();
+    if (!label) throw bad(`متنِ دکمه‌ی شماره ${i + 1} خالی است.`, "bad_buttons");
+    if (label.length > 64) throw bad(`متنِ دکمه‌ی «${label.slice(0, 20)}…» بیش از ۶۴ کاراکتر است.`, "bad_buttons");
+
+    const action = String(raw.action ?? "").trim();
+    if (!(PRODUCT_BUTTON_ACTIONS as readonly string[]).includes(action))
+      throw bad(`اکشنِ دکمه‌ی «${label}» باید یکی از ${PRODUCT_BUTTON_ACTIONS.join("/")} باشد.`, "bad_buttons");
+
+    const rawValue = String(raw.value ?? "");
+    if ((action === "url" || action === "mini_app") && rawValue && !/^https:\/\//i.test(rawValue))
+      throw bad(`آدرسِ دکمه‌ی «${label}» باید با https:// شروع شود.`, "bad_buttons");
+
+    const style = String(raw.style ?? "");
+    if (style && !(BUTTON_STYLES as readonly string[]).includes(style))
+      throw bad(`استایلِ دکمه‌ی «${label}» معتبر نیست.`, "bad_buttons");
+
+    return newButton({
+      label,
+      action,
+      value: rawValue,
+      row: Number(raw.row ?? 0),
+      col: Number(raw.col ?? 0),
+      row_start: raw.row_start === undefined ? undefined : Boolean(raw.row_start),
+      style,
+    });
+  });
+
+  const normalized = normalizeButtonLayout(buttons);
+  const perRow = new Map<number, number>();
+  for (const b of normalized) perRow.set(b.row, (perRow.get(b.row) ?? 0) + 1);
+  for (const [row, count] of perRow) {
+    if (count > MAX_BUTTONS_PER_ROW)
+      throw bad(`ردیفِ ${row + 1} بیش از ${MAX_BUTTONS_PER_ROW} دکمه دارد؛ تلگرام آن را درست نشان نمی‌دهد.`, "bad_buttons");
+  }
+  return normalized;
+}
+
 /** Best-effort shape coercion — actual type/file_id validation happens in validateItemFields() so the error message is a proper 400, not a thrown TypeError. */
 function parseMediaInput(raw: any): CatalogMedia[] {
   if (!Array.isArray(raw)) return [];
@@ -227,9 +296,10 @@ function parseMediaInput(raw: any): CatalogMedia[] {
  */
 function normalizeItem(item: CatalogItem): CatalogItem {
   const bodyHtml = item.body_html ?? "";
-  if ((item.media?.length ?? 0) > 0) return { ...item, body_html: bodyHtml };
-  if (!item.image_file_id) return { ...item, media: item.media ?? [], body_html: bodyHtml };
-  return { ...item, media: [{ type: "photo", file_id: item.image_file_id, caption: "" }], body_html: bodyHtml };
+  const buttons = item.buttons ?? [];
+  if ((item.media?.length ?? 0) > 0) return { ...item, body_html: bodyHtml, buttons };
+  if (!item.image_file_id) return { ...item, media: item.media ?? [], body_html: bodyHtml, buttons };
+  return { ...item, media: [{ type: "photo", file_id: item.image_file_id, caption: "" }], body_html: bodyHtml, buttons };
 }
 
 function parseItemInput(body: any, base: Partial<CatalogItem> = {}): Omit<CatalogItem, "id" | "created_at" | "updated_at"> {
@@ -256,6 +326,7 @@ function parseItemInput(body: any, base: Partial<CatalogItem> = {}): Omit<Catalo
     // plugins/catalog/domain.py هم روی نوشتن sanitize می‌کند، اینجا هم قبل
     // از رسیدن به Sheet.
     body_html: "body_html" in body ? sanitizeTelegramHtml(String(body.body_html ?? "")) : (base.body_html ?? ""),
+    buttons: "buttons" in body ? validateProductButtons(body.buttons) : (base.buttons ?? []),
     // fulfillment config لایه‌ی جدا دارد (setFulfillmentConfig) تا یک ویرایشِ
     // فیلدهای اصلیِ کالا metadata.fulfillment را بی‌خبر پاک نکند.
     metadata: base.metadata ?? {},
@@ -324,7 +395,107 @@ export async function deleteItemHard(spreadsheetId: string, id: string): Promise
   return removeEntity(spreadsheetId, ITEMS_TAB, id);
 }
 
-// ─── fulfillment config (metadata.fulfillment، آزاد و بدون کلید اجباری) ────
+// ─── fulfillment config (metadata.fulfillment) ─────────────────────────────
+//
+// IRFORGE_FULFILLMENT_FORMS_BUTTONS_PROMPT Phase B3 — this used to accept any
+// object at all (a raw JSON textarea on the frontend, unchecked here). Now
+// each `fulfillment_type` gets its own shape check, mirroring exactly what
+// each executor in `plugins/catalog/fulfillment.py` (irforge-app) actually
+// reads out of `config` — a value this validator lets through but the bot
+// doesn't understand would just silently no-op there instead of failing
+// loudly here. `manual` and `pool` are deliberately untouched: `manual`'s
+// executor never reads `config` at all (Phase A1), and `pool`'s real
+// configuration lives in `metadata['pool']`, not here — this endpoint is a
+// no-op JSON bucket for it either way (see `fulfillmentHelpPool` on the
+// frontend, which says so).
+
+const FILE_KINDS = ["document", "photo", "video", "audio"] as const;
+const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function validateConfigUrl(value: unknown, label: string): string {
+  const url = String(value ?? "").trim();
+  if (!url) throw bad(`${label} اجباری است.`, "bad_fulfillment_config");
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("bad protocol");
+  } catch {
+    throw bad(`${label} یک آدرسِ معتبر نیست.`, "bad_fulfillment_config");
+  }
+  return url;
+}
+
+function validateConfigHeaders(value: unknown): void {
+  if (value === undefined) return;
+  if (!isPlainObject(value)) throw bad("هدرها باید یک آبجکت باشند.", "bad_fulfillment_config");
+  for (const v of Object.values(value)) {
+    if (typeof v !== "string") throw bad("مقدارِ هر هدر باید متن باشد.", "bad_fulfillment_config");
+  }
+}
+
+function validateConfigPayload(value: unknown): void {
+  if (value === undefined) return;
+  if (!isPlainObject(value)) throw bad("بدنه (payload) باید یک آبجکت باشد.", "bad_fulfillment_config");
+}
+
+function validateConfigTimeout(value: unknown): void {
+  if (value === undefined) return;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) throw bad("مهلتِ زمانی باید عددی بزرگ‌تر از صفر باشد.", "bad_fulfillment_config");
+}
+
+/** هر تایپ فقط شکلِ خودش را چک می‌کند؛ کلیدهای اضافیِ ناشناخته دست‌نخورده رد می‌شوند. */
+function validateFulfillmentConfig(fulfillmentType: string, config: Record<string, unknown>): Record<string, unknown> {
+  switch (fulfillmentType) {
+    case "template": {
+      const raw = String(config.template ?? "").trim();
+      if (!raw) throw bad("متنِ پیام برایِ نوعِ «متن» اجباری است.", "bad_fulfillment_config");
+      // `_exec_template` این متن را با parse_mode=HTML پیشِ‌فرضِ بات می‌فرستد
+      // (`_dm` هیچ parse_mode صریحی نمی‌دهد) — دقیقاً همان دلیلی که
+      // body_html محصول قبل از ذخیره sanitize می‌شود. جای‌گذاری‌های
+      // {buyer_name}/{order_id}/... متنِ ساده‌اند، پس دست‌نخورده رد می‌شوند.
+      return { ...config, template: sanitizeTelegramHtml(raw) };
+    }
+    case "file": {
+      const fileId = String(config.file_id ?? "").trim();
+      if (!fileId) throw bad("فایل برایِ نوعِ «فایل» اجباری است.", "bad_fulfillment_config");
+      const fileKind = String(config.file_kind ?? "document");
+      if (!(FILE_KINDS as readonly string[]).includes(fileKind))
+        throw bad(`نوعِ فایل باید یکی از ${FILE_KINDS.join("/")} باشد.`, "bad_fulfillment_config");
+      return { ...config, file_id: fileId, file_kind: fileKind };
+    }
+    case "api": {
+      const url = validateConfigUrl(config.url, "آدرسِ API");
+      const method = String(config.method ?? "POST").toUpperCase();
+      if (!(HTTP_METHODS as readonly string[]).includes(method))
+        throw bad(`متد باید یکی از ${HTTP_METHODS.join("/")} باشد.`, "bad_fulfillment_config");
+      validateConfigHeaders(config.headers);
+      validateConfigPayload(config.payload);
+      validateConfigTimeout(config.timeout);
+      return { ...config, url, method };
+    }
+    case "webhook": {
+      const url = validateConfigUrl(config.url, "آدرسِ وبهوک");
+      validateConfigHeaders(config.headers);
+      validateConfigPayload(config.payload);
+      validateConfigTimeout(config.timeout);
+      return { ...config, url };
+    }
+    case "wallet_credit": {
+      const amount = Number(config.amount_per_unit);
+      if (!Number.isFinite(amount) || amount <= 0)
+        throw bad("مبلغِ شارژ باید عددی بزرگ‌تر از صفر باشد.", "bad_fulfillment_config");
+      return { ...config, amount_per_unit: amount };
+    }
+    case "manual":
+    case "pool":
+    default:
+      return config;
+  }
+}
 
 export function getFulfillmentConfig(item: CatalogItem): Record<string, unknown> {
   const meta = (item.metadata || {}) as Record<string, unknown>;
@@ -342,7 +513,8 @@ export async function setFulfillmentConfig(
   if (!existing) throw new BotConfigError(404, "این کالا/سرویس پیدا نشد.", "item_not_found");
   if (config !== null && (typeof config !== "object" || Array.isArray(config)))
     throw bad("پیکربندیِ تحویل باید یک آبجکت باشد.", "bad_fulfillment_config");
-  const metadata = { ...(existing.metadata || {}), fulfillment: config ?? {} };
+  const validated = validateFulfillmentConfig(existing.fulfillment_type, (config ?? {}) as Record<string, unknown>);
+  const metadata = { ...(existing.metadata || {}), fulfillment: validated };
   const merged: CatalogItem = { ...existing, metadata, updated_at: nowIso() };
   await putEntity(spreadsheetId, ITEMS_TAB, itemId, merged);
   return merged;

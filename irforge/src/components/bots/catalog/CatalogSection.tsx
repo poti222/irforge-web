@@ -8,11 +8,16 @@
  * to ever populate a single item into it (see `lib/catalogStore.ts`'s header
  * comment).
  *
- * The fulfillment config is a free-form nested object whose shape depends on
- * `fulfillment_type` (manual/template/file/api/webhook/wallet_credit) — the
- * bot's own `get_fulfillment_config`/`set_fulfillment_config` are deliberate
- * passthroughs with no fixed schema, so this exposes it as a labeled JSON
- * editor with per-type placeholder text rather than six bespoke forms.
+ * IRFORGE_FULFILLMENT_FORMS_BUTTONS_PROMPT Phase B2/B4 — the fulfillment
+ * config used to be one raw JSON `<Textarea>` regardless of type. Each
+ * `fulfillment_type` now gets its own dedicated form (see the `*Fulfillment
+ * Form` components below), writing the exact same structured keys each
+ * executor in `plugins/catalog/fulfillment.py` (irforge-app) actually reads
+ * — the backend API/shape didn't change, only what the frontend sends is
+ * structured instead of free-typed JSON. The product's own `buttons` field
+ * (`ButtonBuilder`, restricted to url/panel/mini_app) is independent of
+ * `fulfillment_type` — it lives in the "content" section next to the
+ * product's generic media, not inside the fulfillment section.
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,7 +43,10 @@ import {
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
-import { MediaList } from "../panels/MediaList";
+import { MediaList, type MediaMeta } from "../panels/MediaList";
+import { ButtonBuilder } from "../panels/ButtonBuilder";
+import { usePanels, type PanelCatalog } from "../panels/api";
+import { buttonsToRows, rowsToButtons, type PanelButton } from "@/lib/panel-buttons";
 
 type Category = {
   id: string; name: string; name_fa: string; parent_id: string; sort_order: number; is_active: boolean;
@@ -49,6 +57,23 @@ type CatalogItem = {
   price: number; currency: string; compare_at_price: number | null; item_type: string;
   fulfillment_type: string; track_stock: boolean; stock_qty: number; status: string; image_file_id: string;
   media: CatalogMedia[]; body_html: string;
+  /** IRFORGE_FULFILLMENT_FORMS_BUTTONS_PROMPT Phase B4 — same `PanelButton` shape panels use. */
+  buttons: PanelButton[];
+};
+
+/**
+ * دکمه‌سازِ محصول عیناً همان `ButtonBuilder`یِ پنل‌ساز است، فقط با یک
+ * کاتالوگِ محدودشده به‌جایِ `usePanelCatalog` واقعی: محصول مقصدی برای
+ * `form`/`sell` یا اکشن‌هایِ پلاگینی ندارد — فقط لینک/پنل/میمنی‌اپ (طبقِ
+ * پرامپت، بدونِ `translation` که اصلاً جزوِ این کاتالوگ نیست).
+ */
+const PRODUCT_BUTTON_CATALOG: PanelCatalog = {
+  panelTypes: [],
+  buttonActions: ["url", "panel", "mini_app"],
+  buttonStyles: ["", "primary", "success", "danger"],
+  multiMediaTypes: [],
+  textOnlyTypes: [],
+  maxButtonsPerRow: 4,
 };
 type ItemOption = {
   id: string; item_id: string; label: string; price: number; track_stock: boolean;
@@ -341,73 +366,310 @@ function OptionsEditorPanel({ botId, itemId }: { botId: string; itemId: string }
   );
 }
 
-// ─── تنظیمات تحویل ───────────────────────────────────────────────────────────
+// ─── تنظیمات تحویل — فرمِ اختصاصیِ هر نوع ────────────────────────────────────
+//
+// IRFORGE_FULFILLMENT_FORMS_BUTTONS_PROMPT Phase B2 — دیگر یک جعبه‌ی JSONِ
+// خام نیست؛ هر fulfillment_type فرمِ خودش را دارد و کلیدهایِ مستندشده‌ای
+// دقیقاً هم‌شکل با چیزی که هر executor در plugins/catalog/fulfillment.py
+// (irforge-app) واقعاً از config می‌خواند می‌نویسد. عکس/رسانه فقط برایِ
+// «file» هست (خودِ فایل، نه یک عکسِ تزئینی) — بقیه‌ی انواع از محتوایِ
+// عمومیِ خودِ محصول (بخشِ «محتوا» پایین‌تر) استفاده می‌کنند که در لحظه‌ی
+// تحویل (یا برایِ manual همین الان، فازِ A1) خودکار برایِ خریدار می‌رود؛
+// یک فیلدِ عکسِ دوم اینجا همان چیز را بی‌معنا تکرار می‌کرد.
 
-function fulfillmentPlaceholder(type: string): string {
-  switch (type) {
-    case "template": return '{\n  "template": "سلام {buyer_name}، این کد شماست: ..."\n}';
-    case "file": return '{\n  "file_id": "<telegram file_id>",\n  "file_kind": "document",\n  "caption": "فایل شما"\n}';
-    case "api": return '{\n  "url": "https://example.com/issue",\n  "method": "POST",\n  "headers": {},\n  "payload": {},\n  "response_field": "data.code"\n}';
-    case "webhook": return '{\n  "url": "https://example.com/hook",\n  "headers": {},\n  "payload": {}\n}';
-    case "wallet_credit": return '{\n  "amount_per_unit": 10000,\n  "currency": "IRT"\n}';
-    default: return "{}";
-  }
+type KVRow = [string, string];
+
+function objectToRows(obj: unknown): KVRow[] {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return [];
+  return Object.entries(obj as Record<string, unknown>).map(
+    ([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)] as KVRow,
+  );
 }
 
-function FulfillmentConfigEditor({
-  botId, item,
-}: { botId: string; item: CatalogItem }) {
+function rowsToObject(rows: KVRow[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of rows) {
+    const key = k.trim();
+    if (key) out[key] = v;
+  }
+  return out;
+}
+
+function KeyValueRows({
+  label, rows, onChange,
+}: { label: string; rows: KVRow[]; onChange: (rows: KVRow[]) => void }) {
+  const t = useT("botCatalog");
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      {rows.map(([k, v], i) => (
+        <div key={i} className="flex gap-2">
+          <Input
+            dir="ltr" className="flex-1" placeholder={t.fulfillmentKvKey} value={k}
+            onChange={(e) => onChange(rows.map((r, idx) => (idx === i ? [e.target.value, r[1]] as KVRow : r)))}
+          />
+          <Input
+            dir="ltr" className="flex-1" placeholder={t.fulfillmentKvValue} value={v}
+            onChange={(e) => onChange(rows.map((r, idx) => (idx === i ? [r[0], e.target.value] as KVRow : r)))}
+          />
+          <Button type="button" size="icon" variant="ghost" onClick={() => onChange(rows.filter((_, idx) => idx !== i))}>
+            <Trash2 className="size-4 text-destructive" />
+          </Button>
+        </div>
+      ))}
+      <Button type="button" size="sm" variant="outline" onClick={() => onChange([...rows, ["", ""]])}>
+        <Plus className="me-1.5 size-3.5" /> {t.fulfillmentKvAdd}
+      </Button>
+    </div>
+  );
+}
+
+function useSaveFulfillmentConfig(botId: string, itemId: string) {
   const t = useT("botCatalog");
   const { toast } = useToast();
   const qc = useQueryClient();
-
-  const cfgKey = ["bot-catalog-fulfillment", botId, item.id] as const;
-  const { data, isLoading } = useQuery({
-    queryKey: cfgKey,
-    queryFn: () => customFetch<{ fulfillment_type: string; config: Record<string, unknown> }>(`/api/bots/${botId}/catalog/items/${item.id}/fulfillment`),
-  });
-
-  const [text, setText] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const value = text ?? (data ? JSON.stringify(data.config, null, 2) : "{}");
-
-  const save = useMutation({
-    mutationFn: (config: unknown) =>
-      customFetch(`/api/bots/${botId}/catalog/items/${item.id}/fulfillment`, { method: "PUT", body: JSON.stringify({ config }) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: cfgKey }); toast({ title: t.fulfillmentConfigSaved }); },
+  return useMutation({
+    mutationFn: (config: Record<string, unknown>) =>
+      customFetch(`/api/bots/${botId}/catalog/items/${itemId}/fulfillment`, { method: "PUT", body: JSON.stringify({ config }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bot-catalog-fulfillment", botId, itemId] });
+      toast({ title: t.fulfillmentConfigSaved });
+    },
     onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
   });
+}
 
-  function handleSave() {
-    try {
-      const parsed = JSON.parse(value || "{}");
-      setError(null);
-      save.mutate(parsed);
-    } catch {
-      setError(t.fulfillmentConfigInvalidJson);
-    }
-  }
+type FulfillmentFormProps = { botId: string; itemId: string; config: Record<string, unknown>; disabled: boolean };
 
-  const helpKey = `fulfillmentHelp${item.fulfillment_type.replace(/(^|_)([a-z])/g, (_m, _p, c) => c.toUpperCase())}` as keyof typeof t;
-  const help = (t as Record<string, string>)[helpKey] ?? t.fulfillmentHelpManual;
-
-  if (isLoading) return <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {t.loading}</div>;
+function TemplateFulfillmentForm({ botId, itemId, config, disabled }: FulfillmentFormProps) {
+  const t = useT("botCatalog");
+  const save = useSaveFulfillmentConfig(botId, itemId);
+  const [template, setTemplate] = useState(String(config.template ?? ""));
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">{help}</p>
+      <p className="text-xs text-muted-foreground">{t.fulfillmentTemplateHelp}</p>
       <Textarea
-        dir="ltr" rows={8} className="font-mono text-xs"
-        value={value}
-        placeholder={fulfillmentPlaceholder(item.fulfillment_type)}
-        onChange={(e) => { setText(e.target.value); setError(null); }}
+        dir="rtl" rows={4} maxLength={4096} value={template}
+        placeholder={t.fulfillmentTemplatePlaceholder}
+        onChange={(e) => setTemplate(e.target.value)}
       />
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      <Button size="sm" onClick={handleSave} disabled={save.isPending}>
+      <p className="text-xs text-muted-foreground">{t.bodyHtmlHint}</p>
+      <Button size="sm" onClick={() => save.mutate({ ...config, template })} disabled={disabled || save.isPending || !template.trim()}>
         {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
         {t.saveFulfillmentConfig}
       </Button>
+    </div>
+  );
+}
+
+const FILE_KINDS = ["document", "photo", "video", "audio"] as const;
+
+function FileFulfillmentForm({ botId, itemId, config, disabled }: FulfillmentFormProps) {
+  const t = useT("botCatalog");
+  const save = useSaveFulfillmentConfig(botId, itemId);
+  const initialFileId = String(config.file_id ?? "");
+  const [fileIds, setFileIds] = useState<string[]>(initialFileId ? [initialFileId] : []);
+  const [fileKind, setFileKind] = useState(String(config.file_kind ?? "document"));
+  const [caption, setCaption] = useState(String(config.caption ?? ""));
+  const fileId = fileIds[0] ?? "";
+
+  // آپلودِ مستقیم فقط عکس/صوت را قبول می‌کند (تصمیمِ محصولیِ سراسریِ همین
+  // مخزن — `botMedia.ts::ALLOWED_PREFIXES`)؛ سند/ویدیو باید از همان ورودیِ
+  // دستیِ file_id که خودِ MediaList دارد («پیشرفته») وارد شود، و همین‌جا
+  // نوعش را با این انتخاب‌گر صریح مشخص کند.
+  function handleMeta(meta: Record<string, MediaMeta>) {
+    const only = Object.values(meta)[0];
+    if (only && only.kind !== "unknown") setFileKind(only.kind);
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <Label>{t.fulfillmentFieldFile}</Label>
+        <p className="text-xs text-muted-foreground">{t.fulfillmentFileHelp}</p>
+        <MediaList botId={botId} fileIds={fileIds} multiple={false} onChange={setFileIds} onMetaChange={handleMeta} />
+      </div>
+      <div className="space-y-1">
+        <Label>{t.fulfillmentFieldFileKind}</Label>
+        <Select value={fileKind} onValueChange={setFileKind}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {FILE_KINDS.map((k) => (
+              <SelectItem key={k} value={k}>{(t as Record<string, string>)[`fulfillmentFileKind_${k}`] ?? k}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1">
+        <Label>{t.fulfillmentFieldCaption}</Label>
+        <Input dir="rtl" maxLength={1024} value={caption} onChange={(e) => setCaption(e.target.value)} />
+      </div>
+      <Button
+        size="sm"
+        onClick={() => save.mutate({ ...config, file_id: fileId, file_kind: fileKind, caption })}
+        disabled={disabled || save.isPending || !fileId}
+      >
+        {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+        {t.saveFulfillmentConfig}
+      </Button>
+    </div>
+  );
+}
+
+const API_HTTP_METHODS = ["GET", "POST"] as const;
+
+function ApiFulfillmentForm({ botId, itemId, config, disabled }: FulfillmentFormProps) {
+  const t = useT("botCatalog");
+  const save = useSaveFulfillmentConfig(botId, itemId);
+  const [url, setUrl] = useState(String(config.url ?? ""));
+  const [method, setMethod] = useState(String(config.method ?? "POST").toUpperCase());
+  const [headers, setHeaders] = useState<KVRow[]>(objectToRows(config.headers));
+  const [payload, setPayload] = useState<KVRow[]>(objectToRows(config.payload));
+  const urlInvalid = Boolean(url) && !/^https?:\/\//i.test(url);
+
+  function handleSave() {
+    save.mutate({ ...config, url, method, headers: rowsToObject(headers), payload: rowsToObject(payload) });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-2">
+        <div className="col-span-2 space-y-1">
+          <Label>{t.fulfillmentFieldUrl}</Label>
+          <Input dir="ltr" value={url} placeholder="https://…" onChange={(e) => setUrl(e.target.value)} aria-invalid={urlInvalid || undefined} />
+        </div>
+        <div className="space-y-1">
+          <Label>{t.fulfillmentFieldMethod}</Label>
+          <Select value={method} onValueChange={setMethod}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {API_HTTP_METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {urlInvalid && <p className="text-xs text-destructive">{t.fulfillmentUrlInvalid}</p>}
+      <KeyValueRows label={t.fulfillmentFieldHeaders} rows={headers} onChange={setHeaders} />
+      <KeyValueRows label={t.fulfillmentFieldPayload} rows={payload} onChange={setPayload} />
+      <p className="text-xs text-muted-foreground">{t.fulfillmentApiHelp}</p>
+      <Button size="sm" onClick={handleSave} disabled={disabled || save.isPending || !url.trim() || urlInvalid}>
+        {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+        {t.saveFulfillmentConfig}
+      </Button>
+    </div>
+  );
+}
+
+function WebhookFulfillmentForm({ botId, itemId, config, disabled }: FulfillmentFormProps) {
+  const t = useT("botCatalog");
+  const save = useSaveFulfillmentConfig(botId, itemId);
+  const [url, setUrl] = useState(String(config.url ?? ""));
+  const [headers, setHeaders] = useState<KVRow[]>(objectToRows(config.headers));
+  const [payload, setPayload] = useState<KVRow[]>(objectToRows(config.payload));
+  const urlInvalid = Boolean(url) && !/^https?:\/\//i.test(url);
+
+  function handleSave() {
+    save.mutate({ ...config, url, headers: rowsToObject(headers), payload: rowsToObject(payload) });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <Label>{t.fulfillmentFieldUrl}</Label>
+        <Input dir="ltr" value={url} placeholder="https://…" onChange={(e) => setUrl(e.target.value)} aria-invalid={urlInvalid || undefined} />
+        {urlInvalid && <p className="text-xs text-destructive">{t.fulfillmentUrlInvalid}</p>}
+      </div>
+      <KeyValueRows label={t.fulfillmentFieldHeaders} rows={headers} onChange={setHeaders} />
+      <KeyValueRows label={t.fulfillmentFieldPayload} rows={payload} onChange={setPayload} />
+      <p className="text-xs text-muted-foreground">{t.fulfillmentWebhookHelp}</p>
+      <Button size="sm" onClick={handleSave} disabled={disabled || save.isPending || !url.trim() || urlInvalid}>
+        {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+        {t.saveFulfillmentConfig}
+      </Button>
+    </div>
+  );
+}
+
+function WalletCreditFulfillmentForm({ botId, itemId, config, disabled }: FulfillmentFormProps) {
+  const t = useT("botCatalog");
+  const save = useSaveFulfillmentConfig(botId, itemId);
+  const [amount, setAmount] = useState(config.amount_per_unit != null ? String(config.amount_per_unit) : "");
+  const [currency, setCurrency] = useState(String(config.currency ?? "IRT"));
+  const amountNum = Number(amount);
+  const amountInvalid = amount !== "" && (!Number.isFinite(amountNum) || amountNum <= 0);
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label>{t.fulfillmentFieldAmountPerUnit}</Label>
+          <AmountInput value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label>{t.fieldCurrency}</Label>
+          <Input dir="ltr" value={currency} maxLength={10} onChange={(e) => setCurrency(e.target.value)} />
+        </div>
+      </div>
+      {amountInvalid && <p className="text-xs text-destructive">{t.fulfillmentAmountInvalid}</p>}
+      <p className="text-xs text-muted-foreground">{t.fulfillmentWalletCreditHelp}</p>
+      <Button
+        size="sm"
+        onClick={() => save.mutate({ ...config, amount_per_unit: amountNum, currency })}
+        disabled={disabled || save.isPending || !amount || amountInvalid}
+      >
+        {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+        {t.saveFulfillmentConfig}
+      </Button>
+    </div>
+  );
+}
+
+/** انواعی که اصلاً کانفیگ ندارند — نه فرمی، نه فیلدی برایِ ذخیره. */
+const NO_CONFIG_FULFILLMENT_TYPES = new Set(["manual", "pool"]);
+
+function FulfillmentConfigEditor({
+  botId, itemId, fulfillmentType, savedFulfillmentType,
+}: { botId: string; itemId: string; fulfillmentType: string; savedFulfillmentType: string }) {
+  const t = useT("botCatalog");
+
+  const cfgKey = ["bot-catalog-fulfillment", botId, itemId] as const;
+  const { data, isLoading } = useQuery({
+    queryKey: cfgKey,
+    queryFn: () => customFetch<{ fulfillment_type: string; config: Record<string, unknown> }>(`/api/bots/${botId}/catalog/items/${itemId}/fulfillment`),
+  });
+
+  if (isLoading) return <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {t.loading}</div>;
+
+  // نوعِ ارسال در فرمِ بالا عوض شده ولی هنوز ذخیره نشده — فرمِ نوعِ تازه را
+  // همین الان نشان بده (پذیرشِ فازِ B2: تعویضِ آنی)، ولی خالی، نه با
+  // کانفیگِ نوعِ قبلی؛ و ذخیره را قفل کن، چون PUT .../fulfillment سمتِ سرور
+  // مقابلِ fulfillment_typeِ هنوز-ذخیره‌شده روی آیتم اعتبارسنجی می‌شود، نه
+  // این نوعِ تازه‌ای که این فرم نشانش می‌دهد.
+  const typeIsUnsaved = fulfillmentType !== savedFulfillmentType;
+  const config = typeIsUnsaved ? {} : (data?.config ?? {});
+  const formProps: FulfillmentFormProps = { botId, itemId, config, disabled: typeIsUnsaved };
+
+  const body = (() => {
+    switch (fulfillmentType) {
+      case "template": return <TemplateFulfillmentForm {...formProps} />;
+      case "file": return <FileFulfillmentForm {...formProps} />;
+      case "api": return <ApiFulfillmentForm {...formProps} />;
+      case "webhook": return <WebhookFulfillmentForm {...formProps} />;
+      case "wallet_credit": return <WalletCreditFulfillmentForm {...formProps} />;
+      case "pool": return <p className="text-xs text-muted-foreground">{t.fulfillmentHelpPool}</p>;
+      case "manual":
+      default:
+        return <p className="text-xs text-muted-foreground">{t.fulfillmentHelpManual}</p>;
+    }
+  })();
+
+  return (
+    <div className="space-y-2">
+      {typeIsUnsaved && !NO_CONFIG_FULFILLMENT_TYPES.has(fulfillmentType) && (
+        <p className="text-xs text-amber-600 dark:text-amber-500">{t.fulfillmentSaveTypeFirst}</p>
+      )}
+      {body}
     </div>
   );
 }
@@ -437,6 +699,9 @@ function ItemEditor({
   const [status, setStatus] = useState(base?.status ?? "active");
   const [mediaFileIds, setMediaFileIds] = useState<string[]>(base?.media?.map((m) => m.file_id) ?? []);
   const [bodyHtml, setBodyHtml] = useState(base?.body_html ?? "");
+  const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows(base?.buttons ?? []));
+
+  const { data: panelsData } = usePanels(botId);
 
   const itemsKey = ["bot-catalog-items", botId] as const;
   const save = useMutation({
@@ -450,6 +715,7 @@ function ItemEditor({
         status,
         media: mediaFileIds.map((fileId) => ({ type: "photo", file_id: fileId, caption: "" })),
         body_html: bodyHtml,
+        buttons: rowsToButtons(buttonRows),
       };
       return current
         ? customFetch<{ item: CatalogItem }>(`/api/bots/${botId}/catalog/items/${current.id}`, { method: "PATCH", body: JSON.stringify(body) })
@@ -575,6 +841,18 @@ function ItemEditor({
               />
               <p className="text-xs text-muted-foreground">{t.bodyHtmlHint}</p>
             </div>
+            <div className="space-y-1.5 pt-1">
+              <Label>{t.buttonsTitle}</Label>
+              <p className="text-xs text-muted-foreground">{t.buttonsDesc}</p>
+              <ButtonBuilder
+                botId={botId}
+                rows={buttonRows}
+                panels={panelsData?.panels ?? []}
+                forms={[]}
+                catalog={PRODUCT_BUTTON_CATALOG}
+                onChange={setButtonRows}
+              />
+            </div>
           </div>
 
           <Button onClick={() => save.mutate()} disabled={!name.trim() || save.isPending} className="w-full">
@@ -591,7 +869,10 @@ function ItemEditor({
               <div className="border-t pt-3">
                 <p className="mb-2 text-sm font-medium">{t.fulfillmentConfigTitle}</p>
                 <p className="mb-2 text-xs text-muted-foreground">{t.fulfillmentConfigDesc}</p>
-                <FulfillmentConfigEditor botId={botId} item={current} />
+                <FulfillmentConfigEditor
+                  botId={botId} itemId={current.id}
+                  fulfillmentType={fulfillmentType} savedFulfillmentType={current.fulfillment_type}
+                />
               </div>
             </>
           )}

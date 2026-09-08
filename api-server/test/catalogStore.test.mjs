@@ -245,6 +245,90 @@ test("createItem accepts fulfillment_type 'pool'", async () => {
   assert.equal(item.fulfillment_type, "pool");
 });
 
+// ── buttons (IRFORGE_FULFILLMENT_FORMS_BUTTONS_PROMPT Phase B4) ────────────
+//
+// Same PanelButton shape/normalization panels already use, but restricted to
+// url/panel/mini_app — a product has no destination for form/sell or any
+// plugin action.
+
+test("createItem defaults buttons to an empty array", async () => {
+  installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  assert.deepEqual(item.buttons, []);
+});
+
+test("createItem stores url/panel/mini_app buttons, normalizing row/col/row_start", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    buttons: [
+      { label: "خرید بیشتر", action: "url", value: "https://example.com", style: "primary" },
+      { label: "پنل ما", action: "panel", value: "panel_1" },
+    ],
+  }, UID);
+  assert.equal(item.buttons.length, 2);
+  assert.equal(item.buttons[0].row, 0);
+  assert.equal(item.buttons[0].row_start, true);
+  assert.equal(item.buttons[1].row, 1);
+  assert.equal(item.buttons[1].row_start, true);
+});
+
+test("createItem rejects a button action outside url/panel/mini_app", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, buttons: [{ label: "فرم", action: "form", value: "f1" }] }, UID),
+    /اکشنِ دکمه/,
+  );
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, buttons: [{ label: "تخفیف", action: "discount", value: "" }] }, UID),
+    /اکشنِ دکمه/,
+  );
+});
+
+test("createItem rejects a url/mini_app button whose value isn't https://", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, buttons: [{ label: "لینک", action: "url", value: "http://example.com" }] }, UID),
+    /https:\/\//,
+  );
+});
+
+test("createItem rejects an empty button label or a bad style", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, buttons: [{ label: "", action: "url", value: "https://x.com" }] }, UID),
+  );
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, buttons: [{ label: "x", action: "url", value: "https://x.com", style: "rainbow" }] }, UID),
+  );
+});
+
+test("updateItem keeps buttons untouched when omitted, replaces them when sent", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    buttons: [{ label: "x", action: "url", value: "https://x.com" }],
+  }, UID);
+  const untouched = await store.updateItem(SID, item.id, { price: 200000 });
+  assert.equal(untouched.buttons.length, 1);
+
+  const replaced = await store.updateItem(SID, item.id, { buttons: [] });
+  assert.deepEqual(replaced.buttons, []);
+});
+
+test("getItem/listItems default a legacy item with no buttons key to an empty array", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  // شبیه‌سازیِ یک ردیفِ قدیمی که از قبل از این فاز روی شیت نوشته شده.
+  const raw = tabs.get("catalog_items").get(item.id);
+  delete raw.buttons;
+
+  const fetched = await store.getItem(SID, item.id);
+  assert.deepEqual(fetched.buttons, []);
+  const [listed] = await store.listItems(SID);
+  assert.deepEqual(listed.buttons, []);
+});
+
 // ── fulfillment config ──────────────────────────────────────────────────
 
 test("getFulfillmentConfig is empty for a freshly created item", async () => {
@@ -273,6 +357,83 @@ test("setFulfillmentConfig rejects a non-object config", async () => {
 test("setFulfillmentConfig 404s on an unknown item", async () => {
   installSheet();
   await assert.rejects(() => store.setFulfillmentConfig(SID, "item_missing", {}), /پیدا نشد/);
+});
+
+// ── fulfillment config — per-type validation (IRFORGE_FULFILLMENT_FORMS_BUTTONS_PROMPT Phase B3) ──
+//
+// Each case mirrors what the matching executor in plugins/catalog/fulfillment.py
+// (irforge-app) actually reads out of `config` — see catalogStore.ts's own
+// `validateFulfillmentConfig` for the mapping.
+
+test("setFulfillmentConfig requires a non-empty template for fulfillment_type=template", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "template" }, UID);
+  await assert.rejects(() => store.setFulfillmentConfig(SID, item.id, {}), /متنِ پیام/);
+  await assert.rejects(() => store.setFulfillmentConfig(SID, item.id, { template: "   " }), /متنِ پیام/);
+  const ok = await store.setFulfillmentConfig(SID, item.id, { template: "خوش آمدید {buyer_name}" });
+  assert.equal(store.getFulfillmentConfig(ok).template, "خوش آمدید {buyer_name}");
+});
+
+test("setFulfillmentConfig requires a file_id and a valid file_kind for fulfillment_type=file", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "file" }, UID);
+  await assert.rejects(() => store.setFulfillmentConfig(SID, item.id, {}), /فایل برایِ نوعِ/);
+  await assert.rejects(
+    () => store.setFulfillmentConfig(SID, item.id, { file_id: "AgAD1", file_kind: "pdf" }),
+    /نوعِ فایل/,
+  );
+  const ok = await store.setFulfillmentConfig(SID, item.id, { file_id: "AgAD1", file_kind: "photo" });
+  assert.deepEqual(store.getFulfillmentConfig(ok), { file_id: "AgAD1", file_kind: "photo" });
+  // بدون file_kind صریح، دیفالتِ همان executor (document) نوشته می‌شود.
+  const defaulted = await store.setFulfillmentConfig(SID, item.id, { file_id: "AgAD1" });
+  assert.equal(store.getFulfillmentConfig(defaulted).file_kind, "document");
+});
+
+test("setFulfillmentConfig requires a valid http(s) url and method for fulfillment_type=api", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "api" }, UID);
+  await assert.rejects(() => store.setFulfillmentConfig(SID, item.id, {}), /آدرسِ API/);
+  await assert.rejects(() => store.setFulfillmentConfig(SID, item.id, { url: "not-a-url" }), /آدرسِ API/);
+  await assert.rejects(
+    () => store.setFulfillmentConfig(SID, item.id, { url: "https://example.com", method: "FETCH" }),
+    /متد/,
+  );
+  await assert.rejects(
+    () => store.setFulfillmentConfig(SID, item.id, { url: "https://example.com", headers: "not-an-object" }),
+    /هدرها/,
+  );
+  await assert.rejects(
+    () => store.setFulfillmentConfig(SID, item.id, { url: "https://example.com", timeout: -1 }),
+    /مهلتِ زمانی/,
+  );
+  const ok = await store.setFulfillmentConfig(SID, item.id, { url: "https://example.com/issue", method: "get" });
+  assert.deepEqual(store.getFulfillmentConfig(ok), { url: "https://example.com/issue", method: "GET" });
+});
+
+test("setFulfillmentConfig requires a valid http(s) url for fulfillment_type=webhook", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "webhook" }, UID);
+  await assert.rejects(() => store.setFulfillmentConfig(SID, item.id, { url: "ftp://example.com" }), /آدرسِ وبهوک/);
+  const ok = await store.setFulfillmentConfig(SID, item.id, { url: "https://example.com/hook" });
+  assert.equal(store.getFulfillmentConfig(ok).url, "https://example.com/hook");
+});
+
+test("setFulfillmentConfig requires a positive amount_per_unit for fulfillment_type=wallet_credit", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "wallet_credit" }, UID);
+  await assert.rejects(() => store.setFulfillmentConfig(SID, item.id, {}), /مبلغِ شارژ/);
+  await assert.rejects(() => store.setFulfillmentConfig(SID, item.id, { amount_per_unit: 0 }), /مبلغِ شارژ/);
+  await assert.rejects(() => store.setFulfillmentConfig(SID, item.id, { amount_per_unit: -5 }), /مبلغِ شارژ/);
+  const ok = await store.setFulfillmentConfig(SID, item.id, { amount_per_unit: 10000, currency: "IRT" });
+  assert.deepEqual(store.getFulfillmentConfig(ok), { amount_per_unit: 10000, currency: "IRT" });
+});
+
+test("setFulfillmentConfig imposes no shape at all for fulfillment_type=manual or pool", async () => {
+  installSheet();
+  const manual = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "manual" }, UID);
+  const pool = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "pool" }, UID);
+  await store.setFulfillmentConfig(SID, manual.id, { anything: "goes" });
+  await store.setFulfillmentConfig(SID, pool.id, { anything: "goes" });
 });
 
 // ── options ──────────────────────────────────────────────────────────────
