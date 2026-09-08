@@ -28,6 +28,7 @@ import {
 } from "../lib/botConfig.js";
 import { requirePluginEnabled } from "../lib/pluginGate.js";
 import { nowIso } from "../lib/botTypes.js";
+import { runOrderFulfillment } from "../lib/catalogFulfillment.js";
 
 const router = Router();
 const PAYMENTS_TAB = "payments";
@@ -219,6 +220,15 @@ router.post("/bots/:botId/orders/:orderId/status", requireAuth, async (req: any,
     // پیام کاربر — best-effort.
     let notified: "sent" | "skipped" | "failed" = "skipped";
     let notifyError: string | null = null;
+    // IRFORGE_BUG_WEB_APPROVAL_NO_FULFILLMENT — تاییدِ سفارش از همین‌جا تا
+    // پیش‌ازاین فقط پیامِ عمومیِ «پرداخت تایید شد» را می‌فرستاد و کاری به
+    // تحویلِ واقعیِ محصول/سرویس نداشت (آن منطق فقط توی خودِ ربات، موقعِ
+    // تاییدِ سفارش از داخلِ تلگرام، اجرا می‌شد). حالا وقتی سفارش از همین
+    // پنل هم verified می‌شود، همان تحویلِ خودکار (متن/فایل/API/وبهوک/شارژِ
+    // کیف‌پول/استخرِ آیتمِ یکتا) به‌ازای qty هر ردیفِ سبد اجرا می‌شود —
+    // فقط یک‌بار، برای سفارشی که تازه به verified رسیده (نه یک تاییدِ
+    // تکراری روی سفارشی که از قبل verified بوده).
+    let fulfillment: { ran: boolean; delivered: number; pendingManual: number; failed: number; pendingWebhook: number } | null = null;
     if (status !== "pending") {
       const settings = await readSettings(spreadsheetId);
       const template =
@@ -243,10 +253,18 @@ router.post("/bots/:botId/orders/:orderId/status", requireAuth, async (req: any,
           notifyError = sent.description ?? "تلگرام پیام را نپذیرفت.";
           logger.warn({ orderId: next.order_id, description: sent.description }, "order status message failed");
         }
+
+        if (status === "verified" && order.status !== "verified") {
+          try {
+            fulfillment = await runOrderFulfillment(spreadsheetId, token, next, settings.payment_cfg?.order_group);
+          } catch (e) {
+            logger.error({ err: e, orderId: next.order_id }, "catalog fulfillment failed for web-approved order");
+          }
+        }
       }
     }
 
-    res.json({ order: next, notified, notifyError });
+    res.json({ order: next, notified, notifyError, fulfillment });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to update order status");
   }
