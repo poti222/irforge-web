@@ -2980,6 +2980,7 @@
     "style_success": "Success",
     "style_danger": "Danger",
     "syncButtons": "Re-sync buttons on published posts",
-    "syncButtonsQueued": "Queued — the bot will update it within about 30 seconds."
+    "syncButtonsQueued": "Queued — the bot will update it within about 30 seconds.",
+    "styleOldClientHint": "Older Telegram clients ignore the color and show the default button style."
   }
 }

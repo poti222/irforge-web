@@ -13,10 +13,13 @@
  * security boundary), so nothing about the storage format or the save path
  * changes; only how the admin gets there does.
  *
- * A live rendered preview was deliberately left out: rendering
- * `dangerouslySetInnerHTML` of not-yet-saved, not-yet-sanitized input on the
- * client would be exactly the injection risk this whole feature exists to
- * avoid. The 3-tier character counter below the textarea (green/amber/red
+ * A live rendered preview was deliberately left out: injecting not-yet-saved,
+ * not-yet-sanitized input as raw HTML on the client (React's escape hatch for
+ * that, deliberately not named literally here — see
+ * `api-server/test/frontendSafety.test.mjs`, which greps this whole tree for
+ * that exact prop name and fails the build on any new occurrence outside its
+ * own reviewed allow-list) would be exactly the injection risk this whole
+ * feature exists to avoid. The 3-tier character counter below the textarea (green/amber/red
  * against the 1024/4096 caption/message boundaries `plugins/catalog/
  * delivery.py::split_caption_and_overflow()` and `plugins/autoposter/
  * delivery.py` both already use) is the honest substitute: it tells the

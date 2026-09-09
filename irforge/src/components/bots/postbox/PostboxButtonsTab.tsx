@@ -26,6 +26,15 @@
  * `row` value with the adjacent distinct row's; left/right swaps `col`
  * with the adjacent button in the same row. Deleting the last button in a
  * row makes that row value simply stop appearing; nothing to clean up.
+ *
+ * The style picker's caption (`styleOldClientHint`) is the one thing
+ * irforge-app's own Phase A4 explicitly deferred here: `aiogram==3.30.0`
+ * already sends the real Bot API 9.4 `style` field, but an older Telegram
+ * client simply ignores it and renders the default button chrome -- there
+ * is nothing to branch on bot-side (it has no way to know which client
+ * version is rendering a given tap), so that entry said the caveat "stays
+ * a UI hint for whoever authors button labels in Phase B4's web builder."
+ * This is that hint.
  */
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -199,6 +208,7 @@ function ButtonForm({
               </button>
             ))}
           </div>
+          <p className="text-xs text-muted-foreground">{t.styleOldClientHint}</p>
         </div>
 
         <div className="flex justify-end gap-2">

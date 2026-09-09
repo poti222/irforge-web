@@ -2980,6 +2980,7 @@
     "style_success": "Başarılı",
     "style_danger": "Tehlike",
     "syncButtons": "Yayınlanan gönderilerdeki butonları yeniden senkronize et",
-    "syncButtonsQueued": "Kuyruğa alındı — bot yaklaşık 30 saniye içinde güncelleyecek."
+    "syncButtonsQueued": "Kuyruğa alındı — bot yaklaşık 30 saniye içinde güncelleyecek.",
+    "styleOldClientHint": "Eski Telegram istemcileri rengi yok sayar ve varsayılan buton stilini gösterir."
   }
 }
