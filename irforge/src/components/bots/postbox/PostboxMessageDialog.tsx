@@ -27,6 +27,7 @@ import {
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
 import { PostboxTranslationsTab } from "./PostboxTranslationsTab";
+import { PostboxButtonsTab } from "./PostboxButtonsTab";
 import type {
   PostboxChannel, PostboxMessageDetail, PostboxPublishResult, PostboxTarget,
 } from "./types";
@@ -284,10 +285,12 @@ export function PostboxMessageDialog({
             <TabsList>
               <TabsTrigger value="content">{t.tabContent}</TabsTrigger>
               <TabsTrigger value="translations">{t.tabTranslations}</TabsTrigger>
+              <TabsTrigger value="buttons">{t.tabButtons}</TabsTrigger>
               <TabsTrigger value="publish">{t.tabPublish}</TabsTrigger>
             </TabsList>
             <TabsContent value="content"><ContentTab botId={botId} detail={data} /></TabsContent>
             <TabsContent value="translations"><PostboxTranslationsTab botId={botId} detail={data} /></TabsContent>
+            <TabsContent value="buttons"><PostboxButtonsTab botId={botId} detail={data} /></TabsContent>
             <TabsContent value="publish"><PublishTab botId={botId} detail={data} /></TabsContent>
           </Tabs>
         )}
