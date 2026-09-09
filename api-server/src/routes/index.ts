@@ -76,6 +76,7 @@ import loyaltySettingsRouter from "./loyaltySettings.js";
 import catalogRouter from "./catalog.js";
 import botWalletRouter from "./botWallet.js";
 import translatePostRouter from "./translatePost.js";
+import postboxRouter from "./postbox.js";
 import walletTopupRouter from "./walletTopup.js";
 import walletTopupSmsWebhookRouter from "./walletTopupSmsWebhook.js";
 
@@ -150,5 +151,6 @@ router.use(loyaltySettingsRouter);
 router.use(catalogRouter);
 router.use(botWalletRouter);
 router.use(translatePostRouter);
+router.use(postboxRouter);
 
 export default router;
