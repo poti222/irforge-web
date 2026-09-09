@@ -111,7 +111,7 @@
     "plansCustomTitle": "Need something else?",
     "plansCustomDesc": "Build your own: choose RAM, CPU cores and exactly the plugins you want, and see the price change as you go.",
     "plansCustomCta": "Build a custom bot",
-    "plansNote": "Prices are in Toman and cover one bot. Plugins are bought separately and can be moved between your bots."
+    "plansNote": "Prices are in Rial and cover one bot. Plugins are bought separately, one purchase per bot."
   },
   "auth": {
     "signInAccount": "Sign in to your account",
@@ -426,7 +426,7 @@
   "marketplace": {
     "walletBalance": "Wallet balance",
     "title": "Marketplace",
-    "subtitle": "Plugins for your bots. Buy once, install it on the bot you choose — and move it to another bot whenever you like."
+    "subtitle": "Browse and buy plugins for your bots — no need to own one yet. Buying from inside a bot's own Plugins tab applies straight to that bot; here you can also see everything you already own across every bot."
   },
   "wallet": {},
   "profile": {},
@@ -2027,10 +2027,8 @@
     "releaseNotesTitle": "Release notes",
     "removeFromBot": "Uninstall",
     "removeFromBotTitle": "Uninstall this plugin from the bot?",
-    "removeFromBotWarning": "The plugin is removed from this bot and its section disappears. Data already written to the spreadsheet stays. There's no refund — to use it on a different bot, move it instead of uninstalling.",
+    "removeFromBotWarning": "The plugin is removed from this bot and its section disappears. Data already written to the spreadsheet stays. There's no refund — buy it again if you want it back on this or another bot.",
     "removed": "Plugin uninstalled",
-    "moveToAnotherBot": "Move to another bot",
-    "moveHint": "One purchase covers one bot at a time. Moving it uninstalls the plugin from the current bot and installs it on the one you pick — no extra charge.",
     "moveAction": "Move",
     "moved": "Plugin moved",
     "chooseBot": "Choose a bot",

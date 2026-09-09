@@ -111,7 +111,7 @@
     "plansCustomTitle": "Başka bir şey mi gerekiyor?",
     "plansCustomDesc": "Kendiniz kurun: RAM, CPU çekirdeği ve istediğiniz eklentileri seçin, fiyatın anında değiştiğini görün.",
     "plansCustomCta": "Özel bot oluştur",
-    "plansNote": "Fiyatlar Toman cinsinden ve tek bir bot içindir. Eklentiler ayrıca satın alınır ve botlarınız arasında taşınabilir."
+    "plansNote": "Fiyatlar Riyal cinsindendir ve bir botu kapsar. Eklentiler ayrı satın alınır, her satın alma bir bot içindir."
   },
   "auth": {
     "signInAccount": "Hesabınıza giriş yapın",
@@ -426,7 +426,7 @@
   "marketplace": {
     "walletBalance": "Cüzdan bakiyesi",
     "title": "Pazar",
-    "subtitle": "Botlarınız için eklentiler. Bir kez alın, istediğiniz bota kurun — canınız istediğinde başka bir bota taşıyın."
+    "subtitle": "Botlarınız için eklentileri gözden geçirin ve satın alın — henüz bir botunuz olması gerekmez. Bir botun kendi Eklentiler sekmesinden satın almak doğrudan o bota uygulanır; buradan tüm botlarınızdaki sahip olduğunuz her şeyi de görebilirsiniz."
   },
   "wallet": {},
   "profile": {},
@@ -2027,10 +2027,8 @@
     "releaseNotesTitle": "Sürüm notları",
     "removeFromBot": "Bottan kaldır",
     "removeFromBotTitle": "Bu eklenti bottan kaldırılsın mı?",
-    "removeFromBotWarning": "Eklenti bu bottan kaldırılır ve bölümü kaybolur. E-tabloya yazılmış veriler kalır. Ücret geri ödenmez — başka bir botta kullanmak istiyorsanız kaldırmak yerine taşıyın.",
+    "removeFromBotWarning": "Eklenti bu bottan kaldırılır ve bölümü kaybolur. Elektronik tabloya zaten yazılmış veriler kalır. İade yok — bu bota veya başka bir bota tekrar istersen yeniden satın al.",
     "removed": "Eklenti bottan kaldırıldı",
-    "moveToAnotherBot": "Başka bota taşı",
-    "moveHint": "Bir satın alma aynı anda tek bir botu kapsar. Taşıma, eklentiyi mevcut bottan kaldırıp seçtiğiniz bota kurar — ek ücret yok.",
     "moveAction": "Taşı",
     "moved": "Eklenti taşındı",
     "chooseBot": "Bir bot seçin",
