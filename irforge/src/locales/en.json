@@ -2,7 +2,7 @@
   "common": {
     "dashboard": "Dashboard",
     "buyBot": "Products",
-    "myBots": "My Bots",
+    "myBots": "My Products",
     "myInvoices": "My Invoices",
     "support": "Support",
     "tickets": "Tickets",
@@ -288,7 +288,7 @@
   },
   "pageTitles": {
     "dashboard": "Dashboard",
-    "bots": "My bots",
+    "bots": "My Products",
     "wallet": "Wallet",
     "invoices": "Invoices",
     "tickets": "Support tickets",
@@ -333,7 +333,7 @@
     "noUsername": "No username"
   },
   "bots": {
-    "title": "My Bots",
+    "title": "My Products",
     "createNewBot": "Create New Bot",
     "noDescription": "No description provided.",
     "usersLabel": "Users",
@@ -345,7 +345,9 @@
     "createFirstBot": "Create Your First Bot",
     "botAvatarAlt": "Bot profile picture",
     "noUsername": "No username",
-    "activeUsersDaily": "Daily active users · last 7 days"
+    "activeUsersDaily": "Daily active users · last 7 days",
+    "myBotsTitle": "My Bots",
+    "otherProductsTitle": "Other Products"
   },
   "botWorkspace": {
     "loadingWorkspace": "Loading bot workspace...",

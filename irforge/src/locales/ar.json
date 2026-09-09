@@ -2,7 +2,7 @@
   "common": {
     "dashboard": "لوحة التحكم",
     "buyBot": "المنتجات",
-    "myBots": "بوتاتي",
+    "myBots": "منتجاتي",
     "myInvoices": "فواتيري",
     "support": "الدعم",
     "tickets": "التذاكر",
@@ -288,7 +288,7 @@
   },
   "pageTitles": {
     "dashboard": "لوحة التحكم",
-    "bots": "بوتاتي",
+    "bots": "منتجاتي",
     "wallet": "المحفظة",
     "invoices": "الفواتير",
     "tickets": "تذاكر الدعم",
@@ -333,7 +333,7 @@
     "noUsername": "بدون معرّف"
   },
   "bots": {
-    "title": "بوتاتي",
+    "title": "منتجاتي",
     "createNewBot": "إنشاء بوت جديد",
     "noDescription": "لا يوجد وصف.",
     "usersLabel": "المستخدمون",
@@ -345,7 +345,9 @@
     "createFirstBot": "أنشئ أول بوت لك",
     "botAvatarAlt": "صورة ملف البوت",
     "noUsername": "بدون معرّف",
-    "activeUsersDaily": "المستخدمون النشطون يوميًا · آخر ٧ أيام"
+    "activeUsersDaily": "المستخدمون النشطون يوميًا · آخر ٧ أيام",
+    "myBotsTitle": "بوتاتي",
+    "otherProductsTitle": "منتجات أخرى"
   },
   "botWorkspace": {
     "loadingWorkspace": "جارٍ تحميل مساحة عمل البوت...",

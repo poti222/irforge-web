@@ -2,7 +2,7 @@
   "common": {
     "dashboard": "داشبورد",
     "buyBot": "محصولات",
-    "myBots": "ربات‌های من",
+    "myBots": "محصولاتِ من",
     "myInvoices": "فاکتورهای من",
     "support": "پشتیبانی",
     "tickets": "تیکت‌ها",
@@ -288,7 +288,7 @@
   },
   "pageTitles": {
     "dashboard": "داشبورد",
-    "bots": "بات‌های من",
+    "bots": "محصولاتِ من",
     "wallet": "کیف پول",
     "invoices": "فاکتورها",
     "tickets": "تیکت‌های پشتیبانی",
@@ -333,7 +333,7 @@
     "noUsername": "بدون آیدی"
   },
   "bots": {
-    "title": "ربات‌های من",
+    "title": "محصولاتِ من",
     "createNewBot": "ساخت ربات جدید",
     "noDescription": "بدون توضیحات.",
     "usersLabel": "کاربران",
@@ -345,7 +345,9 @@
     "createFirstBot": "ساخت اولین ربات",
     "botAvatarAlt": "تصویر پروفایل ربات",
     "noUsername": "بدون آیدی",
-    "activeUsersDaily": "کاربران فعال روزانه (۷ روز اخیر)"
+    "activeUsersDaily": "کاربران فعال روزانه (۷ روز اخیر)",
+    "myBotsTitle": "بات‌هایِ من",
+    "otherProductsTitle": "سایرِ محصولاتِ من"
   },
   "botWorkspace": {
     "loadingWorkspace": "در حال بارگذاری...",

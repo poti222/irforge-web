@@ -2,7 +2,7 @@
   "common": {
     "dashboard": "Панель управления",
     "buyBot": "Продукты",
-    "myBots": "Мои боты",
+    "myBots": "Мои продукты",
     "myInvoices": "Мои счета",
     "support": "Поддержка",
     "tickets": "Тикеты",
@@ -288,7 +288,7 @@
   },
   "pageTitles": {
     "dashboard": "Панель",
-    "bots": "Мои боты",
+    "bots": "Мои продукты",
     "wallet": "Кошелёк",
     "invoices": "Счета",
     "tickets": "Тикеты поддержки",
@@ -333,7 +333,7 @@
     "noUsername": "Без имени пользователя"
   },
   "bots": {
-    "title": "Мои боты",
+    "title": "Мои продукты",
     "createNewBot": "Создать нового бота",
     "noDescription": "Описание отсутствует.",
     "usersLabel": "Пользователи",
@@ -345,7 +345,9 @@
     "createFirstBot": "Создать первого бота",
     "botAvatarAlt": "Аватар бота",
     "noUsername": "Без имени пользователя",
-    "activeUsersDaily": "Активные пользователи в день · 7 дней"
+    "activeUsersDaily": "Активные пользователи в день · 7 дней",
+    "myBotsTitle": "Мои боты",
+    "otherProductsTitle": "Другие продукты"
   },
   "botWorkspace": {
     "loadingWorkspace": "Загрузка рабочей области бота...",

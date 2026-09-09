@@ -7,6 +7,63 @@ import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
+import { useListMyPurchases } from "@/hooks/use-products";
+import { productIcon } from "@/lib/product-icons";
+
+/**
+ * IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section A — this page (still `/bots`,
+ * still `Bots` as the component name — the route and every existing deep
+ * link into it stay valid) now shows a user's non-bot purchases too, under
+ * their own clearly-headed section, alongside the bot cards this page
+ * already had. Only rendered once there's something real to show (no
+ * self-serve checkout exists yet for non-bot products — see
+ * `use-products.ts::useListMyPurchases()`'s own header) so it doesn't sit
+ * as a permanently-empty section for every user today.
+ */
+function OtherProductsSection() {
+  const { lang } = useLanguage();
+  const t = useT("bots");
+  const { data: purchases, isLoading } = useListMyPurchases();
+
+  if (!isLoading && (!purchases || purchases.length === 0)) return null;
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-lg font-semibold tracking-tight">{t.otherProductsTitle}</h2>
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader className="h-16" />
+              <CardContent className="h-16" />
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {purchases!.map((purchase) => {
+            const Icon = productIcon(purchase.product.icon);
+            const name = lang === "fa" ? purchase.product.nameFa || purchase.product.name : purchase.product.name;
+            const categoryLabel = lang === "fa" ? purchase.category.labelFa : purchase.category.labelEn;
+            return (
+              <Card key={purchase.id}>
+                <CardContent className="flex items-center gap-3 p-4">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{name}</p>
+                    <p className="truncate text-sm text-muted-foreground">{categoryLabel}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Bots() {
   usePrivatePageTitle(useT("pageTitles").bots);
@@ -15,7 +72,7 @@ export default function Bots() {
   const { data: bots, isLoading } = useListBots();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t.title}</h1>
         {/* Creating a bot now always starts from the Buy Bot flow. */}
@@ -26,6 +83,8 @@ export default function Bots() {
         </Button>
       </div>
 
+      <div className="space-y-3">
+      <h2 className="text-lg font-semibold tracking-tight">{t.myBotsTitle}</h2>
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -137,6 +196,9 @@ export default function Bots() {
           </Button>
         </div>
       )}
+      </div>
+
+      <OtherProductsSection />
     </div>
   );
 }

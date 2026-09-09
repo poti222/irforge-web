@@ -2,7 +2,7 @@
   "common": {
     "dashboard": "Panel",
     "buyBot": "Ürünler",
-    "myBots": "Botlarım",
+    "myBots": "Ürünlerim",
     "myInvoices": "Faturalarım",
     "support": "Destek",
     "tickets": "Talepler",
@@ -288,7 +288,7 @@
   },
   "pageTitles": {
     "dashboard": "Panel",
-    "bots": "Botlarım",
+    "bots": "Ürünlerim",
     "wallet": "Cüzdan",
     "invoices": "Faturalar",
     "tickets": "Destek talepleri",
@@ -333,7 +333,7 @@
     "noUsername": "Kullanıcı adı yok"
   },
   "bots": {
-    "title": "Botlarım",
+    "title": "Ürünlerim",
     "createNewBot": "Yeni Bot Oluştur",
     "noDescription": "Açıklama girilmedi.",
     "usersLabel": "Kullanıcılar",
@@ -345,7 +345,9 @@
     "createFirstBot": "İlk Botunuzu Oluşturun",
     "botAvatarAlt": "Bot profil resmi",
     "noUsername": "Kullanıcı adı yok",
-    "activeUsersDaily": "Günlük aktif kullanıcı · son 7 gün"
+    "activeUsersDaily": "Günlük aktif kullanıcı · son 7 gün",
+    "myBotsTitle": "Botlarım",
+    "otherProductsTitle": "Diğer Ürünler"
   },
   "botWorkspace": {
     "loadingWorkspace": "Bot çalışma alanı yükleniyor...",

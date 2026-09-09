@@ -941,6 +941,28 @@ VALUES
    1)
 ON CONFLICT (id) DO NOTHING;
 
+-- ─── PRODUCT_PURCHASES ─────────────────────────────────────────────────────
+-- IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section A — a purchase record for
+-- non-bot products (bots already have their own purchase record: the
+-- bots table itself). No route writes to this table yet: self-serve
+-- checkout for these five categories doesn't exist anywhere in the app
+-- today, and building one was explicitly out of scope for this section
+-- (see PROGRESS.md). This table exists so "My Products" has something real
+-- to query the moment a purchase path (checkout or a manual admin grant)
+-- is built, instead of that future work also needing its own migration.
+CREATE TABLE IF NOT EXISTS product_purchases (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  product_id TEXT NOT NULL REFERENCES products(id),
+  status TEXT NOT NULL DEFAULT 'active',
+  metadata JSONB NOT NULL DEFAULT '{}',
+  purchased_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS product_purchases_user_id_idx ON product_purchases(user_id);
+CREATE INDEX IF NOT EXISTS product_purchases_product_id_idx ON product_purchases(product_id);
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT

@@ -60,3 +60,27 @@ export function useGetProduct(id: string | undefined) {
     staleTime: 60_000,
   });
 }
+
+/**
+ * IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section A — a logged-in user's own
+ * active non-bot purchases (virtual account/card, API, accountant, school),
+ * for the "My Products" page. Bots are deliberately excluded here — they
+ * have their own purchase record (`bots` itself, via `useListBots()`), and
+ * the server route already filters the "bot" category out.
+ */
+export type MyPurchase = {
+  id: string;
+  status: string;
+  metadata: Record<string, unknown>;
+  purchasedAt: string;
+  product: Product;
+  category: ProductCategory;
+};
+
+export function useListMyPurchases() {
+  return useQuery({
+    queryKey: ["my-purchases"],
+    queryFn: () => customFetch<MyPurchase[]>("/api/my-purchases"),
+    staleTime: 30_000,
+  });
+}
