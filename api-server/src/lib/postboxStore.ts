@@ -378,6 +378,27 @@ interface PublishChannel {
 }
 
 /**
+ * IRFORGE_POSTBOX_PROMPT Phase B2 — no "channel directory" exists anywhere
+ * in this codebase (a channel is just whatever id the admin already typed
+ * into `postbox_targets.channel_id` at some past publish); this scans that
+ * same tab for distinct (channel_id, channel_title) pairs across every
+ * message on this bot, most-recently-used first, purely so the publish
+ * dialog can offer past channels instead of asking the admin to retype a
+ * `-100…` id from memory every time. Not a source of truth for anything --
+ * a channel the admin only ever typed once and never re-selects here is
+ * still perfectly valid to type again by hand.
+ */
+export async function listKnownChannels(spreadsheetId: string): Promise<{ channel_id: string; channel_title: string }[]> {
+  const targets = sortByCreatedAt<PostboxTarget>(await readAll<PostboxTarget>(spreadsheetId, TARGETS_TAB), true);
+  const seen = new Map<string, string>();
+  for (const t of targets) {
+    if (!t.channel_id || seen.has(t.channel_id)) continue;
+    seen.set(t.channel_id, t.channel_title || "");
+  }
+  return [...seen.entries()].map(([channel_id, channel_title]) => ({ channel_id, channel_title }));
+}
+
+/**
  * Phase B1's own guard: refuse the WHOLE publish (create zero target rows)
  * if any `kind: "translation"` button on this message points at a
  * missing/not-"ready" translation -- catching a broken button before it

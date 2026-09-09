@@ -151,6 +151,18 @@ router.delete("/bots/:botId/postbox/messages/:messageId/buttons/:id", requireAut
   }
 });
 
+// ─── کانال‌هایِ شناخته‌شده (برایِ پیشنهاد در دیالوگِ انتشار) ────────────────────
+
+router.get("/bots/:botId/postbox/channels", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    await requirePluginEnabled(spreadsheetId, PLUGIN_ID);
+    res.json({ channels: await postboxStore.listKnownChannels(spreadsheetId) });
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to list known channels");
+  }
+});
+
 // ─── انتشار / ویرایشِ دکمه‌هایِ پستِ منتشرشده ─────────────────────────────────
 
 router.post("/bots/:botId/postbox/messages/:messageId/publish", requireAuth, async (req: any, res) => {

@@ -34,6 +34,7 @@ import {
   Store,
   Wallet,
   Languages,
+  Newspaper,
   type LucideIcon,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
@@ -69,6 +70,7 @@ import { LanguageSection } from "@/components/bots/language/LanguageSection";
 import { TicketsSection } from "@/components/bots/tickets/TicketsSection";
 import { BookingSection } from "@/components/bots/booking/BookingSection";
 import { TranslatePostSection } from "@/components/bots/translate-post/TranslatePostSection";
+import { PostboxSection } from "@/components/bots/postbox/PostboxSection";
 import { AddressesSection } from "@/components/bots/addresses/AddressesSection";
 import { DripSection } from "@/components/bots/drip/DripSection";
 import { CrmSection } from "@/components/bots/crm/CrmSection";
@@ -114,6 +116,7 @@ type SectionKey =
   | "surveys"
   | "drip"
   | "translatePost"
+  | "postbox"
   | "crm"
   | "catalog"
   | "wallet"
@@ -242,6 +245,10 @@ const SECTION_GROUPS: SectionGroup[] = [
       // پستِ چندزبانه (Google Translate API) — همان الگوی showWhenDisabled:
       // سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
       { key: "translatePost", icon: Languages, labelKey: "sectionTranslatePost", requiresPlugin: "translate_post", showWhenDisabled: true },
+      // IRFORGE_POSTBOX_PROMPT Phase B2 — همان الگویِ showWhenDisabled: سکشن
+      // ناپدید نمی‌شود، فقط وقتی پلاگین «اتوپست» خاموش است یک CTA فعال‌سازی
+      // نشان می‌دهد (`PostboxSection.tsx`'s plugin_disabled branch).
+      { key: "postbox", icon: Newspaper, labelKey: "sectionPostbox", requiresPlugin: "autoposter", showWhenDisabled: true },
       // IRFORGE_PROMPT_V3 Phase 20
       { key: "giveaways", icon: Gift, labelKey: "sectionGiveaways", requiresPlugin: "giveaway", showWhenDisabled: true },
       // IRFORGE_PROMPT_V3 Phase 20
@@ -515,6 +522,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "surveys" && <SurveySection bot={bot} />}
             {section === "drip" && <DripSection bot={bot} />}
             {section === "translatePost" && <TranslatePostSection bot={bot} />}
+            {section === "postbox" && <PostboxSection bot={bot} />}
             {section === "crm" && <CrmSection bot={bot} />}
             {section === "catalog" && <CatalogSection bot={bot} />}
             {section === "wallet" && <WalletSection bot={bot} />}

@@ -223,6 +223,19 @@ test("requestButtonEdit is a no-op until a target has actually been sent", async
   assert.equal((await store.getMessage(SID, message.id)).buttons_dirty, false);
 });
 
+test("listKnownChannels returns distinct channels across all messages, most recent first", async () => {
+  installSheet();
+  const m1 = await store.createComposedMessage(SID, { body_html: "one" });
+  const m2 = await store.createComposedMessage(SID, { body_html: "two" });
+  await store.publishMessage(SID, m1.id, [{ channel_id: "-100", channel_title: "Alpha" }], false);
+  await store.publishMessage(SID, m2.id, [{ channel_id: "-200", channel_title: "Beta" }, { channel_id: "-100", channel_title: "Alpha (again)" }], false);
+
+  const channels = await store.listKnownChannels(SID);
+  const ids = channels.map((c) => c.channel_id);
+  assert.deepEqual(new Set(ids), new Set(["-100", "-200"]));
+  assert.equal(channels.length, 2); // -100 دیده‌شده در m1 و m2، فقط یک بار
+});
+
 test("createButton/updateButton/deleteButton flag buttons_dirty once a target is sent", async () => {
   installSheet();
   const message = await store.createComposedMessage(SID, { body_html: "hello" });
