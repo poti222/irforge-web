@@ -74,3 +74,50 @@ test("fulfillment_pool فازِ ۲ در هر پنج زبان ترجمه دارد
     assert.ok(typeof help === "string" && help.trim(), `botCatalog.fulfillmentHelpPool در ${lang}.json خالی/غایب است`);
   }
 });
+
+/**
+ * IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section C — رگرسیونِ کلیدهای SEO تازه
+ * (سکشنِ «مدیریتِ مدرسه با تلگرام» روی landing، دو سؤالِ تازه‌ی FAQ، و متاهای
+ * homeTitle/homeDescription/keywords). تستِ اولِ همین فایل ساختارِ کلیدها را
+ * در هر پنج زبان تضمین می‌کند؛ این تست‌ها مشخصاً پین می‌کنند که خودِ محتوای
+ * هدف — نه فقط وجودِ کلید — رگرسیون نکند.
+ */
+test("کلیدهای seo.homeTitle/homeDescription/keywords در هر پنج زبان پر هستند", () => {
+  for (const lang of LANGS) {
+    for (const key of ["homeTitle", "homeDescription", "keywords"]) {
+      const value = locales[lang].seo?.[key];
+      assert.ok(typeof value === "string" && value.trim(), `seo.${key} در ${lang}.json خالی/غایب است`);
+    }
+  }
+});
+
+test("خوشه‌ی کلیدواژه‌ی «خرید بات» و «مدیریتِ مدرسه» در seo.keywords فارسی هست", () => {
+  const keywords = locales.fa.seo.keywords;
+  assert.ok(keywords.includes("خرید بات"), "seo.keywords فارسی عبارتِ «خرید بات» را ندارد");
+  assert.ok(keywords.includes("مدیریت مدرسه"), "seo.keywords فارسی عبارتِ «مدیریت مدرسه» را ندارد");
+});
+
+test("دو سؤالِ تازه‌ی FAQ (خرید‌-یا-ساخت، نمره‌وحضورغیاب) در هر پنج زبان هستند", () => {
+  for (const lang of LANGS) {
+    for (const key of ["q10", "a10", "q11", "a11"]) {
+      const value = locales[lang].faq?.[key];
+      assert.ok(typeof value === "string" && value.trim(), `faq.${key} در ${lang}.json خالی/غایب است`);
+    }
+  }
+});
+
+test("سکشنِ «مدیریتِ مدرسه با تلگرام» در landing برای هر پنج زبان کامل است", () => {
+  const keys = [
+    "schoolSectionTitle", "schoolSectionSubtitle",
+    "schoolPoint1Title", "schoolPoint1Desc",
+    "schoolPoint2Title", "schoolPoint2Desc",
+    "schoolPoint3Title", "schoolPoint3Desc",
+    "schoolCta",
+  ];
+  for (const lang of LANGS) {
+    for (const key of keys) {
+      const value = locales[lang].landing?.[key];
+      assert.ok(typeof value === "string" && value.trim(), `landing.${key} در ${lang}.json خالی/غایب است`);
+    }
+  }
+});

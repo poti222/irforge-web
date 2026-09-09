@@ -111,7 +111,16 @@
     "plansCustomTitle": "Başka bir şey mi gerekiyor?",
     "plansCustomDesc": "Kendiniz kurun: RAM, CPU çekirdeği ve istediğiniz eklentileri seçin, fiyatın anında değiştiğini görün.",
     "plansCustomCta": "Özel bot oluştur",
-    "plansNote": "Fiyatlar Riyal cinsindendir ve bir botu kapsar. Eklentiler ayrı satın alınır, her satın alma bir bot içindir."
+    "plansNote": "Fiyatlar Riyal cinsindendir ve bir botu kapsar. Eklentiler ayrı satın alınır, her satın alma bir bot içindir.",
+    "schoolSectionTitle": "Neden okulunuzu Telegram ile yönetin?",
+    "schoolSectionSubtitle": "Veliler zaten Telegram'a sahip — yeni bir uygulama kurmalarına gerek yok.",
+    "schoolPoint1Title": "Yeni uygulama gerekmez",
+    "schoolPoint1Desc": "Aileler zaten Telegram kullanıyor; tek bir linkle okul botuna katılırlar — kurulum yok, karmaşık kayıt yok.",
+    "schoolPoint2Title": "Not ve devamsızlık anında",
+    "schoolPoint2Desc": "IrForge'un toplu mesaj aracıyla notları, devamsızlığı ve önemli duyuruları doğrudan velilerin Telegram'ına gönderin.",
+    "schoolPoint3Title": "Ailelerle çift yönlü iletişim",
+    "schoolPoint3Desc": "Özel komutlar ve özel mesajlar, okul-veli iletişimini kalabalık ve dağınık gruplardan uzak tutar.",
+    "schoolCta": "Şimdi okul botunu oluştur"
   },
   "auth": {
     "signInAccount": "Hesabınıza giriş yapın",
@@ -436,13 +445,13 @@
   "admin": {},
   "botLanguageSettings": {},
   "seo": {
-    "homeTitle": "Kodsuz Telegram Bot Yapma | IrForge",
-    "homeDescription": "Kod yazmadan Telegram botu oluşturun, yayınlayın ve yönetin. Eklenti kurun, özel komutlar tanımlayın ve botunuzu dakikalar içinde çalıştırın.",
+    "homeTitle": "Telegram Botu Yapın veya Satın Alın | IrForge",
+    "homeDescription": "Kod yazmadan Telegram botu oluşturun ya da hazır paketten başlayın. Eklenti kurun, okul iletişimini Telegram üzerinden yönetin ve botunuzu dakikalar içinde yayınlayın.",
     "docsTitle": "IrForge Dokümantasyon | Telegram Bot Yapma Rehberi",
     "docsDescription": "Eksiksiz IrForge dokümantasyonu: hızlı başlangıç, argümanlı komut tanımlama, eklenti yazma ve yönetim paneli rehberi.",
     "navHome": "Ana sayfa",
     "navDocs": "Dokümantasyon",
-    "keywords": "telegram bot yapma, telegram bot oluşturma, kodsuz telegram botu, ücretsiz telegram bot, telegram bot nasıl yapılır, telegram mağaza botu, telegram otomasyonu, IrForge",
+    "keywords": "telegram bot yapma, telegram bot oluşturma, kodsuz telegram botu, telegram bot satın al, hazır telegram botu, telegram bot nasıl yapılır, telegram mağaza botu, okul yönetim botu, telegram ile okul yönetimi, telegram otomasyonu, IrForge",
     "botTokenTitle": "BotFather'dan Telegram Bot Token'ı Alma | IrForge",
     "botTokenDescription": "Telegram bot token alma işlemi yedi adımda: BotFather ile token oluşturma, token'ın ne olduğu, nasıl güvende tutulacağı ve sızan bir token'ın nasıl iptal edileceği.",
     "navBotToken": "Bot token'ı",
@@ -497,7 +506,11 @@
     "q8": "Deneme süresi bitince ne olur?",
     "a8": "Bir botun denemesi dolduğunda, bir paket satın alana kadar o botun hizmeti durur. IrForge bitiş tarihi yaklaşırken bildirimlerle önceden uyarır; yani habersiz gerçekleşmez.",
     "q9": "IrForge hangi dilleri destekliyor?",
-    "a9": "Arayüz beş dilde: İngilizce, Farsça, Arapça, Türkçe ve Rusça. Botunuzun kendisi ise yanıtlarını hangi dilde yazarsanız o dilde konuşabilir."
+    "a9": "Arayüz beş dilde: İngilizce, Farsça, Arapça, Türkçe ve Rusça. Botunuzun kendisi ise yanıtlarını hangi dilde yazarsanız o dilde konuşabilir.",
+    "q10": "Hazır bot mu almalıyım, özel bot mu yaptırmalıyım?",
+    "a10": "IrForge'un hazır paketleri (Standard/Pro) dakikalar içinde aktif olur ve çoğu işletme için yeterlidir. Özel bir ihtiyacın varsa aynı botu eklentiler ve özel komutlarla, kod yazmadan özelleştirirsin — yani \"satın alma\" ile \"yapma\" arasında seçim yapman gerekmez.",
+    "q11": "Notlar ve devamsızlık Telegram'dan görülebilir mi?",
+    "a11": "Evet; okul, botun toplu mesaj aracıyla notları, devamsızlığı ve duyuruları doğrudan velilerin Telegram'ına gönderir — çoğu okul yönetim yazılımının sunmadığı bir şey, çünkü onlar aileleri yeni bir uygulama kurmaya zorlar."
   },
   "database": {
     "readOnlyBadge": "Salt okunur",

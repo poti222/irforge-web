@@ -111,7 +111,16 @@
     "plansCustomTitle": "Need something else?",
     "plansCustomDesc": "Build your own: choose RAM, CPU cores and exactly the plugins you want, and see the price change as you go.",
     "plansCustomCta": "Build a custom bot",
-    "plansNote": "Prices are in Rial and cover one bot. Plugins are bought separately, one purchase per bot."
+    "plansNote": "Prices are in Rial and cover one bot. Plugins are bought separately, one purchase per bot.",
+    "schoolSectionTitle": "Why manage your school on Telegram?",
+    "schoolSectionSubtitle": "Parents already have Telegram installed — no new app for them to download.",
+    "schoolPoint1Title": "No new app required",
+    "schoolPoint1Desc": "Families already have Telegram; they just join the school's bot with one link — no install, no complicated sign-up.",
+    "schoolPoint2Title": "Grades and attendance, instantly",
+    "schoolPoint2Desc": "Use IrForge's broadcast tool to send grades, absences and important announcements straight to parents' Telegram.",
+    "schoolPoint3Title": "Two-way contact with families",
+    "schoolPoint3Desc": "Custom commands and private messages keep school-parent communication out of noisy, chaotic group chats.",
+    "schoolCta": "Build your school bot now"
   },
   "auth": {
     "signInAccount": "Sign in to your account",
@@ -436,13 +445,13 @@
   "admin": {},
   "botLanguageSettings": {},
   "seo": {
-    "homeTitle": "Build a Telegram Bot Without Code | IrForge",
-    "homeDescription": "Create, deploy and manage Telegram bots without writing code. Install plugins, define custom commands, and launch your bot in minutes with IrForge.",
+    "homeTitle": "Build or Buy a Telegram Bot Without Code | IrForge",
+    "homeDescription": "Build a Telegram bot without code, or start from a ready-made package. Install plugins, run a school communication bot, and launch your bot in minutes with IrForge.",
     "docsTitle": "IrForge Docs | Telegram Bot Builder Guide & SDK",
     "docsDescription": "Complete IrForge documentation: quick start, defining commands with arguments, writing plugins, and finding your way around the management panel.",
     "navHome": "Home",
     "navDocs": "Documentation",
-    "keywords": "build a telegram bot, telegram bot builder, no-code telegram bot, create telegram bot free, telegram bot maker, how to make a telegram bot, telegram shop bot, telegram automation, IrForge",
+    "keywords": "build a telegram bot, telegram bot builder, no-code telegram bot, buy a telegram bot, ready-made telegram bot, create telegram bot free, how to make a telegram bot, telegram shop bot, telegram bot for schools, school management bot, telegram automation, IrForge",
     "botTokenTitle": "How to Get a Telegram Bot Token from BotFather | IrForge",
     "botTokenDescription": "Get a Telegram bot token in seven steps with @BotFather, learn what the token actually is, how to keep it safe, and how to revoke one that has leaked.",
     "navBotToken": "Bot token",
@@ -497,7 +506,11 @@
     "q8": "What happens when the trial ends?",
     "a8": "When a bot's trial expires the service for that bot stops until you buy a package. IrForge warns you in advance with notifications as the end date approaches, so it doesn't happen without notice.",
     "q9": "Which languages does IrForge support?",
-    "a9": "The interface is available in five languages: English, Persian, Arabic, Turkish and Russian. Your bot itself can talk to its users in any language you write its replies in."
+    "a9": "The interface is available in five languages: English, Persian, Arabic, Turkish and Russian. Your bot itself can talk to its users in any language you write its replies in.",
+    "q10": "Should I buy a ready-made bot or build a custom one?",
+    "a10": "IrForge's Standard/Pro packages activate in minutes and cover most businesses out of the box. If you need something specific, customize that same bot with plugins and custom commands — no code, so it's never really \"buy\" versus \"build\".",
+    "q11": "Can parents see grades and attendance on Telegram?",
+    "a11": "Yes — schools use the bot's broadcast tool to send grades, absences and announcements straight to parents on Telegram, something most school-management software doesn't offer, since it requires installing a separate app."
   },
   "database": {
     "readOnlyBadge": "Read-only",
