@@ -61,6 +61,9 @@ type BookingSchedule = {
   horizon_days: number;
   timezone: string;
   cancel_cutoff_hours: number;
+  // IRFORGE_GUIDED_FLOW_INVITE_CARD_PROMPT فازِ B2 — دعوت‌نامه‌یِ دیجیتالِ
+  // اختیاری، فرستاده‌شده به مشتری موقعِ تأییدِ رزرو (`plugins/booking/invitation.py`).
+  invitation_template?: string;
 };
 
 type BookingException = {
@@ -242,6 +245,17 @@ function ScheduleTab({ botId }: { botId: string }) {
           <Label>{t.timezone}</Label>
           <Input value={schedule.timezone} onChange={(e) => patch({ timezone: e.target.value })} />
         </div>
+      </div>
+
+      <div className="space-y-1.5 border-t pt-4">
+        <Label>{t.invitationTemplateLabel}</Label>
+        <p className="text-xs text-muted-foreground">{t.invitationTemplateHelp}</p>
+        <Textarea
+          dir="rtl" rows={4} maxLength={2000}
+          placeholder={t.invitationTemplatePlaceholder}
+          value={schedule.invitation_template ?? ""}
+          onChange={(e) => patch({ invitation_template: e.target.value })}
+        />
       </div>
 
       <Button onClick={() => save.mutate(schedule)} disabled={save.isPending}>

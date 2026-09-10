@@ -35,6 +35,7 @@ import {
   Wallet,
   Languages,
   Newspaper,
+  GitBranch,
   type LucideIcon,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
@@ -71,6 +72,7 @@ import { TicketsSection } from "@/components/bots/tickets/TicketsSection";
 import { BookingSection } from "@/components/bots/booking/BookingSection";
 import { TranslatePostSection } from "@/components/bots/translate-post/TranslatePostSection";
 import { PostboxSection } from "@/components/bots/postbox/PostboxSection";
+import { GuidedFlowSection } from "@/components/bots/guidedFlow/GuidedFlowSection";
 import { AddressesSection } from "@/components/bots/addresses/AddressesSection";
 import { DripSection } from "@/components/bots/drip/DripSection";
 import { CrmSection } from "@/components/bots/crm/CrmSection";
@@ -117,6 +119,7 @@ type SectionKey =
   | "drip"
   | "translatePost"
   | "postbox"
+  | "guidedFlow"
   | "crm"
   | "catalog"
   | "wallet"
@@ -253,6 +256,10 @@ const SECTION_GROUPS: SectionGroup[] = [
       { key: "giveaways", icon: Gift, labelKey: "sectionGiveaways", requiresPlugin: "giveaway", showWhenDisabled: true },
       // IRFORGE_PROMPT_V3 Phase 20
       { key: "surveys", icon: ClipboardList, labelKey: "sectionSurveys", requiresPlugin: "survey", showWhenDisabled: true },
+      // IRFORGE_GUIDED_FLOW_INVITE_CARD_PROMPT فازِ B1 — همان الگویِ
+      // showWhenDisabled: سکشن ناپدید نمی‌شود، فقط وقتی پلاگین «گفت‌وگویِ
+      // راهنما» خاموش است یک CTA فعال‌سازی نشان می‌دهد.
+      { key: "guidedFlow", icon: GitBranch, labelKey: "sectionGuidedFlow", requiresPlugin: "guided_flow", showWhenDisabled: true },
       // IRFORGE_PROMPT_V3 Phase 20 — همان الگوی `showWhenDisabled`ی booking/address/drip.
       { key: "crm", icon: Contact, labelKey: "sectionCrm", requiresPlugin: "crm", showWhenDisabled: true },
     ],
@@ -523,6 +530,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "drip" && <DripSection bot={bot} />}
             {section === "translatePost" && <TranslatePostSection bot={bot} />}
             {section === "postbox" && <PostboxSection bot={bot} />}
+            {section === "guidedFlow" && <GuidedFlowSection bot={bot} />}
             {section === "crm" && <CrmSection bot={bot} />}
             {section === "catalog" && <CatalogSection bot={bot} />}
             {section === "wallet" && <WalletSection bot={bot} />}

@@ -79,6 +79,7 @@ import translatePostRouter from "./translatePost.js";
 import postboxRouter from "./postbox.js";
 import walletTopupRouter from "./walletTopup.js";
 import walletTopupSmsWebhookRouter from "./walletTopupSmsWebhook.js";
+import guidedFlowRouter from "./guidedFlow.js";
 
 const router: IRouter = Router();
 
@@ -152,5 +153,6 @@ router.use(catalogRouter);
 router.use(botWalletRouter);
 router.use(translatePostRouter);
 router.use(postboxRouter);
+router.use(guidedFlowRouter);
 
 export default router;

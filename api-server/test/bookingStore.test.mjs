@@ -122,6 +122,33 @@ test("parseScheduleInput accepts a fully valid body", () => {
   assert.deepEqual(parsed.week.friday, [{ from: "10:00", to: "14:00" }]);
 });
 
+// ── دعوت‌نامه‌یِ دیجیتال (IRFORGE_GUIDED_FLOW_INVITE_CARD_PROMPT فازِ B2) ──
+
+test("parseScheduleInput rejects a non-string invitation_template", () => {
+  assert.throws(
+    () => store.parseScheduleInput({ invitation_template: 123 }),
+    (err) => err.code === "bad_invitation_template",
+  );
+});
+
+test("parseScheduleInput accepts and truncates a long invitation_template", () => {
+  const parsed = store.parseScheduleInput({ invitation_template: "x".repeat(3000) });
+  assert.equal(parsed.invitation_template.length, 2000);
+});
+
+test("getSchedule defaults invitation_template to an empty string", async () => {
+  installSheet();
+  const schedule = await store.getSchedule(SID);
+  assert.equal(schedule.invitation_template, "");
+});
+
+test("saveSchedule persists a non-empty invitation_template", async () => {
+  installSheet();
+  await store.saveSchedule(SID, { invitation_template: "🎉 {occasion} — {date} {time}" });
+  const schedule = await store.getSchedule(SID);
+  assert.equal(schedule.invitation_template, "🎉 {occasion} — {date} {time}");
+});
+
 // ── استثناها ─────────────────────────────────────────────────────────────
 
 test("setException then getException round-trips", async () => {

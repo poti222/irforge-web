@@ -45,6 +45,12 @@ export interface BookingSchedule {
   horizon_days: number;
   timezone: string;
   cancel_cutoff_hours: number;
+  // IRFORGE_GUIDED_FLOW_INVITE_CARD_PROMPT فازِ B2 — متنِ دعوت‌نامه‌یِ
+  // دیجیتال (whitelist HTML)، با placeholderهایِ {date}/{time}/{occasion}/
+  // {location_button}. خالی = این قابلیت خاموش است (پیام‌هایِ تأییدِ عادی
+  // بدونِ تغییر ادامه می‌یابند) — همتایِ دقیقِ `plugins/booking/domain.py`ی
+  // `DEFAULT_SCHEDULE["invitation_template"]`.
+  invitation_template?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -59,6 +65,7 @@ export const DEFAULT_SCHEDULE: Omit<BookingSchedule, "id"> = {
   horizon_days: 30,
   timezone: "Asia/Tehran",
   cancel_cutoff_hours: 0,
+  invitation_template: "",
 };
 
 export interface BookingException {
@@ -166,6 +173,17 @@ export function parseScheduleInput(body: any): Partial<BookingSchedule> {
       throw new BotConfigError(400, "timezone نامعتبر است.", "bad_timezone");
     }
     out.timezone = body.timezone.trim();
+  }
+
+  if (body.invitation_template !== undefined) {
+    if (typeof body.invitation_template !== "string") {
+      throw new BotConfigError(400, "invitation_template باید رشته باشد.", "bad_invitation_template");
+    }
+    // بدونِ sanitize اینجا: همان قراردادِ body_htmlِ کاتالوگ — sanitize فقط
+    // یک‌بار، در لحظه‌ی رندر سمتِ بات (`plugins/booking/invitation.py`)
+    // انجام می‌شود، نه هم اینجا هم آنجا؛ ذخیره‌یِ خام یعنی ادمین دقیقاً
+    // همان چیزی را که نوشته در ادیتور می‌بیند.
+    out.invitation_template = body.invitation_template.slice(0, 2000);
   }
 
   return out;
