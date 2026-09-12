@@ -941,6 +941,33 @@ VALUES
    1)
 ON CONFLICT (id) DO NOTHING;
 
+-- IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۳ — یک هفتمین دسته، مخصوصِ
+-- بسته‌هایِ چندپلاگینیِ سایت (نه یک ویژگیِ جدا مثلِ شش دسته‌ی بالا). فقط یک
+-- عضو دارد امروز: «فروشگاه‌ساز» (کاتالوگ + کیف پول، یک خریدِ واحد به‌جای دو
+-- خریدِ جدا) — نگاه کن lib/pluginPricing.ts::getStorefrontProduct(). عمداً
+-- *بعدِ* سیدِ استاندارد/پرو آمده تا test/products.test.mjs's own
+-- migrateSource.split("INSERT INTO products")[1] (که فرض می‌کند اولین
+-- رخدادِ این رشته همان بلوکِ استاندارد/پرو است) به‌هم نریزد. (هیچ backtick ای
+-- اینجا مجاز نیست — کلِ این بلوک داخلِ یک template literal است.)
+INSERT INTO product_categories (id, label_fa, label_en, icon, sort_order)
+VALUES
+  ('plugin_bundle', 'بسته‌ی پلاگین', 'Plugin Bundle', 'PackagePlus', 6)
+ON CONFLICT (id) DO NOTHING;
+
+-- قیمت: کاتالوگ (۱۵۰٬۰۰۰) + کیف‌پول (۱۲۰٬۰۰۰) جدا یعنی ۲۷۰٬۰۰۰ تومان؛ بسته
+-- با ۲۲۰٬۰۰۰ (۲٬۲۰۰٬۰۰۰ ریال) قیمت‌گذاری شده — تخفیفِ محسوس برایِ خریدِ یک‌جا،
+-- ولی این عددِ دقیق یک تصمیمِ تجاریِ قابل‌تغییر است؛ از همینجا (یا پنلِ ادمینِ
+-- محصولات، بدون دیپلوی) قابلِ ویرایش می‌ماند، دقیقاً مثلِ استاندارد/پرو.
+INSERT INTO products (id, category_id, name, name_fa, description, description_fa, price, icon, metadata, sort_order)
+VALUES
+  ('storefront', 'plugin_bundle', 'Storefront', 'فروشگاه‌ساز',
+   'Catalog + Wallet in one purchase — sell products and let customers pay from an in-bot balance.',
+   'کاتالوگ + کیف‌پول در یک خرید — فروشِ محصول و پرداخت از موجودیِ داخلِ بات.',
+   2200000, 'Store',
+   '{"bundledPluginIds":["catalog","wallet"]}',
+   0)
+ON CONFLICT (id) DO NOTHING;
+
 -- ─── PRODUCT_PURCHASES ─────────────────────────────────────────────────────
 -- IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section A — a purchase record for
 -- non-bot products (bots already have their own purchase record: the

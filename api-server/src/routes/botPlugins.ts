@@ -34,14 +34,18 @@
  *     سهمیه نیستند.
  */
 import { Router } from "express";
-import { db, installedPluginsTable, botsTable } from "@workspace/db";
+import crypto from "crypto";
+import { db, installedPluginsTable, botsTable, marketplaceItemsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "./auth.js";
 import { logger } from "../lib/logger.js";
 import { getPluginCatalog } from "../lib/pluginCatalog.js";
 import { marketplaceItemIdFor, ensurePluginItemsSynced } from "../lib/marketplaceSync.js";
-import { pluginPrice } from "../lib/pluginPricing.js";
+import { pluginPrice, getStorefrontProduct, STOREFRONT_PLUGIN_IDS } from "../lib/pluginPricing.js";
 import { getUserPlanLimits } from "../lib/planLimits.js";
+import { deductWallet } from "../lib/wallet.js";
+import { tomanToRial } from "../lib/currency.js";
+import { createNotification, formatTomanFa } from "../lib/notify.js";
 import {
   resolveBotSheet,
   getEntity,
@@ -253,6 +257,109 @@ router.patch("/bots/:botId/plugins/:pluginId", requireAuth, async (req: any, res
     res.json({ pluginId, enabled: req.body.enabled, states: next });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to toggle plugin");
+  }
+});
+
+/**
+ * IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۳ — خریدِ بسته‌ی
+ * «فروشگاه‌ساز»: یک خرید، دو پلاگینِ واقعی (catalog + wallet) با هم
+ * خریده‌وروشن می‌شوند. `orders`/`payments` کاری اضافه نمی‌خواهند — از قبل
+ * پشتِ گیتِ خودِ wallet‌اند (نگاه کن lib/pluginPricing.ts's بالای همین فایل
+ * برایِ شرحِ کامل).
+ *
+ * قیمت از `products` (دستهٔ `plugin_bundle`) می‌آید، نه هاردکد — دقیقاً
+ * همان الگویِ `getBotTierProduct()`. هر دو پلاگین که از قبل خریده شده باشند
+ * → ۴۰۹ (چیزِ تازه‌ای برایِ خرید نیست)؛ هرچه هنوز خریده نشده با یک بارِ
+ * مبلغِ کاملِ بسته پرداخت می‌شود (بدون تقسیمِ نسبیِ قیمت برایِ کسی که فقط
+ * یکی از دوتا را از قبل داشته — یک بستهٔ قیمتِ ثابت، ساده‌تر و قابلِ
+ * پیش‌بینی‌تر از محاسبه‌ی تفاضلی)، و در پایان هر دو در `__plugin_states__`
+ * روشن می‌شوند — صرف‌نظر از این‌که تازه خریده شدند یا از قبل مالکش بودید
+ * ولی خاموشش کرده بودید (طبقِ متنِ خودِ پرامپت: «خریدِ فروشگاه‌ساز هر چهار
+ * قابلیت را همزمان فعال می‌کند»).
+ *
+ * منطق در یک تابعِ export‌شده که `spreadsheetId`/`isSuperAdmin` را از قبل
+ * resolve‌شده می‌گیرد (نه خودش `resolveBotSheet` صدا بزند) — دقیقاً همان
+ * جداسازیِ `resolvePurchasePrice()`ی pluginPricing.ts (منطقِ خالص، تستِ
+ * مستقیم بدونِ بالا آوردنِ یک اپِ Express با supertest)؛ resolveBotSheet
+ * (که واقعاً به Postgres سر می‌زند) کارِ خودِ روتِ پایین می‌ماند.
+ */
+export async function purchaseStorefrontBundle(
+  userId: string,
+  botId: string,
+  spreadsheetId: string,
+  isSuperAdmin: boolean,
+): Promise<{ purchased: string[]; alreadyOwned: string[]; enabled: readonly string[] }> {
+  await assertSheetsAuthoritative(SETTINGS_TAB);
+
+  const ownedFlags = await Promise.all(STOREFRONT_PLUGIN_IDS.map((id) => isPluginPurchased(botId, id)));
+  const alreadyOwned = STOREFRONT_PLUGIN_IDS.filter((_id, i) => ownedFlags[i]);
+  const toPurchase = STOREFRONT_PLUGIN_IDS.filter((_id, i) => !ownedFlags[i]);
+
+  if (toPurchase.length === 0) {
+    throw new BotConfigError(409, "شما همین حالا هم مالکِ کاتالوگ و کیف‌پول هستید.", "already_installed");
+  }
+
+  let priceToman = 0;
+  if (!isSuperAdmin) {
+    const product = await getStorefrontProduct();
+    if (!product) {
+      throw new BotConfigError(500, "بستهٔ فروشگاه‌ساز هنوز قیمت‌گذاری نشده.", "storefront_not_priced");
+    }
+    priceToman = product.priceToman;
+    if (priceToman > 0) {
+      const ok = await deductWallet(userId, tomanToRial(priceToman), "Storefront bundle: Catalog + Wallet");
+      if (!ok) throw new BotConfigError(400, "موجودی کیف پول کافی نیست.", "insufficient");
+    }
+  }
+
+  await ensurePluginItemsSynced();
+  for (const pluginId of toPurchase) {
+    const itemId = marketplaceItemIdFor(pluginId);
+    const [item] = await db.select().from(marketplaceItemsTable).where(eq(marketplaceItemsTable.id, itemId)).limit(1);
+    if (!item) continue; // منتشرنشده در کاتالوگِ بات — چیزی برایِ خرید نیست، نادیده گرفته می‌شود
+    await db.insert(installedPluginsTable).values({
+      id: crypto.randomUUID(), botId, marketplaceItemId: itemId, name: item.name, version: item.version, enabled: true,
+    });
+  }
+
+  const states = await readStates(spreadsheetId);
+  const next = { ...states };
+  for (const pluginId of STOREFRONT_PLUGIN_IDS) next[pluginId] = true;
+  await putEntity(spreadsheetId, SETTINGS_TAB, PLUGIN_STATES_KEY, next);
+
+  try {
+    await db.update(botsTable).set({ pluginCount: Object.values(next).filter(Boolean).length }).where(eq(botsTable.id, botId));
+  } catch (err) {
+    logger.warn({ err }, "plugin count sync failed (ignored)");
+  }
+
+  try {
+    const [bot] = await db.select({ userId: botsTable.userId, name: botsTable.name }).from(botsTable).where(eq(botsTable.id, botId)).limit(1);
+    if (bot) {
+      const pricePart = isSuperAdmin ? "رایگان (توسط ادمین)" : priceToman <= 0 ? "رایگان" : formatTomanFa(priceToman);
+      await createNotification({
+        userId: bot.userId,
+        botId,
+        type: "plugin_purchased",
+        severity: "info",
+        title: "بسته‌ی «فروشگاه‌ساز» نصب شد",
+        message: `کاتالوگ و کیف‌پول روی بات «${bot.name ?? ""}» فعال شدند — ${pricePart}.`,
+      });
+    }
+  } catch (err) {
+    logger.warn({ err }, "storefront purchase notification failed (ignored)");
+  }
+
+  return { purchased: toPurchase, alreadyOwned, enabled: STOREFRONT_PLUGIN_IDS };
+}
+
+router.post("/bots/:botId/plugins/storefront", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId, isSuperAdmin } = await resolveBotSheet(req.userId, req.params.botId);
+    const result = await purchaseStorefrontBundle(req.userId, req.params.botId, spreadsheetId, isSuperAdmin);
+    res.status(201).json(result);
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to purchase the storefront bundle");
   }
 });
 

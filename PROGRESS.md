@@ -3803,3 +3803,41 @@ On the frontend, `CatalogSection.tsx`'s per-item fulfillment editor had a `case 
 10 new i18n keys (`poolSold*` + 3 `poolStatus*`) across all 5 locales.
 
 **Tests**: 3 new `catalogStore.test.mjs` cases — filters to the right item and the right three statuses while excluding `available`, sorts newest-first; `q` matches `buyer_id` before `order_id` (a row whose `order_id` happens to equal another row's `buyer_id` doesn't win); an unmatched `q` returns nothing. api-server: 874 total, 872 pass (same 2 pre-existing baseline failures — `sendEmail`/SMS-rate-limit, unrelated — reconfirmed via `git stash -u`). `pnpm --filter @workspace/irforge run build`: 65/65 pages green, zero `TODO_TRANSLATE` keys. Client suite: 104/104 pass (unchanged — no client-side unit tests exist for individual catalog components in this codebase; verified instead via the green build's type-check and the locale-parity check). Held locally per the standing push-approval rule.
+
+---
+
+**IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT — بخش ۳: بستهٔ «فروشگاه‌ساز» — وقتی پیش‌فرضِ خودِ پرامپت غلط از آب درآمد.**
+
+**بررسیِ اول (طبقِ خواستِ صریحِ خودِ پرامپت):** پرامپت فرض کرده بود catalog/orders/payments/wallet هر چهار **رایگان و بدونِ گیت‌اند** امروز — بنابراین این بخش می‌خواست «اولین قیمت برایِ این گروه» را معرفی کند و یک تصمیمِ grandfathering برایِ گیتِ تازه بگیرد. خواندنِ کدِ واقعی (نه اعتمادِ کورکورانه به متنِ پرامپت) این فرض را رد کرد:
+
+- `catalog` (۱۵۰٬۰۰۰ تومان) و `wallet` (۱۲۰٬۰۰۰ تومان) از قبل در `pluginPricing.ts::PLUGIN_PRICES` قیمت دارند و از قبل با `requirePluginEnabled(spreadsheetId, "catalog"/"wallet")` گیت شده‌اند (`routes/catalog.ts`، `routes/botWallet.ts`) — پولی و گیت‌شده، نه رایگان.
+- `orders`/`payments` اصلاً plugin_id مستقلی نیستند — نه در irforge-app (`plugins/*/plugin.py`ی هیچ‌کدام)، نه در جدولِ قیمت. سطحِ سفارش‌هایِ سایت (`routes/botOrders.ts`) از قبل صراحتاً پشتِ همان گیتِ پلاگینِ **wallet** است (کامنتِ خودِ آن فایل: «سفارش‌ها پشت پلاگین کیف پول‌اند. گیت اینجاست نه فقط در UI»).
+
+یعنی دو موردِ نام‌برده از قبل پولی‌اند و دو موردِ دیگر اصلاً هویتِ مستقل ندارند تا بشود گیتِ تازه‌ای رویشان گذاشت — «معرفیِ اولین قیمت برایِ گروهِ رایگان» چیزی نبود که واقعاً وجود داشته باشد. این یافته مستقیماً به کاربر گزارش شد (نه فرض گرفته شد) و برایِ مسیرِ ادامه از او سؤال شد؛ پاسخ: بسته‌بندیِ همان دو پلاگینِ واقعی (catalog+wallet) در یک خرید، بدونِ دست‌زدن به هیچ گیتِ موجود.
+
+**تصمیم:** «فروشگاه‌ساز» یک plugin_id تازه در سیستمِ گیتِ پلاگین‌ها *نیست* (که نیازمندِ یک مانیفستِ ساختگی در irforge-app بود، فقط برایِ دیده‌شدن در کاتالوگ، بدونِ هیچ رفتارِ واقعی در بات — دردسرِ بی‌فایده). به‌جایش یک **بستهٔ خریدِ واحد** است: یک SKU در جدولِ `products` (دستهٔ تازه‌ی `plugin_bundle` — هیچ‌کدام از شش دستهٔ موجود مفهوماً جا نمی‌افتاد؛ ردیفِ `standard`/`pro` عمداً همچنان اول در فایلِ سید می‌ماند تا `test/products.test.mjs`'s own متن‌کاویِ `split("INSERT INTO products")` به‌هم نریزد) که با یک خرید هر دو پلاگینِ واقعیِ catalog/wallet را همزمان می‌خرد و روشن می‌کند.
+
+**پیاده‌سازی:**
+- `migrate.mjs`: دستهٔ `plugin_bundle` + محصولِ `storefront` (۲٬۲۰۰٬۰۰۰ ریال = ۲۲۰٬۰۰۰ تومان — تخفیف نسبت به ۱۵۰٬۰۰۰+۱۲۰٬۰۰۰ جدا، عددی قابل‌تغییر از همان پنلِ ادمینِ محصولات، بدون دیپلوی).
+- `lib/pluginPricing.ts::getStorefrontProduct()` — دقیقاً همان الگویِ `getBotTierProduct()`ی که Products-section Phase 2 ساخت: یک `SELECT` رویِ `products` با `categoryId`/`id`/`isActive`، نه یک ثابتِ هاردکد.
+- `routes/botPlugins.ts::purchaseStorefrontBundle(userId, botId, spreadsheetId, isSuperAdmin)` — تابعی export‌شده و مستقل از resolveBotSheet (دقیقاً مثلِ جداسازیِ خودِ `resolvePurchasePrice()`ی pluginPricing.ts) تا بدونِ بالا آوردنِ یک اپِ Express با supertest قابلِ تست باشد؛ روتِ `POST /bots/:botId/plugins/storefront` فقط `resolveBotSheet` را صدا می‌زند و نتیجه را برمی‌گرداند. منطق: هر دو پلاگین از قبل خریده شده باشند → ۴۰۹ `already_installed`؛ وگرنه یک‌بار مبلغِ کاملِ بسته کسر می‌شود (بدونِ تقسیمِ نسبی برایِ کسی که فقط یکی از دوتا را از قبل داشته — یک قیمتِ ثابت، ساده‌تر و قابلِ‌پیش‌بینی‌تر از محاسبه‌ی تفاضلی) و هرچه هنوز خریده نشده در `installed_plugins` ثبت می‌شود؛ در پایان **هر دو** در `bot_settings.__plugin_states__` روشن می‌شوند — حتی اگر یکی‌شان از قبل مالکیت داشت ولی خاموش بود (طبقِ متنِ خودِ پرامپت: «خریدِ فروشگاه‌ساز هر چهار قابلیت را همزمان فعال می‌کند»).
+- **Grandfathering**: چون هیچ گیتِ تازه‌ای رویِ هیچ مسیرِ سرورِ موجودی گذاشته نشد — catalog/wallet دقیقاً همان `requirePluginEnabled`ی قبلی‌شان را دارند، دست‌نخورده — هیچ تننتِ فعلی‌ای یک‌شبه قفل نمی‌شود. این خودِ grandfathering است، نه یک مکانیزمِ جداگانه‌ی «کاربرانِ فعلی رایگان بمانند»: کسی که از قبل catalog و/یا wallet را جدا خریده همان را دارد و برایِ خریدِ «فروشگاه‌ساز» هیچ اجباری ندارد؛ فقط یک راهِ تازه و ارزان‌تر برایِ کسی که هیچ‌کدام را ندارد (یا فقط یکی را دارد) به هر دو برسد.
+- Frontend: `CatalogSection.tsx` و `WalletSection.tsx`'s `plugin_disabled` CTA (هر دو، همان کارتِ «پلاگین را روشن کنید») یک دکمهٔ دومِ «خریدِ بستهٔ فروشگاه‌ساز» گرفتند — چون دکمهٔ موجودِ «فعال‌سازی» فقط `PATCH .../plugins/X` با `enabled:true` می‌زند که اگر پلاگین هنوز خریده نشده باشد (پولی است) با ۴۰۲ شکست می‌خورد؛ این دکمهٔ تازه خرید+فعال‌سازیِ هر دو را با هم انجام می‌دهد.
+
+**Tests**: `test/storefrontBundle.test.mjs` — ۸ تست جدید (۲ برایِ `getStorefrontProduct`، ۶ برایِ `purchaseStorefrontBundle`: هر دو از قبل خریده → ۴۰۹ بدونِ کسرِ کیف‌پول؛ هیچ‌کدام خریده نشده → یک کسرِ کاملِ قیمتِ بسته + هر دو نصب/روشن؛ فقط یکی از قبل خریده → همان یکی دوباره خریده نمی‌شود ولی خاموش‌بودنش هم روشن می‌شود؛ موجودیِ ناکافی → `insufficient` بدونِ نصب؛ بسته هنوز قیمت‌گذاری‌نشده → `storefront_not_priced`؛ سوپرادمین → بدونِ کسرِ کیف‌پول حتی بدونِ قیمت). همان الگویِ فیکِ `db.select`/`db.insert`/`db.update` که `pluginOwners.test.mjs`/`wallet.test.mjs` قبلاً برایِ دیسپچ بر اساسِ table استفاده می‌کردند، به‌علاوهٔ همان فیکِ `botConfig.sheetLayer`ی کاتالوگ/بوکینگ‌استور برایِ `bot_settings`.
+
+**باگِ خودم، پیدا و رفع‌شده در همین فاز**: بلوکِ SQL تازه را اول *قبل* از بلوکِ سیدِ استاندارد/پرو گذاشته بودم — چون `test/products.test.mjs` با `migrateSource.split("INSERT INTO products")[1]` بلوکِ استاندارد/پرو را جدا می‌کند (فرضِ ضمنی: اولین رخدادِ این رشته همان بلوک است)، این ترتیب دو تستِ موجود را خراب کرد. با جابه‌جاییِ بلوکِ فروشگاه‌ساز به *بعدِ* بلوکِ استاندارد/پرو رفع شد. یک باگِ دومِ خودم هم همین‌جا پیدا شد: یک بک‌تیک (`` ` ``) داخلِ کامنتِ توضیحیِ خودم، داخلِ همان template literalِ SQL — که کلِ فایلِ migrate.mjs را از نظرِ جاوااسکریپت نامعتبر می‌کرد (`test/schemaDrift.test.mjs`'s «فایل مایگریشن از نظر جاوااسکریپت معتبر است» همین را گرفت). هر دو با یک `git stash`/full-suite re-run دوباره تأیید شدند که واقعاً رفع شده‌اند، نه صرفاً حدس زده شده.
+
+**نتیجه**: api-server 882 total/880 pass (872 baseline + 8 جدید نتیجه‌شان + دو باگِ بالا رفع‌شده = همان ۲ خرابیِ پیشینیِ بی‌ربط — sendEmail/SMS-rate-limit)، `tsc --noEmit` همان ۱۵۶ خطایِ پیشینی (صفر تازه)، `pnpm --filter @workspace/irforge run build` سبز (۶۵/۶۵ صفحه، صفر `TODO_TRANSLATE`)، کلاینت ۱۰۴/۱۰۴. Held locally per the standing push-approval rule.
+
+---
+
+**IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT — closing summary.**
+
+سه بخش، دو مخزن، یک الگویِ مشترک: هر سه‌شان با خواندنِ کدِ واقعی شروع شدند، نه با پذیرفتنِ فرضِ خودِ پرامپت.
+
+- **بخشِ ۱ (irforge-app، فوری)** — ریشه‌یِ باگِ «qty=4 فقط ۱ عدد می‌رسد»: `pool.deliver_from_pool` بدونِ فاصله چند پیامِ پیاپی به یک chat_id می‌فرستد؛ محدودیتِ مستندِ Telegram («۱ پیام در ثانیه به یک چتِ خاص») پیام‌هایِ بعدِ اولی را با `TelegramRetryAfter` رد می‌کند، که یک `except Exception` عمومی بی‌صدا `failed` علامت می‌زد. رفع‌شده با retry-on-`TelegramRetryAfter` (رعایتِ همان `retry_after`ی خودِ Telegram)، تأییدشده با یک تستِ زنده‌ی flood-simulation.
+- **بخشِ ۲ (irforge-web)** — تبِ «فروخته‌شده‌ها»ی pool که قبلاً فقط در بات بود، حالا از سایت هم با جست‌وجو دیده می‌شود؛ یک اندپوینتِ تازه‌ی read-only رویِ همان تبِ Sheetsی بات.
+- **بخشِ ۳ (irforge-web)** — پرامپت فرض کرده بود چهار پلاگین رایگان‌اند؛ واقعیت این بود که دوتا از قبل پولی‌اند و دوتایِ دیگر اصلاً هویتِ مستقل ندارند. به‌جایِ ساختنِ چیزی رویِ یک فرضِ غلط، این یافته گزارش شد و تصمیمِ نهایی (بسته‌بندیِ همان دو پلاگینِ واقعی، بدونِ گیتِ تازه) از کاربر گرفته شد.
+
+هر سه بخش تست‌شده و کمیت‌شده‌اند؛ صفر رگرسیون در هر دو مخزن (تأییدشده با `git stash -u` علیهِ baseline، نه فقط با خواندنِ خروجیِ خامِ تست). Held locally on `claude/project-phases-review-fc17tc` per the standing push-approval rule — not pushed yet.

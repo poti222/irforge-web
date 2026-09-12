@@ -255,6 +255,53 @@ export async function getBotTierProduct(
   return { id: row.id, priceToman: rialToToman(row.price), maxFreePlugins };
 }
 
+// ─── بستهٔ «فروشگاه‌ساز» ─────────────────────────────────────────────────────
+// IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۳.
+//
+// بررسیِ اول (طبقِ خواسته‌ی خودِ پرامپت، قبل از هر تغییری): برخلافِ فرضِ
+// پرامپت («catalog/orders/payments/wallet هر چهار رایگان‌اند»)، `catalog`
+// (بالا: ۱۵۰٬۰۰۰) و `wallet` (۱۲۰٬۰۰۰) از قبل پولی و گیت‌شده‌اند
+// (`requirePluginEnabled` در routes/catalog.ts و routes/botWallet.ts). «orders»
+// و «payments» اصلاً plugin_id مستقلی در بات نیستند — نه در
+// `plugins/*/plugin.py`ی irforge-app، نه در این جدول — بلکه سطحِ سفارش‌هایِ
+// سایت (`routes/botOrders.ts`) از قبل صراحتاً پشتِ همان گیتِ پلاگینِ
+// «wallet» قرار دارد (کامنتِ خودِ آن فایل: «سفارش‌ها پشت پلاگین کیف پول‌اند»).
+// یعنی چیزی برایِ «معرفیِ اولین قیمت برایِ گروهِ رایگان» وجود ندارد —
+// دو تا از چهار موردِ نام‌برده از قبل پولی‌اند، و دو موردِ دیگر اصلاً هویتِ
+// مستقل ندارند تا بشود گیتِ تازه‌ای رویشان گذاشت.
+//
+// پس «فروشگاه‌ساز» اینجا یک plugin_id تازه در سیستمِ گیتِ پلاگین‌ها *نیست*
+// (که نیاز به یک مانیفستِ ساختگی در irforge-app داشت، فقط برایِ دیده‌شدن در
+// کاتالوگ — دردسرِ بی‌فایده برایِ چیزی که در بات هیچ رفتاری ندارد). به‌جایش
+// یک **بستهٔ خریدِ واحد** است: یک SKU در جدولِ `products` (دستهٔ تازه‌ی
+// `plugin_bundle`، نه یکی از شش دستهٔ موجود — هیچ‌کدام از آن‌ها مفهوماً
+// جا نمی‌افتاد) که با یک خرید، هر دو پلاگینِ *واقعیِ* catalog/wallet را
+// همزمان می‌خرد و روشن می‌کند (`routes/botPlugins.ts::POST .../plugins/storefront`).
+// «orders»/«payments» نیازی به کارِ اضافه ندارند — از قبل با گیتِ خودِ
+// wallet پوشش داده می‌شوند.
+//
+// **grandfathering**: چون هیچ گیتِ تازه‌ای رویِ هیچ مسیرِ سرورِ موجودی
+// گذاشته نشد (catalog/wallet دقیقاً همان `requirePluginEnabled`ی قبلی‌شان
+// را دارند)، هیچ تننتِ فعلی‌ای یک‌شبه قفل نمی‌شود — این خودِ grandfathering
+// است، نه یک مکانیزمِ جداگانه: کسی که از قبل catalog و/یا wallet را جدا
+// خریده، همان را دارد و برایِ خریدِ «فروشگاه‌ساز» هیچ اجباری ندارد.
+export const STOREFRONT_CATEGORY_ID = "plugin_bundle";
+export const STOREFRONT_PRODUCT_ID = "storefront";
+/** دو پلاگینِ واقعی‌ای که خریدِ «فروشگاه‌ساز» با هم فعال می‌کند. */
+export const STOREFRONT_PLUGIN_IDS = ["catalog", "wallet"] as const;
+
+export async function getStorefrontProduct(): Promise<{ id: string; priceToman: Toman } | null> {
+  const [row] = await db.select().from(productsTable)
+    .where(and(
+      eq(productsTable.categoryId, STOREFRONT_CATEGORY_ID),
+      eq(productsTable.id, STOREFRONT_PRODUCT_ID),
+      eq(productsTable.isActive, true),
+    ))
+    .limit(1);
+  if (!row) return null;
+  return { id: row.id, priceToman: rialToToman(row.price) };
+}
+
 /** مشخصات ساختی که کلاینت همراه خرید می‌فرستد. */
 export type BuildSpec = {
   tierId?: string;

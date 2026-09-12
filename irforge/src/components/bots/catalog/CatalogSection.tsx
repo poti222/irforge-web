@@ -1069,9 +1069,22 @@ export function CatalogSection({ bot }: { bot: Bot }) {
     queryFn: () => customFetch<{ categories: Category[] }>(`/api/bots/${bot.id}/catalog/categories`),
   });
 
+  const { toast } = useToast();
+
   const activate = useMutation({
     mutationFn: () => customFetch(`/api/bots/${bot.id}/plugins/catalog`, { method: "PATCH", body: JSON.stringify({ enabled: true }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["bot-plugins", bot.id] }); qc.invalidateQueries({ queryKey: categoriesKey }); },
+  });
+
+  // IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۳ — «activate» بالا فقط
+  // enabled=true می‌نویسد؛ اگر catalog هنوز خریده نشده باشد (پولی است) با
+  // ۴۰۲ شکست می‌خورد چون خودِ خرید مسیرِ جدایی دارد. این دکمه هر دو کار را
+  // با هم انجام می‌دهد: خریدِ بستهٔ فروشگاه‌ساز (کاتالوگ + کیف‌پول) با یک
+  // قیمتِ واحد، به‌جای این‌که کاربر مجبور شود جدا پیدا کند چطور خریدشان کند.
+  const buyStorefront = useMutation({
+    mutationFn: () => customFetch(`/api/bots/${bot.id}/plugins/storefront`, { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bot-plugins", bot.id] }); qc.invalidateQueries({ queryKey: categoriesKey }); },
+    onError: (err) => toast({ variant: "destructive", description: errMessage(err, t.errorGeneric) }),
   });
 
   if (isLoading) return <div className="flex items-center gap-2 p-8 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {t.loading}</div>;
@@ -1083,10 +1096,16 @@ export function CatalogSection({ bot }: { bot: Bot }) {
           <Store className="size-8 text-muted-foreground" />
           <p className="font-semibold">{t.pluginDisabledTitle}</p>
           <p className="max-w-md text-sm text-muted-foreground">{t.pluginDisabledDesc}</p>
-          <Button onClick={() => activate.mutate()} disabled={activate.isPending}>
-            {activate.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
-            {activate.isPending ? t.activating : t.activatePlugin}
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button onClick={() => activate.mutate()} disabled={activate.isPending}>
+              {activate.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+              {activate.isPending ? t.activating : t.activatePlugin}
+            </Button>
+            <Button variant="outline" onClick={() => buyStorefront.mutate()} disabled={buyStorefront.isPending}>
+              {buyStorefront.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+              {t.buyStorefrontBundle}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );

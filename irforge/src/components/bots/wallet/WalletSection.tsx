@@ -357,6 +357,7 @@ function NotifySettingsTab({ botId }: { botId: string }) {
 export function WalletSection({ bot }: { bot: Bot }) {
   const t = useT("botWallet");
   const qc = useQueryClient();
+  const { toast } = useToast();
 
   const probeKey = ["bot-wallet-notify-settings", bot.id] as const;
   const { isLoading, error } = useQuery({
@@ -369,6 +370,16 @@ export function WalletSection({ bot }: { bot: Bot }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["bot-plugins", bot.id] }); qc.invalidateQueries({ queryKey: probeKey }); },
   });
 
+  // IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۳ — همان دلیلِ
+  // CatalogSection.tsx: «activate» فقط enabled=true می‌نویسد و اگر wallet
+  // هنوز خریده نشده باشد با ۴۰۲ شکست می‌خورد. این دکمه کاتالوگ+کیف‌پول را
+  // با یک خریدِ واحد فعال می‌کند.
+  const buyStorefront = useMutation({
+    mutationFn: () => customFetch(`/api/bots/${bot.id}/plugins/storefront`, { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bot-plugins", bot.id] }); qc.invalidateQueries({ queryKey: probeKey }); },
+    onError: (err) => toast({ variant: "destructive", description: errMessage(err, t.errorGeneric) }),
+  });
+
   if (isLoading) return <div className="flex items-center gap-2 p-8 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {t.loading}</div>;
 
   if (errCode(error) === "plugin_disabled") {
@@ -378,10 +389,16 @@ export function WalletSection({ bot }: { bot: Bot }) {
           <Wallet className="size-8 text-muted-foreground" />
           <p className="font-semibold">{t.pluginDisabledTitle}</p>
           <p className="max-w-md text-sm text-muted-foreground">{t.pluginDisabledDesc}</p>
-          <Button onClick={() => activate.mutate()} disabled={activate.isPending}>
-            {activate.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
-            {activate.isPending ? t.activating : t.activatePlugin}
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button onClick={() => activate.mutate()} disabled={activate.isPending}>
+              {activate.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+              {activate.isPending ? t.activating : t.activatePlugin}
+            </Button>
+            <Button variant="outline" onClick={() => buyStorefront.mutate()} disabled={buyStorefront.isPending}>
+              {buyStorefront.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+              {t.buyStorefrontBundle}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
