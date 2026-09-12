@@ -2736,7 +2736,12 @@
     "expired": "Deneme süresi sona erdi.",
     "upgradeCta": "Yükselt",
     "upgraded": "Pro'ya yükseltildi",
-    "upgradeFailed": "Yükseltme başarısız oldu"
+    "upgradeFailed": "Yükseltme başarısız oldu",
+    "tierDaysRemaining": "Bu faturalama döneminden {n} gün kaldı",
+    "tierExpired": "Bu paketin süresi doldu — yenileyene kadar bot kapalı.",
+    "renewCta": "Yenile",
+    "renewed": "Paket yenilendi",
+    "renewFailed": "Yenileme başarısız oldu"
   },
   "plans": {
     "title": "Planlar",

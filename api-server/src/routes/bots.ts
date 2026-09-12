@@ -64,6 +64,7 @@ import { marketplaceItemIdFor } from "../lib/marketplaceSync.js";
 import { getUserPlanLimits, countUserBots } from "../lib/planLimits.js";
 import { deductWallet, creditWallet, InsufficientBalanceError } from "../lib/wallet.js";
 import { tomanToRial, rialToToman } from "../lib/currency.js";
+import { addOneMonth } from "../lib/tierExpiry.js";
 import { verifyCaptchaToken } from "../lib/captchaVerify.js";
 import { buildSheetPoolView } from "../lib/sheetPoolView.js";
 
@@ -110,6 +111,11 @@ async function markSheetTitleFreed(sheetId: string | null | undefined) {
   }
 }
 
+// IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — "tier_expired" عمداً اینجا نیست: این
+// آرایه یعنی «مقادیری که owner از طریق PATCH .../status خودش اجازه دارد
+// بفرستد» — هیچ‌کس نباید بتواند از این مسیر باتِ خودش را به tier_expired
+// ببرد (یا برعکس، از آن بیرون بکشد؛ گاردِ پایین‌تر هم این را جدا می‌بندد).
+// فقط lib/tierExpiry.ts/روتِ renew مستقیم رویِ db می‌نویسندش.
 const VALID_BOT_STATUSES = ["active", "inactive", "error", "pending_payment", "payment_rejected", "expired"] as const;
 type BotStatus = typeof VALID_BOT_STATUSES[number];
 
@@ -279,6 +285,11 @@ function formatBot(bot: any) {
     isTrial: bot.isTrial ?? false,
     trialExpiresAt: bot.trialExpiresAt ? bot.trialExpiresAt.toISOString() : null,
     trialDaysLeft: bot.isTrial ? trialDaysLeft(bot.trialExpiresAt) : null,
+    // IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — همان trialDaysLeft (فقط تفاضلِ
+    // روزِ یک تاریخ با الان)، برای پکیجِ ماهانه‌ی استاندارد/پرو هم به کار
+    // می‌آید؛ تابعِ جدا لازم نبود.
+    tierExpiresAt: bot.tierExpiresAt ? bot.tierExpiresAt.toISOString() : null,
+    tierDaysLeft: bot.tierExpiresAt ? trialDaysLeft(bot.tierExpiresAt) : null,
     createdAt: bot.createdAt.toISOString(),
     updatedAt: bot.updatedAt.toISOString(),
   };
@@ -1211,6 +1222,15 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
       resolved.source === "tier" ? (req.body?.buildSpec?.tierId ?? null)
       : resolved.source === "custom-build" ? "custom"
       : null;
+    // IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — استاندارد/پرو ماهانه‌اند؛ «سفارشی»
+    // امروز از این مفهوم مستثناست (custom-build اصلاً مبتنی بر tierId
+    // شناخته‌شده‌ای مثلِ standard/pro نیست که lib/tierExpiry.ts بتواند
+    // getBotTierProduct() صدایش بزند برایِ شارژِ خودکار). همان addOneMonth
+    // که خودِ sweep/تمدید استفاده می‌کند، تا هر سه‌جا با هم یکی باشند.
+    const tierExpiresAt =
+      purchasedTier === "standard" || purchasedTier === "pro"
+        ? addOneMonth(new Date())
+        : null;
 
     // Payment already cleared above (wallet deducted, discount committed) by
     // the time we get here, so the isTokenAlreadyUsed() pre-check earlier
@@ -1235,6 +1255,7 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
           avatarFileId: identity.avatarFileId,
           avatar: identity.avatarFileId ? `/api/bots/${botId}/avatar` : null,
           tier: purchasedTier,
+          tierExpiresAt,
         }).returning();
         return inserted;
       });
@@ -2645,6 +2666,28 @@ router.patch("/bots/:botId/status", requireAuth, async (req: any, res) => {
       res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_BOT_STATUSES.join(", ")}` });
       return;
     }
+
+    // IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — این روت خودِ owner را بدونِ چکِ
+    // ادمین اجازه می‌دهد status باتِ خودش را عوض کند (خاموش/روشنِ خودخواسته،
+    // رفتارِ همیشگی‌اش). بدونِ این گارد، یک باتِ tier_expired را owner
+    // می‌توانست همینجا با یک PATCH ساده به "active" برگرداند و کلِ گیتِ
+    // پرداختِ تمدید (lib/tierExpiry.ts / POST .../renew) را دور بزند —
+    // یعنی خاموش‌شدنِ باتِ منقضی هیچ معنایی نداشت. سوپرادمین مستثناست
+    // (پشتیبانی/دستکاریِ دستی، همان الگویِ همه‌جای دیگرِ این فایل).
+    const [existing] = await db.select({ status: botsTable.status, userId: botsTable.userId })
+      .from(botsTable).where(eq(botsTable.id, req.params.botId)).limit(1);
+    if (!existing) { res.status(404).json({ error: "Bot not found" }); return; }
+    if (existing.status === "tier_expired" && status === "active") {
+      const [requester] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, req.userId)).limit(1);
+      if (requester?.role !== "super_admin") {
+        res.status(402).json({
+          error: "این بات به دلیلِ پایانِ دوره‌ی پکیج خاموش شده و باید تمدید شود.",
+          code: "tier_expired",
+        });
+        return;
+      }
+    }
+
     const [bot] = await db
       .update(botsTable)
       .set({ status })
@@ -3241,6 +3284,77 @@ router.post("/bots/:botId/upgrade-tier", requireBotOwnership, async (req: any, r
     res.json(formatBot(bot));
   } catch (err) {
     logger.error({ err }, "Upgrade bot tier error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/bots/:botId/renew — manual monthly-tier renewal ──────────────
+// IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — همان شارژِ خودکارِ lib/tierExpiry.ts،
+// برای وقتی که آن تلاش (چون موجودی کافی نبود) شکست خورده و owner می‌خواهد
+// کیف‌پول را شارژ کند و همین‌جا دستی تمدید کند — یا حتی زودتر از موعد. مثلِ
+// upgrade-tier بالا عمداً روی requireBotOwnership می‌ماند، نه requireBotAccess:
+// این یک مسیرِ خودخدمتِ کیف‌پولی است، سوپرادمین مسیرِ خودش را دارد (گذراندنِ
+// گاردِ tier_expired در PATCH .../status).
+router.post("/bots/:botId/renew", requireBotOwnership, async (req: any, res) => {
+  try {
+    const bot = req.bot;
+    if (bot.tier !== "standard" && bot.tier !== "pro") {
+      res.status(400).json({
+        error: "این بات پکیجِ ماهانه‌ای برای تمدید ندارد.",
+        code: "not_renewable",
+      });
+      return;
+    }
+    const product = await getBotTierProduct(bot.tier);
+    if (!product) {
+      res.status(503).json({ error: "Bot packages are not configured", code: "tiers_unavailable" });
+      return;
+    }
+    const ok = await deductWallet(req.userId, tomanToRial(product.priceToman), `Renew: ${bot.tier} plan for ${bot.name}`);
+    if (!ok) {
+      res.status(400).json({ error: "موجودی کیف پول کافی نیست.", code: "insufficient" });
+      return;
+    }
+
+    // زودتر از موعد تمدید کردن یک ماه را از تاریخِ انقضایِ فعلی جلو می‌برد
+    // (نه از الان) — تا پیش‌خرید حقی از owner نگیرد؛ فقط وقتی از قبل گذشته
+    // (یا تمدیدِ خودکار قبلاً ناموفق بوده) از همین لحظه حساب می‌شود.
+    const base = bot.tierExpiresAt && bot.tierExpiresAt > new Date() ? bot.tierExpiresAt : new Date();
+    const nextExpiry = addOneMonth(base);
+    const wasExpired = bot.status === "tier_expired";
+    const [updated] = await db.update(botsTable)
+      .set({ tierExpiresAt: nextExpiry, status: wasExpired ? "active" : bot.status })
+      .where(eq(botsTable.id, bot.id))
+      .returning();
+
+    if (wasExpired && updated.sheetId) {
+      const [owner] = await db.select({ telegramId: usersTable.telegramId })
+        .from(usersTable).where(eq(usersTable.id, updated.userId)).limit(1);
+      syncTenantUpsert({
+        bot_token: decryptToken(updated.token),
+        bot_name: updated.name,
+        bot_username: updated.username,
+        owner_user_id: updated.userId,
+        owner_telegram_id: owner?.telegramId ?? null,
+        sheet_id: updated.sheetId,
+        admin_password: updated.adminCode ?? "",
+        status: updated.status,
+        created_at: updated.createdAt,
+      });
+    }
+
+    await createNotification({
+      userId: req.userId,
+      botId: bot.id,
+      type: "tier_renewed",
+      severity: "info",
+      title: "پکیج بات تمدید شد",
+      message: `${formatTomanFa(product.priceToman)} برای تمدیدِ یک‌ماهه‌ی پکیج بات «${bot.name}» از کیف پول کسر شد.`,
+    });
+
+    res.json(formatBot(updated));
+  } catch (err) {
+    logger.error({ err }, "Renew bot tier error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

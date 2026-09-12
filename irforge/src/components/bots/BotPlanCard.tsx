@@ -13,14 +13,20 @@
  *
  * درست: پکیجِ خریداری‌شده‌ی همین بات (`bot.tier`، ستونی که سرور موقع خرید
  * ثبت می‌کند — `routes/bots.ts`)، به‌علاوه‌ی روزهای باقی‌مانده‌ی تریال اگر
- * تریالی است (خریدِ عادی یک‌بار است و انقضا ندارد)، به‌علاوه‌ی دکمه‌ی ارتقا
- * برای استاندارد → پرو.
+ * تریالی است، به‌علاوه‌ی دکمه‌ی ارتقا برای استاندارد → پرو.
+ *
+ * IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — استاندارد/پرو دیگر خریدِ همیشگی نیست:
+ * هر ماه با `tierExpiresAt` تمام می‌شود. اینجا هم مثلِ تریال یک شمارش‌معکوس
+ * نشان می‌دهد، ولی با دکمه‌ی «تمدید» (`POST .../renew`، شارژِ دستیِ کیف‌پول)
+ * چون این یکی برخلاف تریال قابلِ تمدید است. اگر status از قبل tier_expired
+ * باشد (شارژِ خودکار lib/tierExpiry.ts ناموفق بوده) یک بنرِ هشدارِ قرمز به‌جای
+ * شمارش‌معکوسِ معمولی نشان داده می‌شود.
  */
 import { Link } from "wouter";
 import type { Bot } from "@workspace/api-client-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
-import { Crown, ArrowUpCircle, Loader2 } from "lucide-react";
+import { Crown, ArrowUpCircle, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -54,6 +60,22 @@ export function BotPlanCard({ bot }: { bot: Bot }) {
     onError: (err: any) =>
       toast({ variant: "destructive", title: t.upgradeFailed, description: err?.data?.error ?? err?.message }),
   });
+
+  const renew = useMutation({
+    mutationFn: () => customFetch(`/api/bots/${bot.id}/renew`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bots"] });
+      qc.invalidateQueries({ queryKey: ["bot", bot.id] });
+      toast({ title: t.renewed });
+    },
+    onError: (err: any) =>
+      toast({ variant: "destructive", title: t.renewFailed, description: err?.data?.error ?? err?.message }),
+  });
+
+  // بات‌های بدونِ tierExpiresAt (سفارشی/خریدِ قدیمی) این بخش را اصلاً نمی‌بینند.
+  const isTierExpired = bot.status === "tier_expired";
+  const tierDaysLeft = bot.tierDaysLeft ?? null;
+  const showTierWarning = !isTierExpired && tierDaysLeft != null && tierDaysLeft <= 3;
 
   return (
     <Card>
@@ -90,6 +112,30 @@ export function BotPlanCard({ bot }: { bot: Bot }) {
               ? t.daysRemaining.replace("{n}", String(bot.trialDaysLeft))
               : t.expired}
           </p>
+        </CardContent>
+      )}
+
+      {bot.tierExpiresAt && (
+        <CardContent className="flex flex-wrap items-center justify-between gap-2">
+          <p className={`text-sm ${isTierExpired ? "text-destructive font-medium" : showTierWarning ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+            {isTierExpired ? (
+              <span className="inline-flex items-center gap-1.5">
+                <AlertTriangle className="size-4" /> {t.tierExpired}
+              </span>
+            ) : tierDaysLeft != null && tierDaysLeft >= 0 ? (
+              t.tierDaysRemaining.replace("{n}", String(tierDaysLeft))
+            ) : null}
+          </p>
+          {(isTierExpired || showTierWarning) && (
+            <Button
+              variant={isTierExpired ? "default" : "outline"} size="sm" className="gap-1.5"
+              disabled={renew.isPending}
+              onClick={() => renew.mutate()}
+            >
+              {renew.isPending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+              {t.renewCta}
+            </Button>
+          )}
         </CardContent>
       )}
     </Card>

@@ -2736,7 +2736,12 @@
     "expired": "The trial has ended.",
     "upgradeCta": "Upgrade",
     "upgraded": "Upgraded to Pro",
-    "upgradeFailed": "Upgrade failed"
+    "upgradeFailed": "Upgrade failed",
+    "tierDaysRemaining": "{n} day(s) left in this billing cycle",
+    "tierExpired": "This package has expired — the bot is off until you renew.",
+    "renewCta": "Renew",
+    "renewed": "Package renewed",
+    "renewFailed": "Renewal failed"
   },
   "plans": {
     "title": "Plans",

@@ -4,6 +4,7 @@ import { registerTelegramWebhookIfConfigured } from "./lib/telegram";
 import { refreshExchangeRateFromApi } from "./lib/exchangeRate";
 import { expireStaleTopups } from "./lib/walletTopupService";
 import { runStartupCryptoSelfCheck } from "./lib/tokenCrypto.js";
+import { sweepTierExpiry } from "./lib/tierExpiry.js";
 
 const port = Number(process.env.PORT ?? 3000);
 
@@ -41,3 +42,10 @@ setInterval(() => { void refreshExchangeRateFromApi(); }, 60 * 60 * 1000);
 setInterval(() => {
   void expireStaleTopups().catch((err) => logger.error({ err }, "expireStaleTopups failed"));
 }, 60 * 1000);
+
+// IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — استاندارد/پرو ماهانه‌اند: باید تمدید یا
+// خاموش شوند دقیقاً همان لحظه‌ای که تاریخ می‌رسد، نه فقط یک‌بار در روز. همان
+// الگوی setInterval بالا، بدون هیچ زیرساختِ cron جدید.
+setInterval(() => {
+  void sweepTierExpiry().catch((err) => logger.error({ err }, "sweepTierExpiry failed"));
+}, 10 * 60 * 1000);

@@ -2736,7 +2736,12 @@
     "expired": "انتهت الفترة التجريبية.",
     "upgradeCta": "ترقية",
     "upgraded": "تمت الترقية إلى برو",
-    "upgradeFailed": "فشلت الترقية"
+    "upgradeFailed": "فشلت الترقية",
+    "tierDaysRemaining": "{n} يوم متبقٍ في هذه الدورة",
+    "tierExpired": "انتهت مدة هذه الباقة — البوت متوقف حتى تجدّده.",
+    "renewCta": "تجديد",
+    "renewed": "تم تجديد الباقة",
+    "renewFailed": "فشل التجديد"
   },
   "plans": {
     "title": "الخطط",

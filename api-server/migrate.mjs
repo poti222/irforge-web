@@ -813,6 +813,17 @@ ON CONFLICT (id) DO NOTHING;
 -- این ستون ساخته شده‌اند — نه یک باگ، فقط «نامعلوم» است.
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS tier TEXT;
 
+-- IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — استاندارد/پرو ماهانه‌اند: بعد از این
+-- تاریخ، اگر شارژِ خودکار (lib/tierExpiry.ts) ناموفق باشد، بات خاموش
+-- می‌شود تا تمدید شود. تصمیمِ صریحِ کاربر: این باید عقب‌گرد هم بخورد — همه‌ی
+-- بات‌هایِ استاندارد/پروی موجود هم از همین لحظه یک دوره‌ی یک‌ماهه می‌گیرند،
+-- نه فقط خریدهایِ تازه؛ بدونِ این backfill، بات‌هایِ قدیمی هیچ‌وقت expire
+-- نمی‌شدند چون این ستون NULL می‌ماند (لوپِ sweep فقط رویِ NOT NULL کار
+-- می‌کند، پایین‌تر در tierExpiry.ts).
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS tier_expires_at TIMESTAMPTZ;
+UPDATE bots SET tier_expires_at = NOW() + INTERVAL '1 month'
+  WHERE tier IN ('standard', 'pro') AND tier_expires_at IS NULL;
+
 -- ─── WALLET_TOPUPS (BluBank open-amount link + auto SMS matching) ─────────
 -- یک لینکِ پرداختِ بلوبانکِ مبلغ‌باز برای همه‌ی مبالغ. هر سفارش عددِ یکتای
 -- خودش را می‌گیرد (requested_amount + suffix سه‌رقمیِ تصادفی = final_amount)

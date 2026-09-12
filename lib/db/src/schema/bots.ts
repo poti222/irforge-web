@@ -92,6 +92,19 @@ export const botsTable = pgTable("bots", {
    */
   tier: text("tier"),
 
+  /**
+   * IRFORGE پلن‌های ماهانه — استاندارد/پرو دیگر خریدِ یک‌بارِ همیشگی نیستند:
+   * هر ماه باید تمدید شوند. `null` یعنی این بات پکیجی ندارد (tier هم null
+   * است) یا از خریدِ سفارشی/قدیمی می‌آید که این مفهوم برایش معنا ندارد.
+   * `services/bot_status_gate.py` (irforge-app) کاری با این ستون ندارد —
+   * فقط رجیستریِ خودش را می‌بیند؛ وقتی این تاریخ می‌گذرد و شارژِ خودکار
+   * ناموفق باشد، `bots.status` به `"tier_expired"` تغییر می‌کند و همان
+   * تغییر با `syncTenantUpsert` به رجیستری فرستاده می‌شود — از همان‌جا به
+   * بعد گیتِ موجودِ بات (که هر status غیر از "active" را بی‌صدا نادیده
+   * می‌گیرد) بدونِ هیچ تغییرِ تازه‌ای در irforge-app کار را انجام می‌دهد.
+   */
+  tierExpiresAt: timestamp("tier_expires_at", { withTimezone: true }),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

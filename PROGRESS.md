@@ -3841,3 +3841,33 @@ On the frontend, `CatalogSection.tsx`'s per-item fulfillment editor had a `case 
 - **بخشِ ۳ (irforge-web)** — پرامپت فرض کرده بود چهار پلاگین رایگان‌اند؛ واقعیت این بود که دوتا از قبل پولی‌اند و دوتایِ دیگر اصلاً هویتِ مستقل ندارند. به‌جایِ ساختنِ چیزی رویِ یک فرضِ غلط، این یافته گزارش شد و تصمیمِ نهایی (بسته‌بندیِ همان دو پلاگینِ واقعی، بدونِ گیتِ تازه) از کاربر گرفته شد.
 
 هر سه بخش تست‌شده و کمیت‌شده‌اند؛ صفر رگرسیون در هر دو مخزن (تأییدشده با `git stash -u` علیهِ baseline، نه فقط با خواندنِ خروجیِ خامِ تست). Held locally on `claude/project-phases-review-fc17tc` per the standing push-approval rule — not pushed yet.
+
+---
+
+**IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — استاندارد/پرو از خریدِ همیشگی به پلنِ ماهانه.**
+
+درخواستِ کاربر (فارسی، خلاصه): پلن‌هایِ Standard و Pro باید ماهانه شوند؛ بعد از اتمامِ دوره بات باید کاملاً خاموش شود تا تمدید شود. قبل از پیاده‌سازی، ۴ سؤالِ روشن‌کننده پرسیده و پاسخ‌شان گرفته شد:
+
+1. عقب‌گرد به بات‌هایِ موجود یا فقط خریدهایِ تازه؟ → **عقب‌گرد به همه.**
+2. «خاموش‌شدن» یعنی چه؟ → **توقفِ کاملِ بات** (نه فقط قفلِ داشبورد).
+3. تمدید چطور؟ → **شارژِ خودکار از کیف‌پول**؛ اگر موجودی کافی نبود، خاموش + تمدیدِ دستی لازم.
+4. هشدارِ از پیش؟ → **چند روز قبل هشدار، دقیقاً سرِ موعد قطع** (بدونِ مهلتِ اضافه بعد از تاریخ).
+
+**بررسیِ اول (قبل از هر خط کد):** این یک قابلیتِ کاملاً تازه بود — هیچ مکانیزمِ انقضایی برایِ پکیج‌هایِ پولی وجود نداشت. سیستمِ «keystone» (فازهایِ ۳۱-۳۴، پلن‌هایِ bronze/silver/gold/diamond) شبیه به نظر می‌رسید ولی کاملاً بی‌ربط است — آن، پلن‌هایی است که **خودِ صاحبِ بات به مشتری‌هایِ تلگرامی‌اش** می‌فروشد، نه پکیجی که خودش برایِ باتش خریده؛ دست نخورد.
+
+**یافته‌یِ کلیدی که کارِ irforge-app را صفر کرد:** `services/bot_status_gate.py::StatusGateMiddleware` از قبل روی هر تننت نصب است — اگر رجیستری status ای غیر از `"active"` نشان دهد، هر آپدیتِ تلگرامی بی‌صدا و بدونِ اجرایِ هیچ handler ای دراپ می‌شود (fail-closed). یعنی «خاموش‌کردنِ بات» فقط یعنی نوشتنِ رشته‌ی درستِ status در رجیستری از سمتِ سایت — دقیقاً همان کاری که `PATCH /bots/:botId/status` (دکمه‌ی Start/Stop موجود) از قبل با `syncTenantUpsert()` انجام می‌دهد. **صفر خطِ کدِ تازه در irforge-app.**
+
+**پیاده‌سازی (irforge-web):**
+- `lib/db/src/schema/bots.ts` + `api-server/migrate.mjs`: ستونِ تازه‌ی `bots.tier_expires_at` (nullable). Backfill عقب‌گرد: `UPDATE bots SET tier_expires_at = NOW() + INTERVAL '1 month' WHERE tier IN ('standard','pro') AND tier_expires_at IS NULL` — طبقِ پاسخِ کاربر به سؤالِ ۱، ایدمپوتنت (فقط ردیف‌هایِ NULL).
+- `routes/bots.ts`: هنگامِ خریدِ بات با tierِ standard/pro، `tierExpiresAt = addOneMonth(now)` هم‌زمان با خودِ `tier` ثبت می‌شود.
+- `lib/tierExpiry.ts` (تازه) — `sweepTierExpiry()`، هر ۱۰ دقیقه از `index.ts` (همان الگویِ `setInterval` بدونِ زیرساختِ cron که `expireStaleTopups`/`refreshExchangeRateFromApi` قبلاً استفاده می‌کردند): برایِ هر باتِ standard/pro با `tierExpiresAt` — چند روز قبل از موعد یک اعلانِ هشدار می‌سازد (یک‌بار به‌ازایِ هر مهلت، با `dedupeKey`ی خودِ `createNotification`)؛ بعد از موعد یک تلاشِ شارژِ خودکار می‌کند (`getBotTierProduct` برایِ قیمتِ **لحظه‌ای**، نه قیمتِ خریدِ اول — دقیقاً مثلِ هر صورت‌حسابِ تکرارشونده‌ی واقعی)؛ موفق → یک ماه جلو + روشن اگر خاموش بود؛ ناموفق → `bots.status = "tier_expired"` + `syncTenantUpsert` (همان مسیرِ رجیستریِ بالا).
+- `POST /bots/:botId/renew` (تازه) — تمدیدِ دستی، برایِ وقتی شارژِ خودکار ناموفق بوده یا کاربر می‌خواهد زودتر تمدید کند؛ زودتر-از-موعد از تاریخِ فعلیِ انقضا جلو می‌رود (نه از الان)، نه از الان. مثلِ `upgrade-tier` عمداً روی `requireBotOwnership` می‌ماند نه `requireBotAccess` — یک اندپوینتِ خودخدمتِ کیف‌پولی، سوپرادمین مسیرِ خودش را دارد.
+- `formatBot()`: دو فیلدِ تازه، `tierExpiresAt`/`tierDaysLeft`، دقیقاً هم‌شکلِ `trialExpiresAt`/`trialDaysLeft`ی موجود (همان تابعِ `trialDaysLeft()` بازاستفاده شد، تابعِ جدا لازم نبود).
+
+**یک حفره‌ی امنیتی‌ای که خودم موقعِ طراحی پیدا کردم، نه بعد از گزارش:** `PATCH /bots/:botId/status` از قبل به owner اجازه می‌داد status باتِ خودش را به هر مقداریِ داخلِ `VALID_BOT_STATUSES` تغییر دهد، بدونِ چکِ ادمین. اگر `"tier_expired"` را به آن آرایه اضافه می‌کردم (که اول کردم، بعد برگرداندم)، یا حتی بدونش — چون `"active"` از قبل توی آرایه بود — یک owner می‌توانست باتِ `tier_expired`‌اش را با همین PATCHِ موجود، رایگان، به `active` برگرداند و کلِ گیتِ پرداختِ تمدید را دور بزند. رفع: (۱) `"tier_expired"` عمداً از `VALID_BOT_STATUSES` بیرون ماند (کامنت گذاشته شد چرا)؛ (۲) گاردِ صریح در handler همان روت — قبل از update، status فعلی خوانده می‌شود؛ اگر از `tier_expired` به `active` می‌رود و caller سوپرادمین نیست → ۴۰۲ با `code: "tier_expired"`.
+
+**Frontend:** `BotPlanCard.tsx` — شمارش‌معکوسِ روزهای باقی‌مانده (مثلِ تریال)، به‌علاوه‌ی دکمه‌ی «تمدید» وقتی `≤۳` روز مانده یا از قبل `tier_expired` است (بنرِ قرمز به‌جایِ متنِ معمولی). فیلدهایِ `tierExpiresAt`/`tierDaysLeft` و مقدارِ `tier_expired` به `Bot`/`BotStatus`یِ دستی‌نگه‌داری‌شده‌ی `lib/api-client-react/src/generated/api.schemas.ts` اضافه شدند — همان الگویِ `trialDaysLeft` که در `openapi.yaml` هم نیست ولی از قبل دستی به این فایل اضافه شده بود (این spec برایِ صدها روتِ فازهایِ گذشته دیگر به‌روز نگه داشته نمی‌شود؛ اجرایِ codegenِ کامل رویِ یک spec ناقص ریسکِ بی‌ربطی به این تسک اضافه می‌کرد). ۵ کلیدِ i18nِ تازه (`tierDaysRemaining`, `tierExpired`, `renewCta`, `renewed`, `renewFailed`) در هر ۵ زبان.
+
+**Tests**: `test/tierExpiry.test.mjs` (تازه) — ۴ تست برایِ `addOneMonth()` (عادی، اورفلویِ ۳۱ ژانویه در سالِ عادی/کبیسه، عبور از سال)، ۴ تست برایِ `sweepTierExpiry()` روی مسیرهایِ «کاری لازم نیست» (باتِ خیلی زود، باتِ tier=custom با تاریخِ گذشته که رد می‌شود، آرایه‌ی خالی، شکستِ `db.select`). مسیرهایِ `handleExpiredBot`/`warnUpcomingExpiry` عمداً تست نشدند — دقیقاً مثلِ `lib/trial.ts` (که این فایل الگویش گرفته و خودش هم هیچ‌وقت test فایل نداشته) چون چند ماژولِ دیگر (`wallet.ts`, `pluginPricing.ts`, `notify.ts`, `sheetsSync.ts`) را هم صدا می‌زنند که هرکدام db واقعیِ خودشان را دارند؛ یک fakeِ سراسریِ db برایِ همه‌شان با هم قابلِ‌اعتماد نیست.
+
+**نتیجه**: api-server 898 total/896 pass (890 قبلی + ۸ تستِ تازه = همان ۲ خرابیِ پیشینیِ بی‌ربط، sendEmail/SMS-rate-limit — دوباره با `git stash -u` تأیید شد که پیش از این تغییرات هم بود). `pnpm exec tsc --noEmit`: همان خطاهایِ پیشینیِ TS6305/TS7006 (صفر تازه، فقط شماره‌خط‌ها به‌خاطرِ کدِ اضافه‌شده جابه‌جا شدند). `pnpm -w run build` (کلِ مونوریپو، شاملِ ۶۵/۶۵ صفحه‌یِ SSG با صفر `TODO_TRANSLATE` و بیلدِ esbuild‌یِ api-server) سبز. `pnpm --filter @workspace/irforge run typecheck` صفر خطا. Held locally on `claude/project-phases-review-fc17tc` per the standing push-approval rule — not pushed yet.

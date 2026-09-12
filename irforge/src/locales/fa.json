@@ -2736,7 +2736,12 @@
     "expired": "تریال تمام شده است.",
     "upgradeCta": "ارتقا",
     "upgraded": "به پرو ارتقا یافت",
-    "upgradeFailed": "ارتقا ناموفق بود"
+    "upgradeFailed": "ارتقا ناموفق بود",
+    "tierDaysRemaining": "{n} روز تا پایان این دوره‌ی پکیج",
+    "tierExpired": "دوره‌ی این پکیج تمام شده — بات خاموش است تا تمدید کنید.",
+    "renewCta": "تمدید",
+    "renewed": "پکیج تمدید شد",
+    "renewFailed": "تمدید ناموفق بود"
   },
   "plans": {
     "title": "پلن‌ها",
