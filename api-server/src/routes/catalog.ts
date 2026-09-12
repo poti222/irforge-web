@@ -207,4 +207,18 @@ router.delete("/bots/:botId/catalog/options/:id", requireAuth, async (req: any, 
   }
 });
 
+// ─── فروخته‌شده‌هایِ استخرِ آیتمِ یکتا (pool) — IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۲ ──
+
+router.get("/bots/:botId/catalog/items/:id/pool/sold", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    await requirePluginEnabled(spreadsheetId, PLUGIN_ID);
+    const q = typeof req.query?.q === "string" ? req.query.q : undefined;
+    const sold = await catalogStore.listPoolSold(spreadsheetId, req.params.id, { q });
+    res.json({ sold });
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to list sold pool items");
+  }
+});
+
 export default router;

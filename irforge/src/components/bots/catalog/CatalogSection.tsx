@@ -625,6 +625,82 @@ function WalletCreditFulfillmentForm({ botId, itemId, config, disabled }: Fulfil
   );
 }
 
+// ─── فروخته‌شده‌هایِ استخرِ آیتمِ یکتا (pool) ─────────────────────────────────
+// IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۲ — قبلاً این داده فقط از
+// خودِ بات (plugins/catalog/pool_admin.py) دیده می‌شد. این‌جا همان تبِ
+// `catalog_pool_items`ی سایت (lib/catalogStore.ts::listPoolSold) را می‌خواند
+// — فقط برایِ محصولاتِ fulfillment_type="pool"، دقیقاً همان‌جایی که پیش‌ازاین
+// فقط یک متنِ راهنما بود.
+type PoolSoldRow = {
+  id: string; status: string; buyer_id: string; order_id: string;
+  payload_type: string; sold_at: string; delivered_at: string;
+};
+
+function PoolSoldList({ botId, itemId }: { botId: string; itemId: string }) {
+  const t = useT("botCatalog");
+  const [query, setQuery] = useState("");
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["bot-catalog-pool-sold", botId, itemId, query] as const,
+    queryFn: () => customFetch<{ sold: PoolSoldRow[] }>(
+      `/api/bots/${botId}/catalog/items/${itemId}/pool/sold${query ? `?q=${encodeURIComponent(query)}` : ""}`,
+    ),
+  });
+
+  const rows = data?.sold ?? [];
+
+  const statusBadge = (status: string) => {
+    if (status === "delivered") return <Badge variant="secondary">{t.poolStatusDelivered}</Badge>;
+    if (status === "failed") return <Badge variant="destructive">{t.poolStatusFailed}</Badge>;
+    return <Badge variant="outline">{t.poolStatusSold}</Badge>;
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">{t.fulfillmentHelpPool}</p>
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={t.poolSoldSearchPlaceholder}
+        className="max-w-xs"
+      />
+      {isLoading && (
+        <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> {t.loading}
+        </div>
+      )}
+      {isError && <p className="text-sm text-destructive">{t.poolSoldLoadError}</p>}
+      {!isLoading && !isError && rows.length === 0 && (
+        <p className="text-sm text-muted-foreground">{t.poolSoldEmpty}</p>
+      )}
+      {!isLoading && rows.length > 0 && (
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-muted-foreground">
+              <tr>
+                <th className="p-2 text-start font-medium">{t.poolSoldColBuyer}</th>
+                <th className="p-2 text-start font-medium">{t.poolSoldColOrder}</th>
+                <th className="p-2 text-start font-medium">{t.poolSoldColStatus}</th>
+                <th className="p-2 text-start font-medium">{t.poolSoldColDate}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-t">
+                  <td className="p-2" dir="ltr">{r.buyer_id || "—"}</td>
+                  <td className="p-2" dir="ltr">{r.order_id ? r.order_id.slice(0, 16) : "—"}</td>
+                  <td className="p-2">{statusBadge(r.status)}</td>
+                  <td className="p-2" dir="ltr">{String(r.sold_at || r.delivered_at || "").slice(0, 16).replace("T", " ") || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** انواعی که اصلاً کانفیگ ندارند — نه فرمی، نه فیلدی برایِ ذخیره. */
 const NO_CONFIG_FULFILLMENT_TYPES = new Set(["manual", "pool"]);
 
@@ -657,7 +733,7 @@ function FulfillmentConfigEditor({
       case "api": return <ApiFulfillmentForm {...formProps} />;
       case "webhook": return <WebhookFulfillmentForm {...formProps} />;
       case "wallet_credit": return <WalletCreditFulfillmentForm {...formProps} />;
-      case "pool": return <p className="text-xs text-muted-foreground">{t.fulfillmentHelpPool}</p>;
+      case "pool": return <PoolSoldList botId={botId} itemId={itemId} />;
       case "manual":
       default:
         return <p className="text-xs text-muted-foreground">{t.fulfillmentHelpManual}</p>;

@@ -594,3 +594,56 @@ export async function deleteOptionHard(spreadsheetId: string, id: string): Promi
   await assertSheetsAuthoritative(OPTIONS_TAB);
   return removeEntity(spreadsheetId, OPTIONS_TAB, id);
 }
+
+// ─── فروخته‌شده‌هایِ استخرِ آیتمِ یکتا (pool) ─────────────────────────────────
+// IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۲ — قبل از این، لیستِ
+// فروخته‌شده‌هایِ یک محصولِ pool فقط از خودِ بات (plugins/catalog/pool_admin.py::
+// cb_pool_sold_list/fsm_pool_sold_search) در دسترس بود. این بخش همان دادهٔ
+// `pool.list_sold()`ی بات را از رویِ همان تبِ `catalog_pool_items` می‌خواند —
+// read-only: مصرف/رزروِ آیتم‌هایِ pool همچنان کاملاً کارِ بات می‌ماند، سایت
+// فقط تاریخچه را نشان می‌دهد.
+const POOL_ITEMS_TAB = "catalog_pool_items";
+
+/** همان سه وضعیتِ «دیگر available/reserved نیست» که pool.py's list_sold() برمی‌گرداند. */
+export const POOL_SOLD_STATUSES = ["sold", "delivered", "failed"] as const;
+
+export interface PoolSoldRow {
+  id: string;
+  item_id: string;
+  option_id: string;
+  payload_type: string;
+  status: string;
+  order_id: string;
+  buyer_id: string;
+  created_at: string;
+  sold_at: string;
+  delivered_at: string;
+  delivery_error: string;
+}
+
+/**
+ * `q` مثلِ pool_admin.py's fsm_pool_sold_search: یک کادرِ جست‌وجویِ واحد که
+ * اول رویِ buyer_id امتحان می‌شود، و فقط اگر چیزی پیدا نشد رویِ order_id —
+ * نه AND، نه دو فیلدِ جدا، دقیقاً همان رفتاری که خودِ بات دارد.
+ */
+export async function listPoolSold(
+  spreadsheetId: string,
+  itemId: string,
+  opts: { q?: string } = {},
+): Promise<PoolSoldRow[]> {
+  const rows = await listEntity<PoolSoldRow>(spreadsheetId, POOL_ITEMS_TAB);
+  const sold = rows
+    .filter((r) => r.value && typeof r.value === "object")
+    .map((r) => ({ ...(r.value as PoolSoldRow), id: r.key }))
+    .filter((r) => r.item_id === itemId && (POOL_SOLD_STATUSES as readonly string[]).includes(r.status));
+
+  const q = opts.q?.trim();
+  const matched = q
+    ? (() => {
+        const byBuyer = sold.filter((r) => r.buyer_id === q);
+        return byBuyer.length > 0 ? byBuyer : sold.filter((r) => r.order_id === q);
+      })()
+    : sold;
+
+  return matched.sort((a, b) => (b.sold_at || "").localeCompare(a.sold_at || "")).slice(0, 200);
+}

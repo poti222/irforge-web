@@ -498,3 +498,44 @@ test("updateOption 404s on an unknown id", async () => {
   installSheet();
   await assert.rejects(() => store.updateOption(SID, "opt_missing", { label: "x" }), /پیدا نشد/);
 });
+
+// ── فروخته‌شده‌هایِ pool (IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۲) ──
+
+function seedPoolRow(tabs, id, fields) {
+  if (!tabs.has("catalog_pool_items")) tabs.set("catalog_pool_items", new Map());
+  tabs.get("catalog_pool_items").set(id, {
+    item_id: "item1", option_id: "", payload_type: "text", status: "delivered",
+    order_id: "", buyer_id: "", created_at: "", sold_at: "", delivered_at: "", delivery_error: "",
+    ...fields,
+  });
+}
+
+test("listPoolSold returns only sold/delivered/failed rows for the given item, newest first", async () => {
+  const tabs = installSheet();
+  seedPoolRow(tabs, "cpi_1", { status: "available", sold_at: "" }); // still in the pool — excluded
+  seedPoolRow(tabs, "cpi_2", { status: "delivered", buyer_id: "1", sold_at: "2026-01-01T00:00:00Z" });
+  seedPoolRow(tabs, "cpi_3", { status: "sold", buyer_id: "2", sold_at: "2026-02-01T00:00:00Z" });
+  seedPoolRow(tabs, "cpi_4", { status: "failed", buyer_id: "3", sold_at: "2026-01-15T00:00:00Z" });
+  seedPoolRow(tabs, "cpi_other_item", { item_id: "item2", status: "delivered", sold_at: "2026-03-01T00:00:00Z" });
+
+  const sold = await store.listPoolSold(SID, "item1");
+  assert.deepEqual(sold.map((r) => r.id), ["cpi_3", "cpi_4", "cpi_2"]);
+});
+
+test("listPoolSold with q matches buyer_id first, falling back to order_id only if nothing matched", async () => {
+  const tabs = installSheet();
+  seedPoolRow(tabs, "cpi_1", { status: "delivered", buyer_id: "555", order_id: "ORD1" });
+  seedPoolRow(tabs, "cpi_2", { status: "delivered", buyer_id: "777", order_id: "555" });
+
+  const byBuyer = await store.listPoolSold(SID, "item1", { q: "555" });
+  assert.deepEqual(byBuyer.map((r) => r.id), ["cpi_1"]); // buyer_id match wins even though cpi_2's order_id also equals "555"
+
+  const byOrder = await store.listPoolSold(SID, "item1", { q: "ORD1" });
+  assert.deepEqual(byOrder.map((r) => r.id), ["cpi_1"]);
+});
+
+test("listPoolSold with an unmatched q returns nothing", async () => {
+  const tabs = installSheet();
+  seedPoolRow(tabs, "cpi_1", { status: "delivered", buyer_id: "555", order_id: "ORD1" });
+  assert.deepEqual(await store.listPoolSold(SID, "item1", { q: "nobody" }), []);
+});
