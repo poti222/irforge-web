@@ -3122,5 +3122,16 @@
       "is_empty": "пусто",
       "is_not_empty": "не пусто"
     }
+  },
+  "tutorial": {
+    "button": "Обучение",
+    "stepLabel": "Шаг {current} из {total}",
+    "next": "Далее",
+    "prev": "Назад",
+    "close": "Закрыть",
+    "finish": "Готово",
+    "titlePanels": "Обучение: Панели",
+    "titleCatalog": "Обучение: Магазин / Каталог",
+    "titlePayments": "Обучение: Платежи"
   }
 }

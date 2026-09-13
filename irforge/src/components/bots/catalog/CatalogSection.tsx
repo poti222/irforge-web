@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
+import { TutorialButton } from "@/components/tutorial/TutorialButton";
 import { SendViaBotButton, materializeSession, type CapturedContent, type MaterializedItem } from "@/components/bots/SendViaBotButton";
 import { MediaList, type MediaMeta } from "../panels/MediaList";
 import { ButtonBuilder } from "../panels/ButtonBuilder";
@@ -1265,23 +1266,26 @@ export function CatalogSection({ bot }: { bot: Bot }) {
 
   if (errCode(error) === "plugin_disabled") {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
-          <Store className="size-8 text-muted-foreground" />
-          <p className="font-semibold">{t.pluginDisabledTitle}</p>
-          <p className="max-w-md text-sm text-muted-foreground">{t.pluginDisabledDesc}</p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <Button onClick={() => activate.mutate()} disabled={activate.isPending}>
-              {activate.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
-              {activate.isPending ? t.activating : t.activatePlugin}
-            </Button>
-            <Button variant="outline" onClick={() => buyStorefront.mutate()} disabled={buyStorefront.isPending}>
-              {buyStorefront.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
-              {t.buyStorefrontBundle}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <div className="flex justify-end"><TutorialButton section="catalog" /></div>
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
+            <Store className="size-8 text-muted-foreground" />
+            <p className="font-semibold">{t.pluginDisabledTitle}</p>
+            <p className="max-w-md text-sm text-muted-foreground">{t.pluginDisabledDesc}</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button onClick={() => activate.mutate()} disabled={activate.isPending}>
+                {activate.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+                {activate.isPending ? t.activating : t.activatePlugin}
+              </Button>
+              <Button variant="outline" onClick={() => buyStorefront.mutate()} disabled={buyStorefront.isPending}>
+                {buyStorefront.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+                {t.buyStorefrontBundle}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -1295,10 +1299,13 @@ export function CatalogSection({ bot }: { bot: Bot }) {
 
   return (
     <Tabs defaultValue="items" className="space-y-4">
-      <TabsList>
-        <TabsTrigger value="items"><PackageOpen className="me-1.5 size-4" /> {t.tabItems}</TabsTrigger>
-        <TabsTrigger value="categories"><FolderTree className="me-1.5 size-4" /> {t.tabCategories}</TabsTrigger>
-      </TabsList>
+      <div className="flex items-center justify-between gap-2">
+        <TabsList>
+          <TabsTrigger value="items"><PackageOpen className="me-1.5 size-4" /> {t.tabItems}</TabsTrigger>
+          <TabsTrigger value="categories"><FolderTree className="me-1.5 size-4" /> {t.tabCategories}</TabsTrigger>
+        </TabsList>
+        <TutorialButton section="catalog" />
+      </div>
       <TabsContent value="items">
         <ItemsTab botId={bot.id} categories={categoriesData?.categories ?? []} />
       </TabsContent>

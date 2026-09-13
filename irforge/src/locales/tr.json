@@ -3122,5 +3122,16 @@
       "is_empty": "boş",
       "is_not_empty": "boş değil"
     }
+  },
+  "tutorial": {
+    "button": "Eğitim",
+    "stepLabel": "Adım {current}/{total}",
+    "next": "Sonraki",
+    "prev": "Önceki",
+    "close": "Kapat",
+    "finish": "Bitti",
+    "titlePanels": "Eğitim: Paneller",
+    "titleCatalog": "Eğitim: Mağaza / Katalog",
+    "titlePayments": "Eğitim: Ödemeler"
   }
 }

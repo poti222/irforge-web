@@ -3122,5 +3122,16 @@
       "is_empty": "فارغ",
       "is_not_empty": "غير فارغ"
     }
+  },
+  "tutorial": {
+    "button": "دليل الاستخدام",
+    "stepLabel": "الخطوة {current} من {total}",
+    "next": "التالي",
+    "prev": "السابق",
+    "close": "إغلاق",
+    "finish": "إنهاء",
+    "titlePanels": "دليل الاستخدام: اللوحات",
+    "titleCatalog": "دليل الاستخدام: المتجر / الكتالوج",
+    "titlePayments": "دليل الاستخدام: المدفوعات"
   }
 }

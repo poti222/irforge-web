@@ -3122,5 +3122,16 @@
       "is_empty": "is empty",
       "is_not_empty": "is not empty"
     }
+  },
+  "tutorial": {
+    "button": "Tutorial",
+    "stepLabel": "Step {current} of {total}",
+    "next": "Next",
+    "prev": "Previous",
+    "close": "Close",
+    "finish": "Done",
+    "titlePanels": "Tutorial: Panels",
+    "titleCatalog": "Tutorial: Storefront / Catalog",
+    "titlePayments": "Tutorial: Payments"
   }
 }

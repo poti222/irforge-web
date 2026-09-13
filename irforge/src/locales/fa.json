@@ -3122,5 +3122,16 @@
       "is_empty": "خالی است",
       "is_not_empty": "خالی نیست"
     }
+  },
+  "tutorial": {
+    "button": "آموزش",
+    "stepLabel": "مرحله {current} از {total}",
+    "next": "بعدی",
+    "prev": "قبلی",
+    "close": "بستن",
+    "finish": "پایان",
+    "titlePanels": "آموزش: پنل‌ها",
+    "titleCatalog": "آموزش: فروشگاه / کاتالوگ",
+    "titlePayments": "آموزش: پرداخت‌ها"
   }
 }

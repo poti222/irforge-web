@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
+import { TutorialButton } from "@/components/tutorial/TutorialButton";
 import { useBotSettings } from "../settings/api";
 import { TabPayment } from "../settings/TabPayment";
 
@@ -195,6 +196,8 @@ export function PaymentsSection({ bot }: { bot: Bot }) {
 
   return (
     <div className="max-w-2xl space-y-6">
+      <div className="flex justify-end"><TutorialButton section="payments" /></div>
+
       {/* کارت‌به‌کارت/درگاه — قبلاً تبی جدا در «تنظیمات» بود، بینِ پیامِ
           خوش‌آمد و واترمارک؛ همان اشتباهی که `payment_info` پایین‌تر قبلاً
           داشت و از همین‌جا اصلاح شد: پرداخت کنارِ سفارش‌هاست، نه تنظیماتِ عمومی. */}
