@@ -3130,8 +3130,6 @@
     "prev": "Önceki",
     "close": "Kapat",
     "finish": "Bitti",
-    "titlePanels": "Eğitim: Paneller",
-    "titleCatalog": "Eğitim: Mağaza / Katalog",
-    "titlePayments": "Eğitim: Ödemeler"
+    "titleFormat": "Eğitim: {section}"
   }
 }

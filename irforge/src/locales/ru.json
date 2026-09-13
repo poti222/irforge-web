@@ -3130,8 +3130,6 @@
     "prev": "Назад",
     "close": "Закрыть",
     "finish": "Готово",
-    "titlePanels": "Обучение: Панели",
-    "titleCatalog": "Обучение: Магазин / Каталог",
-    "titlePayments": "Обучение: Платежи"
+    "titleFormat": "Обучение: {section}"
   }
 }

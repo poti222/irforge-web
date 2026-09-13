@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
-import { TutorialButton } from "@/components/tutorial/TutorialButton";
 import { confirmDiscardUnsaved } from "@/lib/unsaved-changes";
 import { useBotSettings } from "@/components/bots/settings/api";
 import { TabReplyKeyboard } from "@/components/bots/settings/TabReplyKeyboard";
@@ -326,8 +325,6 @@ export function PanelsSection({ bot }: { bot: Bot }) {
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="me-1.5 size-4" /> {t.createPanelCta}
         </Button>
-
-        <TutorialButton section="panels" />
       </div>
 
       {effectiveView === "tree" ? (

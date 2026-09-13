@@ -89,6 +89,8 @@ import { BotAdminCodeCard } from "@/components/bots/BotAdminCodeCard";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
 import { TutorialLinksCallout } from "@/components/bots/TutorialLinksCallout";
+import { TutorialButton } from "@/components/tutorial/TutorialButton";
+import { TUTORIALS } from "@/lib/tutorials/content";
 import type { LocaleShape } from "@/hooks/use-translation";
 
 type SectionKey =
@@ -459,6 +461,13 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
 
       {/* Main area */}
       <div className="flex-1 min-w-0 overflow-auto rounded-md border bg-card p-4">
+        {/* IRFORGE_TUTORIAL_SYSTEM_PROMPT — یک نقطه‌ی مشترک برایِ همه‌ی
+            سکشن‌ها، به‌جایِ گذاشتنِ TutorialButton داخلِ هرکدام جداگانه.
+            خودِ دکمه اگر برایِ این سکشن آموزشی نوشته نشده باشد چیزی رندر
+            نمی‌کند، پس صدا زدنش اینجا برایِ هر سکشن بدونِ چک کردن امن است. */}
+        <div className="mb-3 flex justify-end">
+          <TutorialButton section={section} />
+        </div>
         {/* No mode="wait": with it, the incoming section only mounts after the
             outgoing one's exit completes, and that completion never fired here
             — clicking a section left the panel showing the old content forever

@@ -3130,8 +3130,6 @@
     "prev": "Previous",
     "close": "Close",
     "finish": "Done",
-    "titlePanels": "Tutorial: Panels",
-    "titleCatalog": "Tutorial: Storefront / Catalog",
-    "titlePayments": "Tutorial: Payments"
+    "titleFormat": "Tutorial: {section}"
   }
 }
