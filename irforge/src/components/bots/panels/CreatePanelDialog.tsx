@@ -6,7 +6,7 @@
  * زندگی می‌کنند، عقب‌وجلو رفتن آزاد است و تا لحظه‌ی «ساخت» چیزی به سرور نمی‌رود.
  */
 import { useState } from "react";
-import { MediaList } from "./MediaList";
+import { MediaList, type MediaMeta } from "./MediaList";
 import { Loader2, ChevronRight, ChevronLeft } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -47,13 +47,12 @@ export function CreatePanelDialog({
 
   const [step, setStep] = useState<Step>("title");
   const [title, setTitle] = useState("");
-  /**
-   * نوع پنل از روی مدیا **استنتاج** می‌شود، نه انتخاب کاربر (فاز ۱ مرحله‌ی
-   * انتخاب نوع را حذف کرد). بدون مدیا متن است، یک فایل عکس، چند فایل کاروسل.
-   * سرور خودش هم موقع ذخیره همین را اعتبارسنجی می‌کند.
-   */
+  // IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش B — پنلِ
+  // تازه همیشه نوعِ «media» است (صفر/یک/چند آیتم، فرقی نمی‌کند)؛ دیگر
+  // نیازی به استنتاجِ text/photo/carousel نیست.
   const [content, setContent] = useState("");
   const [mediaIds, setMediaIds] = useState<string[]>([]);
+  const [mediaMeta, setMediaMeta] = useState<Record<string, MediaMeta>>({});
   const [parentId, setParentId] = useState<string>("");
   const [fieldError, setFieldError] = useState<string | null>(null);
 
@@ -62,6 +61,7 @@ export function CreatePanelDialog({
     setTitle("");
     setContent("");
     setMediaIds([]);
+    setMediaMeta({});
     setParentId("");
     setFieldError(null);
   }
@@ -92,12 +92,15 @@ export function CreatePanelDialog({
     create.mutate(
       {
         title: title.trim(),
-        type: mediaIds.length > 1 ? "carousel" : mediaIds.length === 1 ? "photo" : "text",
+        type: "media",
         content,
         media_file_id: mediaIds[0] ?? "",
-        // کاروسل همه‌ی فایل‌ها را در `settings.carousel_ids` نگه می‌دارد —
-        // همان شکلی که خودِ بات می‌خواند.
-        ...(mediaIds.length > 1 ? { settings: { carousel_ids: mediaIds } } : {}),
+        settings: {
+          media_items: mediaIds.map((fileId) => ({
+            type: mediaMeta[fileId]?.kind && mediaMeta[fileId].kind !== "unknown" ? mediaMeta[fileId].kind : "photo",
+            file_id: fileId,
+          })),
+        },
         parent_id: parentId || null,
       },
       {
@@ -165,6 +168,7 @@ export function CreatePanelDialog({
                   fileIds={mediaIds}
                   multiple
                   onChange={setMediaIds}
+                  onMetaChange={setMediaMeta}
                 />
               </div>
             </div>

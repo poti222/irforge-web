@@ -35,6 +35,8 @@ import { ButtonBuilder } from "./ButtonBuilder";
 import { PanelPreview } from "./PanelPreview";
 import { MediaList, type MediaMeta } from "./MediaList";
 import { panelTypeLabel } from "./labels";
+import { isMediaLikeType, isWalletLikeType, panelMediaItems, panelWalletMode, type MediaItemType } from "./mediaCollapse";
+import { SendViaBotButton, materializeSession, type CapturedContent, type MaterializedItem } from "@/components/bots/SendViaBotButton";
 import {
   apiErrorMessage, usePanelReferences, useSetHomePanel, useTogglePanel, useUpdatePanel,
   type Panel, type PanelCatalog,
@@ -89,13 +91,24 @@ function useSellCatalogOptions(botId: string, itemId: string) {
   });
 }
 
-/** مدیای پنل، به‌صورت یک لیست واحد — بدون توجه به اینکه روی شیت دو جا ذخیره می‌شود. */
+/** مدیای پنل، به‌صورت یک لیست واحد — بدون توجه به اینکه شکلِ ذخیره‌شده
+ * قدیمی است (`media_file_id`/`carousel_ids`) یا تازه (`settings.media_items`). */
 function mediaOf(panel: Panel): string[] {
-  const carousel = Array.isArray(panel.settings?.carousel_ids)
-    ? (panel.settings.carousel_ids as string[]).filter(Boolean)
-    : [];
-  if (carousel.length) return carousel;
-  return panel.media_file_id ? [panel.media_file_id] : [];
+  return panelMediaItems(panel).map((it) => it.file_id);
+}
+
+/** نوعِ واقعیِ هر فایل — برایِ پرکردنِ اولیه‌یِ `mediaMeta` از رویِ داده‌یِ
+ * ذخیره‌شده، بدونِ نیازِ به حدس‌زدن دوباره در مرورگر. */
+function mediaMetaOf(panel: Panel): Record<string, MediaMeta> {
+  const out: Record<string, MediaMeta> = {};
+  for (const it of panelMediaItems(panel)) out[it.file_id] = { kind: it.type, duration: null };
+  return out;
+}
+
+/** نوعی که ویرایشگر باید نشان دهد — قدیمی یا تازه، فرقی نمی‌کند، همیشه
+ * یکی از پنج نوعِ ادغام‌شده. */
+function effectiveTypeOf(panel: Panel): string {
+  return isMediaLikeType(panel.type) ? "media" : isWalletLikeType(panel.type) ? "wallet" : panel.type;
 }
 
 export function PanelEditor({
@@ -126,16 +139,21 @@ export function PanelEditor({
 
   const [tab, setTab] = useState<EditorTab>("content");
   const [title, setTitle] = useState(panel.title);
-  const [type, setType] = useState(panel.type);
+  // IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش B — نوعِ
+  // اولیه همیشه یکی از پنج نوعِ تازه است، حتی برایِ پنلِ قدیمیِ
+  // هنوز-مهاجرت‌نکرده (text/photo/carousel/video/audio/document → «media»،
+  // wallet_balance → «wallet»). ذخیره همیشه با همین نوعِ تازه می‌رود، یعنی
+  // هر پنلی که از اینجا ویرایش و ذخیره شود همان‌جا هم مهاجرت می‌کند.
+  const [type, setType] = useState(() => effectiveTypeOf(panel));
   const [content, setContent] = useState(panel.content);
   const [media, setMedia] = useState<string[]>(() => mediaOf(panel));
-  const [mediaMeta, setMediaMeta] = useState<Record<string, MediaMeta>>({});
+  const [mediaMeta, setMediaMeta] = useState<Record<string, MediaMeta>>(() => mediaMetaOf(panel));
   const [rows, setRows] = useState<PanelButton[][]>(() => buttonsToRows(panel.buttons ?? []));
   const [settings, setSettings] = useState<Record<string, unknown>>(() => ({ ...panel.settings }));
+  const [walletMode, setWalletMode] = useState<"shared" | "personal">(() => panelWalletMode(panel));
   const [pendingType, setPendingType] = useState<string | null>(null);
 
-  const multiMedia = (catalog?.multiMediaTypes ?? ["carousel"]).includes(type);
-  const textOnly = (catalog?.textOnlyTypes ?? ["text", "form", "sell"]).includes(type);
+  const showMedia = type === "media";
 
   const sellCatalogItemId = String(settings.catalog_item_id ?? "");
   const { data: sellCatalogItemsData, isLoading: sellCatalogItemsLoading } =
@@ -150,27 +168,27 @@ export function PanelEditor({
   const dirty = useMemo(() => {
     const before = {
       title: panel.title,
-      type: panel.type,
+      type: effectiveTypeOf(panel),
       content: panel.content,
       media: mediaOf(panel),
       buttons: rowsToButtons(buttonsToRows(panel.buttons ?? [])),
       settings: panel.settings ?? {},
+      walletMode: panelWalletMode(panel),
     };
-    const now = { title, type, content, media, buttons: rowsToButtons(rows), settings };
+    const now = { title, type, content, media, buttons: rowsToButtons(rows), settings, walletMode };
     return JSON.stringify(before) !== JSON.stringify(now);
-  }, [panel, title, type, content, media, rows, settings]);
+  }, [panel, title, type, content, media, rows, settings, walletMode]);
 
   // باگ B1: ترک صفحه با کار ذخیره‌نشده نباید بی‌صدا باشد.
   useUnsavedGuard(`panel:${panel.id}`, dirty);
 
   const tooFull = overfullRows(rows);
 
-  /** آنچه با تغییر نوع از دست می‌رود — قبل از اعمال به کاربر گفته می‌شود (B5). */
+  /** آنچه با تغییر نوع از دست می‌رود — قبل از اعمال به کاربر گفته می‌شود (B5).
+   * تنها نوعی که مدیا می‌گیرد «media» است؛ رفتن به هر نوعِ دیگری یعنی هر چه
+   * آیتمِ مدیا بوده پاک می‌شود. */
   function lossOfChangingTypeTo(nextType: string): string | null {
-    const nextTextOnly = (catalog?.textOnlyTypes ?? ["text", "form", "sell"]).includes(nextType);
-    const nextMulti = (catalog?.multiMediaTypes ?? ["carousel"]).includes(nextType);
-    if (nextTextOnly && media.length > 0) return t.typeChangeDropsAllMedia;
-    if (!nextMulti && media.length > 1) return t.typeChangeDropsExtraMedia.replace("{n}", String(media.length - 1));
+    if (type === "media" && nextType !== "media" && media.length > 0) return t.typeChangeDropsAllMedia;
     return null;
   }
 
@@ -183,23 +201,40 @@ export function PanelEditor({
     setType(nextType);
   }
 
-  /** کاربر خواست مدیای دومی اضافه کند — نوع پنل را به اولین نوع
-      چندمدیایی که کاتالوگ می‌شناسد ارتقا می‌دهیم (هیچ مدیایی از دست
-      نمی‌رود، پس نیازی به هشدار افت داده نیست). */
-  function promoteToMultiMedia() {
-    const [multiType] = catalog?.multiMediaTypes ?? ["carousel"];
-    if (multiType && multiType !== type) setType(multiType);
-  }
-
   function applyPendingType() {
     const nextType = pendingType;
     setPendingType(null);
     if (!nextType) return;
-    const nextTextOnly = (catalog?.textOnlyTypes ?? ["text", "form", "sell"]).includes(nextType);
-    const nextMulti = (catalog?.multiMediaTypes ?? ["carousel"]).includes(nextType);
-    if (nextTextOnly) setMedia([]);
-    else if (!nextMulti && media.length > 1) setMedia(media.slice(0, 1));
+    if (nextType !== "media") setMedia([]);
     setType(nextType);
+  }
+
+  /** آیتم‌هایِ گرفته‌شده از «با بات بفرست» (بخشِ A) به لیستِ مدیایِ همین
+   * پنل اضافه می‌شوند؛ اگر بینشان متن هم بود (کسی وسطِ فرستادنِ مدیا یک
+   * پیامِ متنی هم فرستاده) و محتوایِ پنل هنوز خالی است، همان را می‌گذاریم. */
+  async function handleBotMediaCaptured(captured: CapturedContent) {
+    try {
+      const { items } = await materializeSession(captured.id);
+      const newIds: string[] = [];
+      const newMeta: Record<string, MediaMeta> = {};
+      let firstText: string | null = null;
+      for (const item of items as MaterializedItem[]) {
+        if (item.type === "text") {
+          if (firstText === null) firstText = item.content;
+          continue;
+        }
+        newIds.push(item.fileId);
+        newMeta[item.fileId] = { kind: item.type as MediaItemType, duration: null };
+      }
+      if (newIds.length) {
+        setMedia((prev) => [...prev, ...newIds]);
+        setMediaMeta((prev) => ({ ...prev, ...newMeta }));
+      }
+      if (firstText && !content.trim()) setContent(firstText);
+      if (newIds.length || firstText) toast({ title: t.mediaUploaded });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: t.errorGeneric, description: apiErrorMessage(err, t.errorGeneric) });
+    }
   }
 
   function save() {
@@ -214,9 +249,18 @@ export function PanelEditor({
       return;
     }
 
-    // مدیا همان‌جایی نوشته می‌شود که بات می‌خواند: `media_file_id` برای اولی و
-    // `settings.carousel_ids` برای لیست کامل (فقط وقتی نوع چندمدیایی است).
-    const nextSettings = { ...settings, carousel_ids: multiMedia ? media : [] };
+    // مدیا همان‌جایی نوشته می‌شود که بات می‌خواند: `settings.media_items`
+    // (نوعِ هر آیتم از mediaMeta، پیش‌فرضش «عکس»). حالتِ کیف‌پول فقط برایِ
+    // نوعِ wallet نوشته می‌شود.
+    const nextSettings = { ...settings };
+    if (type === "media") {
+      nextSettings.media_items = media.map((fileId) => ({
+        type: mediaMeta[fileId]?.kind && mediaMeta[fileId].kind !== "unknown" ? mediaMeta[fileId].kind : "photo",
+        file_id: fileId,
+      }));
+    } else if (type === "wallet") {
+      nextSettings.mode = walletMode;
+    }
 
     update.mutate(
       {
@@ -225,7 +269,7 @@ export function PanelEditor({
           title: title.trim(),
           type,
           content,
-          media_file_id: media[0] ?? "",
+          media_file_id: type === "media" ? (media[0] ?? "") : "",
           buttons: rowsToButtons(rows),
           settings: nextSettings,
         },
@@ -245,11 +289,13 @@ export function PanelEditor({
 
   function revert() {
     setTitle(panel.title);
-    setType(panel.type);
+    setType(effectiveTypeOf(panel));
     setContent(panel.content);
     setMedia(mediaOf(panel));
+    setMediaMeta(mediaMetaOf(panel));
     setRows(buttonsToRows(panel.buttons ?? []));
     setSettings({ ...panel.settings });
+    setWalletMode(panelWalletMode(panel));
   }
 
   const setSetting = (key: string, value: unknown) => setSettings((prev) => ({ ...prev, [key]: value }));
@@ -306,17 +352,21 @@ export function PanelEditor({
                   <p className="text-xs text-muted-foreground tabular-nums">{content.length} / 4000</p>
                 </div>
 
-                {!textOnly && (
+                {showMedia && (
                   <div className="space-y-1.5">
-                    <Label>{multiMedia ? t.fieldMediaList : t.fieldMediaSingle}</Label>
+                    <Label>{t.fieldMediaList}</Label>
                     <MediaList
                       botId={botId}
                       fileIds={media}
-                      multiple={multiMedia}
+                      multiple
                       onChange={setMedia}
                       onMetaChange={setMediaMeta}
-                      onWantMore={multiMedia ? undefined : promoteToMultiMedia}
                     />
+                    {/* IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش A —
+                        همان مکانیزمِ عمومیِ «با بات بفرست»؛ اینجا با kind="panel_media"
+                        چند پیام (متن/عکس/ویدیو/صوت/فایل) در یک نشست جمع می‌شود و با
+                        دکمه‌ی «پایان» در خودِ تلگرام تمام می‌شود — نه فقط اولین پیام. */}
+                    <SendViaBotButton kind="panel_media" botId={botId} label={t.mediaSendViaBotCta} onCaptured={handleBotMediaCaptured} />
                   </div>
                 )}
               </CardContent>
@@ -398,6 +448,22 @@ export function PanelEditor({
                   />
                   <p className="text-xs text-muted-foreground">{t.settingForwardGroupsHint}</p>
                 </div>
+
+                {type === "wallet" && (
+                  <div className="space-y-1.5 rounded-md border p-3">
+                    <Label htmlFor="pe-wallet-mode">{t.settingWalletMode}</Label>
+                    <Select value={walletMode} onValueChange={(v) => setWalletMode(v as "shared" | "personal")}>
+                      <SelectTrigger id="pe-wallet-mode"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="shared">{t.settingWalletModeShared}</SelectItem>
+                        <SelectItem value="personal">{t.settingWalletModePersonal}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {walletMode === "shared" ? t.settingWalletModeSharedHint : t.settingWalletModePersonalHint}
+                    </p>
+                  </div>
+                )}
 
                 {type === "sell" && (
                   <div className="space-y-4 rounded-md border p-3">

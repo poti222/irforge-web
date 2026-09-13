@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import { customFetch } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Plus, Trash2, ArrowUp, ArrowDown, Upload, Loader2, ChevronDown, Music, ImageIcon,
+  Plus, Trash2, ArrowUp, ArrowDown, Upload, Loader2, ChevronDown, Music, ImageIcon, Film, FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,7 +81,7 @@ function shortFileId(fileId: string): string {
  * برای فایل‌های قدیمی از روی خودِ پیش‌نمایش حدس زده می‌شوند. هیچ‌کدام در
  * شیت نوشته نمی‌شوند — وگرنه شکل داده با آنچه بات انتظار دارد فرق می‌کرد.
  */
-export type MediaMeta = { kind: "photo" | "audio" | "unknown"; duration: number | null };
+export type MediaMeta = { kind: "photo" | "video" | "audio" | "document" | "unknown"; duration: number | null };
 
 /**
  * ردیف یک مدیا: پیش‌نمایش واقعی (تصویر یا پخش‌کننده‌ی صوت)، نه یک رشته‌ی
@@ -111,9 +111,11 @@ function MediaRow({
       <span className="text-xs text-muted-foreground tabular-nums">{index + 1}</span>
 
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        {kind !== "audio" && (
+        {(kind === "photo" || kind === "unknown") && (
           // پیش‌نمایش از پروکسی سرور می‌آید؛ URL خام تلگرام توکن بات را
-          // داخل خودش دارد و هرگز به کلاینت نمی‌رسد.
+          // داخل خودش دارد و هرگز به کلاینت نمی‌رسد. نوعِ نامعلوم (پنلِ
+          // قدیمیِ عکس/صوتِ ذخیره‌شده پیش از این که نوعش را بدانیم): اول
+          // تصویر امتحان می‌شود و اگر لود نشد، صوت.
           <img
             src={src}
             alt=""
@@ -122,6 +124,13 @@ function MediaRow({
             onLoad={() => { if (kind === "unknown") onMeta({ kind: "photo", duration: null }); }}
             onError={() => { if (kind === "unknown") onMeta({ kind: "audio", duration: null }); }}
           />
+        )}
+
+        {(kind === "video" || kind === "document") && (
+          // ویدیو/فایل معمولیِ تلگرام: بدونِ <img> (لود نمی‌شود)، فقط آیکون.
+          <div className="flex size-12 shrink-0 items-center justify-center rounded border bg-muted/40 text-muted-foreground">
+            {kind === "video" ? <Film className="size-5" /> : <FileText className="size-5" />}
+          </div>
         )}
 
         {kind === "audio" ? (

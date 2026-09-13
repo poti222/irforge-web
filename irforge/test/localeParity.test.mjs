@@ -55,7 +55,7 @@ test("هر پنج فایلِ locale دقیقاً همان مجموعه‌ی کل
 test("انواعِ پنلِ پلاگینیِ فازِ ۱ در هر پنج زبان ترجمه دارند", () => {
   const keys = [
     "type_ticket", "type_subscription", "type_survey", "type_address",
-    "type_wallet", "type_wallet_balance", "type_loyalty", "type_giveaway",
+    "type_wallet", "type_loyalty", "type_giveaway",
     "type_booking", "type_catalog_store",
   ];
   for (const lang of LANGS) {
