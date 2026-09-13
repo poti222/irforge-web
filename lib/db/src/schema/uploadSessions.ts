@@ -19,6 +19,16 @@
  */
 import { pgTable, text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 
+/** یک آیتمِ ضبط‌شده — دقیقاً همان چیزی که `extractContent()` از یک پیامِ
+ * تلگرامی بیرون می‌کشد. `fileId` فقط برایِ انواعِ مدیایی پر می‌شود. */
+export type UploadedItem = {
+  type: "text" | "photo" | "voice" | "audio" | "video" | "document" | "animation";
+  fileId: string | null;
+  content: string;
+  entities: unknown;
+  messageId: string;
+};
+
 export const uploadSessionsTable = pgTable(
   "bot_upload_sessions",
   {
@@ -36,14 +46,15 @@ export const uploadSessionsTable = pgTable(
     // ─── محتوای ضبط‌شده ───────────────────────────────────────────────
     /** چتِ کاربر با بات پلتفرم — برای ارسال پیام تأیید به خودش. */
     chatId: text("chat_id"),
-    messageId: text("message_id"),
-    /** `text` | `photo` | `voice` | `audio` | `video` | `document` | `animation` */
-    mediaType: text("media_type"),
-    fileId: text("file_id"),
-    /** متن پیام یا کپشن مدیا. */
-    content: text("content"),
-    /** `entities` یا `caption_entities` تلگرام — برای بازتولید دقیق فرمت. */
-    entities: jsonb("entities"),
+    /**
+     * IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش A — قبلاً
+     * این جلسه فقط یک پیام ضبط می‌کرد و بلافاصله `filled` می‌شد. حالا هر
+     * پیامِ تازه به این لیست append می‌شود؛ جلسه فقط با تأییدِ صریحِ کاربر
+     * (دکمه‌ی «پایان» یا، برایِ kindهایِ تک‌آیتمی مثلِ broadcast، همان
+     * اولین پیام) `filled` می‌شود — نگاه کن `lib/uploadSessions.ts::
+     * SINGLE_ITEM_KINDS`.
+     */
+    items: jsonb("items").$type<UploadedItem[]>().notNull().default([]),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     /** جلسه‌ی مصرف‌نشده بعد از این زمان بی‌اعتبار است. */

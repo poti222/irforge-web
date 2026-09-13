@@ -174,10 +174,15 @@ router.post("/bots/:botId/broadcast", requireAuth, perUserRateLimit("broadcast",
           "هنوز پیامی از تلگرام دریافت نشده است.",
           "session_not_filled"
         );
-      text = session.content ?? "";
-      mediaType = session.mediaType === "text" ? "" : (session.mediaType ?? "");
-      entities = session.entities ?? null;
-      capturedFileId = session.fileId ?? "";
+      // IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش A —
+      // جلسه دیگر یک آیتمِ تکی روی خودش ندارد، آرایه‌ی `items` دارد؛
+      // broadcast در `SINGLE_ITEM_KINDS` است پس همیشه دقیقاً یک آیتم دارد
+      // (اولین پیامی که کاربر فرستاد، همان لحظه finish هم شده).
+      const capturedItem = session.items[0];
+      text = capturedItem?.content ?? "";
+      mediaType = capturedItem?.type === "text" ? "" : (capturedItem?.type ?? "");
+      entities = capturedItem?.entities ?? null;
+      capturedFileId = capturedItem?.fileId ?? "";
       // `mediaFileId` عمداً ست نمی‌شود: آن مسیر یعنی «این file_id مال همین
       // بات است». فایلِ ضبط‌شده مال بات پلتفرم است و باید دوباره آپلود شود.
       mediaFileId = "";

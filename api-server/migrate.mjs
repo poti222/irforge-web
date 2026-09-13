@@ -696,6 +696,14 @@ CREATE TABLE IF NOT EXISTS bot_upload_sessions (
 );
 CREATE INDEX IF NOT EXISTS bot_upload_sessions_chat_idx ON bot_upload_sessions(chat_id, status);
 
+-- IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش A — جلسه قبلاً
+-- فقط یک پیام ضبط می‌کرد (همان ستون‌های تکیِ بالا: media_type/file_id/
+-- content/entities). حالا یک لیست است تا «چند چیز بفرست، در پایان تأیید
+-- کن» ممکن شود؛ ستون‌های قدیمی دست‌نخورده می‌مانند (بی‌ضرر، دیگر نوشته
+-- نمی‌شوند) چون این یک جدولِ حالتِ گذراست (TTL کوتاه)، نه دیتای کاربر —
+-- حذفشان هیچ سودی نداشت جز ریسکِ یک migration اضافه.
+ALTER TABLE bot_upload_sessions ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb;
+
 -- ─── تحویل اعلان در تلگرام ──────────────────────────────────────────────────
 -- اعلان‌های سایت علاوه بر زنگوله، در بات پلتفرم هم فرستاده می‌شوند؛ این ستون
 -- سوئیچ خاموش‌کردنش برای هر کاربر است (پیش‌فرض روشن).

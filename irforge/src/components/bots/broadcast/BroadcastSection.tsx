@@ -128,7 +128,7 @@ export function BroadcastSection({ bot }: { bot: Bot }) {
               onCaptured={(c) => {
                 setCaptured(c);
                 // متن ضبط‌شده در پیش‌نمایش دیده شود؛ ولی مرجع همان جلسه است.
-                setText(c.content ?? "");
+                setText(c.items[0]?.content ?? "");
                 setMediaFileId("");
               }}
             />
@@ -155,7 +155,10 @@ export function BroadcastSection({ bot }: { bot: Bot }) {
               <Label htmlFor="bc-media">{t.mediaFileId}</Label>
               <Input
                 id="bc-media" dir="ltr" className="font-mono text-sm"
-                value={captured?.fileId ?? mediaFileId}
+                // خامِ file_id هرگز از سرور بیرون نمی‌آید — وقتی جلسه‌ی «با بات
+                // بفرست» پر شود، همین فیلد خالی و غیرفعال می‌ماند (طبقِ
+                // capturedNotice، محتوایِ واقعی از جلسه گرفته می‌شود، نه این فرم).
+                value={captured && captured.items[0]?.type !== "text" ? captured.items[0]?.type ?? "" : mediaFileId}
                 disabled={Boolean(captured)}
                 onChange={(e) => setMediaFileId(e.target.value)}
               />

@@ -539,3 +539,113 @@ test("listPoolSold with an unmatched q returns nothing", async () => {
   seedPoolRow(tabs, "cpi_1", { status: "delivered", buyer_id: "555", order_id: "ORD1" });
   assert.deepEqual(await store.listPoolSold(SID, "item1", { q: "nobody" }), []);
 });
+
+// ── مدیریتِ موجودیِ pool از سایت (IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخشِ C، آیتمِ ۵) ──
+
+test("getPoolSummary counts rows per status for this item only, plus the low-stock threshold", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  seedPoolRow(tabs, "cpi_1", { item_id: item.id, status: "available" });
+  seedPoolRow(tabs, "cpi_2", { item_id: item.id, status: "available" });
+  seedPoolRow(tabs, "cpi_3", { item_id: item.id, status: "sold" });
+  seedPoolRow(tabs, "cpi_other", { item_id: "some-other-item", status: "available" });
+  await store.setPoolThreshold(SID, item.id, 5);
+
+  const summary = await store.getPoolSummary(SID, item.id);
+  assert.deepEqual(summary.counts, { available: 2, reserved: 0, sold: 1, delivered: 0, failed: 0 });
+  assert.equal(summary.lowThreshold, 5);
+});
+
+test("getPoolSummary 404s on an unknown item", async () => {
+  installSheet();
+  await assert.rejects(() => store.getPoolSummary(SID, "item_missing"), /پیدا نشد/);
+});
+
+test("addPoolItems creates available rows with the given payload/caption", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  const created = await store.addPoolItems(SID, item.id, [
+    { payload_type: "photo", payload: "FILE_ID_1", caption: "لینک ۱" },
+    { payload_type: "text", payload: "link-2" },
+  ]);
+  assert.equal(created.length, 2);
+  assert.equal(created[0].status, "available");
+  assert.equal(created[0].payload, "FILE_ID_1");
+  assert.equal(created[0].caption, "لینک ۱");
+  assert.equal(created[1].payload_type, "text");
+  assert.equal(tabs.get("catalog_pool_items").size, 2);
+});
+
+test("addPoolItems silently skips an entry with an empty payload", async () => {
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  const created = await store.addPoolItems(SID, item.id, [{ payload: "  " }, { payload: "real" }]);
+  assert.equal(created.length, 1);
+  assert.equal(created[0].payload, "real");
+});
+
+test("addPoolItemsFromText splits by line by default, each line a separate text item", async () => {
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  const created = await store.addPoolItemsFromText(SID, item.id, "line1\nline2\n\nline3");
+  assert.deepEqual(created.map((c) => c.payload), ["line1", "line2", "line3"]);
+  assert.ok(created.every((c) => c.payload_type === "text"));
+});
+
+test("addPoolItemsFromText supports a custom multi-line-per-item separator", async () => {
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  const text = "config-a\nline2 of a\n\n\nconfig-b\nline2 of b";
+  const created = await store.addPoolItemsFromText(SID, item.id, text, "\n\n");
+  assert.equal(created.length, 2);
+  assert.equal(created[0].payload, "config-a\nline2 of a");
+  assert.equal(created[1].payload, "config-b\nline2 of b");
+});
+
+test("deletePoolItem removes an available row", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  const [row] = await store.addPoolItems(SID, item.id, [{ payload: "a" }]);
+  assert.equal(await store.deletePoolItem(SID, item.id, row.id), true);
+  assert.equal(tabs.get("catalog_pool_items").has(row.id), false);
+});
+
+test("deletePoolItem refuses a sold/delivered row — never deletes order history", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  seedPoolRow(tabs, "cpi_sold", { item_id: item.id, status: "sold" });
+  assert.equal(await store.deletePoolItem(SID, item.id, "cpi_sold"), false);
+  assert.equal(tabs.get("catalog_pool_items").has("cpi_sold"), true);
+});
+
+test("deletePoolItem refuses a row belonging to a different item", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  seedPoolRow(tabs, "cpi_x", { item_id: "some-other-item", status: "available" });
+  assert.equal(await store.deletePoolItem(SID, item.id, "cpi_x"), false);
+});
+
+test("deletePoolItem returns false for an unknown id", async () => {
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  assert.equal(await store.deletePoolItem(SID, item.id, "cpi_missing"), false);
+});
+
+test("setPoolThreshold merges into metadata.pool without clobbering other pool settings", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  // `updateItem` عمداً metadata را دست نمی‌زند (برای همین جلوی خودش
+  // clobber نمی‌کند) — پس اینجا مستقیم روی خودِ تب می‌نویسیم، دقیقاً همان
+  // چیزی که check_low_stock_after_consumption بات هم واقعاً می‌نویسد.
+  tabs.get("catalog_items").set(item.id, { ...item, metadata: { pool: { low_alerted: true } } });
+
+  const updated = await store.setPoolThreshold(SID, item.id, 3);
+  assert.equal(updated.metadata.pool.low_threshold, 3);
+  assert.equal(updated.metadata.pool.low_alerted, true, "پاک نشدن تنظیماتِ دیگرِ pool که خودِ بات نوشته");
+});
+
+test("setPoolThreshold rejects a negative threshold", async () => {
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  await assert.rejects(() => store.setPoolThreshold(SID, item.id, -1));
+});
+
+test("setPoolThreshold 404s on an unknown item", async () => {
+  installSheet();
+  await assert.rejects(() => store.setPoolThreshold(SID, "item_missing", 3), /پیدا نشد/);
+});

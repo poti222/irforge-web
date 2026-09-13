@@ -92,7 +92,10 @@ export async function registerTelegramWebhookIfConfigured(): Promise<void> {
     const result = await tgApi(botToken, "setWebhook", {
       url,
       secret_token: telegramWebhookSecret(botToken),
-      allowed_updates: ["message"],
+      // IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش A —
+      // «callback_query» برایِ دکمه‌ی «✅ پایان و تأیید»یِ جلسه‌هایِ
+      // چند-آیتمیِ «با بات بفرست» اضافه شد (routes/telegramWebhook.ts).
+      allowed_updates: ["message", "callback_query"],
     });
     if (result.ok) {
       logger.info({ url }, "Telegram webhook registered");
