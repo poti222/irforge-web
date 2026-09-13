@@ -75,8 +75,18 @@ export function telegramWebhookSecret(botToken: string): string {
 
 /**
  * Registers the platform bot's webhook with Telegram, if TELEGRAM_BOT_TOKEN
- * and PUBLIC_SITE_URL are both configured. Safe to call on every boot —
- * setWebhook is idempotent. Never throws (best-effort, logged).
+ * and PUBLIC_SITE_URL are both configured. Never throws (best-effort, logged).
+ *
+ * Gated behind TELEGRAM_WEBHOOK_ENABLED (default: off) — security incident
+ * 2026-09: TELEGRAM_BOT_TOKEN is the same token irforge-app polls
+ * (getUpdates) for this bot's regular bot_settings-driven behavior
+ * (welcome message, buttons, …). Telegram only delivers to one consumer at a
+ * time, so calling setWebhook here on every boot was silently killing that
+ * polling loop — irforge-app kept self-healing with deleteWebhook, only for
+ * this to re-register the webhook on the next irforge-web restart, in an
+ * endless loop that also blanked the bot's real /start content. Until the
+ * two services are made to agree on a single delivery mode, this must be
+ * opted into deliberately, not asserted unconditionally on every boot.
  */
 export async function registerTelegramWebhookIfConfigured(): Promise<void> {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -84,6 +94,14 @@ export async function registerTelegramWebhookIfConfigured(): Promise<void> {
   if (!botToken || !siteUrl) {
     logger.info(
       "Telegram webhook not registered (TELEGRAM_BOT_TOKEN and/or PUBLIC_SITE_URL missing) — 'connect via bot' will be unavailable"
+    );
+    return;
+  }
+  if (process.env.TELEGRAM_WEBHOOK_ENABLED !== "true") {
+    logger.info(
+      "Telegram webhook not registered (TELEGRAM_WEBHOOK_ENABLED is not 'true') — " +
+        "'connect via bot' will be unavailable until this is set deliberately. " +
+        "See registerTelegramWebhookIfConfigured() docstring: this token is also polled by irforge-app."
     );
     return;
   }

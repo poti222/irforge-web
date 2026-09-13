@@ -23,7 +23,9 @@ app.listen(port, (err?: Error) => {
   logger.info({ port }, "Server listening");
 });
 
-// G8: بی‌صدا و best-effort — نبودش فقط یعنی «اتصال با ربات» غیرفعاله، سرور رو نمی‌خوابونه
+// G8: بی‌صدا و best-effort — نبودش فقط یعنی «اتصال با ربات» غیرفعاله، سرور رو نمی‌خوابونه.
+// از حادثه‌ی امنیتی ۲۰۲۶-۰۹ به بعد، پشتِ TELEGRAM_WEBHOOK_ENABLED گارد شده — ببینید
+// docstringِ خودِ تابع در lib/telegram.ts.
 void registerTelegramWebhookIfConfigured();
 
 // Phase 10 (identityverificationspec.md): نرخ دلار به ریال هر ساعت تازه
