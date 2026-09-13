@@ -2560,6 +2560,8 @@
     "poolSoldColOrder": "Order",
     "poolSoldColStatus": "Status",
     "poolSoldColDate": "Sold at",
+    "poolSoldColItem": "Item",
+    "poolSoldItemMediaOnly": "Viewable in Telegram only",
     "poolStatusDelivered": "Delivered",
     "poolStatusFailed": "Failed",
     "poolStatusSold": "Sold",

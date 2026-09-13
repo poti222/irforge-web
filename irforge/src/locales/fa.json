@@ -2560,6 +2560,8 @@
     "poolSoldColOrder": "سفارش",
     "poolSoldColStatus": "وضعیت",
     "poolSoldColDate": "تاریخ فروش",
+    "poolSoldColItem": "آیتم",
+    "poolSoldItemMediaOnly": "فقط در تلگرام قابل مشاهده",
     "poolStatusDelivered": "تحویل‌شده",
     "poolStatusFailed": "ناموفق",
     "poolStatusSold": "فروخته‌شده",

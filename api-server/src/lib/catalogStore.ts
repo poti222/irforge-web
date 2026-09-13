@@ -612,6 +612,8 @@ export interface PoolSoldRow {
   item_id: string;
   option_id: string;
   payload_type: string;
+  payload: string;
+  caption: string;
   status: string;
   order_id: string;
   buyer_id: string;

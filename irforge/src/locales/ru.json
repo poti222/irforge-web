@@ -2560,6 +2560,8 @@
     "poolSoldColOrder": "Заказ",
     "poolSoldColStatus": "Статус",
     "poolSoldColDate": "Дата продажи",
+    "poolSoldColItem": "Товар",
+    "poolSoldItemMediaOnly": "Доступно только в Telegram",
     "poolStatusDelivered": "Доставлено",
     "poolStatusFailed": "Ошибка",
     "poolStatusSold": "Продано",

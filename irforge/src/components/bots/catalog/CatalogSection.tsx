@@ -634,7 +634,8 @@ function WalletCreditFulfillmentForm({ botId, itemId, config, disabled }: Fulfil
 // فقط یک متنِ راهنما بود.
 type PoolSoldRow = {
   id: string; status: string; buyer_id: string; order_id: string;
-  payload_type: string; sold_at: string; delivered_at: string;
+  payload_type: string; payload: string; caption: string;
+  sold_at: string; delivered_at: string;
 };
 
 // IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش C، آیتمِ ۵ — تا
@@ -804,6 +805,24 @@ function PoolSoldList({ botId, itemId }: { botId: string; itemId: string }) {
     return <Badge variant="outline">{t.poolStatusSold}</Badge>;
   };
 
+  // IRFORGE_POOL_COMPLETE_PROMPT بخش ۳ -- `payload_type === "text"` یعنی خودِ
+  // `payload` همان لینک/کانفیگیه که pool.py مستقیم به خریدار می‌فرستد (نگاه
+  // کن plugins/catalog/pool.py::_send_payload) -- کاملاً امن است اینجا هم
+  // متنِ خام نشان داده شود. photo/document/video یک Telegram file_id است، نه
+  // URLی که سایت بتواند مستقیم نمایش/دانلودش کند (نیاز به عبور از API خودِ
+  // بات دارد که این تب فراتر از آن نمی‌رود) -- فقط caption (اگر باشد) به‌علاوه‌ی
+  // یک یادداشتِ روشن که خودِ رسانه فقط در تلگرام قابل مشاهده است.
+  const itemContent = (r: PoolSoldRow) => {
+    if (r.payload_type === "text" || !r.payload_type) {
+      return <span className="break-all">{r.payload || "—"}</span>;
+    }
+    return (
+      <span className="text-muted-foreground italic">
+        {r.caption ? `${r.caption} — ` : ""}{t.poolSoldItemMediaOnly}
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-3">
       <Input
@@ -827,6 +846,7 @@ function PoolSoldList({ botId, itemId }: { botId: string; itemId: string }) {
             <thead className="bg-muted/50 text-muted-foreground">
               <tr>
                 <th className="p-2 text-start font-medium">{t.poolSoldColBuyer}</th>
+                <th className="p-2 text-start font-medium">{t.poolSoldColItem}</th>
                 <th className="p-2 text-start font-medium">{t.poolSoldColOrder}</th>
                 <th className="p-2 text-start font-medium">{t.poolSoldColStatus}</th>
                 <th className="p-2 text-start font-medium">{t.poolSoldColDate}</th>
@@ -836,6 +856,7 @@ function PoolSoldList({ botId, itemId }: { botId: string; itemId: string }) {
               {rows.map((r) => (
                 <tr key={r.id} className="border-t">
                   <td className="p-2" dir="ltr">{r.buyer_id || "—"}</td>
+                  <td className="p-2" dir="ltr">{itemContent(r)}</td>
                   <td className="p-2" dir="ltr">{r.order_id ? r.order_id.slice(0, 16) : "—"}</td>
                   <td className="p-2">{statusBadge(r.status)}</td>
                   <td className="p-2" dir="ltr">{String(r.sold_at || r.delivered_at || "").slice(0, 16).replace("T", " ") || "—"}</td>

@@ -540,6 +540,29 @@ test("listPoolSold with an unmatched q returns nothing", async () => {
   assert.deepEqual(await store.listPoolSold(SID, "item1", { q: "nobody" }), []);
 });
 
+test("listPoolSold returns the sold item's own payload/caption, not just buyer/order/status", async () => {
+  // IRFORGE_POOL_COMPLETE_PROMPT بخش ۳ -- تبِ فروخته‌شده‌ها باید «خودِ آیتم
+  // (لینک/QR)» را هم نشان بدهد، نه فقط خریدار/سفارش/وضعیت. این دقیقاً همان
+  // فیلدهایی هستند که plugins/catalog/pool.py::_send_payload به خریدار
+  // می‌فرستد -- سایت باید همان دو فیلد را دست‌نخورده به فرانت پاس بدهد.
+  const tabs = installSheet();
+  seedPoolRow(tabs, "cpi_1", {
+    status: "delivered", buyer_id: "1",
+    payload_type: "text", payload: "vless://real-link-here", caption: "",
+  });
+  seedPoolRow(tabs, "cpi_2", {
+    status: "delivered", buyer_id: "2",
+    payload_type: "photo", payload: "TELEGRAM_FILE_ID_XYZ", caption: "کانفیگِ QR",
+  });
+
+  const sold = await store.listPoolSold(SID, "item1");
+  const byId = Object.fromEntries(sold.map((r) => [r.id, r]));
+  assert.equal(byId.cpi_1.payload, "vless://real-link-here");
+  assert.equal(byId.cpi_1.payload_type, "text");
+  assert.equal(byId.cpi_2.payload, "TELEGRAM_FILE_ID_XYZ");
+  assert.equal(byId.cpi_2.caption, "کانفیگِ QR");
+});
+
 // ── مدیریتِ موجودیِ pool از سایت (IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخشِ C، آیتمِ ۵) ──
 
 test("getPoolSummary counts rows per status for this item only, plus the low-stock threshold", async () => {

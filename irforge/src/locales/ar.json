@@ -2560,6 +2560,8 @@
     "poolSoldColOrder": "الطلب",
     "poolSoldColStatus": "الحالة",
     "poolSoldColDate": "تاريخ البيع",
+    "poolSoldColItem": "العنصر",
+    "poolSoldItemMediaOnly": "قابل للعرض فقط في تلغرام",
     "poolStatusDelivered": "تم التسليم",
     "poolStatusFailed": "فشل",
     "poolStatusSold": "مباع",

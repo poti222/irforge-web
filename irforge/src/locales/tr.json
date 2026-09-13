@@ -2560,6 +2560,8 @@
     "poolSoldColOrder": "Sipariş",
     "poolSoldColStatus": "Durum",
     "poolSoldColDate": "Satış tarihi",
+    "poolSoldColItem": "Öğe",
+    "poolSoldItemMediaOnly": "Yalnızca Telegram'da görüntülenebilir",
     "poolStatusDelivered": "Teslim edildi",
     "poolStatusFailed": "Başarısız",
     "poolStatusSold": "Satıldı",
