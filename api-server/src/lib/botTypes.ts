@@ -297,6 +297,15 @@ export type BotSettings = {
    * `null` یعنی کیبوردی نمایش داده نشود.
    */
   reply_keyboard: ReplyKeyboard | null;
+  /**
+   * منوی «/» تلگرام — منبع حقیقتش همین‌جاست (`routes/botCommands.ts`). باید
+   * حتماً در `BotSettings`/`defaultBotSettings()` باشد، وگرنه `readSettings()`
+   * فقط کلیدهایی را از شیت برمی‌دارد که در `defaultBotSettings()` هست —
+   * نبودنش یعنی این فیلد هر بار که خوانده می‌شود خالی برمی‌گردد، حتی وقتی
+   * درست روی شیت نوشته شده (باگی که همین امضا را داشت: PUT موفق، ولی چک‌باکس
+   * بلافاصله بعد از رفرش دوباره خاموش).
+   */
+  bot_commands: BotCommandMenuEntry[];
   force_join_channels: string[];
   force_join_message: string;
   working_hours: WorkingHours;
@@ -312,6 +321,9 @@ export type BotSettings = {
   order_track_msg: string;
   updated_at: string;
 };
+
+/** یک آیتمِ منوی «/» تلگرام — `routes/botCommands.ts` منبعِ اصلیِ این شکل است. */
+export type BotCommandMenuEntry = { command: string; description: string };
 
 /** پیام‌های متنی تنظیمات و placeholderهای اجباری‌شان (برای ولیدیشن و UI). */
 export const SETTINGS_MESSAGE_FIELDS = [
@@ -431,6 +443,7 @@ export function defaultBotSettings(): BotSettings {
     watermark_enabled: false,
     maintenance: false,
     reply_keyboard: null,
+    bot_commands: [],
     force_join_channels: [],
     force_join_message: "برای استفاده از ربات ابتدا در کانال‌های زیر عضو شوید:",
     working_hours: defaultWorkingHours(),
