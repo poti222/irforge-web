@@ -39,7 +39,7 @@ export const PLUGIN_PANEL_TYPES: PluginPanelType[] = [
   { pluginId: "ticket", key: "ticket", label: "🎫 تیکت پشتیبانی" },
   { pluginId: "subscription", key: "subscription", label: "💳 اشتراک" },
   { pluginId: "survey", key: "survey", label: "📊 نظرسنجی" },
-  { pluginId: "address", key: "address", label: "📍 آدرس" },
+  { pluginId: "address", key: "address", label: "📍 آدرس و تماس" },
   { pluginId: "wallet", key: "wallet", label: "💳 کیف پول" },
   { pluginId: "loyalty", key: "loyalty", label: "⭐️ باشگاه مشتریان" },
   { pluginId: "giveaway", key: "giveaway", label: "🎁 قرعه‌کشی" },

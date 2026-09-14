@@ -135,3 +135,81 @@ test("address_cfg does not disturb other bot_settings rows", async () => {
   await store.setAddressConfig(SID, "balad");
   assert.deepEqual(tabs.get("bot_settings").get("reply_keyboard"), { rows: [["/shop"]] });
 });
+
+// ── IRFORGE_BOOKING_FORM_CONTACT_REFERRAL_PROMPT پیگیری — contact_entries ───
+//
+// آینه‌ی همان قاعده‌ای که برای نوعِ پنلِ core «contact_info» نوشته شده بود
+// (`test/panelContactEntries.test.mjs`، حالا حذف‌شده، ادغام‌شده اینجا)، فقط
+// اینجا با entryهای سطحِ آدرس، نه پنل.
+
+function entry(overrides = {}) {
+  return { kind: "phone", label: "شماره فروش", value: "02112345678", ...overrides };
+}
+
+test("createAddress without contact_entries defaults to an empty list", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, VALID);
+  assert.deepEqual(created.contact_entries, []);
+});
+
+test("createAddress persists valid contact_entries", async () => {
+  installSheet();
+  const entries = [entry({ id: "ce1" }), entry({ id: "ce2", kind: "link", value: "https://wa.me/98912xxxxxxx" })];
+  const created = await store.createAddress(SID, { ...VALID, contact_entries: entries });
+  assert.deepEqual(created.contact_entries, entries);
+});
+
+test("updateAddress can replace contact_entries", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, VALID);
+  const updated = await store.updateAddress(SID, created.id, {
+    contact_entries: [entry({ id: "ce1", kind: "email", value: "a@b.com" })],
+  });
+  assert.equal(updated.contact_entries.length, 1);
+  assert.equal(updated.contact_entries[0].kind, "email");
+});
+
+test("contact_entries rejects a non-array value", async () => {
+  installSheet();
+  await assert.rejects(() => store.createAddress(SID, { ...VALID, contact_entries: {} }));
+});
+
+test("contact_entries rejects more than 20 entries", async () => {
+  installSheet();
+  const many = Array.from({ length: 21 }, () => entry());
+  await assert.rejects(() => store.createAddress(SID, { ...VALID, contact_entries: many }));
+});
+
+test("contact_entries rejects an unknown kind", async () => {
+  installSheet();
+  await assert.rejects(() => store.createAddress(SID, { ...VALID, contact_entries: [entry({ kind: "fax" })] }));
+});
+
+test("contact_entries rejects an empty label", async () => {
+  installSheet();
+  await assert.rejects(() => store.createAddress(SID, { ...VALID, contact_entries: [entry({ label: "  " })] }));
+});
+
+test("contact_entries kind=link with https:// is accepted", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, {
+    ...VALID, contact_entries: [entry({ kind: "link", value: "https://t.me/example" })],
+  });
+  assert.equal(created.contact_entries[0].value, "https://t.me/example");
+});
+
+test("contact_entries kind=link with tel: is rejected — دقیقاً همان درسِ بخشِ ۴", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createAddress(SID, { ...VALID, contact_entries: [entry({ kind: "link", value: "tel:+98912xxxxxxx" })] }),
+    (err) => err.message.includes("https://"),
+  );
+});
+
+test("contact_entries kind=phone has no https:// requirement — any text is accepted", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, {
+    ...VALID, contact_entries: [entry({ kind: "phone", value: "021-12345678" })],
+  });
+  assert.equal(created.contact_entries[0].value, "021-12345678");
+});

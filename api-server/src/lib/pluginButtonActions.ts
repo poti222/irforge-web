@@ -33,7 +33,7 @@ export const PLUGIN_BUTTON_ACTIONS: PluginButtonAction[] = [
   { pluginId: "loyalty", key: "loyalty", label: "⭐️ امتیاز من", fixedValue: "ly:me" },
   { pluginId: "survey", key: "survey", label: "📊 نظرسنجی", fixedValue: "sv:list" },
   { pluginId: "ticket", key: "ticket", label: "🎫 تیکت پشتیبانی", fixedValue: "tk:u:list:0" },
-  { pluginId: "address", key: "address", label: "📍 آدرس", fixedValue: "addr:start" },
+  { pluginId: "address", key: "address", label: "📍 آدرس و تماس", fixedValue: "addr:start" },
   { pluginId: "discount", key: "discount", label: "🎟 کد تخفیف", fixedValue: "dc:check_prompt" },
   { pluginId: "subscription", key: "subscription", label: "💳 اشتراک", fixedValue: "sb:plans" },
 ];
