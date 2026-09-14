@@ -1746,7 +1746,29 @@
     "deleteBreaksRefs": "These will keep pointing at a form that no longer exists — fix them afterwards.",
     "refPanel": "Panel «{name}»",
     "refButton": "Button «{button}» in panel «{panel}»",
-    "deleteConfirm": "Delete"
+    "deleteConfirm": "Delete",
+    "tabPanelForms": "Panel forms",
+    "tabStandaloneForms": "Standalone forms"
+  },
+  "botFormsPro": {
+    "loading": "Loading…",
+    "errorGeneric": "Something went wrong.",
+    "noSheetYet": "No data yet.",
+    "sectionDesc": "Forms built from the /forms_admin command in the bot itself. Creating and editing questions only happens there — this page shows the response archive.",
+    "noForms": "No forms_pro forms have been created in the bot yet.",
+    "colTitle": "Title",
+    "colQuestions": "Questions",
+    "colSubmissions": "Responses",
+    "colStatus": "Status",
+    "statusOpen": "Open",
+    "statusClosed": "Closed",
+    "viewResponsesCta": "Responses",
+    "responsesTitle": "Responses to “{name}”",
+    "searchPlaceholder": "Search by name or answer…",
+    "noResponses": "No responses yet.",
+    "exportCsv": "Export CSV",
+    "colUser": "User",
+    "close": "Close"
   },
   "botCommands": {
     "loading": "Loading commands…",
@@ -2322,7 +2344,17 @@
     "customerLocation": "Location shared",
     "invitationTemplateLabel": "Digital invitation text (optional)",
     "invitationTemplateHelp": "If filled in, this message (with a \"View route\" button) is sent to the customer the moment their reservation is confirmed. Leave empty to turn this off. Allowed placeholders: {date} {time} {occasion} {location_button}",
-    "invitationTemplatePlaceholder": "e.g.: 🎉 Your table for {occasion} is ready on {date} at {time}! {location_button}"
+    "invitationTemplatePlaceholder": "e.g.: 🎉 Your table for {occasion} is ready on {date} at {time}! {location_button}",
+    "adminContactPhoneLabel": "Contact phone number (optional)",
+    "adminContactPhoneHelp": "Shown as plain text (never a button — Telegram rejects tel: links on buttons) to the customer right after their reservation is confirmed, along with the message link below if set.",
+    "adminContactPhonePlaceholder": "e.g.: +98912xxxxxxx",
+    "adminContactLinkLabel": "Message link (optional)",
+    "adminContactLinkHelp": "A WhatsApp or Telegram link shown as a button next to the phone number. Must start with https://.",
+    "adminContactLinkPlaceholder": "e.g.: https://wa.me/98912xxxxxxx",
+    "allowedReferralCodesLabel": "Restrict booking to specific invite codes (optional)",
+    "allowedReferralCodesHelp": "Leave empty for no restriction (anyone can book, as before). If filled, only customers who opened the bot via one of these codes (?start=code) may book.",
+    "allowedReferralCodesPlaceholder": "One code per line, e.g.: ali",
+    "referrerColumnLabel": "Referrer"
   },
   "botAddresses": {
     "loading": "Loading addresses…",

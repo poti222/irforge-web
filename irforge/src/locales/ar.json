@@ -1746,7 +1746,29 @@
     "deleteBreaksRefs": "ستظل تشير إلى نموذج غير موجود — صحّحها لاحقاً.",
     "refPanel": "اللوحة «{name}»",
     "refButton": "الزر «{button}» في اللوحة «{panel}»",
-    "deleteConfirm": "حذف"
+    "deleteConfirm": "حذف",
+    "tabPanelForms": "نماذج اللوحة",
+    "tabStandaloneForms": "النماذج المستقلة"
+  },
+  "botFormsPro": {
+    "loading": "جارٍ التحميل…",
+    "errorGeneric": "حدث خطأ ما.",
+    "noSheetYet": "لا توجد بيانات بعد.",
+    "sectionDesc": "نماذج أُنشئت من أمر /forms_admin داخل البوت نفسه. إنشاء الأسئلة وتعديلها يتم هناك فقط — هذه الصفحة تعرض أرشيف الردود فقط.",
+    "noForms": "لم يتم إنشاء أي نموذج forms_pro من داخل البوت بعد.",
+    "colTitle": "العنوان",
+    "colQuestions": "الأسئلة",
+    "colSubmissions": "الردود",
+    "colStatus": "الحالة",
+    "statusOpen": "مفتوح",
+    "statusClosed": "مغلق",
+    "viewResponsesCta": "الردود",
+    "responsesTitle": "ردود «{name}»",
+    "searchPlaceholder": "ابحث بالاسم أو الإجابة…",
+    "noResponses": "لا توجد ردود بعد.",
+    "exportCsv": "تصدير CSV",
+    "colUser": "المستخدم",
+    "close": "إغلاق"
   },
   "botCommands": {
     "loading": "جارٍ تحميل الأوامر…",
@@ -2322,7 +2344,17 @@
     "customerLocation": "تم مشاركة الموقع",
     "invitationTemplateLabel": "نص دعوة رقمية (اختياري)",
     "invitationTemplateHelp": "إذا مُلئ، تُرسَل هذه الرسالة (مع زر «مشاهدة المسار») للعميل فور تأكيد حجزه. اتركه فارغًا لإيقاف هذه الميزة. الحقول المسموحة: {date} {time} {occasion} {location_button}",
-    "invitationTemplatePlaceholder": "مثال: 🎉 طاولتك لـ{occasion} جاهزة في {date} الساعة {time}! {location_button}"
+    "invitationTemplatePlaceholder": "مثال: 🎉 طاولتك لـ{occasion} جاهزة في {date} الساعة {time}! {location_button}",
+    "adminContactPhoneLabel": "رقم التواصل (اختياري)",
+    "adminContactPhoneHelp": "يُعرض كنص عادي (وليس زرًا أبدًا — يرفض تيليجرام روابط tel: في الأزرار) للعميل فور تأكيد الحجز، مع رابط الرسالة أدناه إذا تم تعيينه.",
+    "adminContactPhonePlaceholder": "مثال: +98912xxxxxxx",
+    "adminContactLinkLabel": "رابط الرسالة (اختياري)",
+    "adminContactLinkHelp": "رابط واتساب أو تيليجرام يُعرض كزر بجانب رقم الهاتف. يجب أن يبدأ بـ https://.",
+    "adminContactLinkPlaceholder": "مثال: https://wa.me/98912xxxxxxx",
+    "allowedReferralCodesLabel": "تقييد الحجز بروابط دعوة محددة (اختياري)",
+    "allowedReferralCodesHelp": "اتركه فارغًا لعدم وجود قيود (يمكن للجميع الحجز كما هو معتاد). إذا مُلئ، يمكن فقط للعملاء الذين فتحوا البوت عبر أحد هذه الأكواد (?start=code) الحجز.",
+    "allowedReferralCodesPlaceholder": "كود واحد في كل سطر، مثال: ali",
+    "referrerColumnLabel": "المُحيل"
   },
   "botAddresses": {
     "loading": "جارٍ تحميل العناوين…",

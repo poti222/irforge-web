@@ -1746,7 +1746,29 @@
     "deleteBreaksRefs": "Они будут ссылаться на несуществующую форму — исправьте их потом.",
     "refPanel": "Панель «{name}»",
     "refButton": "Кнопка «{button}» в панели «{panel}»",
-    "deleteConfirm": "Удалить"
+    "deleteConfirm": "Удалить",
+    "tabPanelForms": "Формы панели",
+    "tabStandaloneForms": "Отдельные формы"
+  },
+  "botFormsPro": {
+    "loading": "Загрузка…",
+    "errorGeneric": "Что-то пошло не так.",
+    "noSheetYet": "Пока нет данных.",
+    "sectionDesc": "Формы, созданные командой /forms_admin в самом боте. Создание и редактирование вопросов возможно только там — эта страница показывает только архив ответов.",
+    "noForms": "В боте пока не создано ни одной формы forms_pro.",
+    "colTitle": "Название",
+    "colQuestions": "Вопросы",
+    "colSubmissions": "Ответы",
+    "colStatus": "Статус",
+    "statusOpen": "Открыта",
+    "statusClosed": "Закрыта",
+    "viewResponsesCta": "Ответы",
+    "responsesTitle": "Ответы на «{name}»",
+    "searchPlaceholder": "Поиск по имени или ответу…",
+    "noResponses": "Пока нет ответов.",
+    "exportCsv": "Экспорт в CSV",
+    "colUser": "Пользователь",
+    "close": "Закрыть"
   },
   "botCommands": {
     "loading": "Загрузка команд…",
@@ -2322,7 +2344,17 @@
     "customerLocation": "Местоположение отправлено",
     "invitationTemplateLabel": "Текст цифрового приглашения (необязательно)",
     "invitationTemplateHelp": "Если заполнено, это сообщение (с кнопкой «Показать маршрут») отправляется клиенту в момент подтверждения брони. Оставьте пустым, чтобы отключить эту функцию. Разрешённые плейсхолдеры: {date} {time} {occasion} {location_button}",
-    "invitationTemplatePlaceholder": "напр.: 🎉 Ваш столик для {occasion} готов на {date} в {time}! {location_button}"
+    "invitationTemplatePlaceholder": "напр.: 🎉 Ваш столик для {occasion} готов на {date} в {time}! {location_button}",
+    "adminContactPhoneLabel": "Контактный телефон (необязательно)",
+    "adminContactPhoneHelp": "Отображается как обычный текст (никогда не кнопка — Telegram отклоняет ссылки tel: на кнопках) клиенту сразу после подтверждения брони, вместе со ссылкой для сообщений ниже, если она задана.",
+    "adminContactPhonePlaceholder": "напр.: +98912xxxxxxx",
+    "adminContactLinkLabel": "Ссылка для сообщений (необязательно)",
+    "adminContactLinkHelp": "Ссылка на WhatsApp или Telegram, отображаемая как кнопка рядом с номером телефона. Должна начинаться с https://.",
+    "adminContactLinkPlaceholder": "напр.: https://wa.me/98912xxxxxxx",
+    "allowedReferralCodesLabel": "Ограничить бронирование определёнными кодами приглашений (необязательно)",
+    "allowedReferralCodesHelp": "Оставьте пустым — без ограничений (бронировать может любой, как раньше). Если заполнено, бронировать смогут только клиенты, открывшие бота по одному из этих кодов (?start=code).",
+    "allowedReferralCodesPlaceholder": "По одному коду на строку, напр.: ali",
+    "referrerColumnLabel": "Источник"
   },
   "botAddresses": {
     "loading": "Загрузка адресов…",

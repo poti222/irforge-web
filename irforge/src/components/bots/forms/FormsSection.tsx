@@ -17,10 +17,12 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
 import { confirmDiscardUnsaved } from "@/lib/unsaved-changes";
 import { FormEditor } from "./FormEditor";
+import { FormsProResponses } from "./FormsProResponses";
 import {
   apiErrorCode, apiErrorMessage, useCreateForm, useDeleteForm, useFormReferences, useForms,
   type BotForm,
@@ -168,7 +170,13 @@ export function FormsSection({ bot }: { bot: Bot }) {
   }
 
   return (
-    <div className="space-y-4">
+    <Tabs defaultValue="panel" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="panel">{t.tabPanelForms}</TabsTrigger>
+        <TabsTrigger value="standalone">{t.tabStandaloneForms}</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="panel" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{t.sectionDesc}</p>
         <Button onClick={() => setCreateOpen(true)}>
@@ -285,6 +293,11 @@ export function FormsSection({ bot }: { bot: Bot }) {
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         onDeleted={() => setDeleteTarget(null)}
       />
-    </div>
+      </TabsContent>
+
+      <TabsContent value="standalone">
+        <FormsProResponses botId={bot.id} />
+      </TabsContent>
+    </Tabs>
   );
 }

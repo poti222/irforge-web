@@ -1746,7 +1746,29 @@
     "deleteBreaksRefs": "Bunlar artık var olmayan bir forma işaret edecek — sonrasında düzeltin.",
     "refPanel": "«{name}» paneli",
     "refButton": "«{panel}» panelindeki «{button}» butonu",
-    "deleteConfirm": "Sil"
+    "deleteConfirm": "Sil",
+    "tabPanelForms": "Panel formları",
+    "tabStandaloneForms": "Bağımsız formlar"
+  },
+  "botFormsPro": {
+    "loading": "Yükleniyor…",
+    "errorGeneric": "Bir şeyler ters gitti.",
+    "noSheetYet": "Henüz veri yok.",
+    "sectionDesc": "Botun kendisindeki /forms_admin komutuyla oluşturulan formlar. Soruları oluşturma ve düzenleme yalnızca orada yapılır — bu sayfa yalnızca yanıt arşivini gösterir.",
+    "noForms": "Botta henüz bir forms_pro formu oluşturulmadı.",
+    "colTitle": "Başlık",
+    "colQuestions": "Sorular",
+    "colSubmissions": "Yanıtlar",
+    "colStatus": "Durum",
+    "statusOpen": "Açık",
+    "statusClosed": "Kapalı",
+    "viewResponsesCta": "Yanıtlar",
+    "responsesTitle": "“{name}” yanıtları",
+    "searchPlaceholder": "İsme veya cevaba göre ara…",
+    "noResponses": "Henüz yanıt yok.",
+    "exportCsv": "CSV Dışa Aktar",
+    "colUser": "Kullanıcı",
+    "close": "Kapat"
   },
   "botCommands": {
     "loading": "Komutlar yükleniyor…",
@@ -2322,7 +2344,17 @@
     "customerLocation": "Konum paylaşıldı",
     "invitationTemplateLabel": "Dijital davetiye metni (isteğe bağlı)",
     "invitationTemplateHelp": "Doldurulursa, rezervasyon onaylandığı anda bu mesaj (bir «Yolu Gör» butonuyla) müşteriye gönderilir. Bu özelliği kapatmak için boş bırakın. İzin verilen alanlar: {date} {time} {occasion} {location_button}",
-    "invitationTemplatePlaceholder": "örn: 🎉 {occasion} için masanız {date} saat {time}'da hazır! {location_button}"
+    "invitationTemplatePlaceholder": "örn: 🎉 {occasion} için masanız {date} saat {time}'da hazır! {location_button}",
+    "adminContactPhoneLabel": "İletişim telefon numarası (isteğe bağlı)",
+    "adminContactPhoneHelp": "Rezervasyon onaylandıktan hemen sonra düz metin olarak (asla buton değil — Telegram butonlarda tel: bağlantılarını reddeder) müşteriye gösterilir, ayarlanmışsa aşağıdaki mesaj bağlantısıyla birlikte.",
+    "adminContactPhonePlaceholder": "örn: +98912xxxxxxx",
+    "adminContactLinkLabel": "Mesaj bağlantısı (isteğe bağlı)",
+    "adminContactLinkHelp": "Telefon numarasının yanında buton olarak gösterilen bir WhatsApp veya Telegram bağlantısı. https:// ile başlamalıdır.",
+    "adminContactLinkPlaceholder": "örn: https://wa.me/98912xxxxxxx",
+    "allowedReferralCodesLabel": "Rezervasyonu belirli davet kodlarıyla sınırla (isteğe bağlı)",
+    "allowedReferralCodesHelp": "Kısıtlama olmaması için boş bırakın (herkes önceki gibi rezervasyon yapabilir). Doldurulursa, yalnızca botu bu kodlardan biriyle (?start=code) açan müşteriler rezervasyon yapabilir.",
+    "allowedReferralCodesPlaceholder": "Her satıra bir kod, örn: ali",
+    "referrerColumnLabel": "Yönlendiren"
   },
   "botAddresses": {
     "loading": "Adresler yükleniyor…",

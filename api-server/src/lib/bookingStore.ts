@@ -51,6 +51,18 @@ export interface BookingSchedule {
   // بدونِ تغییر ادامه می‌یابند) — همتایِ دقیقِ `plugins/booking/domain.py`ی
   // `DEFAULT_SCHEDULE["invitation_template"]`.
   invitation_template?: string;
+  // IRFORGE_BOOKING_FORM_CONTACT_REFERRAL_PROMPT بخشِ ۴ — بعدِ تأییدِ رزرو،
+  // اگر پر باشند یک پیامِ دومِ «چطور هماهنگ کنید» به مشتری می‌رود
+  // (`plugins/booking/handlers.py::_send_admin_contact_info`). شماره در
+  // متنِ پیام است نه دکمه — تلگرام دکمه‌ی inline با لینکِ `tel:` را رد
+  // می‌کند؛ لینک می‌تواند دکمه باشد چون `parseScheduleInput` پایینِ همین
+  // فایل تضمین می‌کند همیشه `https://` است.
+  admin_contact_phone?: string;
+  admin_contact_link?: string;
+  // بخشِ ۵ — خالی = بدونِ محدودیت (رفتارِ فعلی)؛ پر = فقط کاربرانی که با
+  // یکی از این کدها وارد بات شده‌اند (`/start <code>`) مجاز به رزرو هستند
+  // — همتایِ `plugins/booking/domain.py::DEFAULT_SCHEDULE["allowed_referral_codes"]`.
+  allowed_referral_codes?: string[];
   created_at?: string;
   updated_at?: string;
 }
@@ -66,6 +78,9 @@ export const DEFAULT_SCHEDULE: Omit<BookingSchedule, "id"> = {
   timezone: "Asia/Tehran",
   cancel_cutoff_hours: 0,
   invitation_template: "",
+  admin_contact_phone: "",
+  admin_contact_link: "",
+  allowed_referral_codes: [],
 };
 
 export interface BookingException {
@@ -106,6 +121,9 @@ export interface BookingReservation {
   customer_lng?: number | null;
   note?: string;
   price_paid?: number;
+  // بخشِ ۵ — کدِ دیپ‌لینکی که مشتری با آن وارد بات شده بود (اگر داشت).
+  // فقط نمایش/فیلتر سایت است؛ بات خودش این را روی رزرو می‌نویسد.
+  referrer?: string;
   no_show?: boolean;
   reminder_24h_sent_at?: string;
   reminder_2h_sent_at?: string;
@@ -184,6 +202,43 @@ export function parseScheduleInput(body: any): Partial<BookingSchedule> {
     // انجام می‌شود، نه هم اینجا هم آنجا؛ ذخیره‌یِ خام یعنی ادمین دقیقاً
     // همان چیزی را که نوشته در ادیتور می‌بیند.
     out.invitation_template = body.invitation_template.slice(0, 2000);
+  }
+
+  if (body.admin_contact_phone !== undefined) {
+    if (typeof body.admin_contact_phone !== "string") {
+      throw new BotConfigError(400, "admin_contact_phone باید رشته باشد.", "bad_admin_contact_phone");
+    }
+    out.admin_contact_phone = body.admin_contact_phone.trim().slice(0, 40);
+  }
+
+  if (body.admin_contact_link !== undefined) {
+    if (typeof body.admin_contact_link !== "string") {
+      throw new BotConfigError(400, "admin_contact_link باید رشته باشد.", "bad_admin_contact_link");
+    }
+    const link = body.admin_contact_link.trim();
+    // IRFORGE_BOOKING_FORM_CONTACT_REFERRAL_PROMPT بخشِ ۴ — همان قاعده‌ی
+    // `routes/botPanels.ts::validateButtons` برایِ دکمه‌یِ url: تلگرام
+    // دکمه‌ی inline با لینکِ `tel:` را رد می‌کند (کلِ پیام fail می‌شود)،
+    // پس یک تلاشِ روشنِ ادمین برایِ گذاشتنِ شماره‌تلفن اینجا باید همین‌جا،
+    // با یک پیامِ روشن، رد شود — نه اینکه در بات بی‌صدا بشکند.
+    if (link && !/^https:\/\//i.test(link)) {
+      throw new BotConfigError(
+        400,
+        "لینکِ پیام باید با https:// شروع شود — شماره‌تلفن را در فیلدِ «شماره‌یِ تماس» بگذارید، نه اینجا.",
+        "bad_admin_contact_link",
+      );
+    }
+    out.admin_contact_link = link.slice(0, 300);
+  }
+
+  if (body.allowed_referral_codes !== undefined) {
+    if (!Array.isArray(body.allowed_referral_codes)) {
+      throw new BotConfigError(400, "allowed_referral_codes باید آرایه باشد.", "bad_allowed_referral_codes");
+    }
+    out.allowed_referral_codes = body.allowed_referral_codes
+      .map((c: unknown) => String(c ?? "").trim())
+      .filter(Boolean)
+      .slice(0, 50);
   }
 
   return out;

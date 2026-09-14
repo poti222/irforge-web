@@ -1746,7 +1746,29 @@
     "deleteBreaksRefs": "این‌ها بعد از حذف به فرمی اشاره می‌کنند که وجود ندارد — بعداً درستشان کنید.",
     "refPanel": "پنل «{name}»",
     "refButton": "دکمه‌ی «{button}» در پنل «{panel}»",
-    "deleteConfirm": "حذف"
+    "deleteConfirm": "حذف",
+    "tabPanelForms": "فرم‌هایِ پنل",
+    "tabStandaloneForms": "فرم‌هایِ مستقل"
+  },
+  "botFormsPro": {
+    "loading": "در حال بارگذاری…",
+    "errorGeneric": "خطایی رخ داد.",
+    "noSheetYet": "هنوز داده‌ای نیست.",
+    "sectionDesc": "فرم‌هایی که از دستورِ /forms_admin در خودِ بات ساخته شده‌اند. ساخت و ویرایشِ سؤال‌ها فقط از همان‌جاست — این صفحه فقط آرشیوِ پاسخ‌ها را نشان می‌دهد.",
+    "noForms": "هنوز هیچ فرمِ forms_pro از داخلِ بات ساخته نشده.",
+    "colTitle": "عنوان",
+    "colQuestions": "سؤال‌ها",
+    "colSubmissions": "پاسخ‌ها",
+    "colStatus": "وضعیت",
+    "statusOpen": "باز",
+    "statusClosed": "بسته",
+    "viewResponsesCta": "پاسخ‌ها",
+    "responsesTitle": "پاسخ‌هایِ «{name}»",
+    "searchPlaceholder": "جست‌وجو با نام یا جواب…",
+    "noResponses": "هنوز پاسخی ثبت نشده.",
+    "exportCsv": "خروجیِ CSV",
+    "colUser": "کاربر",
+    "close": "بستن"
   },
   "botCommands": {
     "loading": "در حال بارگذاری کامندها…",
@@ -2322,7 +2344,17 @@
     "customerLocation": "موقعیت مکانی ارسال‌شده",
     "invitationTemplateLabel": "متنِ دعوت‌نامه‌یِ دیجیتال (اختیاری)",
     "invitationTemplateHelp": "اگر پر شود، همین لحظه که رزرو تأیید می‌شود این پیام (با یک دکمه‌ی «مشاهده مسیر») برایِ مشتری فرستاده می‌شود. خالی بماند یعنی این قابلیت خاموش است. Placeholderهایِ مجاز: {date} {time} {occasion} {location_button}",
-    "invitationTemplatePlaceholder": "مثال: 🎉 میزِ شما برایِ {occasion} در {date} ساعتِ {time} آماده است! {location_button}"
+    "invitationTemplatePlaceholder": "مثال: 🎉 میزِ شما برایِ {occasion} در {date} ساعتِ {time} آماده است! {location_button}",
+    "adminContactPhoneLabel": "شماره‌یِ تماس (اختیاری)",
+    "adminContactPhoneHelp": "بعدِ تأییدِ رزرو، به‌صورتِ متنِ ساده (نه دکمه — تلگرام لینکِ tel: را در دکمه رد می‌کند) به مشتری نشان داده می‌شود، همراهِ لینکِ پیام زیر اگر پر شده باشد.",
+    "adminContactPhonePlaceholder": "مثال: +98912xxxxxxx",
+    "adminContactLinkLabel": "لینکِ پیام (اختیاری)",
+    "adminContactLinkHelp": "یک لینکِ واتساپ یا تلگرام که به‌صورتِ دکمه کنارِ شماره نشان داده می‌شود. باید با https:// شروع شود.",
+    "adminContactLinkPlaceholder": "مثال: https://wa.me/98912xxxxxxx",
+    "allowedReferralCodesLabel": "محدودسازیِ رزرو به کدهایِ دعوتِ خاص (اختیاری)",
+    "allowedReferralCodesHelp": "خالی بماند یعنی بدونِ محدودیت (رفتارِ فعلی — همه می‌توانند رزرو کنند). اگر پر شود، فقط مشتری‌هایی که با یکی از این کدها (?start=code) وارد بات شده‌اند می‌توانند رزرو کنند.",
+    "allowedReferralCodesPlaceholder": "هر کد در یک خط، مثال: ali",
+    "referrerColumnLabel": "معرف"
   },
   "botAddresses": {
     "loading": "در حال بارگذاری آدرس‌ها…",
