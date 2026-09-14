@@ -10,7 +10,7 @@
 import { useMemo, useState } from "react";
 import { customFetch } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Save, RotateCcw, ArrowRight, AlertTriangle, Home, Power, Plus, Trash2 } from "lucide-react";
+import { Loader2, Save, RotateCcw, ArrowRight, AlertTriangle, Home, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AmountInput } from "@/components/ui/amount-input";
@@ -34,16 +34,13 @@ import { buttonsToRows, rowsToButtons, overfullRows, type PanelButton } from "@/
 import { ButtonBuilder } from "./ButtonBuilder";
 import { PanelPreview } from "./PanelPreview";
 import { MediaList, type MediaMeta } from "./MediaList";
-import { panelTypeLabel, contactEntryKindLabel } from "./labels";
+import { panelTypeLabel } from "./labels";
 import { isMediaLikeType, isWalletLikeType, panelMediaItems, panelWalletMode, type MediaItemType } from "./mediaCollapse";
 import { SendViaBotButton, materializeSession, type CapturedContent, type MaterializedItem } from "@/components/bots/SendViaBotButton";
 import {
   apiErrorMessage, usePanelReferences, useSetHomePanel, useTogglePanel, useUpdatePanel,
-  type Panel, type PanelCatalog, type ContactEntry, type ContactEntryKind,
+  type Panel, type PanelCatalog,
 } from "./api";
-
-const CONTACT_ENTRY_KINDS: ContactEntryKind[] = ["phone", "address", "email", "link", "text"];
-const MAX_CONTACT_ENTRIES = 20;
 
 type EditorTab = "content" | "buttons" | "advanced" | "references";
 
@@ -570,81 +567,6 @@ export function PanelEditor({
                     {Boolean(sellCatalogItemId) && (
                       <p className="text-xs text-muted-foreground">{t.settingSellManualFieldsDisabledHint}</p>
                     )}
-                  </div>
-                )}
-
-                {type === "contact_info" && (
-                  <div className="space-y-3 rounded-md border p-3">
-                    <div className="space-y-1">
-                      <Label>{t.settingContactEntries}</Label>
-                      <p className="text-xs text-muted-foreground">{t.settingContactEntriesHint}</p>
-                    </div>
-
-                    {(() => {
-                      const entries = (Array.isArray(settings.contact_entries) ? settings.contact_entries : []) as ContactEntry[];
-                      const setEntries = (next: ContactEntry[]) => setSetting("contact_entries", next);
-                      return (
-                        <>
-                          <div className="space-y-3">
-                            {entries.map((entry, i) => (
-                              <div key={entry.id} className="grid gap-2 rounded-md border p-2 sm:grid-cols-[140px_1fr_1fr_auto]">
-                                <Select
-                                  value={entry.kind}
-                                  onValueChange={(v) =>
-                                    setEntries(entries.map((e, j) => (j === i ? { ...e, kind: v as ContactEntryKind } : e)))
-                                  }
-                                >
-                                  <SelectTrigger><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    {CONTACT_ENTRY_KINDS.map((k) => (
-                                      <SelectItem key={k} value={k}>{contactEntryKindLabel(t, k)}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <Input
-                                  placeholder={t.contactEntryLabelPlaceholder}
-                                  value={entry.label}
-                                  onChange={(e) =>
-                                    setEntries(entries.map((it, j) => (j === i ? { ...it, label: e.target.value } : it)))
-                                  }
-                                />
-                                <Input
-                                  dir={entry.kind === "link" ? "ltr" : undefined}
-                                  placeholder={entry.kind === "link" ? "https://…" : t.contactEntryValuePlaceholder}
-                                  value={entry.value}
-                                  onChange={(e) =>
-                                    setEntries(entries.map((it, j) => (j === i ? { ...it, value: e.target.value } : it)))
-                                  }
-                                />
-                                <Button
-                                  type="button" variant="ghost" size="icon"
-                                  aria-label={t.contactEntryRemove}
-                                  onClick={() => setEntries(entries.filter((_, j) => j !== i))}
-                                >
-                                  <Trash2 className="size-4 text-destructive" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-
-                          <Button
-                            type="button" variant="outline" size="sm"
-                            disabled={entries.length >= MAX_CONTACT_ENTRIES}
-                            onClick={() =>
-                              setEntries([
-                                ...entries,
-                                { id: crypto.randomUUID(), kind: "phone", label: "", value: "" },
-                              ])
-                            }
-                          >
-                            <Plus className="me-1.5 size-4" /> {t.contactEntryAddCta}
-                          </Button>
-                          {entries.length >= MAX_CONTACT_ENTRIES && (
-                            <p className="text-xs text-muted-foreground">{t.contactEntryMaxReached}</p>
-                          )}
-                        </>
-                      );
-                    })()}
                   </div>
                 )}
 
