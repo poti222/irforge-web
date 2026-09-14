@@ -27,6 +27,12 @@
  *
  *   3. انواع پنلِ هسته سه‌تاست (`media`/`form`/`sell`) — پیش از این پرامپت
  *      هشت‌تا بود (شش نوعِ مدیاییِ جدا + `form`/`sell`).
+ *
+ *   4. IRFORGE_BOOKING_FORM_CONTACT_REFERRAL_PROMPT پیگیری — نوعِ هسته‌یِ
+ *      چهارم، `contact_info`، اضافه شد: `settings.contact_entries:
+ *      ContactEntry[]`، یک لیستِ آزادِ ادمین از شماره‌تماس/آدرس/ایمیل/لینک.
+ *      عمداً هسته (نه پلاگینی) شد چون کاربر صریحاً خواست رایگان و برایِ هرِ
+ *      باتی در دسترس باشد.
  */
 
 // ─── Panel ──────────────────────────────────────────────────────────────────
@@ -39,11 +45,24 @@
  * شده‌اند: صفر آیتم یعنی فقط متن، یک آیتم یعنی تکی، چند آیتمِ همه‌عکس یعنی
  * همان کاروسلِ قبلی. `form`/`sell` دست‌نخورده مانده‌اند.
  */
-export const CORE_PANEL_TYPES = ["media", "form", "sell"] as const;
+export const CORE_PANEL_TYPES = ["media", "form", "sell", "contact_info"] as const;
 export type CorePanelType = (typeof CORE_PANEL_TYPES)[number];
 
 /** انواعی که اصلاً مدیا نمی‌گیرند — تغییر نوع به این‌ها یعنی حذف مدیا. */
-export const TEXT_ONLY_PANEL_TYPES: readonly string[] = ["form", "sell"];
+export const TEXT_ONLY_PANEL_TYPES: readonly string[] = ["form", "sell", "contact_info"];
+
+/** یک نوعِ مجازِ موردِ «تماس و آدرس» — آینه‌ی `CONTACT_ENTRY_KINDS`
+ *  (`handlers/panel_builder.py`). فقط `"link"` با مقدارِ https:// به دکمه
+ *  تبدیل می‌شود؛ بقیه همیشه در متن‌اند. */
+export const CONTACT_ENTRY_KINDS = ["phone", "address", "email", "link", "text"] as const;
+export type ContactEntryKind = (typeof CONTACT_ENTRY_KINDS)[number];
+
+export type ContactEntry = {
+  id: string;
+  kind: ContactEntryKind;
+  label: string;
+  value: string;
+};
 
 /**
  * اکشن‌های دکمه — آینه‌ی `CORE_BTN_ACTIONS` (`handlers/panel_builder.py:43`).
@@ -112,6 +131,8 @@ export type PanelSettings = {
   /** میراثِ نوعِ قدیمیِ `carousel` — فقط برایِ ویرایشِ پنل‌هایِ
    *  هنوز-مهاجرت‌نکرده خوانده می‌شود؛ ذخیره‌یِ تازه هرگز این را نمی‌نویسد. */
   carousel_ids?: string[];
+  /** فقط برای نوعِ `contact_info` — لیستِ آزادِ موارد. */
+  contact_entries?: ContactEntry[];
   [key: string]: unknown;
 };
 

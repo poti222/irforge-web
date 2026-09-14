@@ -171,7 +171,37 @@ function validateSettings(value: unknown): Record<string, unknown> {
     out.mode = s.mode;
   }
   if (s.password !== undefined && s.password !== null) out.password = String(s.password);
+  if (s.contact_entries !== undefined) out.contact_entries = validateContactEntries(s.contact_entries);
   return out;
+}
+
+/**
+ * IRFORGE_BOOKING_FORM_CONTACT_REFERRAL_PROMPT پیگیری — لیستِ آزادِ ادمین
+ * برایِ نوعِ `contact_info`. آینه‌ی دقیقِ همین ولیدیشن در
+ * `handlers/panel_builder.py::fsm_contact_value` (بات) — هر دو باید با هم
+ * عوض شوند. فقط `kind === "link"` باید https:// باشد، دقیقاً همان قاعده‌ای
+ * که `validateButtons` بالا برایِ اکشنِ `url` اعمال می‌کند: یک دکمه‌ی
+ * inline با لینکِ tel: کلِ پیامِ تلگرام را fail می‌کند.
+ */
+const MAX_CONTACT_ENTRIES = 20;
+export function validateContactEntries(value: unknown): Array<{ id: string; kind: string; label: string; value: string }> {
+  if (!Array.isArray(value)) throw bad("فهرستِ موارد باید آرایه باشد.");
+  if (value.length > MAX_CONTACT_ENTRIES) throw bad(`حداکثر ${MAX_CONTACT_ENTRIES} مورد مجاز است.`);
+  return value.map((raw: any, i: number) => {
+    if (!raw || typeof raw !== "object") throw bad(`موردِ شماره ${i + 1} معتبر نیست.`);
+    const kind = String(raw.kind ?? "text");
+    if (!["phone", "address", "email", "link", "text"].includes(kind))
+      throw bad(`نوعِ موردِ شماره ${i + 1} معتبر نیست.`);
+    const label = String(raw.label ?? "").trim();
+    if (!label) throw bad(`برچسبِ موردِ شماره ${i + 1} خالی است.`);
+    if (label.length > 80) throw bad(`برچسبِ موردِ شماره ${i + 1} بیش از ۸۰ کاراکتر است.`);
+    const entryValue = String(raw.value ?? "").trim();
+    if (!entryValue) throw bad(`مقدارِ موردِ «${label}» خالی است.`);
+    if (entryValue.length > 300) throw bad(`مقدارِ موردِ «${label}» بیش از ۳۰۰ کاراکتر است.`);
+    if (kind === "link" && !/^https:\/\//i.test(entryValue))
+      throw bad(`لینکِ موردِ «${label}» باید با https:// شروع شود — برایِ شماره‌تلفن نوعِ «شماره تماس» را انتخاب کنید.`);
+    return { id: String(raw.id ?? `ce${i + 1}`), kind, label, value: entryValue };
+  });
 }
 
 /** والد: باید موجود باشد، خودش نباشد، و حلقه نسازد. */

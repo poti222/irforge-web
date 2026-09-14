@@ -7,6 +7,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import type { PanelButton } from "@/lib/panel-buttons";
 
+export type ContactEntryKind = "phone" | "address" | "email" | "link" | "text";
+export type ContactEntry = { id: string; kind: ContactEntryKind; label: string; value: string };
+
 export type PanelSettings = {
   timer_seconds?: number;
   password?: string;
@@ -14,6 +17,8 @@ export type PanelSettings = {
   capacity_used?: number;
   forward_groups?: string[];
   carousel_ids?: string[];
+  /** فقط برای نوعِ `contact_info` — لیستِ آزادِ موارد. */
+  contact_entries?: ContactEntry[];
   [key: string]: unknown;
 };
 

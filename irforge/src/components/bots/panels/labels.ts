@@ -31,3 +31,10 @@ export function buttonStyleLabel(t: PanelsLocale, style: string): string {
   const label = t[key];
   return typeof label === "string" ? label : style;
 }
+
+/** برچسبِ فارسیِ هر نوعِ موردِ «تماس و آدرس» (phone/address/email/link/text). */
+export function contactEntryKindLabel(t: PanelsLocale, kind: string): string {
+  const key = `contactEntryKind_${kind}` as keyof PanelsLocale;
+  const label = t[key];
+  return typeof label === "string" ? label : kind;
+}
