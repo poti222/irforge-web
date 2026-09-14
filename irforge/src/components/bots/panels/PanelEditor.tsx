@@ -38,7 +38,7 @@ import { panelTypeLabel } from "./labels";
 import { isMediaLikeType, isWalletLikeType, panelMediaItems, panelWalletMode, type MediaItemType } from "./mediaCollapse";
 import { SendViaBotButton, materializeSession, type CapturedContent, type MaterializedItem } from "@/components/bots/SendViaBotButton";
 import {
-  apiErrorMessage, usePanelReferences, useSetHomePanel, useTogglePanel, useUpdatePanel,
+  apiErrorMessage, useLinkPanel, usePanelReferences, useSetHomePanel, useTogglePanel, useUpdatePanel,
   type Panel, type PanelCatalog,
 } from "./api";
 
@@ -111,6 +111,24 @@ function effectiveTypeOf(panel: Panel): string {
   return isMediaLikeType(panel.type) ? "media" : isWalletLikeType(panel.type) ? "wallet" : panel.type;
 }
 
+/** نوادگانِ یک پنل (بازگشتی، از رویِ `children` که سرور از قبل ساخته) —
+ *  برای فیلترکردنِ گزینه‌هایِ «والدِ تازه» در تبِ ارجاعات: انتخابِ یکی از
+ *  نوادگان به‌عنوانِ والد یک حلقه می‌سازد (سرور هم همین را رد می‌کند،
+ *  `validateParent` در `routes/botPanels.ts`)، اینجا فقط زودتر از UI حذفش
+ *  می‌کنیم تا کاربر اصلاً نتواند انتخابش کند. */
+function collectDescendantIds(panels: Panel[], rootId: string): Set<string> {
+  const byId = new Map(panels.map((p) => [p.id, p]));
+  const out = new Set<string>();
+  const stack = [...(byId.get(rootId)?.children ?? [])];
+  while (stack.length) {
+    const id = stack.pop()!;
+    if (out.has(id)) continue;
+    out.add(id);
+    stack.push(...(byId.get(id)?.children ?? []));
+  }
+  return out;
+}
+
 export function PanelEditor({
   botId,
   panel,
@@ -134,10 +152,14 @@ export function PanelEditor({
   const update = useUpdatePanel(botId);
   const setHome = useSetHomePanel(botId);
   const toggle = useTogglePanel(botId);
+  const linkPanel = useLinkPanel(botId);
   const { data: forms = [] } = useFormOptions(botId);
   const references = usePanelReferences(botId, panel.id);
 
   const [tab, setTab] = useState<EditorTab>("content");
+  // null = «هنوز دست‌نخورده» → مقدار را از سرور (references.data.parent) نشان بده.
+  const [parentPick, setParentPick] = useState<string | null>(null);
+  const parentDescendantIds = useMemo(() => collectDescendantIds(panels, panel.id), [panels, panel.id]);
   const [title, setTitle] = useState(panel.title);
   // IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش B — نوعِ
   // اولیه همیشه یکی از پنج نوعِ تازه است، حتی برایِ پنلِ قدیمیِ
@@ -209,6 +231,34 @@ export function PanelEditor({
     setType(nextType);
   }
 
+  /** ذخیره‌ی والدِ تازه‌ی همین پنل (یا حذفش با انتخابِ «بدون والد») — تبِ
+   *  ارجاعات، برخلافِ بقیه‌ی فرم، بلافاصله ذخیره می‌کند، نه با دکمه‌ی
+   *  اصلیِ «ذخیره» (چون خودِ اندپوینتِ `/link` مستقل است، نه بخشی از PATCH). */
+  function saveParent(nextParentId: string | null) {
+    linkPanel.mutate(
+      { panelId: panel.id, parentId: nextParentId },
+      {
+        onSuccess: () => { toast({ title: t.refParentUpdated }); setParentPick(null); },
+        onError: (err: any) =>
+          toast({ variant: "destructive", title: t.errorGeneric, description: apiErrorMessage(err, t.errorGeneric) }),
+      }
+    );
+  }
+
+  /** جداکردنِ یک فرزند از همین پنل: والدِ *آن* پنل (نه این یکی) را خالی
+   *  می‌کند. برای تغییرِ والدِ فرزند به پنلِ دیگر (نه فقط حذف)، باید خودِ
+   *  همان پنل را باز و از تبِ ارجاعاتِ خودش والدش را عوض کرد. */
+  function detachChild(childId: string) {
+    linkPanel.mutate(
+      { panelId: childId, parentId: null },
+      {
+        onSuccess: () => toast({ title: t.refChildDetached }),
+        onError: (err: any) =>
+          toast({ variant: "destructive", title: t.errorGeneric, description: apiErrorMessage(err, t.errorGeneric) }),
+      }
+    );
+  }
+
   /** آیتم‌هایِ گرفته‌شده از «با بات بفرست» (بخشِ A) به لیستِ مدیایِ همین
    * پنل اضافه می‌شوند؛ اگر بینشان متن هم بود (کسی وسطِ فرستادنِ مدیا یک
    * پیامِ متنی هم فرستاده) و محتوایِ پنل هنوز خالی است، همان را می‌گذاریم. */
@@ -275,7 +325,25 @@ export function PanelEditor({
         },
       },
       {
-        onSuccess: ({ dropped }) => {
+        onSuccess: ({ panel: saved, dropped }) => {
+          // باگِ «سیو کردم ولی هنوز ذخیره‌نشده نشونش می‌ده»: تا اینجا state
+          // محلی (بالاخص `settings.media_items`ی نوعِ media و `settings.mode`ی
+          // نوعِ wallet) هرگز از رویِ چیزی که واقعاً ذخیره شد به‌روز نمی‌شد —
+          // فقط برایِ ساختِ بدنه‌ی PATCH موقتاً محاسبه می‌شدند. یعنی `dirty`
+          // (که local state را با `panel` prop تازه‌فچ‌شده مقایسه می‌کند) بعد
+          // از هر سیوِ پنلِ مدیایی/کیف‌پولی برای همیشه true می‌ماند و
+          // `confirmDiscardUnsaved()` جلویِ خروج از صفحه را می‌گیرد — حتی
+          // درست بعد از یک سیوِ موفق. اینجا همه‌ی state محلی را دقیقاً با
+          // همان چیزی که سرور برگردانده یکی می‌کنیم تا این کلاس از عدم‌تطابق
+          // (نه فقط این دو فیلد) دیگر پیش نیاید.
+          setTitle(saved.title);
+          setType(effectiveTypeOf(saved));
+          setContent(saved.content);
+          setMedia(mediaOf(saved));
+          setMediaMeta(mediaMetaOf(saved));
+          setRows(buttonsToRows(saved.buttons ?? []));
+          setSettings({ ...saved.settings });
+          setWalletMode(panelWalletMode(saved));
           toast({
             title: t.panelSaved,
             description: dropped?.length ? t.panelSavedWithDrop : undefined,
@@ -601,19 +669,61 @@ export function PanelEditor({
                 {references.isLoading && <Loader2 className="size-4 animate-spin" />}
                 {references.data && (
                   <>
-                    <div>
+                    <div className="space-y-2">
                       <p className="font-medium">{t.refParent}</p>
-                      <p className="text-muted-foreground">
-                        {references.data.parent?.title ?? t.refNone}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Select
+                          value={parentPick ?? (references.data.parent?.id ?? "__none__")}
+                          onValueChange={setParentPick}
+                        >
+                          <SelectTrigger className="w-full sm:w-64"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">{t.noParent}</SelectItem>
+                            {panels
+                              .filter((p) => p.id !== panel.id && !parentDescendantIds.has(p.id))
+                              .map((p) => (
+                                <SelectItem key={p.id} value={p.id}>{p.title || p.id}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="outline" size="sm"
+                          disabled={
+                            linkPanel.isPending ||
+                            (parentPick ?? (references.data.parent?.id ?? "__none__")) ===
+                              (references.data.parent?.id ?? "__none__")
+                          }
+                          onClick={() => {
+                            const picked = parentPick ?? "__none__";
+                            saveParent(picked === "__none__" ? null : picked);
+                          }}
+                        >
+                          {linkPanel.isPending
+                            ? <Loader2 className="me-1.5 size-4 animate-spin" />
+                            : null}
+                          {t.refSaveParent}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t.fieldParentHint}</p>
                     </div>
                     <div>
                       <p className="font-medium">{t.refChildren}</p>
                       {references.data.children.length === 0 ? (
                         <p className="text-muted-foreground">{t.refNone}</p>
                       ) : (
-                        <ul className="list-inside list-disc text-muted-foreground">
-                          {references.data.children.map((c) => <li key={c.id}>{c.title || c.id}</li>)}
+                        <ul className="space-y-1">
+                          {references.data.children.map((c) => (
+                            <li key={c.id} className="flex items-center justify-between gap-2">
+                              <span className="text-muted-foreground">• {c.title || c.id}</span>
+                              <Button
+                                variant="ghost" size="sm"
+                                disabled={linkPanel.isPending}
+                                onClick={() => detachChild(c.id)}
+                              >
+                                {t.refDetachChild}
+                              </Button>
+                            </li>
+                          ))}
                         </ul>
                       )}
                     </div>
