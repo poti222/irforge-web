@@ -19,6 +19,7 @@
     "superAdmin": "Super Admin",
     "pendingPayments": "Pending Payments",
     "sheetPool": "Sheet Pool",
+    "cutoverFlags": "Cutover Flags",
     "profileSettings": "Profile Settings",
     "toggleTheme": "Toggle Theme",
     "changeLanguage": "Change Language",

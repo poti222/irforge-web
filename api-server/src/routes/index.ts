@@ -14,6 +14,9 @@ import ticketsRouter from "./tickets.js";
 import botTicketsRouter from "./botTickets.js";
 import walletRouter from "./wallet.js";
 import databaseRouter from "./database.js";
+// IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فاز ۱ — سوییچِ سوپرادمین
+// برایِ Sheets/Postgresِ هر entity، به‌جایِ SQLِ دستی.
+import cutoverFlagsRouter from "./cutoverFlags.js";
 // FIX [Group 4]: Super Admin Code routes
 import superAdminRouter from "./superAdmin.js";
 // G8: اتصال با ربات (webhook دریافت آپدیت از تلگرام)
@@ -101,6 +104,7 @@ router.use(walletRouter);
 router.use(walletTopupRouter);
 router.use(walletTopupSmsWebhookRouter);
 router.use(databaseRouter);
+router.use(cutoverFlagsRouter);
 // FIX [Group 4]
 router.use(superAdminRouter);
 // G8

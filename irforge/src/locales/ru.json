@@ -19,6 +19,7 @@
     "superAdmin": "Суперадминистратор",
     "pendingPayments": "Ожидающие платежи",
     "sheetPool": "Пул таблиц",
+    "cutoverFlags": "Флаги перехода БД",
     "profileSettings": "Настройки профиля",
     "toggleTheme": "Сменить тему",
     "changeLanguage": "Сменить язык",

@@ -25,6 +25,7 @@ import {
   Languages,
   ClipboardList,
   Database,
+  ArrowLeftRight,
   Sparkles,
   ShoppingBag,
   Receipt,
@@ -245,6 +246,14 @@ export function AppSidebar() {
                     <Link href="/admin/sheet-pool" data-testid="nav-sheet-pool" onClick={closeMobileMenu}>
                       <Database />
                       <span>{nav.sheetPool}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location === "/admin/cutover-flags"} tooltip={nav.cutoverFlags}>
+                    <Link href="/admin/cutover-flags" data-testid="nav-cutover-flags" onClick={closeMobileMenu}>
+                      <ArrowLeftRight />
+                      <span>{nav.cutoverFlags}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
