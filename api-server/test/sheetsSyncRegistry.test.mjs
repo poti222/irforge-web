@@ -1,12 +1,17 @@
 /**
- * test/sheetsSyncRegistry.test.mjs — IRFORGE_BOTS_REGISTRY_POSTGRES_MIGRATION.
+ * test/sheetsSyncRegistry.test.mjs — IRFORGE_BOTS_REGISTRY_POSTGRES_MIGRATION,
+ * extended by IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فازِ ۳.
  *
  * `sheetsSync.ts`'s registry sync (`syncTenantUpsert`/`syncSheetPoolUpsert`)
- * is a fire-and-forget dual write: Sheets (as always) plus, when mainbot's
- * `tenant_registry` cutover flag is on, the same `BUSINESS_DATABASE_URL`
- * Postgres tables mainbot's own `business_repository.py` reads. This
- * sandbox has no live BUSINESS_DATABASE_URL (same limitation
- * mainbot/migrations/data/migrate_registry.py's own docstring notes), so:
+ * used to be an unconditional fire-and-forget dual write: Sheets always,
+ * plus, when mainbot's `tenant_registry` cutover flag is on, the same
+ * `BUSINESS_DATABASE_URL` Postgres tables mainbot's own
+ * `business_repository.py` reads. Phase 3 changed that: once
+ * `tenant_registry` is Postgres-authoritative, the Sheets write is now
+ * SKIPPED entirely (Postgres becomes the sole live write target — see the
+ * "Sheets skip" tests below). This sandbox has no live Google Sheets
+ * credentials (same limitation mainbot/migrations/data/migrate_registry.py's
+ * own docstring notes for its side), so:
  *
  *   - the pure value-building logic (is bot_token really encrypted, is the
  *     rest of the shape exactly what registry.py expects) is tested
@@ -15,14 +20,25 @@
  *     specifically so this doesn't need mocking Sheets or Postgres;
  *   - the Postgres write path is tested for its documented fail-open
  *     contract (no BUSINESS_DATABASE_URL configured -> resolves without
- *     throwing, exactly today's production reality pre-cutover).
+ *     throwing) AND, where a live BUSINESS_DATABASE_URL is configured
+ *     (this sandbox has a local Postgres 16 for exactly this), for a real
+ *     write-through — same convention cutoverFlags.test.mjs already uses;
+ *   - the "stop writing Sheets once cut over" behavior is a source-scan
+ *     assertion (this file has no live Sheets connection to observe an
+ *     actually-skipped network call against), matching the same
+ *     established pattern cutoverFlags.test.mjs uses for route gating.
  */
 process.env.BOT_TOKEN_ENCRYPTION_KEY ??= "c".repeat(64);
 process.env.DATABASE_URL ??= "postgresql://test:test@127.0.0.1:1/testdb";
-delete process.env.BUSINESS_DATABASE_URL;
 
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const sheetsSyncSource = readFileSync(join(__dirname, "../src/lib/sheetsSync.ts"), "utf-8");
 
 const { __testables } = await import("../src/lib/sheetsSync.ts");
 const { decryptToken } = await import("../src/lib/tokenCrypto.ts");
@@ -100,11 +116,125 @@ test("used_by is null unless status is exactly 'assigned'", () => {
 });
 
 // ─── registry Postgres write path — fail-open without BUSINESS_DATABASE_URL ─
+//
+// Each test here saves/restores process.env.BUSINESS_DATABASE_URL itself
+// (rather than the whole file deleting it once at import time) so these
+// can coexist with the live-Postgres tests further down in the same file.
 
 test("registryPgUpsert resolves without throwing when BUSINESS_DATABASE_URL is unset", async () => {
-  await registryPgUpsert("registry_tenants", "t1", { bot_token: "x" });
+  const saved = process.env.BUSINESS_DATABASE_URL;
+  delete process.env.BUSINESS_DATABASE_URL;
+  try {
+    await registryPgUpsert("registry_tenants", "t1", { bot_token: "x" });
+  } finally {
+    if (saved !== undefined) process.env.BUSINESS_DATABASE_URL = saved;
+  }
 });
 
 test("registryPgDelete resolves without throwing when BUSINESS_DATABASE_URL is unset", async () => {
-  await registryPgDelete("registry_tenants", "t1");
+  const saved = process.env.BUSINESS_DATABASE_URL;
+  delete process.env.BUSINESS_DATABASE_URL;
+  try {
+    await registryPgDelete("registry_tenants", "t1");
+  } finally {
+    if (saved !== undefined) process.env.BUSINESS_DATABASE_URL = saved;
+  }
 });
+
+// ─── Phase 3: stop the Sheets write once tenant_registry is cut over ───────
+//
+// No live Sheets credentials in this sandbox to observe an actually-skipped
+// network call against, so this is a source-scan proof (same established
+// pattern api-server/test/cutoverFlags.test.mjs uses for route gating):
+// each registry sync function must check isEntityOnPostgres("tenant_registry")
+// and return BEFORE reaching its Sheets write, positioned after (not
+// instead of) the unconditional Postgres write above it.
+
+function functionBody(name) {
+  const start = sheetsSyncSource.indexOf(`export function ${name}(`);
+  assert.ok(start >= 0, `${name} not found in sheetsSync.ts`);
+  const nextExport = sheetsSyncSource.indexOf("\nexport function ", start + 1);
+  return sheetsSyncSource.slice(start, nextExport >= 0 ? nextExport : undefined);
+}
+
+for (const name of ["syncTenantUpsert", "syncTenantDelete", "syncSheetPoolUpsert", "syncSheetPoolDelete"]) {
+  test(`${name} checks isEntityOnPostgres("tenant_registry") after the Postgres write, before the Sheets write`, () => {
+    const body = functionBody(name);
+    const pgCallIdx = body.search(/await registryPg(Upsert|Delete)\(/);
+    const guardIdx = body.indexOf('isEntityOnPostgres("tenant_registry")');
+    const sheetsWriteIdx = body.search(/await (upsertKV|deleteKVByKey)\(/);
+
+    assert.ok(pgCallIdx >= 0, `${name} must still call registryPgUpsert/Delete`);
+    assert.ok(guardIdx >= 0, `${name} must check isEntityOnPostgres("tenant_registry")`);
+    assert.ok(sheetsWriteIdx >= 0, `${name} must still have a Sheets write for the not-cut-over case`);
+    assert.ok(pgCallIdx < guardIdx, "the Postgres write must happen before the cutover check");
+    assert.ok(guardIdx < sheetsWriteIdx, "the cutover check must gate the Sheets write");
+  });
+}
+
+// ─── live Postgres — tenant_registry specifically drives the guard ────────
+
+test(
+  "isEntityOnPostgres('tenant_registry') reflects a real flip, and registryPgUpsert writes through when it's on",
+  { skip: !process.env.BUSINESS_DATABASE_URL && "no live BUSINESS_DATABASE_URL configured in this environment" },
+  async () => {
+    const pgModule = await import("pg");
+    const { Pool } = pgModule.default ?? pgModule;
+    const rawPool = new Pool({ connectionString: process.env.BUSINESS_DATABASE_URL });
+    const { isEntityOnPostgres, invalidateCutoverCache } = await import("../src/lib/botConfig.ts");
+
+    // registry_tenants has Row-Level Security (see sheetsSync.ts's own
+    // withRegistryTenantContext comment) -- this test runs against the
+    // real non-superuser irforge_app_runtime role (same as mainbot's own
+    // RLS test suite), so every statement touching that table, including
+    // this test's own verification SELECT and cleanup DELETE, must set
+    // app.tenant_id in the same transaction or RLS silently hides the row.
+    async function asRegistryTenant(sql, params = []) {
+      const client = await rawPool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SET LOCAL app.tenant_id = '__registry__'");
+        const result = await client.query(sql, params);
+        await client.query("COMMIT");
+        return result;
+      } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+
+    try {
+      await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = 'tenant_registry' AND tenant_id IS NULL");
+      await asRegistryTenant("DELETE FROM registry_tenants WHERE tenant_id = '__registry__' AND id = 'phase3-test-token'");
+      invalidateCutoverCache();
+
+      assert.equal(await isEntityOnPostgres("tenant_registry"), false, "defaults to Sheets-authoritative");
+
+      await rawPool.query(
+        "INSERT INTO entity_cutover_flags (entity_name, tenant_id, use_db) VALUES ('tenant_registry', NULL, true)"
+      );
+      invalidateCutoverCache();
+      assert.equal(await isEntityOnPostgres("tenant_registry"), true);
+
+      await registryPgUpsert("registry_tenants", "phase3-test-token", { bot_token: "encrypted-value" });
+      const { rows } = await asRegistryTenant(
+        "SELECT value FROM registry_tenants WHERE tenant_id = '__registry__' AND id = 'phase3-test-token'"
+      );
+      assert.equal(rows.length, 1, "registryPgUpsert must actually write the row when tenant_registry is on");
+      assert.equal(rows[0].value.bot_token, "encrypted-value");
+
+      await registryPgDelete("registry_tenants", "phase3-test-token");
+      const after = await asRegistryTenant(
+        "SELECT value FROM registry_tenants WHERE tenant_id = '__registry__' AND id = 'phase3-test-token'"
+      );
+      assert.equal(after.rows.length, 0, "registryPgDelete must actually remove the row when tenant_registry is on");
+    } finally {
+      await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = 'tenant_registry' AND tenant_id IS NULL");
+      await asRegistryTenant("DELETE FROM registry_tenants WHERE tenant_id = '__registry__' AND id = 'phase3-test-token'");
+      invalidateCutoverCache();
+      await rawPool.end();
+    }
+  }
+);

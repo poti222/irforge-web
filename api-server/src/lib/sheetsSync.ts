@@ -39,6 +39,7 @@
  *                            E: status (pending|done|failed)
  */
 
+import pg from "pg";
 import { appendSheet, readSheet, writeSheet, clearSheet, listTabs, addTab } from "./sheets.js";
 import { logger } from "./logger.js";
 import { encryptToken } from "./tokenCrypto.js";
@@ -237,15 +238,69 @@ function bg(fn: () => Promise<unknown>, label: string) {
 // never reach mainbot's runtime — there is no request/response cycle here
 // to show an error on, this is a fire-and-forget background sync.
 //
-// So this is a genuine DUAL WRITE, not a "write to whichever is
-// authoritative" switch like `botConfig.ts` uses for `bot_settings`: keep
-// writing Sheets exactly as before (best-effort, unconditionally) AND, when
-// the flag is on, also best-effort write straight to the same Postgres
-// tables mainbot's `business_repository.py` (kv_mode) reads — mirroring its
-// exact upsert SQL, same `tenant_id = '__registry__'` partition. A stopped
-// Sheets write during the migration window is an acceptable staging risk;
-// mainbot's registry never seeing a purchased bot at all is not.
+// So until this cuts over, it's a genuine DUAL WRITE (not the "write to
+// whichever is authoritative" clean switch `botConfig.ts` already uses for
+// `bot_settings`): keep writing Sheets exactly as before (best-effort,
+// unconditionally) AND, when the flag is on, also best-effort write
+// straight to the same Postgres tables mainbot's `business_repository.py`
+// (kv_mode) reads — mirroring its exact upsert SQL, same
+// `tenant_id = '__registry__'` partition. A stopped Sheets write during the
+// migration window is an acceptable staging risk; mainbot's registry never
+// seeing a purchased bot at all is not.
+//
+// IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT Phase 3 — this was the one
+// mechanically real, unconditional Sheets dual-write anywhere in this file
+// (every other tab above is a mirror of THIS service's own Drizzle data,
+// not of mainbot's per-tenant Postgres, so none of them had a dual-write to
+// stop — see PROGRESS.md's فازِ ۳ entry for that full audit). Once
+// `tenant_registry` is Postgres-authoritative, the functions below now
+// SKIP the Sheets write entirely instead of doing both forever: Postgres
+// becomes the sole live write target, matching every other entity's clean
+// switch, and mainbot's own services/postgres_sheets_backup.py (24h
+// periodic export) keeps the registry spreadsheet as a last-known-good
+// backup instead of a live mirror.
 const REGISTRY_PG_PARTITION = "__registry__";
+
+/**
+ * Both registry_tenants/registry_sheet_pool have Row-Level Security
+ * (mainbot's migrations/sql/0028_row_level_security.sql, which every
+ * per-tenant table gets, this pair included -- they're the one existing
+ * exception to "tenant_id = spreadsheet_id" per this file's own header
+ * comment, but they still get RLS like everything else). RLS is enforced
+ * via `current_setting('app.tenant_id', true)`, which a plain
+ * `pool.query(...)` never sets -- discovered while building Phase 3's own
+ * tests against a real non-superuser role (mainbot's PROGRESS.md already
+ * flagged this exact class of gap: a superuser silently bypasses RLS, so
+ * this went unnoticed until tested as a properly-scoped role, the shape
+ * the real BUSINESS_DATABASE_URL role should be). Without this, every
+ * registryPgUpsert/Delete call would silently write/delete ZERO rows the
+ * moment tenant_registry is cut over in production against a correctly
+ * non-superuser role -- exactly the entity this phase makes Postgres the
+ * SOLE live write target for, so this had to be fixed here, not just
+ * documented. `SET LOCAL` is transaction-scoped, so it must run on the
+ * same checked-out client, inside the same transaction, as the write.
+ */
+async function withRegistryTenantContext<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T | undefined> {
+  const pool = getCutoverPool();
+  if (!pool) return undefined;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // SET LOCAL does not accept a bind parameter ($1) -- Postgres requires
+    // a literal there, not a protocol-level parameter. Safe to inline
+    // directly: REGISTRY_PG_PARTITION is the fixed "__registry__" constant
+    // above, never user input.
+    await client.query(`SET LOCAL app.tenant_id = '${REGISTRY_PG_PARTITION}'`);
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
 async function registryPgUpsert(
   table: "registry_tenants" | "registry_sheet_pool",
@@ -253,13 +308,13 @@ async function registryPgUpsert(
   value: object,
 ): Promise<void> {
   if (!(await isEntityOnPostgres("tenant_registry"))) return;
-  const pool = getCutoverPool();
-  if (!pool) return;
   try {
-    await pool.query(
-      `INSERT INTO ${table} (tenant_id, id, value) VALUES ($1, $2, $3) ` +
-        `ON CONFLICT (tenant_id, id) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
-      [REGISTRY_PG_PARTITION, key, value],
+    await withRegistryTenantContext((client) =>
+      client.query(
+        `INSERT INTO ${table} (tenant_id, id, value) VALUES ($1, $2, $3) ` +
+          `ON CONFLICT (tenant_id, id) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+        [REGISTRY_PG_PARTITION, key, value],
+      )
     );
   } catch (err) {
     logger.warn({ err, table, key }, "registryPgUpsert failed (non-fatal, Sheets write still applies)");
@@ -268,10 +323,10 @@ async function registryPgUpsert(
 
 async function registryPgDelete(table: "registry_tenants" | "registry_sheet_pool", key: string): Promise<void> {
   if (!(await isEntityOnPostgres("tenant_registry"))) return;
-  const pool = getCutoverPool();
-  if (!pool) return;
   try {
-    await pool.query(`DELETE FROM ${table} WHERE tenant_id = $1 AND id = $2`, [REGISTRY_PG_PARTITION, key]);
+    await withRegistryTenantContext((client) =>
+      client.query(`DELETE FROM ${table} WHERE tenant_id = $1 AND id = $2`, [REGISTRY_PG_PARTITION, key])
+    );
   } catch (err) {
     logger.warn({ err, table, key }, "registryPgDelete failed (non-fatal, Sheets delete still applies)");
   }
@@ -566,6 +621,11 @@ export function syncTenantUpsert(tenant: TenantUpsertInput) {
 
     await registryPgUpsert("registry_tenants", tenant.bot_token, value);
 
+    // Phase 3 (IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT): stop the
+    // live Sheets write once Postgres is authoritative -- see this file's
+    // header comment on registryPgUpsert for why.
+    if (await isEntityOnPostgres("tenant_registry")) return;
+
     const spreadsheetId = registrySheetId();
     if (!spreadsheetId) return;
     await upsertKV(spreadsheetId, "tenants", tenant.bot_token, value);
@@ -575,6 +635,7 @@ export function syncTenantUpsert(tenant: TenantUpsertInput) {
 export function syncTenantDelete(botToken: string) {
   bg(async () => {
     await registryPgDelete("registry_tenants", botToken);
+    if (await isEntityOnPostgres("tenant_registry")) return;
     const spreadsheetId = registrySheetId();
     if (!spreadsheetId) return;
     await deleteKVByKey(spreadsheetId, "tenants", botToken);
@@ -618,6 +679,7 @@ export function syncSheetPoolUpsert(entry: SheetPoolUpsertInput) {
 
     await registryPgUpsert("registry_sheet_pool", entry.sheet_id, value);
 
+    if (await isEntityOnPostgres("tenant_registry")) return;
     const spreadsheetId = registrySheetId();
     if (!spreadsheetId) return;
     await upsertKV(spreadsheetId, "sheet_pool", entry.sheet_id, value);
@@ -628,6 +690,7 @@ export function syncSheetPoolUpsert(entry: SheetPoolUpsertInput) {
 export function syncSheetPoolDelete(sheetId: string) {
   bg(async () => {
     await registryPgDelete("registry_sheet_pool", sheetId);
+    if (await isEntityOnPostgres("tenant_registry")) return;
     const spreadsheetId = registrySheetId();
     if (!spreadsheetId) return;
     await deleteKVByKey(spreadsheetId, "sheet_pool", sheetId);
