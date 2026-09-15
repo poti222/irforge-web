@@ -755,7 +755,8 @@ export async function ensureTabsExist(spreadsheetId: string, titles: readonly st
       },
     });
   } catch (err) {
-    logger.error({ err, spreadsheetId, missing }, "ensureTabsExist: batch addSheet failed");
+    const correlationId = attachCorrelationId(err);
+    logger.error({ err, spreadsheetId, missing, correlationId }, "ensureTabsExist: batch addSheet failed");
     throw err;
   }
 
@@ -766,7 +767,8 @@ export async function ensureTabsExist(spreadsheetId: string, titles: readonly st
     try {
       await writeSheet(spreadsheetId, `${quoteTab(title)}!A1`, [["key", "value"]]);
     } catch (err) {
-      logger.error({ err, spreadsheetId, title }, "ensureTabsExist: header write failed");
+      const correlationId = attachCorrelationId(err);
+      logger.error({ err, spreadsheetId, title, correlationId }, "ensureTabsExist: header write failed");
     }
   }
 }
