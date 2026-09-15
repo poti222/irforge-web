@@ -696,6 +696,14 @@ CREATE TABLE IF NOT EXISTS bot_upload_sessions (
 );
 CREATE INDEX IF NOT EXISTS bot_upload_sessions_chat_idx ON bot_upload_sessions(chat_id, status);
 
+-- IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش A — جلسه قبلاً
+-- فقط یک پیام ضبط می‌کرد (همان ستون‌های تکیِ بالا: media_type/file_id/
+-- content/entities). حالا یک لیست است تا «چند چیز بفرست، در پایان تأیید
+-- کن» ممکن شود؛ ستون‌های قدیمی دست‌نخورده می‌مانند (بی‌ضرر، دیگر نوشته
+-- نمی‌شوند) چون این یک جدولِ حالتِ گذراست (TTL کوتاه)، نه دیتای کاربر —
+-- حذفشان هیچ سودی نداشت جز ریسکِ یک migration اضافه.
+ALTER TABLE bot_upload_sessions ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb;
+
 -- ─── تحویل اعلان در تلگرام ──────────────────────────────────────────────────
 -- اعلان‌های سایت علاوه بر زنگوله، در بات پلتفرم هم فرستاده می‌شوند؛ این ستون
 -- سوئیچ خاموش‌کردنش برای هر کاربر است (پیش‌فرض روشن).
@@ -812,6 +820,17 @@ ON CONFLICT (id) DO NOTHING;
 -- سوپرادمین راهی برای تغییرش نداشت. NULL یعنی بات‌های قدیمی‌تر که پیش از
 -- این ستون ساخته شده‌اند — نه یک باگ، فقط «نامعلوم» است.
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS tier TEXT;
+
+-- IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — استاندارد/پرو ماهانه‌اند: بعد از این
+-- تاریخ، اگر شارژِ خودکار (lib/tierExpiry.ts) ناموفق باشد، بات خاموش
+-- می‌شود تا تمدید شود. تصمیمِ صریحِ کاربر: این باید عقب‌گرد هم بخورد — همه‌ی
+-- بات‌هایِ استاندارد/پروی موجود هم از همین لحظه یک دوره‌ی یک‌ماهه می‌گیرند،
+-- نه فقط خریدهایِ تازه؛ بدونِ این backfill، بات‌هایِ قدیمی هیچ‌وقت expire
+-- نمی‌شدند چون این ستون NULL می‌ماند (لوپِ sweep فقط رویِ NOT NULL کار
+-- می‌کند، پایین‌تر در tierExpiry.ts).
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS tier_expires_at TIMESTAMPTZ;
+UPDATE bots SET tier_expires_at = NOW() + INTERVAL '1 month'
+  WHERE tier IN ('standard', 'pro') AND tier_expires_at IS NULL;
 
 -- ─── WALLET_TOPUPS (BluBank open-amount link + auto SMS matching) ─────────
 -- یک لینکِ پرداختِ بلوبانکِ مبلغ‌باز برای همه‌ی مبالغ. هر سفارش عددِ یکتای
@@ -940,6 +959,55 @@ VALUES
    '{"ramGb":3,"cpuCores":3,"maxBots":3,"maxFreePlugins":6,"maxConcurrentUsers":250,"popular":true,"accent":"from-amber-400 to-yellow-300"}',
    1)
 ON CONFLICT (id) DO NOTHING;
+
+-- IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۳ — یک هفتمین دسته، مخصوصِ
+-- بسته‌هایِ چندپلاگینیِ سایت (نه یک ویژگیِ جدا مثلِ شش دسته‌ی بالا). فقط یک
+-- عضو دارد امروز: «فروشگاه‌ساز» (کاتالوگ + کیف پول، یک خریدِ واحد به‌جای دو
+-- خریدِ جدا) — نگاه کن lib/pluginPricing.ts::getStorefrontProduct(). عمداً
+-- *بعدِ* سیدِ استاندارد/پرو آمده تا test/products.test.mjs's own
+-- migrateSource.split("INSERT INTO products")[1] (که فرض می‌کند اولین
+-- رخدادِ این رشته همان بلوکِ استاندارد/پرو است) به‌هم نریزد. (هیچ backtick ای
+-- اینجا مجاز نیست — کلِ این بلوک داخلِ یک template literal است.)
+INSERT INTO product_categories (id, label_fa, label_en, icon, sort_order)
+VALUES
+  ('plugin_bundle', 'بسته‌ی پلاگین', 'Plugin Bundle', 'PackagePlus', 6)
+ON CONFLICT (id) DO NOTHING;
+
+-- قیمت: کاتالوگ (۱۵۰٬۰۰۰) + کیف‌پول (۱۲۰٬۰۰۰) جدا یعنی ۲۷۰٬۰۰۰ تومان؛ بسته
+-- با ۲۲۰٬۰۰۰ (۲٬۲۰۰٬۰۰۰ ریال) قیمت‌گذاری شده — تخفیفِ محسوس برایِ خریدِ یک‌جا،
+-- ولی این عددِ دقیق یک تصمیمِ تجاریِ قابل‌تغییر است؛ از همینجا (یا پنلِ ادمینِ
+-- محصولات، بدون دیپلوی) قابلِ ویرایش می‌ماند، دقیقاً مثلِ استاندارد/پرو.
+INSERT INTO products (id, category_id, name, name_fa, description, description_fa, price, icon, metadata, sort_order)
+VALUES
+  ('storefront', 'plugin_bundle', 'Storefront', 'فروشگاه‌ساز',
+   'Catalog + Wallet in one purchase — sell products and let customers pay from an in-bot balance.',
+   'کاتالوگ + کیف‌پول در یک خرید — فروشِ محصول و پرداخت از موجودیِ داخلِ بات.',
+   2200000, 'Store',
+   '{"bundledPluginIds":["catalog","wallet"]}',
+   0)
+ON CONFLICT (id) DO NOTHING;
+
+-- ─── PRODUCT_PURCHASES ─────────────────────────────────────────────────────
+-- IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section A — a purchase record for
+-- non-bot products (bots already have their own purchase record: the
+-- bots table itself). No route writes to this table yet: self-serve
+-- checkout for these five categories doesn't exist anywhere in the app
+-- today, and building one was explicitly out of scope for this section
+-- (see PROGRESS.md). This table exists so "My Products" has something real
+-- to query the moment a purchase path (checkout or a manual admin grant)
+-- is built, instead of that future work also needing its own migration.
+CREATE TABLE IF NOT EXISTS product_purchases (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  product_id TEXT NOT NULL REFERENCES products(id),
+  status TEXT NOT NULL DEFAULT 'active',
+  metadata JSONB NOT NULL DEFAULT '{}',
+  purchased_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS product_purchases_user_id_idx ON product_purchases(user_id);
+CREATE INDEX IF NOT EXISTS product_purchases_product_id_idx ON product_purchases(product_id);
 
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely

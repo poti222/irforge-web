@@ -166,6 +166,10 @@ export const BotStatus = {
   payment_rejected: 'payment_rejected',
   // تریال ۷ روزه: وقتی مهلت تمام می‌شود بات به این وضعیت می‌رود.
   expired: 'expired',
+  // IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — پکیج ماهانه (استاندارد/پرو) تمام
+  // شده و شارژِ خودکار ناموفق بوده؛ فقط lib/tierExpiry.ts یا POST
+  // .../renew این را عوض می‌کند.
+  tier_expired: 'tier_expired',
 } as const;
 
 export interface Bot {
@@ -206,6 +210,11 @@ export interface Bot {
   trialExpiresAt?: string | null;
   /** روزهای باقی‌مانده تا پایان تریال؛ برای بات‌های غیرتریال همیشه null. @nullable */
   trialDaysLeft?: number | null;
+  // ─── IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT: پکیجِ ماهانه (استاندارد/پرو) ───
+  /** تاریخِ پایانِ دوره‌ی فعلیِ پکیج؛ برای بات‌های بدون tier ماهانه null. @nullable */
+  tierExpiresAt?: string | null;
+  /** روزهای باقی‌مانده تا پایانِ دوره‌ی پکیج؛ برای بات‌های بدون tierExpiresAt همیشه null. @nullable */
+  tierDaysLeft?: number | null;
   createdAt: string;
   updatedAt: string;
 }

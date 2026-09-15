@@ -13,7 +13,23 @@ process.env.DATABASE_URL ??= "postgresql://test:test@127.0.0.1:1/testdb";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { extractContent } = await import("../src/lib/uploadSessions.ts");
+const { extractContent, SINGLE_ITEM_KINDS } = await import("../src/lib/uploadSessions.ts");
+
+// `appendItem`/`finishSession`ی جدید (IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_
+// VPNDELIVERY_PROMPT بخش A) از `sql\`... || ...::jsonb\`` و یک شرطِ
+// `jsonb_array_length(...) > 0` داخلِ خودِ کوئری استفاده می‌کنند — درست
+// مثلِ چرخه‌ی قدیمیِ markWaiting/fillSession، این‌ها روی یک Postgres واقعی
+// دستی راستی‌آزمایی شده‌اند، نه اینجا (یک فیکِ db.update فقط آبجکتِ .set()
+// را ضبط می‌کند، رفتارِ واقعیِ SQL را اجرا نمی‌کند). آنچه اینجا خالص و
+// قابلِ‌تست است همان‌هایی است که پایین می‌آید.
+
+test("SINGLE_ITEM_KINDS: فقط kindهایِ تک‌آیتمیِ شناخته‌شده را دارد", () => {
+  assert.equal(SINGLE_ITEM_KINDS.has("broadcast"), true);
+  assert.equal(SINGLE_ITEM_KINDS.has("command_media"), true);
+  assert.equal(SINGLE_ITEM_KINDS.has("drip_media"), true);
+  assert.equal(SINGLE_ITEM_KINDS.has("pool_item"), true);
+  assert.equal(SINGLE_ITEM_KINDS.has("panel_media"), false, "panel_media باید چند-آیتمی بماند (پنلِ «رسانه»ی بخشِ B)");
+});
 
 test("عکس: بزرگ‌ترین اندازه انتخاب می‌شود، نه اولی", () => {
   // تلگرام آرایه را از کوچک به بزرگ می‌دهد؛ برداشتن [0] یعنی فرستادن
@@ -24,7 +40,7 @@ test("عکس: بزرگ‌ترین اندازه انتخاب می‌شود، نه
     caption: "توضیح",
     caption_entities: [{ type: "bold", offset: 0, length: 5 }],
   });
-  assert.equal(out.mediaType, "photo");
+  assert.equal(out.type, "photo");
   assert.equal(out.fileId, "full");
   assert.equal(out.content, "توضیح");
   assert.equal(out.entities.length, 1);
@@ -36,28 +52,28 @@ test("متن با entities حفظ می‌شود", () => {
     text: "سلام دنیا",
     entities: [{ type: "bold", offset: 0, length: 4 }],
   });
-  assert.equal(out.mediaType, "text");
+  assert.equal(out.type, "text");
   assert.equal(out.fileId, null);
   assert.equal(out.content, "سلام دنیا");
   assert.equal(out.entities[0].type, "bold");
 });
 
 test("ویس و صوت از هم تفکیک می‌شوند", () => {
-  assert.equal(extractContent({ message_id: 3, voice: { file_id: "v" } }).mediaType, "voice");
-  assert.equal(extractContent({ message_id: 4, audio: { file_id: "a" } }).mediaType, "audio");
+  assert.equal(extractContent({ message_id: 3, voice: { file_id: "v" } }).type, "voice");
+  assert.equal(extractContent({ message_id: 4, audio: { file_id: "a" } }).type, "audio");
 });
 
 test("ویدیو، فایل و گیف هم شناخته می‌شوند", () => {
-  assert.equal(extractContent({ message_id: 5, video: { file_id: "x" } }).mediaType, "video");
-  assert.equal(extractContent({ message_id: 6, document: { file_id: "x" } }).mediaType, "document");
-  assert.equal(extractContent({ message_id: 7, animation: { file_id: "x" } }).mediaType, "animation");
+  assert.equal(extractContent({ message_id: 5, video: { file_id: "x" } }).type, "video");
+  assert.equal(extractContent({ message_id: 6, document: { file_id: "x" } }).type, "document");
+  assert.equal(extractContent({ message_id: 7, animation: { file_id: "x" } }).type, "animation");
 });
 
 test("مدیا بر متن اولویت دارد", () => {
   // یک عکس با کپشن هم `photo` دارد هم `caption`؛ اگر متن برنده شود، عکس گم
   // می‌شود و کاربران فقط کپشن را می‌گیرند.
   const out = extractContent({ message_id: 8, photo: [{ file_id: "p" }], caption: "کپشن" });
-  assert.equal(out.mediaType, "photo");
+  assert.equal(out.type, "photo");
   assert.equal(out.content, "کپشن");
 });
 
@@ -76,6 +92,6 @@ test("پیام بدون message_id رد می‌شود", () => {
 
 test("مدیای بدون file_id به متن سقوط می‌کند، نه به مدیای شکسته", () => {
   const out = extractContent({ message_id: 13, photo: [{}], text: "پشتیبان" });
-  assert.equal(out.mediaType, "text");
+  assert.equal(out.type, "text");
   assert.equal(out.content, "پشتیبان");
 });

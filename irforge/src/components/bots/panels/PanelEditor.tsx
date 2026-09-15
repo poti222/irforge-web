@@ -35,8 +35,10 @@ import { ButtonBuilder } from "./ButtonBuilder";
 import { PanelPreview } from "./PanelPreview";
 import { MediaList, type MediaMeta } from "./MediaList";
 import { panelTypeLabel } from "./labels";
+import { isMediaLikeType, isWalletLikeType, panelMediaItems, panelWalletMode, type MediaItemType } from "./mediaCollapse";
+import { SendViaBotButton, materializeSession, type CapturedContent, type MaterializedItem } from "@/components/bots/SendViaBotButton";
 import {
-  apiErrorMessage, usePanelReferences, useSetHomePanel, useTogglePanel, useUpdatePanel,
+  apiErrorMessage, useLinkPanel, usePanelReferences, useSetHomePanel, useTogglePanel, useUpdatePanel,
   type Panel, type PanelCatalog,
 } from "./api";
 
@@ -89,13 +91,42 @@ function useSellCatalogOptions(botId: string, itemId: string) {
   });
 }
 
-/** مدیای پنل، به‌صورت یک لیست واحد — بدون توجه به اینکه روی شیت دو جا ذخیره می‌شود. */
+/** مدیای پنل، به‌صورت یک لیست واحد — بدون توجه به اینکه شکلِ ذخیره‌شده
+ * قدیمی است (`media_file_id`/`carousel_ids`) یا تازه (`settings.media_items`). */
 function mediaOf(panel: Panel): string[] {
-  const carousel = Array.isArray(panel.settings?.carousel_ids)
-    ? (panel.settings.carousel_ids as string[]).filter(Boolean)
-    : [];
-  if (carousel.length) return carousel;
-  return panel.media_file_id ? [panel.media_file_id] : [];
+  return panelMediaItems(panel).map((it) => it.file_id);
+}
+
+/** نوعِ واقعیِ هر فایل — برایِ پرکردنِ اولیه‌یِ `mediaMeta` از رویِ داده‌یِ
+ * ذخیره‌شده، بدونِ نیازِ به حدس‌زدن دوباره در مرورگر. */
+function mediaMetaOf(panel: Panel): Record<string, MediaMeta> {
+  const out: Record<string, MediaMeta> = {};
+  for (const it of panelMediaItems(panel)) out[it.file_id] = { kind: it.type, duration: null };
+  return out;
+}
+
+/** نوعی که ویرایشگر باید نشان دهد — قدیمی یا تازه، فرقی نمی‌کند، همیشه
+ * یکی از پنج نوعِ ادغام‌شده. */
+function effectiveTypeOf(panel: Panel): string {
+  return isMediaLikeType(panel.type) ? "media" : isWalletLikeType(panel.type) ? "wallet" : panel.type;
+}
+
+/** نوادگانِ یک پنل (بازگشتی، از رویِ `children` که سرور از قبل ساخته) —
+ *  برای فیلترکردنِ گزینه‌هایِ «والدِ تازه» در تبِ ارجاعات: انتخابِ یکی از
+ *  نوادگان به‌عنوانِ والد یک حلقه می‌سازد (سرور هم همین را رد می‌کند،
+ *  `validateParent` در `routes/botPanels.ts`)، اینجا فقط زودتر از UI حذفش
+ *  می‌کنیم تا کاربر اصلاً نتواند انتخابش کند. */
+function collectDescendantIds(panels: Panel[], rootId: string): Set<string> {
+  const byId = new Map(panels.map((p) => [p.id, p]));
+  const out = new Set<string>();
+  const stack = [...(byId.get(rootId)?.children ?? [])];
+  while (stack.length) {
+    const id = stack.pop()!;
+    if (out.has(id)) continue;
+    out.add(id);
+    stack.push(...(byId.get(id)?.children ?? []));
+  }
+  return out;
 }
 
 export function PanelEditor({
@@ -121,21 +152,30 @@ export function PanelEditor({
   const update = useUpdatePanel(botId);
   const setHome = useSetHomePanel(botId);
   const toggle = useTogglePanel(botId);
+  const linkPanel = useLinkPanel(botId);
   const { data: forms = [] } = useFormOptions(botId);
   const references = usePanelReferences(botId, panel.id);
 
   const [tab, setTab] = useState<EditorTab>("content");
+  // null = «هنوز دست‌نخورده» → مقدار را از سرور (references.data.parent) نشان بده.
+  const [parentPick, setParentPick] = useState<string | null>(null);
+  const parentDescendantIds = useMemo(() => collectDescendantIds(panels, panel.id), [panels, panel.id]);
   const [title, setTitle] = useState(panel.title);
-  const [type, setType] = useState(panel.type);
+  // IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش B — نوعِ
+  // اولیه همیشه یکی از پنج نوعِ تازه است، حتی برایِ پنلِ قدیمیِ
+  // هنوز-مهاجرت‌نکرده (text/photo/carousel/video/audio/document → «media»،
+  // wallet_balance → «wallet»). ذخیره همیشه با همین نوعِ تازه می‌رود، یعنی
+  // هر پنلی که از اینجا ویرایش و ذخیره شود همان‌جا هم مهاجرت می‌کند.
+  const [type, setType] = useState(() => effectiveTypeOf(panel));
   const [content, setContent] = useState(panel.content);
   const [media, setMedia] = useState<string[]>(() => mediaOf(panel));
-  const [mediaMeta, setMediaMeta] = useState<Record<string, MediaMeta>>({});
+  const [mediaMeta, setMediaMeta] = useState<Record<string, MediaMeta>>(() => mediaMetaOf(panel));
   const [rows, setRows] = useState<PanelButton[][]>(() => buttonsToRows(panel.buttons ?? []));
   const [settings, setSettings] = useState<Record<string, unknown>>(() => ({ ...panel.settings }));
+  const [walletMode, setWalletMode] = useState<"shared" | "personal">(() => panelWalletMode(panel));
   const [pendingType, setPendingType] = useState<string | null>(null);
 
-  const multiMedia = (catalog?.multiMediaTypes ?? ["carousel"]).includes(type);
-  const textOnly = (catalog?.textOnlyTypes ?? ["text", "form", "sell"]).includes(type);
+  const showMedia = type === "media";
 
   const sellCatalogItemId = String(settings.catalog_item_id ?? "");
   const { data: sellCatalogItemsData, isLoading: sellCatalogItemsLoading } =
@@ -150,27 +190,27 @@ export function PanelEditor({
   const dirty = useMemo(() => {
     const before = {
       title: panel.title,
-      type: panel.type,
+      type: effectiveTypeOf(panel),
       content: panel.content,
       media: mediaOf(panel),
       buttons: rowsToButtons(buttonsToRows(panel.buttons ?? [])),
       settings: panel.settings ?? {},
+      walletMode: panelWalletMode(panel),
     };
-    const now = { title, type, content, media, buttons: rowsToButtons(rows), settings };
+    const now = { title, type, content, media, buttons: rowsToButtons(rows), settings, walletMode };
     return JSON.stringify(before) !== JSON.stringify(now);
-  }, [panel, title, type, content, media, rows, settings]);
+  }, [panel, title, type, content, media, rows, settings, walletMode]);
 
   // باگ B1: ترک صفحه با کار ذخیره‌نشده نباید بی‌صدا باشد.
   useUnsavedGuard(`panel:${panel.id}`, dirty);
 
   const tooFull = overfullRows(rows);
 
-  /** آنچه با تغییر نوع از دست می‌رود — قبل از اعمال به کاربر گفته می‌شود (B5). */
+  /** آنچه با تغییر نوع از دست می‌رود — قبل از اعمال به کاربر گفته می‌شود (B5).
+   * تنها نوعی که مدیا می‌گیرد «media» است؛ رفتن به هر نوعِ دیگری یعنی هر چه
+   * آیتمِ مدیا بوده پاک می‌شود. */
   function lossOfChangingTypeTo(nextType: string): string | null {
-    const nextTextOnly = (catalog?.textOnlyTypes ?? ["text", "form", "sell"]).includes(nextType);
-    const nextMulti = (catalog?.multiMediaTypes ?? ["carousel"]).includes(nextType);
-    if (nextTextOnly && media.length > 0) return t.typeChangeDropsAllMedia;
-    if (!nextMulti && media.length > 1) return t.typeChangeDropsExtraMedia.replace("{n}", String(media.length - 1));
+    if (type === "media" && nextType !== "media" && media.length > 0) return t.typeChangeDropsAllMedia;
     return null;
   }
 
@@ -183,23 +223,68 @@ export function PanelEditor({
     setType(nextType);
   }
 
-  /** کاربر خواست مدیای دومی اضافه کند — نوع پنل را به اولین نوع
-      چندمدیایی که کاتالوگ می‌شناسد ارتقا می‌دهیم (هیچ مدیایی از دست
-      نمی‌رود، پس نیازی به هشدار افت داده نیست). */
-  function promoteToMultiMedia() {
-    const [multiType] = catalog?.multiMediaTypes ?? ["carousel"];
-    if (multiType && multiType !== type) setType(multiType);
-  }
-
   function applyPendingType() {
     const nextType = pendingType;
     setPendingType(null);
     if (!nextType) return;
-    const nextTextOnly = (catalog?.textOnlyTypes ?? ["text", "form", "sell"]).includes(nextType);
-    const nextMulti = (catalog?.multiMediaTypes ?? ["carousel"]).includes(nextType);
-    if (nextTextOnly) setMedia([]);
-    else if (!nextMulti && media.length > 1) setMedia(media.slice(0, 1));
+    if (nextType !== "media") setMedia([]);
     setType(nextType);
+  }
+
+  /** ذخیره‌ی والدِ تازه‌ی همین پنل (یا حذفش با انتخابِ «بدون والد») — تبِ
+   *  ارجاعات، برخلافِ بقیه‌ی فرم، بلافاصله ذخیره می‌کند، نه با دکمه‌ی
+   *  اصلیِ «ذخیره» (چون خودِ اندپوینتِ `/link` مستقل است، نه بخشی از PATCH). */
+  function saveParent(nextParentId: string | null) {
+    linkPanel.mutate(
+      { panelId: panel.id, parentId: nextParentId },
+      {
+        onSuccess: () => { toast({ title: t.refParentUpdated }); setParentPick(null); },
+        onError: (err: any) =>
+          toast({ variant: "destructive", title: t.errorGeneric, description: apiErrorMessage(err, t.errorGeneric) }),
+      }
+    );
+  }
+
+  /** جداکردنِ یک فرزند از همین پنل: والدِ *آن* پنل (نه این یکی) را خالی
+   *  می‌کند. برای تغییرِ والدِ فرزند به پنلِ دیگر (نه فقط حذف)، باید خودِ
+   *  همان پنل را باز و از تبِ ارجاعاتِ خودش والدش را عوض کرد. */
+  function detachChild(childId: string) {
+    linkPanel.mutate(
+      { panelId: childId, parentId: null },
+      {
+        onSuccess: () => toast({ title: t.refChildDetached }),
+        onError: (err: any) =>
+          toast({ variant: "destructive", title: t.errorGeneric, description: apiErrorMessage(err, t.errorGeneric) }),
+      }
+    );
+  }
+
+  /** آیتم‌هایِ گرفته‌شده از «با بات بفرست» (بخشِ A) به لیستِ مدیایِ همین
+   * پنل اضافه می‌شوند؛ اگر بینشان متن هم بود (کسی وسطِ فرستادنِ مدیا یک
+   * پیامِ متنی هم فرستاده) و محتوایِ پنل هنوز خالی است، همان را می‌گذاریم. */
+  async function handleBotMediaCaptured(captured: CapturedContent) {
+    try {
+      const { items } = await materializeSession(captured.id);
+      const newIds: string[] = [];
+      const newMeta: Record<string, MediaMeta> = {};
+      let firstText: string | null = null;
+      for (const item of items as MaterializedItem[]) {
+        if (item.type === "text") {
+          if (firstText === null) firstText = item.content;
+          continue;
+        }
+        newIds.push(item.fileId);
+        newMeta[item.fileId] = { kind: item.type as MediaItemType, duration: null };
+      }
+      if (newIds.length) {
+        setMedia((prev) => [...prev, ...newIds]);
+        setMediaMeta((prev) => ({ ...prev, ...newMeta }));
+      }
+      if (firstText && !content.trim()) setContent(firstText);
+      if (newIds.length || firstText) toast({ title: t.mediaUploaded });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: t.errorGeneric, description: apiErrorMessage(err, t.errorGeneric) });
+    }
   }
 
   function save() {
@@ -214,9 +299,18 @@ export function PanelEditor({
       return;
     }
 
-    // مدیا همان‌جایی نوشته می‌شود که بات می‌خواند: `media_file_id` برای اولی و
-    // `settings.carousel_ids` برای لیست کامل (فقط وقتی نوع چندمدیایی است).
-    const nextSettings = { ...settings, carousel_ids: multiMedia ? media : [] };
+    // مدیا همان‌جایی نوشته می‌شود که بات می‌خواند: `settings.media_items`
+    // (نوعِ هر آیتم از mediaMeta، پیش‌فرضش «عکس»). حالتِ کیف‌پول فقط برایِ
+    // نوعِ wallet نوشته می‌شود.
+    const nextSettings = { ...settings };
+    if (type === "media") {
+      nextSettings.media_items = media.map((fileId) => ({
+        type: mediaMeta[fileId]?.kind && mediaMeta[fileId].kind !== "unknown" ? mediaMeta[fileId].kind : "photo",
+        file_id: fileId,
+      }));
+    } else if (type === "wallet") {
+      nextSettings.mode = walletMode;
+    }
 
     update.mutate(
       {
@@ -225,13 +319,31 @@ export function PanelEditor({
           title: title.trim(),
           type,
           content,
-          media_file_id: media[0] ?? "",
+          media_file_id: type === "media" ? (media[0] ?? "") : "",
           buttons: rowsToButtons(rows),
           settings: nextSettings,
         },
       },
       {
-        onSuccess: ({ dropped }) => {
+        onSuccess: ({ panel: saved, dropped }) => {
+          // باگِ «سیو کردم ولی هنوز ذخیره‌نشده نشونش می‌ده»: تا اینجا state
+          // محلی (بالاخص `settings.media_items`ی نوعِ media و `settings.mode`ی
+          // نوعِ wallet) هرگز از رویِ چیزی که واقعاً ذخیره شد به‌روز نمی‌شد —
+          // فقط برایِ ساختِ بدنه‌ی PATCH موقتاً محاسبه می‌شدند. یعنی `dirty`
+          // (که local state را با `panel` prop تازه‌فچ‌شده مقایسه می‌کند) بعد
+          // از هر سیوِ پنلِ مدیایی/کیف‌پولی برای همیشه true می‌ماند و
+          // `confirmDiscardUnsaved()` جلویِ خروج از صفحه را می‌گیرد — حتی
+          // درست بعد از یک سیوِ موفق. اینجا همه‌ی state محلی را دقیقاً با
+          // همان چیزی که سرور برگردانده یکی می‌کنیم تا این کلاس از عدم‌تطابق
+          // (نه فقط این دو فیلد) دیگر پیش نیاید.
+          setTitle(saved.title);
+          setType(effectiveTypeOf(saved));
+          setContent(saved.content);
+          setMedia(mediaOf(saved));
+          setMediaMeta(mediaMetaOf(saved));
+          setRows(buttonsToRows(saved.buttons ?? []));
+          setSettings({ ...saved.settings });
+          setWalletMode(panelWalletMode(saved));
           toast({
             title: t.panelSaved,
             description: dropped?.length ? t.panelSavedWithDrop : undefined,
@@ -245,11 +357,13 @@ export function PanelEditor({
 
   function revert() {
     setTitle(panel.title);
-    setType(panel.type);
+    setType(effectiveTypeOf(panel));
     setContent(panel.content);
     setMedia(mediaOf(panel));
+    setMediaMeta(mediaMetaOf(panel));
     setRows(buttonsToRows(panel.buttons ?? []));
     setSettings({ ...panel.settings });
+    setWalletMode(panelWalletMode(panel));
   }
 
   const setSetting = (key: string, value: unknown) => setSettings((prev) => ({ ...prev, [key]: value }));
@@ -306,17 +420,21 @@ export function PanelEditor({
                   <p className="text-xs text-muted-foreground tabular-nums">{content.length} / 4000</p>
                 </div>
 
-                {!textOnly && (
+                {showMedia && (
                   <div className="space-y-1.5">
-                    <Label>{multiMedia ? t.fieldMediaList : t.fieldMediaSingle}</Label>
+                    <Label>{t.fieldMediaList}</Label>
                     <MediaList
                       botId={botId}
                       fileIds={media}
-                      multiple={multiMedia}
+                      multiple
                       onChange={setMedia}
                       onMetaChange={setMediaMeta}
-                      onWantMore={multiMedia ? undefined : promoteToMultiMedia}
                     />
+                    {/* IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش A —
+                        همان مکانیزمِ عمومیِ «با بات بفرست»؛ اینجا با kind="panel_media"
+                        چند پیام (متن/عکس/ویدیو/صوت/فایل) در یک نشست جمع می‌شود و با
+                        دکمه‌ی «پایان» در خودِ تلگرام تمام می‌شود — نه فقط اولین پیام. */}
+                    <SendViaBotButton kind="panel_media" botId={botId} label={t.mediaSendViaBotCta} onCaptured={handleBotMediaCaptured} />
                   </div>
                 )}
               </CardContent>
@@ -398,6 +516,22 @@ export function PanelEditor({
                   />
                   <p className="text-xs text-muted-foreground">{t.settingForwardGroupsHint}</p>
                 </div>
+
+                {type === "wallet" && (
+                  <div className="space-y-1.5 rounded-md border p-3">
+                    <Label htmlFor="pe-wallet-mode">{t.settingWalletMode}</Label>
+                    <Select value={walletMode} onValueChange={(v) => setWalletMode(v as "shared" | "personal")}>
+                      <SelectTrigger id="pe-wallet-mode"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="shared">{t.settingWalletModeShared}</SelectItem>
+                        <SelectItem value="personal">{t.settingWalletModePersonal}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {walletMode === "shared" ? t.settingWalletModeSharedHint : t.settingWalletModePersonalHint}
+                    </p>
+                  </div>
+                )}
 
                 {type === "sell" && (
                   <div className="space-y-4 rounded-md border p-3">
@@ -535,19 +669,61 @@ export function PanelEditor({
                 {references.isLoading && <Loader2 className="size-4 animate-spin" />}
                 {references.data && (
                   <>
-                    <div>
+                    <div className="space-y-2">
                       <p className="font-medium">{t.refParent}</p>
-                      <p className="text-muted-foreground">
-                        {references.data.parent?.title ?? t.refNone}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Select
+                          value={parentPick ?? (references.data.parent?.id ?? "__none__")}
+                          onValueChange={setParentPick}
+                        >
+                          <SelectTrigger className="w-full sm:w-64"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">{t.noParent}</SelectItem>
+                            {panels
+                              .filter((p) => p.id !== panel.id && !parentDescendantIds.has(p.id))
+                              .map((p) => (
+                                <SelectItem key={p.id} value={p.id}>{p.title || p.id}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="outline" size="sm"
+                          disabled={
+                            linkPanel.isPending ||
+                            (parentPick ?? (references.data.parent?.id ?? "__none__")) ===
+                              (references.data.parent?.id ?? "__none__")
+                          }
+                          onClick={() => {
+                            const picked = parentPick ?? "__none__";
+                            saveParent(picked === "__none__" ? null : picked);
+                          }}
+                        >
+                          {linkPanel.isPending
+                            ? <Loader2 className="me-1.5 size-4 animate-spin" />
+                            : null}
+                          {t.refSaveParent}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t.fieldParentHint}</p>
                     </div>
                     <div>
                       <p className="font-medium">{t.refChildren}</p>
                       {references.data.children.length === 0 ? (
                         <p className="text-muted-foreground">{t.refNone}</p>
                       ) : (
-                        <ul className="list-inside list-disc text-muted-foreground">
-                          {references.data.children.map((c) => <li key={c.id}>{c.title || c.id}</li>)}
+                        <ul className="space-y-1">
+                          {references.data.children.map((c) => (
+                            <li key={c.id} className="flex items-center justify-between gap-2">
+                              <span className="text-muted-foreground">• {c.title || c.id}</span>
+                              <Button
+                                variant="ghost" size="sm"
+                                disabled={linkPanel.isPending}
+                                onClick={() => detachChild(c.id)}
+                              >
+                                {t.refDetachChild}
+                              </Button>
+                            </li>
+                          ))}
                         </ul>
                       )}
                     </div>

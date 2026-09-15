@@ -39,6 +39,7 @@ import {
   sendTelegramMessage,
   telegramWebhookSecret,
   getTelegramUserPhotoFileId,
+  tgApi,
 } from "../lib/telegram";
 import {
   askForContact,
@@ -51,7 +52,10 @@ import {
   markWaiting,
   openSessionForChat,
   extractContent,
-  fillSession,
+  appendItem,
+  finishSession,
+  SINGLE_ITEM_KINDS,
+  type UploadSessionKind,
 } from "../lib/uploadSessions";
 import { codeExpiry, generateCode, hashCode, normalizePhone } from "../lib/otp";
 
@@ -102,6 +106,13 @@ router.post("/telegram/webhook", async (req, res) => {
     }
 
     if (alreadyProcessed(req.body?.update_id)) return;
+
+    // ── «با بات بفرست»: دکمه‌ی «✅ پایان و تأیید» (جلسه‌هایِ چند-آیتمی) ────
+    const callbackQuery = req.body?.callback_query;
+    if (typeof callbackQuery?.data === "string" && callbackQuery.data.startsWith("upfin_")) {
+      await handleUploadFinish(botToken, callbackQuery);
+      return;
+    }
 
     const message = req.body?.message;
     const from = message?.from;
@@ -589,12 +600,17 @@ async function handleUploadStart(botToken: string, chatId: string, sessionId: st
     );
     return;
   }
+  const multi = !SINGLE_ITEM_KINDS.has(session.kind as UploadSessionKind);
   await sendTelegramMessage(
     botToken,
     chatId,
-    "📨 <b>منتظر پیام شما هستم.</b>\n\n" +
-      "همین حالا پیامی که می‌خواهید در سایت استفاده شود را بفرستید — متن، عکس، ویس، " +
-      "یا یک پیام فوروارد‌شده. اولین پیامی که بفرستید ثبت می‌شود."
+    multi
+      ? "📨 <b>منتظر پیام‌هایِ شما هستم.</b>\n\n" +
+          "هرچه می‌خواهید بفرستید — متن، عکس، ویس، ویدیو، فایل — هر چند تا پشتِ‌سرِهم. " +
+          "وقتی تمام شد، روی دکمه‌ی «✅ پایان و تأیید» بزنید."
+      : "📨 <b>منتظر پیام شما هستم.</b>\n\n" +
+          "همین حالا پیامی که می‌خواهید در سایت استفاده شود را بفرستید — متن، عکس، ویس، " +
+          "یا یک پیام فوروارد‌شده. اولین پیامی که بفرستید ثبت می‌شود."
   );
 }
 
@@ -603,6 +619,10 @@ async function handleUploadStart(botToken: string, chatId: string, sessionId: st
  *
  * اگر جلسه‌ی بازی نباشد **بی‌صدا رد می‌شود** — این هندلر روی هر پیامی که به
  * بات پلتفرم می‌رسد صدا زده می‌شود و نباید به گپ‌وگفت عادی جواب بدهد.
+ *
+ * kindهایِ تک‌آیتمی (`SINGLE_ITEM_KINDS`) با همان اولین پیام finish هم
+ * می‌شوند — رفتارِ قدیمی، حفظ‌شده. بقیه فقط append می‌شوند و منتظرِ دکمه‌ی
+ * «پایان» می‌مانند (`handleUploadFinish`).
  */
 async function tryCaptureUpload(botToken: string, chatId: string, message: any) {
   const session = await openSessionForChat(chatId);
@@ -618,14 +638,50 @@ async function tryCaptureUpload(botToken: string, chatId: string, message: any) 
     return;
   }
 
-  const filled = await fillSession(session.id, extracted);
-  if (!filled) return; // یک ضبط موازی زودتر رسیده
+  const appended = await appendItem(session.id, extracted);
+  if (!appended) return; // یک ضبط موازی زودتر رسیده یا جلسه دیگر waiting نبود
 
+  if (SINGLE_ITEM_KINDS.has(appended.kind as UploadSessionKind)) {
+    const finished = await finishSession(appended.id);
+    if (!finished) return;
+    const siteUrl = process.env.PUBLIC_SITE_URL?.trim();
+    await sendTelegramMessage(
+      botToken,
+      chatId,
+      "✅ <b>پیام شما ثبت شد.</b>\n\nبه صفحه‌ی سایت برگردید؛ همان‌جا نمایش داده می‌شود." +
+        (siteUrl ? `\n\n${siteUrl}` : "")
+    );
+    return;
+  }
+
+  await tgApi(botToken, "sendMessage", {
+    chat_id: chatId,
+    text: `✅ اضافه شد — ${appended.items.length} آیتم تا الان. اگر چیزِ دیگری هم دارید بفرستید، یا رویِ «پایان» بزنید.`,
+    reply_markup: {
+      inline_keyboard: [[{ text: "✅ پایان و تأیید", callback_data: `upfin_${appended.id}` }]],
+    },
+  });
+}
+
+/** دکمه‌ی «✅ پایان و تأیید» — جلسه‌هایِ چند-آیتمی را می‌بندد. */
+async function handleUploadFinish(botToken: string, callbackQuery: any) {
+  const data: string = callbackQuery.data ?? "";
+  const sessionId = data.slice("upfin_".length);
+  const finished = await finishSession(sessionId);
+
+  await tgApi(botToken, "answerCallbackQuery", {
+    callback_query_id: callbackQuery.id,
+    text: finished ? "✅ ثبت شد" : "چیزی برای ثبت نبود یا این جلسه دیگر باز نیست.",
+  });
+  if (!finished) return;
+
+  const chatId = callbackQuery.message?.chat?.id ? String(callbackQuery.message.chat.id) : null;
+  if (!chatId) return;
   const siteUrl = process.env.PUBLIC_SITE_URL?.trim();
   await sendTelegramMessage(
     botToken,
     chatId,
-    "✅ <b>پیام شما ثبت شد.</b>\n\nبه صفحه‌ی سایت برگردید؛ همان‌جا نمایش داده می‌شود." +
+    `✅ <b>${finished.items.length} آیتم ثبت شد.</b>\n\nبه صفحه‌ی سایت برگردید؛ همان‌جا نمایش داده می‌شوند.` +
       (siteUrl ? `\n\n${siteUrl}` : "")
   );
 }

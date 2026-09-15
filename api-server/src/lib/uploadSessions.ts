@@ -7,8 +7,15 @@
  *
  *   ۱. سایت جلسه می‌سازد و لینک `t.me/<bot>?start=upload_<id>` می‌دهد.
  *   ۲. کاربر روی لینک می‌زند → وبهوک بات پلتفرم جلسه را `waiting` می‌کند.
- *   ۳. **پیام بعدی** همان کاربر ضبط می‌شود (متن، عکس، ویس، فوروارد…).
- *   ۴. سایت با polling می‌بیند جلسه `filled` شده و فیلد را پر می‌کند.
+ *   ۳. هر پیامِ بعدیِ همان کاربر یک آیتمِ تازه به جلسه اضافه می‌کند (متن،
+ *      عکس، ویس، فوروارد…) — می‌شود چند پیام پشتِ‌سرِهم فرستاد.
+ *   ۴. جلسه با تأییدِ صریح `filled` می‌شود: برایِ `SINGLE_ITEM_KINDS`ی
+ *      پایین (broadcast/command_media/drip_media/pool_item) همان اولین
+ *      پیام کافی است — دقیقاً رفتارِ قدیمی، حفظ‌شده تا مصرف‌کننده‌هایِ
+ *      موجود (BroadcastSection.tsx) نشکنند؛ بقیه (panel_media، برایِ
+ *      پنلِ نوعِ «رسانه»یِ IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_
+ *      PROMPT بخشِ B) منتظرِ دکمه‌ی صریحِ «✅ پایان» می‌مانند.
+ *   ۵. سایت با polling می‌بیند جلسه `filled` شده و آیتم‌ها را برمی‌دارد.
  *
  * ⚠️ **چرا محتوا ذخیره می‌شود و نه `(chat_id, message_id)` برای کپی مستقیم؟**
  * پیام در چتِ کاربر با **بات پلتفرم** است؛ بات تننت اصلاً عضو آن چت نیست و
@@ -16,10 +23,12 @@
  *
  * ⚠️ و **`file_id` هم قابل انتقال بین دو بات نیست.** مستندات Bot API صریح
  * می‌گوید file_id برای هر بات یکتاست؛ فرستادنش با توکن بات دیگر خطای
- * `wrong file identifier/HTTP URL specified` می‌دهد. پس مصرف‌کننده باید
- * بایت‌ها را با توکن **بات پلتفرم** دانلود و با توکن بات تننت دوباره آپلود
- * کند (`downloadTelegramFile` در `lib/telegram.ts`). آنچه اینجا ذخیره
- * می‌شود، شناسه‌ای است برای همان دانلود — نه چیزی که مستقیم قابل ارسال باشد.
+ * `wrong file identifier/HTTP URL specified` می‌دهد. `convertItemForBot()`
+ * پایین دقیقاً همین مشکل را حل می‌کند: بایت‌ها را با توکنِ **بات پلتفرم**
+ * دانلود می‌کند (`downloadTelegramFile`) و با توکنِ **بات تننتِ مقصد** دوباره
+ * آپلود می‌کند (`uploadBufferToBotChat`ی همان چیزی که `routes/botMedia.ts`
+ * برایِ آپلودِ مرورگری استفاده می‌کند) — نتیجه یک file_id واقعاً قابلِ
+ * فرستادن با آن بات، دقیقاً همان چیزی که MediaList/pool_item انتظار دارند.
  *
  * `entities` هم ذخیره می‌شود تا فرمت متن مو‌به‌مو بازتولید شود.
  *
@@ -28,9 +37,10 @@
  * می‌فرستد (`handlers/broadcast.py`) که آن برچسب را در هر حالت حذف می‌کند.
  */
 import crypto from "crypto";
-import { and, eq, lt, desc } from "drizzle-orm";
-import { db, uploadSessionsTable, type UploadSession } from "@workspace/db";
+import { and, eq, lt, desc, sql } from "drizzle-orm";
+import { db, uploadSessionsTable, type UploadSession, type UploadedItem } from "@workspace/db";
 import { logger } from "./logger";
+import { downloadTelegramFile } from "./telegram.js";
 
 /** عمر جلسه. کوتاه، چون یک تعامل زنده است نه یک پیش‌نویس. */
 const TTL_MS = 15 * 60 * 1000;
@@ -39,7 +49,14 @@ const TTL_MS = 15 * 60 * 1000;
 const MEDIA_FIELDS = ["photo", "voice", "audio", "video", "document", "animation"] as const;
 export type CapturedMedia = (typeof MEDIA_FIELDS)[number];
 
-export type UploadSessionKind = "broadcast" | "panel_media" | "command_media" | "drip_media";
+export type UploadSessionKind = "broadcast" | "panel_media" | "command_media" | "drip_media" | "pool_item";
+
+/** این kindها با همان اولین پیام `filled` می‌شوند — رفتارِ قدیمی، حفظ‌شده
+ * برای مصرف‌کننده‌هایِ موجود و برایِ pool_item که ذاتاً یک‌آیتمی است (یک
+ * عکسِ QR + کپشنِ لینک = یک پیامِ تلگرامی، نیازی به «چندتا بفرست» نیست). */
+export const SINGLE_ITEM_KINDS: ReadonlySet<UploadSessionKind> = new Set([
+  "broadcast", "command_media", "drip_media", "pool_item",
+]);
 
 export function newSessionId(): string {
   // در URL می‌نشیند و تنها چیزی است که جلسه را محافظت می‌کند، پس باید
@@ -89,7 +106,7 @@ export function deepLinkFor(sessionId: string): string | null {
 }
 
 /**
- * کاربر روی لینک زده. جلسه منتظر **پیام بعدی** همان چت می‌شود.
+ * کاربر روی لینک زده. جلسه منتظر پیام(ها)یِ بعدی همان چت می‌شود.
  *
  * فقط جلسه‌ای که هنوز `pending` است پیش می‌رود: زدن دوباره‌ی لینک بعد از
  * پرشدن، محتوای ضبط‌شده را دور نمی‌ریزد.
@@ -121,21 +138,13 @@ export async function openSessionForChat(chatId: string): Promise<UploadSession 
   return row;
 }
 
-export type ExtractedContent = {
-  mediaType: CapturedMedia | "text";
-  fileId: string | null;
-  content: string;
-  entities: unknown;
-  messageId: string;
-};
-
 /**
  * محتوای قابل بازتولیدِ یک پیام تلگرام را بیرون می‌کشد.
  *
  * `photo` آرایه‌ای از اندازه‌هاست و آخری بزرگ‌ترین است — همان چیزی که باید
  * دوباره فرستاده شود. برای بقیه، خودِ آبجکت `file_id` دارد.
  */
-export function extractContent(message: any): ExtractedContent | null {
+export function extractContent(message: any): UploadedItem | null {
   if (!message) return null;
   const messageId = String(message.message_id ?? "");
   if (!messageId) return null;
@@ -146,7 +155,7 @@ export function extractContent(message: any): ExtractedContent | null {
     const fileId = Array.isArray(raw) ? raw[raw.length - 1]?.file_id : raw.file_id;
     if (!fileId) continue;
     return {
-      mediaType: field,
+      type: field,
       fileId: String(fileId),
       content: String(message.caption ?? ""),
       entities: message.caption_entities ?? null,
@@ -156,7 +165,7 @@ export function extractContent(message: any): ExtractedContent | null {
 
   if (typeof message.text === "string" && message.text.length > 0) {
     return {
-      mediaType: "text",
+      type: "text",
       fileId: null,
       content: message.text,
       entities: message.entities ?? null,
@@ -167,24 +176,83 @@ export function extractContent(message: any): ExtractedContent | null {
   return null;
 }
 
-/** محتوای ضبط‌شده را می‌نشاند و جلسه را می‌بندد. */
-export async function fillSession(
-  sessionId: string,
-  extracted: ExtractedContent,
-): Promise<UploadSession | null> {
+/** یک آیتمِ تازه را به جلسه اضافه می‌کند — جلسه `waiting` می‌ماند، status
+ * عوض نمی‌شود. صدازننده (وبهوک) خودش تصمیم می‌گیرد که آیا همین‌جا
+ * `finishSession` هم صدا بزند (kindهای تک‌آیتمی) یا منتظرِ پیامِ/دکمه‌ی
+ * بعدی بماند. */
+export async function appendItem(sessionId: string, item: UploadedItem): Promise<UploadSession | null> {
   const [row] = await db
     .update(uploadSessionsTable)
-    .set({
-      status: "filled",
-      mediaType: extracted.mediaType,
-      fileId: extracted.fileId,
-      content: extracted.content,
-      entities: extracted.entities as any,
-      messageId: extracted.messageId,
-    })
+    .set({ items: sql`${uploadSessionsTable.items} || ${JSON.stringify([item])}::jsonb` })
     .where(and(eq(uploadSessionsTable.id, sessionId), eq(uploadSessionsTable.status, "waiting")))
     .returning();
   return row ?? null;
+}
+
+/** جلسه را می‌بندد — فقط اگر لااقل یک آیتم داشته باشد (دکمه‌ی «پایان» را
+ * زودتر از موعد زدن، یا چند بار پشتِ‌سرِهم زدن، هیچ‌کدام جلسه‌ی خالی
+ * نمی‌سازند). */
+export async function finishSession(sessionId: string): Promise<UploadSession | null> {
+  const [row] = await db
+    .update(uploadSessionsTable)
+    .set({ status: "filled" })
+    .where(
+      and(
+        eq(uploadSessionsTable.id, sessionId),
+        eq(uploadSessionsTable.status, "waiting"),
+        sql`jsonb_array_length(${uploadSessionsTable.items}) > 0`,
+      ),
+    )
+    .returning();
+  return row ?? null;
+}
+
+export type ConvertedItem =
+  | { type: "text"; content: string }
+  | { type: CapturedMedia; fileId: string; caption: string };
+
+/**
+ * یک آیتمِ ضبط‌شده با بات پلتفرم را برایِ ارسالِ واقعی با یک بات تننت آماده
+ * می‌کند. متن نیازی به تبدیل ندارد (هیچ file_idای در کار نیست)؛ مدیا باید
+ * با توکنِ پلتفرم دانلود و با توکنِ همین بات دوباره آپلود شود — نگاه کن
+ * توضیحِ بالایِ فایل برایِ چرایی‌اش.
+ *
+ * `null` یعنی تبدیل ناموفق بود (فایل منقضی شده، یا بات چتِ مقصد ندارد) —
+ * صدازننده باید این را به‌عنوانِ شکستِ همان یک آیتم نشان بدهد، نه کل درخواست.
+ */
+export async function convertItemForBot(
+  item: UploadedItem,
+  botId: string,
+  userId: string,
+): Promise<ConvertedItem | null> {
+  if (item.type === "text") return { type: "text", content: item.content };
+  if (!item.fileId) return null;
+
+  const platformToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  if (!platformToken) {
+    logger.warn("convertItemForBot: TELEGRAM_BOT_TOKEN not set, cannot download platform-bot file");
+    return null;
+  }
+
+  const downloaded = await downloadTelegramFile(platformToken, item.fileId);
+  if (!downloaded) return null;
+
+  try {
+    // import دیر‌هنگام — جلوگیری از حلقه‌ی import (botMedia.ts خودش این
+    // ماژول را وارد نمی‌کند، ولی uploadSessions در چند جایِ دیگر هم استفاده
+    // می‌شود و بهتر است این وابستگی فقط وقتی واقعاً لازم است بار شود).
+    const { botToken: resolveBotToken, uploadChatId, uploadBufferToBotChat } = await import("../routes/botMedia.js");
+    const { resolveBotSheet } = await import("./botConfig.js");
+
+    const { spreadsheetId } = await resolveBotSheet(userId, botId);
+    const chatId = await uploadChatId(spreadsheetId, userId);
+    const token = await resolveBotToken(botId);
+    const uploaded = await uploadBufferToBotChat(token, chatId, downloaded.buffer, downloaded.contentType, downloaded.fileName);
+    return { type: item.type, fileId: uploaded.fileId, caption: item.content };
+  } catch (err) {
+    logger.warn({ err, botId }, "convertItemForBot: re-upload to tenant bot failed");
+    return null;
+  }
 }
 
 /** پاک‌سازی تنبل — از مسیر بوت هم صدا زده می‌شود (migrate.mjs). */

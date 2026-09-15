@@ -62,9 +62,37 @@ export const productsTable = pgTable("products", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+/**
+ * IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section A — a minimal purchase record
+ * for non-bot products (virtual account, virtual card, API, accountant,
+ * school), so "My Products" has real rows to show alongside bots (which
+ * already have their own `bots` table as the purchase record). No checkout
+ * flow writes to this table yet — self-serve purchase for these five
+ * categories doesn't exist anywhere in the app today, and building one was
+ * out of scope for this section (a much larger job than the listing page
+ * itself, see PROGRESS.md). `status` distinguishes an active purchase from
+ * one an admin has revoked/refunded without deleting the row (matches the
+ * soft-state convention `products.isActive`/`bots` itself already use).
+ */
+export const PRODUCT_PURCHASE_STATUSES = ["active", "cancelled", "expired"] as const;
+
+export const productPurchasesTable = pgTable("product_purchases", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  productId: text("product_id").notNull().references(() => productsTable.id),
+  status: text("status").notNull().default("active"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  purchasedAt: timestamp("purchased_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const insertProductCategorySchema = createInsertSchema(productCategoriesTable).omit({ createdAt: true, updatedAt: true });
 export const insertProductSchema = createInsertSchema(productsTable).omit({ createdAt: true, updatedAt: true });
+export const insertProductPurchaseSchema = createInsertSchema(productPurchasesTable).omit({ createdAt: true, updatedAt: true });
 export type ProductCategory = typeof productCategoriesTable.$inferSelect;
 export type Product = typeof productsTable.$inferSelect;
+export type ProductPurchase = typeof productPurchasesTable.$inferSelect;
+export type InsertProductPurchase = z.infer<typeof insertProductPurchaseSchema>;
 export type InsertProductCategory = z.infer<typeof insertProductCategorySchema>;
 export type InsertProduct = z.infer<typeof insertProductSchema>;

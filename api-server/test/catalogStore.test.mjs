@@ -498,3 +498,177 @@ test("updateOption 404s on an unknown id", async () => {
   installSheet();
   await assert.rejects(() => store.updateOption(SID, "opt_missing", { label: "x" }), /پیدا نشد/);
 });
+
+// ── فروخته‌شده‌هایِ pool (IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۲) ──
+
+function seedPoolRow(tabs, id, fields) {
+  if (!tabs.has("catalog_pool_items")) tabs.set("catalog_pool_items", new Map());
+  tabs.get("catalog_pool_items").set(id, {
+    item_id: "item1", option_id: "", payload_type: "text", status: "delivered",
+    order_id: "", buyer_id: "", created_at: "", sold_at: "", delivered_at: "", delivery_error: "",
+    ...fields,
+  });
+}
+
+test("listPoolSold returns only sold/delivered/failed rows for the given item, newest first", async () => {
+  const tabs = installSheet();
+  seedPoolRow(tabs, "cpi_1", { status: "available", sold_at: "" }); // still in the pool — excluded
+  seedPoolRow(tabs, "cpi_2", { status: "delivered", buyer_id: "1", sold_at: "2026-01-01T00:00:00Z" });
+  seedPoolRow(tabs, "cpi_3", { status: "sold", buyer_id: "2", sold_at: "2026-02-01T00:00:00Z" });
+  seedPoolRow(tabs, "cpi_4", { status: "failed", buyer_id: "3", sold_at: "2026-01-15T00:00:00Z" });
+  seedPoolRow(tabs, "cpi_other_item", { item_id: "item2", status: "delivered", sold_at: "2026-03-01T00:00:00Z" });
+
+  const sold = await store.listPoolSold(SID, "item1");
+  assert.deepEqual(sold.map((r) => r.id), ["cpi_3", "cpi_4", "cpi_2"]);
+});
+
+test("listPoolSold with q matches buyer_id first, falling back to order_id only if nothing matched", async () => {
+  const tabs = installSheet();
+  seedPoolRow(tabs, "cpi_1", { status: "delivered", buyer_id: "555", order_id: "ORD1" });
+  seedPoolRow(tabs, "cpi_2", { status: "delivered", buyer_id: "777", order_id: "555" });
+
+  const byBuyer = await store.listPoolSold(SID, "item1", { q: "555" });
+  assert.deepEqual(byBuyer.map((r) => r.id), ["cpi_1"]); // buyer_id match wins even though cpi_2's order_id also equals "555"
+
+  const byOrder = await store.listPoolSold(SID, "item1", { q: "ORD1" });
+  assert.deepEqual(byOrder.map((r) => r.id), ["cpi_1"]);
+});
+
+test("listPoolSold with an unmatched q returns nothing", async () => {
+  const tabs = installSheet();
+  seedPoolRow(tabs, "cpi_1", { status: "delivered", buyer_id: "555", order_id: "ORD1" });
+  assert.deepEqual(await store.listPoolSold(SID, "item1", { q: "nobody" }), []);
+});
+
+test("listPoolSold returns the sold item's own payload/caption, not just buyer/order/status", async () => {
+  // IRFORGE_POOL_COMPLETE_PROMPT بخش ۳ -- تبِ فروخته‌شده‌ها باید «خودِ آیتم
+  // (لینک/QR)» را هم نشان بدهد، نه فقط خریدار/سفارش/وضعیت. این دقیقاً همان
+  // فیلدهایی هستند که plugins/catalog/pool.py::_send_payload به خریدار
+  // می‌فرستد -- سایت باید همان دو فیلد را دست‌نخورده به فرانت پاس بدهد.
+  const tabs = installSheet();
+  seedPoolRow(tabs, "cpi_1", {
+    status: "delivered", buyer_id: "1",
+    payload_type: "text", payload: "vless://real-link-here", caption: "",
+  });
+  seedPoolRow(tabs, "cpi_2", {
+    status: "delivered", buyer_id: "2",
+    payload_type: "photo", payload: "TELEGRAM_FILE_ID_XYZ", caption: "کانفیگِ QR",
+  });
+
+  const sold = await store.listPoolSold(SID, "item1");
+  const byId = Object.fromEntries(sold.map((r) => [r.id, r]));
+  assert.equal(byId.cpi_1.payload, "vless://real-link-here");
+  assert.equal(byId.cpi_1.payload_type, "text");
+  assert.equal(byId.cpi_2.payload, "TELEGRAM_FILE_ID_XYZ");
+  assert.equal(byId.cpi_2.caption, "کانفیگِ QR");
+});
+
+// ── مدیریتِ موجودیِ pool از سایت (IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخشِ C، آیتمِ ۵) ──
+
+test("getPoolSummary counts rows per status for this item only, plus the low-stock threshold", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  seedPoolRow(tabs, "cpi_1", { item_id: item.id, status: "available" });
+  seedPoolRow(tabs, "cpi_2", { item_id: item.id, status: "available" });
+  seedPoolRow(tabs, "cpi_3", { item_id: item.id, status: "sold" });
+  seedPoolRow(tabs, "cpi_other", { item_id: "some-other-item", status: "available" });
+  await store.setPoolThreshold(SID, item.id, 5);
+
+  const summary = await store.getPoolSummary(SID, item.id);
+  assert.deepEqual(summary.counts, { available: 2, reserved: 0, sold: 1, delivered: 0, failed: 0 });
+  assert.equal(summary.lowThreshold, 5);
+});
+
+test("getPoolSummary 404s on an unknown item", async () => {
+  installSheet();
+  await assert.rejects(() => store.getPoolSummary(SID, "item_missing"), /پیدا نشد/);
+});
+
+test("addPoolItems creates available rows with the given payload/caption", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  const created = await store.addPoolItems(SID, item.id, [
+    { payload_type: "photo", payload: "FILE_ID_1", caption: "لینک ۱" },
+    { payload_type: "text", payload: "link-2" },
+  ]);
+  assert.equal(created.length, 2);
+  assert.equal(created[0].status, "available");
+  assert.equal(created[0].payload, "FILE_ID_1");
+  assert.equal(created[0].caption, "لینک ۱");
+  assert.equal(created[1].payload_type, "text");
+  assert.equal(tabs.get("catalog_pool_items").size, 2);
+});
+
+test("addPoolItems silently skips an entry with an empty payload", async () => {
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  const created = await store.addPoolItems(SID, item.id, [{ payload: "  " }, { payload: "real" }]);
+  assert.equal(created.length, 1);
+  assert.equal(created[0].payload, "real");
+});
+
+test("addPoolItemsFromText splits by line by default, each line a separate text item", async () => {
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  const created = await store.addPoolItemsFromText(SID, item.id, "line1\nline2\n\nline3");
+  assert.deepEqual(created.map((c) => c.payload), ["line1", "line2", "line3"]);
+  assert.ok(created.every((c) => c.payload_type === "text"));
+});
+
+test("addPoolItemsFromText supports a custom multi-line-per-item separator", async () => {
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  const text = "config-a\nline2 of a\n\n\nconfig-b\nline2 of b";
+  const created = await store.addPoolItemsFromText(SID, item.id, text, "\n\n");
+  assert.equal(created.length, 2);
+  assert.equal(created[0].payload, "config-a\nline2 of a");
+  assert.equal(created[1].payload, "config-b\nline2 of b");
+});
+
+test("deletePoolItem removes an available row", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  const [row] = await store.addPoolItems(SID, item.id, [{ payload: "a" }]);
+  assert.equal(await store.deletePoolItem(SID, item.id, row.id), true);
+  assert.equal(tabs.get("catalog_pool_items").has(row.id), false);
+});
+
+test("deletePoolItem refuses a sold/delivered row — never deletes order history", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  seedPoolRow(tabs, "cpi_sold", { item_id: item.id, status: "sold" });
+  assert.equal(await store.deletePoolItem(SID, item.id, "cpi_sold"), false);
+  assert.equal(tabs.get("catalog_pool_items").has("cpi_sold"), true);
+});
+
+test("deletePoolItem refuses a row belonging to a different item", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  seedPoolRow(tabs, "cpi_x", { item_id: "some-other-item", status: "available" });
+  assert.equal(await store.deletePoolItem(SID, item.id, "cpi_x"), false);
+});
+
+test("deletePoolItem returns false for an unknown id", async () => {
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  assert.equal(await store.deletePoolItem(SID, item.id, "cpi_missing"), false);
+});
+
+test("setPoolThreshold merges into metadata.pool without clobbering other pool settings", async () => {
+  const tabs = installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  // `updateItem` عمداً metadata را دست نمی‌زند (برای همین جلوی خودش
+  // clobber نمی‌کند) — پس اینجا مستقیم روی خودِ تب می‌نویسیم، دقیقاً همان
+  // چیزی که check_low_stock_after_consumption بات هم واقعاً می‌نویسد.
+  tabs.get("catalog_items").set(item.id, { ...item, metadata: { pool: { low_alerted: true } } });
+
+  const updated = await store.setPoolThreshold(SID, item.id, 3);
+  assert.equal(updated.metadata.pool.low_threshold, 3);
+  assert.equal(updated.metadata.pool.low_alerted, true, "پاک نشدن تنظیماتِ دیگرِ pool که خودِ بات نوشته");
+});
+
+test("setPoolThreshold rejects a negative threshold", async () => {
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  await assert.rejects(() => store.setPoolThreshold(SID, item.id, -1));
+});
+
+test("setPoolThreshold 404s on an unknown item", async () => {
+  installSheet();
+  await assert.rejects(() => store.setPoolThreshold(SID, "item_missing", 3), /پیدا نشد/);
+});

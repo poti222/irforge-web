@@ -594,3 +594,182 @@ export async function deleteOptionHard(spreadsheetId: string, id: string): Promi
   await assertSheetsAuthoritative(OPTIONS_TAB);
   return removeEntity(spreadsheetId, OPTIONS_TAB, id);
 }
+
+// ─── فروخته‌شده‌هایِ استخرِ آیتمِ یکتا (pool) ─────────────────────────────────
+// IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۲ — قبل از این، لیستِ
+// فروخته‌شده‌هایِ یک محصولِ pool فقط از خودِ بات (plugins/catalog/pool_admin.py::
+// cb_pool_sold_list/fsm_pool_sold_search) در دسترس بود. این بخش همان دادهٔ
+// `pool.list_sold()`ی بات را از رویِ همان تبِ `catalog_pool_items` می‌خواند —
+// read-only: مصرف/رزروِ آیتم‌هایِ pool همچنان کاملاً کارِ بات می‌ماند، سایت
+// فقط تاریخچه را نشان می‌دهد.
+const POOL_ITEMS_TAB = "catalog_pool_items";
+
+/** همان سه وضعیتِ «دیگر available/reserved نیست» که pool.py's list_sold() برمی‌گرداند. */
+export const POOL_SOLD_STATUSES = ["sold", "delivered", "failed"] as const;
+
+export interface PoolSoldRow {
+  id: string;
+  item_id: string;
+  option_id: string;
+  payload_type: string;
+  payload: string;
+  caption: string;
+  status: string;
+  order_id: string;
+  buyer_id: string;
+  created_at: string;
+  sold_at: string;
+  delivered_at: string;
+  delivery_error: string;
+}
+
+/**
+ * `q` مثلِ pool_admin.py's fsm_pool_sold_search: یک کادرِ جست‌وجویِ واحد که
+ * اول رویِ buyer_id امتحان می‌شود، و فقط اگر چیزی پیدا نشد رویِ order_id —
+ * نه AND، نه دو فیلدِ جدا، دقیقاً همان رفتاری که خودِ بات دارد.
+ */
+export async function listPoolSold(
+  spreadsheetId: string,
+  itemId: string,
+  opts: { q?: string } = {},
+): Promise<PoolSoldRow[]> {
+  const rows = await listEntity<PoolSoldRow>(spreadsheetId, POOL_ITEMS_TAB);
+  const sold = rows
+    .filter((r) => r.value && typeof r.value === "object")
+    .map((r) => ({ ...(r.value as PoolSoldRow), id: r.key }))
+    .filter((r) => r.item_id === itemId && (POOL_SOLD_STATUSES as readonly string[]).includes(r.status));
+
+  const q = opts.q?.trim();
+  const matched = q
+    ? (() => {
+        const byBuyer = sold.filter((r) => r.buyer_id === q);
+        return byBuyer.length > 0 ? byBuyer : sold.filter((r) => r.order_id === q);
+      })()
+    : sold;
+
+  return matched.sort((a, b) => (b.sold_at || "").localeCompare(a.sold_at || "")).slice(0, 200);
+}
+
+// ─── مدیریتِ موجودیِ استخر از سایت ────────────────────────────────────────────
+// IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش C، آیتمِ ۵ — قبل
+// از این، سایت صراحتاً می‌گفت «موجودی از داخل بات مدیریت می‌شود»
+// (`fulfillmentHelpPool` در CatalogSection.tsx). حالا افزودنِ انبوه، دیدنِ
+// شمارشِ هر وضعیت، و آستانه‌ی کم‌موجودی هم از همین‌جا ممکن است — نوشتن/
+// خواندنِ همان تبِ `catalog_pool_items`ی که پایین‌تر listPoolSold می‌خواند و
+// همان چیزی که pool.py's بات هم می‌خواند/می‌نویسد (شکلِ ردیف عیناً یکی است:
+// pool.py::pool_db's fields tuple).
+
+export const POOL_STATUSES = ["available", "reserved", "sold", "delivered", "failed"] as const;
+
+export interface PoolItemRow {
+  id: string;
+  item_id: string;
+  option_id: string;
+  payload_type: string;
+  payload: string;
+  caption: string;
+  status: string;
+  order_id: string;
+  buyer_id: string;
+  reserved_until: string;
+  created_at: string;
+  sold_at: string;
+  delivered_at: string;
+  delivery_error: string;
+}
+
+export interface PoolSummary {
+  counts: Record<(typeof POOL_STATUSES)[number], number>;
+  lowThreshold: number;
+}
+
+/** `pool.get_pool_settings()`ی بات را آینه می‌کند: `metadata.pool` رویِ خودِ
+ * محصول، نه رویِ تبِ آیتم‌ها. */
+function poolThresholdOf(item: CatalogItem): number {
+  const pool = (item.metadata as Record<string, any> | undefined)?.pool;
+  const raw = pool && typeof pool === "object" ? pool.low_threshold : undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/** `pool.count_by_status()` + `get_pool_settings().low_threshold` با هم —
+ * دقیقاً چیزی که تبِ «موجودی» در سایت برای نمایش لازم دارد. */
+export async function getPoolSummary(spreadsheetId: string, itemId: string): Promise<PoolSummary> {
+  const item = await getItem(spreadsheetId, itemId);
+  if (!item) throw new BotConfigError(404, "این کالا/سرویس پیدا نشد.", "item_not_found");
+
+  const rows = await listEntity<PoolItemRow>(spreadsheetId, POOL_ITEMS_TAB);
+  const counts = { available: 0, reserved: 0, sold: 0, delivered: 0, failed: 0 };
+  for (const r of rows) {
+    const value = r.value as PoolItemRow | undefined;
+    if (!value || value.item_id !== itemId) continue;
+    if (value.status in counts) counts[value.status as keyof typeof counts]++;
+  }
+  return { counts, lowThreshold: poolThresholdOf(item) };
+}
+
+/** `pool.add_pool_items()` — ورودیِ ساخت‌یافته (payload_type/payload/caption)،
+ * برایِ وقتی که خودِ file_id از قبل در دست است (مثلاً آپلودِ تلگرامیِ بخشِ A). */
+export async function addPoolItems(
+  spreadsheetId: string,
+  itemId: string,
+  entries: { payload_type?: string; payload: string; caption?: string }[],
+): Promise<PoolItemRow[]> {
+  await assertSheetsAuthoritative(POOL_ITEMS_TAB);
+  const item = await getItem(spreadsheetId, itemId);
+  if (!item) throw new BotConfigError(404, "این کالا/سرویس پیدا نشد.", "item_not_found");
+
+  const created: PoolItemRow[] = [];
+  for (const e of entries) {
+    const payload = String(e.payload ?? "").trim();
+    if (!payload) continue;
+    const id = newRecordId("cpi");
+    const row: PoolItemRow = {
+      id, item_id: itemId, option_id: "",
+      payload_type: e.payload_type || "text", payload, caption: e.caption ?? "",
+      status: "available", order_id: "", buyer_id: "", reserved_until: "",
+      created_at: nowIso(), sold_at: "", delivered_at: "", delivery_error: "",
+    };
+    await putEntity(spreadsheetId, POOL_ITEMS_TAB, id, row);
+    created.push(row);
+  }
+  return created;
+}
+
+/** `pool.add_pool_items_from_text()` — «افزودنِ انبوهِ متنی»: هر خط (یا هر
+ * بخشِ جداشده با `separator`ی دلخواه) یک آیتمِ متنیِ جداگانه. */
+export async function addPoolItemsFromText(
+  spreadsheetId: string,
+  itemId: string,
+  text: string,
+  separator = "\n",
+): Promise<PoolItemRow[]> {
+  const parts = separator ? text.split(separator).map((p) => p.trim()) : [text.trim()];
+  const entries = parts.filter(Boolean).map((p) => ({ payload_type: "text", payload: p, caption: "" }));
+  return addPoolItems(spreadsheetId, itemId, entries);
+}
+
+/** `pool.delete_available()` — فقط ردیفِ `available` قابلِ حذف است؛ ردیفِ
+ * فروخته‌شده/تحویل‌شده تاریخچه‌ی سفارش است، هرگز حذف نمی‌شود (حتی از سایت). */
+export async function deletePoolItem(spreadsheetId: string, itemId: string, poolId: string): Promise<boolean> {
+  await assertSheetsAuthoritative(POOL_ITEMS_TAB);
+  const row = await getEntity<PoolItemRow>(spreadsheetId, POOL_ITEMS_TAB, poolId);
+  if (!row || row.item_id !== itemId || row.status !== "available") return false;
+  return removeEntity(spreadsheetId, POOL_ITEMS_TAB, poolId);
+}
+
+/** `pool.set_pool_settings()` — merge با تنظیماتِ فعلی، نه replace؛ همان
+ * رفتاری که بات دارد (مثلاً `low_alerted`ی داخلیِ بات دست‌نخورده می‌ماند). */
+export async function setPoolThreshold(spreadsheetId: string, itemId: string, lowThreshold: number): Promise<CatalogItem> {
+  await assertSheetsAuthoritative(ITEMS_TAB);
+  const existing = await getItem(spreadsheetId, itemId);
+  if (!existing) throw new BotConfigError(404, "این کالا/سرویس پیدا نشد.", "item_not_found");
+  if (!Number.isFinite(lowThreshold) || lowThreshold < 0)
+    throw bad("آستانه‌ی کم‌موجودی باید عددی صفر یا بزرگ‌تر باشد.", "bad_threshold");
+
+  const currentPool = (existing.metadata as Record<string, any> | undefined)?.pool ?? {};
+  const metadata = { ...(existing.metadata || {}), pool: { ...currentPool, low_threshold: Math.floor(lowThreshold) } };
+  const merged: CatalogItem = { ...existing, metadata, updated_at: nowIso() };
+  await putEntity(spreadsheetId, ITEMS_TAB, itemId, merged);
+  return merged;
+}

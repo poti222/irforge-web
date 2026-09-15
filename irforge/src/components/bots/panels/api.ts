@@ -194,6 +194,27 @@ export function useTogglePanel(botId: string) {
   });
 }
 
+/** تغییرِ والدِ یک پنل (یا حذفش با `parentId: null`) — همان اندپوینتی که
+ *  `CreatePanelDialog` فقط یک‌بار، موقعِ ساخت، صدا می‌زند؛ اینجا برای
+ *  تبِ «ارجاعات»ِ `PanelEditor` هم در دسترس است تا والد/فرزندی بعد از
+ *  ساختن هم قابلِ تغییر باشد. چون هم والدِ قدیم و هم والدِ تازه (children‌شان)
+ *  عوض می‌شوند، کل کشِ «ارجاعات»ِ این بات را باطل می‌کنیم، نه فقط یک پنل را. */
+export function useLinkPanel(botId: string) {
+  const invalidate = useInvalidatePanels(botId);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ panelId, parentId }: { panelId: string; parentId: string | null }) =>
+      customFetch<{ panel: Panel }>(`/api/bots/${botId}/panels/${panelId}/link`, {
+        method: "POST",
+        body: JSON.stringify({ parentId }),
+      }),
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["bot-panel-refs", botId] });
+    },
+  });
+}
+
 export function useRepairPanels(botId: string) {
   const invalidate = useInvalidatePanels(botId);
   return useMutation({

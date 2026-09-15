@@ -34,7 +34,10 @@ export type AuditAction =
   | "flag_cleared"
   | "user_deleted"
   // Wallet top-up (BluBank SMS webhook) — routes/walletTopupSmsWebhook.ts.
-  | "wallet_topup_confirmed";
+  | "wallet_topup_confirmed"
+  // IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فاز ۱ — سوییچِ سراسریِ
+  // Sheets/Postgres برایِ یک entity، از routes/cutoverFlags.ts.
+  | "cutover_flag_changed";
 
 export async function writeAudit(input: {
   actorUserId: string;

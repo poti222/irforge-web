@@ -19,6 +19,9 @@ import {
   Bot,
   Rocket,
   Check,
+  Smartphone,
+  ClipboardCheck,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -158,6 +161,16 @@ export default function Landing() {
 
   const ctaPoints = [tr.ctaPointFree, tr.ctaPointNoCard, tr.ctaPointSupport];
   const stats: LandingStat[] = [];
+
+  // IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section C — the Telegram-vs-dedicated-app
+  // differentiation angle (no school-management competitor mentions Telegram; parents
+  // already have it installed) gets its own section, not folded into the FAQ, since
+  // it's the section's whole point rather than a footnote.
+  const schoolPoints: { icon: LucideIcon; title: string; description: string }[] = [
+    { icon: Smartphone, title: tr.schoolPoint1Title, description: tr.schoolPoint1Desc },
+    { icon: ClipboardCheck, title: tr.schoolPoint2Title, description: tr.schoolPoint2Desc },
+    { icon: MessageSquare, title: tr.schoolPoint3Title, description: tr.schoolPoint3Desc },
+  ];
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -381,6 +394,55 @@ export default function Landing() {
                   </RevealItem>
                 ))}
               </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ── School management ───────────────────────────────────────────
+            IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section C. Every competitor
+            surveyed for this section (InSchool, مدیار, دفتردار, دایاموز,
+            همکلاسی, راهمام, پویان) sells "the most complete school software" —
+            none of them mention Telegram at all. Parents already carry
+            Telegram, so a school bot is zero install friction where a
+            dedicated app is real friction; that's the whole section. */}
+        <section className="border-b py-20 md:py-24">
+          <div className="container mx-auto px-4">
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              whileInView="show"
+              viewport={VIEWPORT_ONCE}
+            >
+              <RevealItem variants={sectionItem}>
+                <div className="mx-auto mb-14 max-w-2xl text-center">
+                  <h2 className="text-3xl font-bold tracking-tight md:text-4xl">{tr.schoolSectionTitle}</h2>
+                  <p className="mt-3 text-muted-foreground">{tr.schoolSectionSubtitle}</p>
+                </div>
+              </RevealItem>
+
+              <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
+                {schoolPoints.map((point) => (
+                  <RevealItem key={point.title} variants={sectionItem}>
+                    <div className="flex h-full flex-col rounded-2xl border border-border bg-card p-6 shadow-sm">
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <point.icon className="size-5" />
+                      </span>
+                      <h3 className="mt-4 text-lg font-semibold">{point.title}</h3>
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{point.description}</p>
+                    </div>
+                  </RevealItem>
+                ))}
+              </div>
+
+              <RevealItem variants={sectionItem}>
+                <div className="mt-10 text-center">
+                  <Button size="lg" className="h-12 px-8 text-base font-semibold" asChild>
+                    <Link href={user ? "/dashboard" : "/register"}>
+                      {tr.schoolCta} <ChevronRight className="ms-2 size-4 rtl-flip" />
+                    </Link>
+                  </Button>
+                </div>
+              </RevealItem>
             </motion.div>
           </div>
         </section>

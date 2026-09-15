@@ -207,4 +207,81 @@ router.delete("/bots/:botId/catalog/options/:id", requireAuth, async (req: any, 
   }
 });
 
+// ─── فروخته‌شده‌هایِ استخرِ آیتمِ یکتا (pool) — IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۲ ──
+
+router.get("/bots/:botId/catalog/items/:id/pool/sold", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    await requirePluginEnabled(spreadsheetId, PLUGIN_ID);
+    const q = typeof req.query?.q === "string" ? req.query.q : undefined;
+    const sold = await catalogStore.listPoolSold(spreadsheetId, req.params.id, { q });
+    res.json({ sold });
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to list sold pool items");
+  }
+});
+
+// ─── مدیریتِ موجودیِ استخر از سایت — IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش C، آیتمِ ۵ ──
+
+router.get("/bots/:botId/catalog/items/:id/pool", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    await requirePluginEnabled(spreadsheetId, PLUGIN_ID);
+    res.json(await catalogStore.getPoolSummary(spreadsheetId, req.params.id));
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to load pool summary");
+  }
+});
+
+router.post("/bots/:botId/catalog/items/:id/pool/items", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    await requirePluginEnabled(spreadsheetId, PLUGIN_ID);
+
+    // «افزودنِ انبوهِ متنی» (`text`، هر خط یک آیتم) یا ورودیِ ساخت‌یافته
+    // (`entries`، برایِ وقتی file_id از قبل در دست است) — دقیقاً دو مسیرِ
+    // بات خودش (fsm_pool_add_bulk_text در برابرِ fsm_pool_add_one_item).
+    if (typeof req.body?.text === "string") {
+      const separator = typeof req.body?.separator === "string" && req.body.separator ? req.body.separator : "\n";
+      const created = await catalogStore.addPoolItemsFromText(spreadsheetId, req.params.id, req.body.text, separator);
+      res.status(201).json({ created });
+      return;
+    }
+    if (Array.isArray(req.body?.entries)) {
+      const created = await catalogStore.addPoolItems(spreadsheetId, req.params.id, req.body.entries);
+      res.status(201).json({ created });
+      return;
+    }
+    res.status(400).json({ error: "یا «text» (افزودنِ انبوهِ متنی) یا «entries» (آرایه‌ی ساخت‌یافته) لازم است." });
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to add pool items");
+  }
+});
+
+router.delete("/bots/:botId/catalog/items/:id/pool/items/:poolId", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    await requirePluginEnabled(spreadsheetId, PLUGIN_ID);
+    const removed = await catalogStore.deletePoolItem(spreadsheetId, req.params.id, req.params.poolId);
+    if (!removed) {
+      res.status(409).json({ error: "این آیتم پیدا نشد یا دیگر available نیست (فقط آیتم‌هایِ available قابلِ حذفند).", code: "not_deletable" });
+      return;
+    }
+    res.status(204).end();
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to delete pool item");
+  }
+});
+
+router.put("/bots/:botId/catalog/items/:id/pool/threshold", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    await requirePluginEnabled(spreadsheetId, PLUGIN_ID);
+    const item = await catalogStore.setPoolThreshold(spreadsheetId, req.params.id, Number(req.body?.lowThreshold));
+    res.json(item);
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to set low-stock threshold");
+  }
+});
+
 export default router;

@@ -24,7 +24,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
 import {
-  Store, Loader2, Plus, Trash2, Pencil, Archive, ArchiveRestore, PackageOpen, FolderTree,
+  Store, Loader2, Plus, Trash2, Pencil, Archive, ArchiveRestore, PackageOpen, FolderTree, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
+import { SendViaBotButton, materializeSession, type CapturedContent, type MaterializedItem } from "@/components/bots/SendViaBotButton";
 import { MediaList, type MediaMeta } from "../panels/MediaList";
 import { ButtonBuilder } from "../panels/ButtonBuilder";
 import { usePanels, type PanelCatalog } from "../panels/api";
@@ -625,6 +626,250 @@ function WalletCreditFulfillmentForm({ botId, itemId, config, disabled }: Fulfil
   );
 }
 
+// ─── فروخته‌شده‌هایِ استخرِ آیتمِ یکتا (pool) ─────────────────────────────────
+// IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۲ — قبلاً این داده فقط از
+// خودِ بات (plugins/catalog/pool_admin.py) دیده می‌شد. این‌جا همان تبِ
+// `catalog_pool_items`ی سایت (lib/catalogStore.ts::listPoolSold) را می‌خواند
+// — فقط برایِ محصولاتِ fulfillment_type="pool"، دقیقاً همان‌جایی که پیش‌ازاین
+// فقط یک متنِ راهنما بود.
+type PoolSoldRow = {
+  id: string; status: string; buyer_id: string; order_id: string;
+  payload_type: string; payload: string; caption: string;
+  sold_at: string; delivered_at: string;
+};
+
+// IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش C، آیتمِ ۵ — تا
+// پیش از این `fulfillmentHelpPool` صراحتاً می‌گفت «موجودی از داخل بات مدیریت
+// می‌شود» (pool_admin.py بود، سایت هیچ رابطی نداشت). حالا افزودنِ انبوه،
+// دیدنِ شمارشِ هر وضعیت، و آستانه‌ی کم‌موجودی هم از همین‌جا ممکن است —
+// رزرو/تحویل همچنان کاملاً کارِ بات می‌ماند (این بخش دست نمی‌زند).
+type PoolSummary = {
+  counts: { available: number; reserved: number; sold: number; delivered: number; failed: number };
+  lowThreshold: number;
+};
+
+function PoolInventoryManager({ botId, itemId }: { botId: string; itemId: string }) {
+  const t = useT("botCatalog");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [bulkText, setBulkText] = useState("");
+  const [threshold, setThreshold] = useState("");
+
+  const summaryKey = ["bot-catalog-pool-summary", botId, itemId] as const;
+  const { data: summary, isLoading } = useQuery({
+    queryKey: summaryKey,
+    queryFn: () => customFetch<PoolSummary>(`/api/bots/${botId}/catalog/items/${itemId}/pool`),
+  });
+
+  const addBulk = useMutation({
+    mutationFn: () =>
+      customFetch<{ created: unknown[] }>(`/api/bots/${botId}/catalog/items/${itemId}/pool/items`, {
+        method: "POST",
+        body: JSON.stringify({ text: bulkText }),
+      }),
+    onSuccess: (res) => {
+      setBulkText("");
+      qc.invalidateQueries({ queryKey: summaryKey });
+      toast({ title: t.poolBulkAdded.replace("{n}", String(res.created.length)) });
+    },
+    onError: (err: any) =>
+      toast({ variant: "destructive", title: t.poolBulkAddFailed, description: err?.data?.error ?? err?.message }),
+  });
+
+  /** «با بات بفرست» برایِ pool — یک پیام (مثلاً عکسِ QR با لینک در کپشن)
+   * یک آیتمِ pool می‌شود. مکانیزمِ عمومیِ بخشِ A (SendViaBotButton) با
+   * kind="pool_item" همان جلسه‌ی تک‌آیتمی را می‌سازد؛ اینجا فقط آیتمِ
+   * تبدیل‌شده را به شکلِ entries همین route می‌کنیم. */
+  const addViaBot = useMutation({
+    mutationFn: async (captured: CapturedContent) => {
+      const { items } = await materializeSession(captured.id);
+      const entries = items.map((item: MaterializedItem) =>
+        item.type === "text"
+          ? { payload_type: "text", payload: item.content, caption: "" }
+          : { payload_type: item.type, payload: item.fileId, caption: item.caption }
+      );
+      return customFetch<{ created: unknown[] }>(`/api/bots/${botId}/catalog/items/${itemId}/pool/items`, {
+        method: "POST",
+        body: JSON.stringify({ entries }),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: summaryKey });
+      toast({ title: t.poolAddViaBotAdded });
+    },
+    onError: (err: any) =>
+      toast({ variant: "destructive", title: t.poolAddViaBotFailed, description: err?.data?.error ?? err?.message }),
+  });
+
+  const saveThreshold = useMutation({
+    mutationFn: () =>
+      customFetch(`/api/bots/${botId}/catalog/items/${itemId}/pool/threshold`, {
+        method: "PUT",
+        body: JSON.stringify({ lowThreshold: Number(threshold) || 0 }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: summaryKey });
+      toast({ title: t.poolThresholdSaved });
+    },
+    onError: (err: any) =>
+      toast({ variant: "destructive", title: t.poolThresholdSaveFailed, description: err?.data?.error ?? err?.message }),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" /> {t.loading}
+      </div>
+    );
+  }
+
+  const available = summary?.counts.available ?? 0;
+  const lowThreshold = summary?.lowThreshold ?? 0;
+  const isLow = lowThreshold > 0 && available <= lowThreshold;
+
+  return (
+    <div className="space-y-4 rounded-md border p-3">
+      <p className="text-xs text-muted-foreground">{t.fulfillmentHelpPool}</p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={isLow ? "destructive" : "secondary"}>{t.poolCountAvailable}: {available}</Badge>
+        <Badge variant="outline">{t.poolCountSold}: {(summary?.counts.sold ?? 0) + (summary?.counts.delivered ?? 0)}</Badge>
+        {(summary?.counts.failed ?? 0) > 0 && <Badge variant="destructive">{t.poolCountFailed}: {summary!.counts.failed}</Badge>}
+      </div>
+
+      {isLow && (
+        <p className="flex items-center gap-1.5 text-sm text-destructive">
+          <AlertTriangle className="size-4 shrink-0" /> {t.poolLowStockWarning}
+        </p>
+      )}
+
+      <div className="space-y-1.5">
+        <Label htmlFor="pool-bulk-add">{t.poolBulkAddLabel}</Label>
+        <Textarea
+          id="pool-bulk-add" rows={4} value={bulkText}
+          onChange={(e) => setBulkText(e.target.value)}
+          placeholder={t.poolBulkAddPlaceholder}
+        />
+        <p className="text-xs text-muted-foreground">{t.poolBulkAddHint}</p>
+        <Button size="sm" disabled={!bulkText.trim() || addBulk.isPending} onClick={() => addBulk.mutate()}>
+          {addBulk.isPending ? <Loader2 className="me-1.5 size-4 animate-spin" /> : <Plus className="me-1.5 size-4" />}
+          {t.poolBulkAddCta}
+        </Button>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>{t.poolAddViaBotLabel}</Label>
+        <p className="text-xs text-muted-foreground">{t.poolAddViaBotHint}</p>
+        <SendViaBotButton
+          kind="pool_item"
+          botId={botId}
+          label={t.poolAddViaBotCta}
+          onCaptured={(captured) => addViaBot.mutate(captured)}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="pool-threshold">{t.poolThresholdLabel}</Label>
+          <Input
+            id="pool-threshold" type="number" min={0} className="w-28"
+            value={threshold} onChange={(e) => setThreshold(e.target.value)}
+            placeholder={String(lowThreshold)}
+          />
+        </div>
+        <Button size="sm" variant="outline" disabled={saveThreshold.isPending} onClick={() => saveThreshold.mutate()}>
+          {saveThreshold.isPending && <Loader2 className="me-1.5 size-4 animate-spin" />}
+          {t.poolThresholdSaveCta}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function PoolSoldList({ botId, itemId }: { botId: string; itemId: string }) {
+  const t = useT("botCatalog");
+  const [query, setQuery] = useState("");
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["bot-catalog-pool-sold", botId, itemId, query] as const,
+    queryFn: () => customFetch<{ sold: PoolSoldRow[] }>(
+      `/api/bots/${botId}/catalog/items/${itemId}/pool/sold${query ? `?q=${encodeURIComponent(query)}` : ""}`,
+    ),
+  });
+
+  const rows = data?.sold ?? [];
+
+  const statusBadge = (status: string) => {
+    if (status === "delivered") return <Badge variant="secondary">{t.poolStatusDelivered}</Badge>;
+    if (status === "failed") return <Badge variant="destructive">{t.poolStatusFailed}</Badge>;
+    return <Badge variant="outline">{t.poolStatusSold}</Badge>;
+  };
+
+  // IRFORGE_POOL_COMPLETE_PROMPT بخش ۳ -- `payload_type === "text"` یعنی خودِ
+  // `payload` همان لینک/کانفیگیه که pool.py مستقیم به خریدار می‌فرستد (نگاه
+  // کن plugins/catalog/pool.py::_send_payload) -- کاملاً امن است اینجا هم
+  // متنِ خام نشان داده شود. photo/document/video یک Telegram file_id است، نه
+  // URLی که سایت بتواند مستقیم نمایش/دانلودش کند (نیاز به عبور از API خودِ
+  // بات دارد که این تب فراتر از آن نمی‌رود) -- فقط caption (اگر باشد) به‌علاوه‌ی
+  // یک یادداشتِ روشن که خودِ رسانه فقط در تلگرام قابل مشاهده است.
+  const itemContent = (r: PoolSoldRow) => {
+    if (r.payload_type === "text" || !r.payload_type) {
+      return <span className="break-all">{r.payload || "—"}</span>;
+    }
+    return (
+      <span className="text-muted-foreground italic">
+        {r.caption ? `${r.caption} — ` : ""}{t.poolSoldItemMediaOnly}
+      </span>
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={t.poolSoldSearchPlaceholder}
+        className="max-w-xs"
+      />
+      {isLoading && (
+        <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> {t.loading}
+        </div>
+      )}
+      {isError && <p className="text-sm text-destructive">{t.poolSoldLoadError}</p>}
+      {!isLoading && !isError && rows.length === 0 && (
+        <p className="text-sm text-muted-foreground">{t.poolSoldEmpty}</p>
+      )}
+      {!isLoading && rows.length > 0 && (
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-muted-foreground">
+              <tr>
+                <th className="p-2 text-start font-medium">{t.poolSoldColBuyer}</th>
+                <th className="p-2 text-start font-medium">{t.poolSoldColItem}</th>
+                <th className="p-2 text-start font-medium">{t.poolSoldColOrder}</th>
+                <th className="p-2 text-start font-medium">{t.poolSoldColStatus}</th>
+                <th className="p-2 text-start font-medium">{t.poolSoldColDate}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-t">
+                  <td className="p-2" dir="ltr">{r.buyer_id || "—"}</td>
+                  <td className="p-2" dir="ltr">{itemContent(r)}</td>
+                  <td className="p-2" dir="ltr">{r.order_id ? r.order_id.slice(0, 16) : "—"}</td>
+                  <td className="p-2">{statusBadge(r.status)}</td>
+                  <td className="p-2" dir="ltr">{String(r.sold_at || r.delivered_at || "").slice(0, 16).replace("T", " ") || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** انواعی که اصلاً کانفیگ ندارند — نه فرمی، نه فیلدی برایِ ذخیره. */
 const NO_CONFIG_FULFILLMENT_TYPES = new Set(["manual", "pool"]);
 
@@ -657,7 +902,12 @@ function FulfillmentConfigEditor({
       case "api": return <ApiFulfillmentForm {...formProps} />;
       case "webhook": return <WebhookFulfillmentForm {...formProps} />;
       case "wallet_credit": return <WalletCreditFulfillmentForm {...formProps} />;
-      case "pool": return <p className="text-xs text-muted-foreground">{t.fulfillmentHelpPool}</p>;
+      case "pool": return (
+        <div className="space-y-4">
+          <PoolInventoryManager botId={botId} itemId={itemId} />
+          <PoolSoldList botId={botId} itemId={itemId} />
+        </div>
+      );
       case "manual":
       default:
         return <p className="text-xs text-muted-foreground">{t.fulfillmentHelpManual}</p>;
@@ -993,9 +1243,22 @@ export function CatalogSection({ bot }: { bot: Bot }) {
     queryFn: () => customFetch<{ categories: Category[] }>(`/api/bots/${bot.id}/catalog/categories`),
   });
 
+  const { toast } = useToast();
+
   const activate = useMutation({
     mutationFn: () => customFetch(`/api/bots/${bot.id}/plugins/catalog`, { method: "PATCH", body: JSON.stringify({ enabled: true }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["bot-plugins", bot.id] }); qc.invalidateQueries({ queryKey: categoriesKey }); },
+  });
+
+  // IRFORGE_POOL_QTY_SOLDLIST_STOREFRONT_PROMPT بخش ۳ — «activate» بالا فقط
+  // enabled=true می‌نویسد؛ اگر catalog هنوز خریده نشده باشد (پولی است) با
+  // ۴۰۲ شکست می‌خورد چون خودِ خرید مسیرِ جدایی دارد. این دکمه هر دو کار را
+  // با هم انجام می‌دهد: خریدِ بستهٔ فروشگاه‌ساز (کاتالوگ + کیف‌پول) با یک
+  // قیمتِ واحد، به‌جای این‌که کاربر مجبور شود جدا پیدا کند چطور خریدشان کند.
+  const buyStorefront = useMutation({
+    mutationFn: () => customFetch(`/api/bots/${bot.id}/plugins/storefront`, { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bot-plugins", bot.id] }); qc.invalidateQueries({ queryKey: categoriesKey }); },
+    onError: (err) => toast({ variant: "destructive", description: errMessage(err, t.errorGeneric) }),
   });
 
   if (isLoading) return <div className="flex items-center gap-2 p-8 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {t.loading}</div>;
@@ -1007,10 +1270,16 @@ export function CatalogSection({ bot }: { bot: Bot }) {
           <Store className="size-8 text-muted-foreground" />
           <p className="font-semibold">{t.pluginDisabledTitle}</p>
           <p className="max-w-md text-sm text-muted-foreground">{t.pluginDisabledDesc}</p>
-          <Button onClick={() => activate.mutate()} disabled={activate.isPending}>
-            {activate.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
-            {activate.isPending ? t.activating : t.activatePlugin}
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button onClick={() => activate.mutate()} disabled={activate.isPending}>
+              {activate.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+              {activate.isPending ? t.activating : t.activatePlugin}
+            </Button>
+            <Button variant="outline" onClick={() => buyStorefront.mutate()} disabled={buyStorefront.isPending}>
+              {buyStorefront.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+              {t.buyStorefrontBundle}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );

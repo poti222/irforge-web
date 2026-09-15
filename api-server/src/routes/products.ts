@@ -10,10 +10,10 @@
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, productsTable, productCategoriesTable } from "@workspace/db";
-import { eq, and, count } from "drizzle-orm";
+import { db, productsTable, productCategoriesTable, productPurchasesTable } from "@workspace/db";
+import { eq, and, ne, desc, count } from "drizzle-orm";
 import crypto from "crypto";
-import { requireAdmin, requireSuperAdmin } from "./auth";
+import { requireAdmin, requireSuperAdmin, requireAuth } from "./auth";
 import { rialToToman, tomanToRial } from "../lib/currency.js";
 
 const router = Router();
@@ -140,6 +140,50 @@ router.get("/products/:id", async (req: any, res) => {
     res.json(formatProduct(row));
   } catch (err) {
     logger.error({ err }, "Get product error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── خریدهایِ من (کاربر) ────────────────────────────────────────────────────
+
+/**
+ * GET /api/my-purchases — IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section A.
+ * غیرِبات‌یِ فعالِ کاربرِ لاگین‌کرده، برایِ صفحه‌ی «محصولاتِ من». دسته‌ی «بات»
+ * عمداً کنار گذاشته می‌شود — بات‌ها رکوردِ خریدِ خودشان (خودِ جدولِ `bots`) را
+ * دارند، این جدول برایِ همان پنج دسته‌یِ دیگر است. رکوردِ `cancelled`/`expired`
+ * نشان داده نمی‌شود؛ فقط `active`.
+ */
+router.get("/my-purchases", requireAuth, async (req: any, res) => {
+  try {
+    const rows = await db
+      .select({
+        id: productPurchasesTable.id,
+        status: productPurchasesTable.status,
+        metadata: productPurchasesTable.metadata,
+        purchasedAt: productPurchasesTable.purchasedAt,
+        product: productsTable,
+        category: productCategoriesTable,
+      })
+      .from(productPurchasesTable)
+      .innerJoin(productsTable, eq(productPurchasesTable.productId, productsTable.id))
+      .innerJoin(productCategoriesTable, eq(productsTable.categoryId, productCategoriesTable.id))
+      .where(and(
+        eq(productPurchasesTable.userId, req.userId),
+        eq(productPurchasesTable.status, "active"),
+        ne(productsTable.categoryId, BOT_CATEGORY_ID),
+      ))
+      .orderBy(desc(productPurchasesTable.purchasedAt));
+
+    res.json(rows.map((r) => ({
+      id: r.id,
+      status: r.status,
+      metadata: r.metadata,
+      purchasedAt: r.purchasedAt,
+      product: formatProduct(r.product),
+      category: formatCategory(r.category),
+    })));
+  } catch (err) {
+    logger.error({ err }, "List my purchases error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

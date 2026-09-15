@@ -6,18 +6,13 @@
  * بات می‌کشد (`handlers/user.py` دکمه‌ها را بر اساس `row` گروه می‌کند).
  */
 import { useState } from "react";
-import { Bot, Image as ImageIcon, Film, Music, FileText, Images } from "lucide-react";
+import { Bot, Film, Music, FileText, Images } from "lucide-react";
 import { useT } from "@/hooks/use-translation";
 import type { PanelButton } from "@/lib/panel-buttons";
 import type { MediaMeta } from "./MediaList";
 
-const MEDIA_ICON: Record<string, typeof ImageIcon> = {
-  photo: ImageIcon,
-  carousel: Images,
-  video: Film,
-  audio: Music,
-  document: FileText,
-};
+/** آیکونِ حالتِ «بدونِ مدیایِ انتخاب‌شده هنوز» — فقط برایِ نوعِ `media`. */
+const MEDIA_ICON = Images;
 
 const STYLE_CLASS: Record<string, string> = {
   success: "border-emerald-500/50 text-emerald-600 dark:text-emerald-400",
@@ -48,6 +43,17 @@ function MediaThumb({ botId, fileId, knownKind }: { botId: string; fileId: strin
       <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
         <Music className="size-4 shrink-0 text-muted-foreground" />
         <audio src={src} controls preload="metadata" className="h-8 min-w-0 flex-1" />
+      </div>
+    );
+  }
+
+  // ویدیو/فایل: بدونِ <img> (لود نمی‌شود)، فقط یک نشانِ عمومی.
+  if (knownKind === "video" || knownKind === "document") {
+    const Icon = knownKind === "video" ? Film : FileText;
+    return (
+      <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+        <Icon className="size-4 shrink-0" />
+        <span dir="ltr" className="min-w-0 flex-1 truncate font-mono text-xs">{fileId}</span>
       </div>
     );
   }
@@ -86,7 +92,7 @@ export function PanelPreview({
   hasParent: boolean;
 }) {
   const t = useT("botPanels");
-  const MediaIcon = MEDIA_ICON[type];
+  const MediaIcon = type === "media" ? MEDIA_ICON : null;
   const mediaCount = media.length;
 
   return (

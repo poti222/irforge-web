@@ -28,16 +28,16 @@ test("کلیدهای نوعِ پنلِ پلاگینی تکراری نیستند"
 });
 
 test("هیچ نوعِ پنلِ پلاگینی با انواعِ هسته تداخل ندارد", () => {
-  const CORE = ["text", "photo", "carousel", "video", "audio", "document", "form", "sell"];
+  const CORE = ["media", "form", "sell"];
   for (const p of PLUGIN_PANEL_TYPES) assert.ok(!CORE.includes(p.key));
 });
 
-test("هر دو نوعِ پنلِ کیف‌پول (wallet, wallet_balance) حاضرند و برچسبِ جدا دارند", () => {
+test("IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش B — wallet و wallet_balance در یک ردیف ادغام شده‌اند", () => {
   const wallet = PLUGIN_PANEL_TYPES.find((p) => p.key === "wallet");
   const balance = PLUGIN_PANEL_TYPES.find((p) => p.key === "wallet_balance");
   assert.ok(wallet, "wallet در PLUGIN_PANEL_TYPES نیست");
-  assert.ok(balance, "wallet_balance در PLUGIN_PANEL_TYPES نیست");
   assert.equal(wallet.pluginId, "wallet");
-  assert.equal(balance.pluginId, "wallet");
-  assert.notEqual(wallet.label, balance.label);
+  // wallet_balance دیگر گزینه‌ی جداگانه‌ای برای پنلِ تازه نیست — سوییچِ
+  // shared/personal حالا زیرِ همان یک کلیدِ «wallet» است.
+  assert.equal(balance, undefined, "wallet_balance دیگر نباید در PLUGIN_PANEL_TYPES باشد");
 });

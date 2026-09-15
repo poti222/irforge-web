@@ -61,6 +61,13 @@ type BookingSchedule = {
   horizon_days: number;
   timezone: string;
   cancel_cutoff_hours: number;
+  // IRFORGE_GUIDED_FLOW_INVITE_CARD_PROMPT فازِ B2 — دعوت‌نامه‌یِ دیجیتالِ
+  // اختیاری، فرستاده‌شده به مشتری موقعِ تأییدِ رزرو (`plugins/booking/invitation.py`).
+  invitation_template?: string;
+  // IRFORGE_BOOKING_FORM_CONTACT_REFERRAL_PROMPT بخشِ ۴ و ۵.
+  admin_contact_phone?: string;
+  admin_contact_link?: string;
+  allowed_referral_codes?: string[];
 };
 
 type BookingException = {
@@ -85,6 +92,7 @@ type BookingReservation = {
   customer_lat?: number | null;
   customer_lng?: number | null;
   note?: string;
+  referrer?: string;
   no_show?: boolean;
   created_at?: string;
 };
@@ -242,6 +250,55 @@ function ScheduleTab({ botId }: { botId: string }) {
           <Label>{t.timezone}</Label>
           <Input value={schedule.timezone} onChange={(e) => patch({ timezone: e.target.value })} />
         </div>
+      </div>
+
+      <div className="space-y-1.5 border-t pt-4">
+        <Label>{t.invitationTemplateLabel}</Label>
+        <p className="text-xs text-muted-foreground">{t.invitationTemplateHelp}</p>
+        <Textarea
+          dir="rtl" rows={4} maxLength={2000}
+          placeholder={t.invitationTemplatePlaceholder}
+          value={schedule.invitation_template ?? ""}
+          onChange={(e) => patch({ invitation_template: e.target.value })}
+        />
+      </div>
+
+      {/* IRFORGE_BOOKING_FORM_CONTACT_REFERRAL_PROMPT بخشِ ۴ */}
+      <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label>{t.adminContactPhoneLabel}</Label>
+          <p className="text-xs text-muted-foreground">{t.adminContactPhoneHelp}</p>
+          <Input
+            dir="ltr"
+            placeholder={t.adminContactPhonePlaceholder}
+            value={schedule.admin_contact_phone ?? ""}
+            onChange={(e) => patch({ admin_contact_phone: e.target.value })}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>{t.adminContactLinkLabel}</Label>
+          <p className="text-xs text-muted-foreground">{t.adminContactLinkHelp}</p>
+          <Input
+            dir="ltr"
+            placeholder={t.adminContactLinkPlaceholder}
+            value={schedule.admin_contact_link ?? ""}
+            onChange={(e) => patch({ admin_contact_link: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* بخشِ ۵ */}
+      <div className="space-y-1.5 border-t pt-4">
+        <Label>{t.allowedReferralCodesLabel}</Label>
+        <p className="text-xs text-muted-foreground">{t.allowedReferralCodesHelp}</p>
+        <Textarea
+          dir="ltr" rows={3}
+          placeholder={t.allowedReferralCodesPlaceholder}
+          value={(schedule.allowed_referral_codes ?? []).join("\n")}
+          onChange={(e) => patch({
+            allowed_referral_codes: e.target.value.split("\n").map((c) => c.trim()).filter(Boolean),
+          })}
+        />
       </div>
 
       <Button onClick={() => save.mutate(schedule)} disabled={save.isPending}>
@@ -566,6 +623,11 @@ function ReservationsTab({ botId }: { botId: string }) {
                     >
                       <MapPin className="size-3" /> {t.customerLocation}
                     </a>
+                  )}
+                  {r.referrer && (
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {t.referrerColumnLabel}: <span dir="ltr">{r.referrer}</span>
+                    </div>
                   )}
                 </TableCell>
                 <TableCell>{serviceTitle(r.service_id)}</TableCell>

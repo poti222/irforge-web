@@ -14,6 +14,9 @@ import ticketsRouter from "./tickets.js";
 import botTicketsRouter from "./botTickets.js";
 import walletRouter from "./wallet.js";
 import databaseRouter from "./database.js";
+// IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فاز ۱ — سوییچِ سوپرادمین
+// برایِ Sheets/Postgresِ هر entity، به‌جایِ SQLِ دستی.
+import cutoverFlagsRouter from "./cutoverFlags.js";
 // FIX [Group 4]: Super Admin Code routes
 import superAdminRouter from "./superAdmin.js";
 // G8: اتصال با ربات (webhook دریافت آپدیت از تلگرام)
@@ -63,6 +66,7 @@ import botHealthRouter from "./botHealth.js";
 import botSubscriptionRouter from "./botSubscription.js";
 import internalTicketNotifyRouter from "./internalTicketNotify.js";
 import bookingRouter from "./booking.js";
+import botFormsProRouter from "./botFormsPro.js";
 import addressesRouter from "./addresses.js";
 import dripRouter from "./drip.js";
 import crmRouter from "./crm.js";
@@ -76,8 +80,10 @@ import loyaltySettingsRouter from "./loyaltySettings.js";
 import catalogRouter from "./catalog.js";
 import botWalletRouter from "./botWallet.js";
 import translatePostRouter from "./translatePost.js";
+import postboxRouter from "./postbox.js";
 import walletTopupRouter from "./walletTopup.js";
 import walletTopupSmsWebhookRouter from "./walletTopupSmsWebhook.js";
+import guidedFlowRouter from "./guidedFlow.js";
 
 const router: IRouter = Router();
 
@@ -98,6 +104,7 @@ router.use(walletRouter);
 router.use(walletTopupRouter);
 router.use(walletTopupSmsWebhookRouter);
 router.use(databaseRouter);
+router.use(cutoverFlagsRouter);
 // FIX [Group 4]
 router.use(superAdminRouter);
 // G8
@@ -137,6 +144,7 @@ router.use(botHealthRouter);
 router.use(botSubscriptionRouter);
 router.use(internalTicketNotifyRouter);
 router.use(bookingRouter);
+router.use(botFormsProRouter);
 router.use(addressesRouter);
 router.use(dripRouter);
 router.use(crmRouter);
@@ -150,5 +158,7 @@ router.use(loyaltySettingsRouter);
 router.use(catalogRouter);
 router.use(botWalletRouter);
 router.use(translatePostRouter);
+router.use(postboxRouter);
+router.use(guidedFlowRouter);
 
 export default router;

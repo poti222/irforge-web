@@ -116,10 +116,10 @@ router.get("/bots/:botId/booking/reservations", requireAuth, async (req: any, re
 
     if (String(req.query.format ?? "") === "csv") {
       const rows: unknown[][] = [
-        ["id", "status", "service_id", "customer_name", "customer_phone", "user_id", "username", "note", "no_show", "created_at"],
+        ["id", "status", "service_id", "customer_name", "customer_phone", "user_id", "username", "referrer", "note", "no_show", "created_at"],
         ...reservations.map((r) => [
           r.id, r.status, r.service_id, r.customer_name ?? "", r.customer_phone ?? "",
-          r.user_id, r.username ?? "", r.note ?? "", r.no_show ? "yes" : "", r.created_at ?? "",
+          r.user_id, r.username ?? "", r.referrer ?? "", r.note ?? "", r.no_show ? "yes" : "", r.created_at ?? "",
         ]),
       ];
       sendCsv(res, `booking-reservations-${req.params.botId}.csv`, rows);

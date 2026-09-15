@@ -122,6 +122,97 @@ test("parseScheduleInput accepts a fully valid body", () => {
   assert.deepEqual(parsed.week.friday, [{ from: "10:00", to: "14:00" }]);
 });
 
+// ── دعوت‌نامه‌یِ دیجیتال (IRFORGE_GUIDED_FLOW_INVITE_CARD_PROMPT فازِ B2) ──
+
+test("parseScheduleInput rejects a non-string invitation_template", () => {
+  assert.throws(
+    () => store.parseScheduleInput({ invitation_template: 123 }),
+    (err) => err.code === "bad_invitation_template",
+  );
+});
+
+test("parseScheduleInput accepts and truncates a long invitation_template", () => {
+  const parsed = store.parseScheduleInput({ invitation_template: "x".repeat(3000) });
+  assert.equal(parsed.invitation_template.length, 2000);
+});
+
+test("getSchedule defaults invitation_template to an empty string", async () => {
+  installSheet();
+  const schedule = await store.getSchedule(SID);
+  assert.equal(schedule.invitation_template, "");
+});
+
+test("saveSchedule persists a non-empty invitation_template", async () => {
+  installSheet();
+  await store.saveSchedule(SID, { invitation_template: "🎉 {occasion} — {date} {time}" });
+  const schedule = await store.getSchedule(SID);
+  assert.equal(schedule.invitation_template, "🎉 {occasion} — {date} {time}");
+});
+
+// ── IRFORGE_BOOKING_FORM_CONTACT_REFERRAL_PROMPT بخشِ ۴ — تماسِ ادمین ──────
+
+test("parseScheduleInput accepts a plain admin_contact_phone", () => {
+  const parsed = store.parseScheduleInput({ admin_contact_phone: "+989120000000" });
+  assert.equal(parsed.admin_contact_phone, "+989120000000");
+});
+
+test("parseScheduleInput accepts an https admin_contact_link", () => {
+  const parsed = store.parseScheduleInput({ admin_contact_link: "https://wa.me/989120000000" });
+  assert.equal(parsed.admin_contact_link, "https://wa.me/989120000000");
+});
+
+test("parseScheduleInput rejects a tel: admin_contact_link with a clear message", () => {
+  assert.throws(
+    () => store.parseScheduleInput({ admin_contact_link: "tel:+989120000000" }),
+    (err) => err.code === "bad_admin_contact_link",
+  );
+});
+
+test("parseScheduleInput rejects a bare (non-https) admin_contact_link", () => {
+  assert.throws(
+    () => store.parseScheduleInput({ admin_contact_link: "wa.me/989120000000" }),
+    (err) => err.code === "bad_admin_contact_link",
+  );
+});
+
+test("saveSchedule persists admin_contact_phone and admin_contact_link together", async () => {
+  installSheet();
+  await store.saveSchedule(SID, {
+    admin_contact_phone: "+989120000000",
+    admin_contact_link: "https://wa.me/989120000000",
+  });
+  const schedule = await store.getSchedule(SID);
+  assert.equal(schedule.admin_contact_phone, "+989120000000");
+  assert.equal(schedule.admin_contact_link, "https://wa.me/989120000000");
+});
+
+// ── بخشِ ۵ — کدهایِ معرفِ مجاز (رزروِ محدود به لینکِ دعوت) ────────────────
+
+test("parseScheduleInput rejects a non-array allowed_referral_codes", () => {
+  assert.throws(
+    () => store.parseScheduleInput({ allowed_referral_codes: "ali" }),
+    (err) => err.code === "bad_allowed_referral_codes",
+  );
+});
+
+test("parseScheduleInput trims and drops empty allowed_referral_codes entries", () => {
+  const parsed = store.parseScheduleInput({ allowed_referral_codes: [" ali ", "", "instagram"] });
+  assert.deepEqual(parsed.allowed_referral_codes, ["ali", "instagram"]);
+});
+
+test("getSchedule defaults allowed_referral_codes to an empty array", async () => {
+  installSheet();
+  const schedule = await store.getSchedule(SID);
+  assert.deepEqual(schedule.allowed_referral_codes, []);
+});
+
+test("saveSchedule persists allowed_referral_codes", async () => {
+  installSheet();
+  await store.saveSchedule(SID, { allowed_referral_codes: ["ali", "instagram"] });
+  const schedule = await store.getSchedule(SID);
+  assert.deepEqual(schedule.allowed_referral_codes, ["ali", "instagram"]);
+});
+
 // ── استثناها ─────────────────────────────────────────────────────────────
 
 test("setException then getException round-trips", async () => {

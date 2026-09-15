@@ -20,6 +20,19 @@ import { newRecordId } from "./pluginCollections.js";
 
 const ADDRESSES_TAB = "addresses";
 
+/**
+ * IRFORGE_BOOKING_FORM_CONTACT_REFERRAL_PROMPT پیگیری — کاربر خواست یک
+ * قابلیتِ رایگانِ جداگانه («contact_info» panel type) داخلِ همین پلاگینِ
+ * پولیِ address ادغام شود: هر آدرس، علاوه بر عنوان/متن/عکس/پینِ نقشه/ساعتِ
+ * کاری/پلاس‌کدِ موجود، یک لیستِ آزادِ موارد هم دارد — شماره‌هایِ اضافی،
+ * ایمیل، لینک (واتساپ/تلگرام/سایت)، یا یادداشت. `kind === "link"` تنها
+ * حالتی‌ست که مقدار به دکمه تبدیل می‌شود (باید https:// باشد) — همان قاعده‌ی
+ * `plugins/address/handlers.py::_contact_entry_lines_and_buttons` سمتِ بات.
+ */
+export const CONTACT_ENTRY_KINDS = ["phone", "address", "email", "link", "text"] as const;
+export type ContactEntryKind = (typeof CONTACT_ENTRY_KINDS)[number];
+export type ContactEntry = { id: string; kind: ContactEntryKind; label: string; value: string };
+
 export interface Address {
   id: string;
   title: string;
@@ -33,6 +46,7 @@ export interface Address {
   hours_note?: string;
   is_default?: boolean;
   is_active?: boolean;
+  contact_entries?: ContactEntry[];
   created_at?: string;
   updated_at?: string;
 }
@@ -77,8 +91,33 @@ export function parseAddressInput(body: any, { partial }: { partial: boolean }):
   if (body.hours_note !== undefined) out.hours_note = String(body.hours_note || "").slice(0, 300);
   if (body.is_active !== undefined) out.is_active = Boolean(body.is_active);
   if (body.is_default !== undefined) out.is_default = Boolean(body.is_default);
+  if (body.contact_entries !== undefined) out.contact_entries = parseContactEntries(body.contact_entries);
 
   return out;
+}
+
+const MAX_CONTACT_ENTRIES = 20;
+
+/** آینه‌ی دقیقِ `routes/botPanels.ts::validateContactEntries` که برای نوعِ
+ * پنلِ core `contact_info` نوشته شده بود — همان قاعده، حالا اینجا. */
+function parseContactEntries(value: unknown): ContactEntry[] {
+  if (!Array.isArray(value)) throw bad("فهرستِ موارد باید آرایه باشد.", "bad_contact_entries");
+  if (value.length > MAX_CONTACT_ENTRIES) throw bad(`حداکثر ${MAX_CONTACT_ENTRIES} مورد مجاز است.`, "bad_contact_entries");
+  return value.map((raw: any, i: number) => {
+    if (!raw || typeof raw !== "object") throw bad(`موردِ شماره ${i + 1} معتبر نیست.`, "bad_contact_entries");
+    const kind = String(raw.kind ?? "text");
+    if (!(CONTACT_ENTRY_KINDS as readonly string[]).includes(kind))
+      throw bad(`نوعِ موردِ شماره ${i + 1} معتبر نیست.`, "bad_contact_entries");
+    const label = String(raw.label ?? "").trim();
+    if (!label) throw bad(`برچسبِ موردِ شماره ${i + 1} خالی است.`, "bad_contact_entries");
+    if (label.length > 80) throw bad(`برچسبِ موردِ شماره ${i + 1} بیش از ۸۰ کاراکتر است.`, "bad_contact_entries");
+    const entryValue = String(raw.value ?? "").trim();
+    if (!entryValue) throw bad(`مقدارِ موردِ «${label}» خالی است.`, "bad_contact_entries");
+    if (entryValue.length > 300) throw bad(`مقدارِ موردِ «${label}» بیش از ۳۰۰ کاراکتر است.`, "bad_contact_entries");
+    if (kind === "link" && !/^https:\/\//i.test(entryValue))
+      throw bad(`لینکِ موردِ «${label}» باید با https:// شروع شود — برایِ شماره‌تلفن نوعِ «شماره تماس» را انتخاب کنید.`, "bad_contact_entries");
+    return { id: String(raw.id ?? `ce${i + 1}`), kind: kind as ContactEntryKind, label, value: entryValue };
+  });
 }
 
 export async function listAddresses(spreadsheetId: string): Promise<Address[]> {
@@ -121,6 +160,7 @@ export async function createAddress(spreadsheetId: string, body: any): Promise<A
     hours_note: parsed.hours_note ?? "",
     is_active: parsed.is_active ?? true,
     is_default: parsed.is_default ?? false,
+    contact_entries: parsed.contact_entries ?? [],
     created_at: nowIso(),
     updated_at: nowIso(),
   };

@@ -58,7 +58,48 @@ function telegramTarget(mimeType: string): { method: string; field: string; resu
   return { method: "sendDocument", field: "document", resultKey: "document" };
 }
 
-async function botToken(botId: string): Promise<string> {
+/**
+ * هسته‌ی «آپلود به بات» — بایت‌ها را با توکنِ **همین بات** به یک چت می‌فرستد
+ * و `file_id`ی نتیجه را برمی‌گرداند. قبلاً فقط داخلِ روتِ زیر بود؛
+ * IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش A هم به همین
+ * منطق نیاز دارد — برایِ پلِ «فایلِ ضبط‌شده با بات پلتفرم» → «file_id قابلِ
+ * فرستادن با توکنِ بات تننت» (نگاه کن `lib/uploadSessions.ts::
+ * convertItemForBot`). استخراج شد تا دو مصرف‌کننده یک منطق را کپی نکنند.
+ */
+export async function uploadBufferToBotChat(
+  token: string,
+  chatId: string,
+  buffer: Buffer,
+  mimeType: string,
+  filename: string,
+): Promise<{ fileId: string; type: string; duration: number | null }> {
+  const { method, field, resultKey } = telegramTarget(mimeType);
+
+  const form = new FormData();
+  form.set("chat_id", chatId);
+  form.set("disable_notification", "true");
+  form.set(field, new Blob([buffer], { type: mimeType }), filename);
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: "POST",
+    body: form,
+  });
+  const payload = (await response.json()) as { ok: boolean; description?: string; result?: Record<string, any> };
+
+  if (!payload.ok) {
+    throw new BotConfigError(409, `تلگرام فایل را نپذیرفت: ${payload.description ?? "خطای نامشخص"}`, "telegram_rejected");
+  }
+
+  const result = payload.result ?? {};
+  const raw = result[resultKey];
+  const fileId = Array.isArray(raw) ? raw[raw.length - 1]?.file_id : raw?.file_id;
+  if (!fileId) throw new BotConfigError(502, "تلگرام فایل را ذخیره کرد ولی شناسه‌ای برنگرداند.");
+  const duration = Array.isArray(raw) ? null : typeof raw?.duration === "number" ? raw.duration : null;
+
+  return { fileId, type: resultKey, duration };
+}
+
+export async function botToken(botId: string): Promise<string> {
   const [bot] = await db.select({ token: botsTable.token }).from(botsTable).where(eq(botsTable.id, botId)).limit(1);
   try {
     const token = decryptToken(bot?.token ?? "");
@@ -74,7 +115,7 @@ async function botToken(botId: string): Promise<string> {
 }
 
 /** چت مقصدِ آپلود، یا ۴۰۹ با راهنمای دقیق. */
-async function uploadChatId(spreadsheetId: string, userId: string): Promise<string> {
+export async function uploadChatId(spreadsheetId: string, userId: string): Promise<string> {
   const settings = await readSettings(spreadsheetId);
   const configured = (settings as Record<string, unknown>).media_chat_id;
   if (typeof configured === "string" && configured.trim()) return configured.trim();
@@ -124,46 +165,9 @@ router.post("/bots/:botId/media", requireAuth, perUserRateLimit("media_upload", 
     const chatId = await uploadChatId(spreadsheetId, req.userId);
     const token = await botToken(req.params.botId);
     const filename = String(req.body?.filename ?? "upload").slice(0, 120);
-    const { method, field, resultKey } = telegramTarget(mimeType);
 
-    const form = new FormData();
-    form.set("chat_id", chatId);
-    form.set("disable_notification", "true");
-    form.set(field, new Blob([buffer], { type: mimeType }), filename);
-
-    const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-      method: "POST",
-      body: form,
-    });
-    const payload = (await response.json()) as {
-      ok: boolean;
-      description?: string;
-      result?: Record<string, any>;
-    };
-
-    if (!payload.ok) {
-      // شکستِ سمت تلگرام خطای سرور ما نیست — پیام خودش را برگردان تا کاربر
-      // بفهمد (مثلاً «bot was blocked by the user»).
-      throw new BotConfigError(
-        409,
-        `تلگرام فایل را نپذیرفت: ${payload.description ?? "خطای نامشخص"}`,
-        "telegram_rejected"
-      );
-    }
-
-    // sendPhoto آرایه‌ای از اندازه‌ها می‌دهد؛ بزرگ‌ترین (آخری) همان چیزی است که
-    // بات باید بفرستد.
-    const result = payload.result ?? {};
-    const raw = result[resultKey];
-    const fileId = Array.isArray(raw) ? raw[raw.length - 1]?.file_id : raw?.file_id;
-    if (!fileId) throw new BotConfigError(502, "تلگرام فایل را ذخیره کرد ولی شناسه‌ای برنگرداند.");
-
-    // مدت صوت را خودِ تلگرام برمی‌گرداند (ثانیه). گرفتنش از اینجا از خواندن
-    // دستیِ متادیتا در مرورگر دقیق‌تر است، چون این همان عددی است که کاربر
-    // نهایی زیر پیام صوتی می‌بیند.
-    const duration = Array.isArray(raw) ? null : typeof raw?.duration === "number" ? raw.duration : null;
-
-    res.status(201).json({ fileId, type: resultKey, duration, mimeType });
+    const { fileId, type, duration } = await uploadBufferToBotChat(token, chatId, buffer, mimeType, filename);
+    res.status(201).json({ fileId, type, duration, mimeType });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to upload media");
   }

@@ -17,6 +17,15 @@
  * ساخته نشود. توجه: برچسبِ یک پنل با برچسبِ اکشنِ دکمه‌ی همان پلاگین همیشه
  * یکی نیست (مثلاً `loyalty`: پنل «⭐️ باشگاه مشتریان»، دکمه «⭐️ امتیاز من») —
  * پس این جدول از `PLUGIN_BUTTON_ACTIONS` جدا نگه داشته می‌شود، نه merge.
+ *
+ * IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش B — «wallet» و
+ * «wallet_balance» قبلاً دو ردیفِ جدا بودند؛ حالا `plugins/wallet/plugin.py`
+ * فقط یک کلید («wallet») ثبت می‌کند با یک سوییچِ داخلی
+ * (`settings.mode: "shared" | "personal"`) که خودِ ویرایشگرِ سایت
+ * (`PanelEditor.tsx`) نشان می‌دهد. `wallet_balance` عمداً از این لیست حذف
+ * شده — پنل‌هایِ قدیمی که هنوز آن کلید را دارند از طریقِ `mediaCollapse.ts`
+ * (سمتِ فرانت) همچنان مثلِ «کیف پول (شخصی)» باز می‌شوند، فقط دیگر به‌عنوانِ
+ * نوعِ تازه پیشنهاد نمی‌شوند.
  */
 
 export type PluginPanelType = {
@@ -30,9 +39,8 @@ export const PLUGIN_PANEL_TYPES: PluginPanelType[] = [
   { pluginId: "ticket", key: "ticket", label: "🎫 تیکت پشتیبانی" },
   { pluginId: "subscription", key: "subscription", label: "💳 اشتراک" },
   { pluginId: "survey", key: "survey", label: "📊 نظرسنجی" },
-  { pluginId: "address", key: "address", label: "📍 آدرس" },
+  { pluginId: "address", key: "address", label: "📍 آدرس و تماس" },
   { pluginId: "wallet", key: "wallet", label: "💳 کیف پول" },
-  { pluginId: "wallet", key: "wallet_balance", label: "💰 کیف پول من" },
   { pluginId: "loyalty", key: "loyalty", label: "⭐️ باشگاه مشتریان" },
   { pluginId: "giveaway", key: "giveaway", label: "🎁 قرعه‌کشی" },
   { pluginId: "booking", key: "booking", label: "📅 رزرو نوبت" },

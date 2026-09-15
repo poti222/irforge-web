@@ -427,8 +427,98 @@ export async function assertSheetsAuthoritative(entity: string): Promise<void> {
   }
 }
 
-/** فقط برای تست — کش پرچم‌ها را خالی می‌کند. */
-export function resetCutoverCacheForTests(): void {
+/** بعد از هر نوشتنِ ادمین، تا فلیپ فوراً در همین پروسه اثر بگذارد (بدونِ صبرِ
+ * CUTOVER_TTL_MS) — همان دلیلِ `cutover_flags.invalidate_cache()`ی بات. */
+export function invalidateCutoverCache(): void {
   cutoverCache = {};
   cutoverLoadedAt = 0;
+}
+
+/** فقط برای تست — کش پرچم‌ها را خالی می‌کند. */
+export function resetCutoverCacheForTests(): void {
+  invalidateCutoverCache();
+}
+
+// ─── superadmin write path (IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فاز ۱) ──
+
+/**
+ * آینه‌ی `mainbot/utils/cutover_flags.py::set_use_db(entity, enabled, tenant_id=None)`
+ * — فقط پرچمِ **سراسری** (tenant_id IS NULL)، چون فازِ ۱ فقط دکمه‌یِ سراسری
+ * می‌خواهد؛ override تک‌تننتی همچنان فقط از `/forcestopbot`-معادلِ بات
+ * (`/cutovercanary`) قابل تنظیم است.
+ *
+ * برخلافِ خواندن‌ها (fail-open، چون نخواندنِ یک پرچم یعنی فقط «رویِ Sheets
+ * بمان» — بی‌خطر)، این تابع روی هر خطایی **throw می‌کند**: یک نوشتنِ حساسِ
+ * ادمین که سکوت کند و کاربر فکر کند فلیپ شده، از خطایِ صریح بدتر است.
+ */
+export async function setEntityUseDb(entity: string, enabled: boolean): Promise<void> {
+  const pool = getCutoverPool();
+  if (!pool) {
+    throw new Error(
+      "BUSINESS_DATABASE_URL روی این محیط تنظیم نشده — نوشتنِ cutover flag ممکن نیست."
+    );
+  }
+  await pool.query(
+    `INSERT INTO entity_cutover_flags (entity_name, tenant_id, use_db, updated_at)
+     VALUES ($1, NULL, $2, now())
+     ON CONFLICT (entity_name) WHERE tenant_id IS NULL
+     DO UPDATE SET use_db = EXCLUDED.use_db, updated_at = now()`,
+    [entity, enabled]
+  );
+  invalidateCutoverCache();
+}
+
+export type CutoverAdminRow = {
+  entity: string;
+  useDb: boolean;
+  tenantOverrideCount: number;
+  updatedAt: string | null;
+};
+
+/**
+ * فهرستِ کاملِ entityهایِ شناخته‌شده (`cutoverEntities.ts`) به‌همراه وضعیتِ
+ * سراسریِ فعلی و تعدادِ override‌هایِ per-tenant — برایِ جدولِ ادمینِ فازِ ۱.
+ * برخلافِ `loadCutoverFlags()` (کش‌شده، فقط سطرهایِ global، برایِ dispatch
+ * پرترافیکِ بات استفاده می‌شود)، این تابع مستقیم و بی‌کش می‌خواند — این صفحه
+ * کم‌ترافیک است و بلافاصله بعدِ یک سوییچ باید وضعیتِ واقعی را نشان دهد.
+ */
+export async function cutoverAdminSummary(): Promise<CutoverAdminRow[]> {
+  const { CUTOVER_ENTITIES } = await import("./cutoverEntities.js");
+  const byEntity = new Map<string, CutoverAdminRow>(
+    CUTOVER_ENTITIES.map((entity) => [
+      entity,
+      { entity, useDb: false, tenantOverrideCount: 0, updatedAt: null },
+    ])
+  );
+
+  const pool = getCutoverPool();
+  if (!pool) return Array.from(byEntity.values());
+
+  try {
+    const { rows } = await pool.query<{
+      entity_name: string;
+      tenant_id: string | null;
+      use_db: boolean;
+      updated_at: Date;
+    }>("SELECT entity_name, tenant_id, use_db, updated_at FROM entity_cutover_flags");
+    for (const r of rows) {
+      // یک entity در دیتابیس ممکن است هنوز در CUTOVER_ENTITIES نباشد (drift
+      // بینِ manifestها و کدِ واقعی — نگاه کن خودِ cutoverEntities.ts) — همان
+      // سطر را هم اضافه می‌کنیم تا از دیدِ ادمین قایم نشود.
+      if (!byEntity.has(r.entity_name)) {
+        byEntity.set(r.entity_name, { entity: r.entity_name, useDb: false, tenantOverrideCount: 0, updatedAt: null });
+      }
+      const row = byEntity.get(r.entity_name)!;
+      if (r.tenant_id === null) {
+        row.useDb = Boolean(r.use_db);
+        row.updatedAt = r.updated_at.toISOString();
+      } else {
+        row.tenantOverrideCount += 1;
+      }
+    }
+  } catch (err) {
+    logger.debug({ err }, "cutoverAdminSummary: read failed (fail-open, showing all-Sheets defaults)");
+  }
+
+  return Array.from(byEntity.values()).sort((a, b) => a.entity.localeCompare(b.entity));
 }

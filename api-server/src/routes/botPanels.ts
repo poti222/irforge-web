@@ -31,7 +31,6 @@ import {
   CORE_PANEL_TYPES,
   CORE_BTN_ACTIONS,
   BUTTON_STYLES,
-  MULTI_MEDIA_PANEL_TYPES,
   TEXT_ONLY_PANEL_TYPES,
   newPanel,
   newButton,
@@ -155,6 +154,22 @@ function validateSettings(value: unknown): Record<string, unknown> {
     if (!Array.isArray(s.carousel_ids)) throw bad("فهرست مدیای کاروسل باید آرایه باشد.");
     out.carousel_ids = s.carousel_ids.map((g: unknown) => String(g).trim()).filter(Boolean);
   }
+  if (s.media_items !== undefined) {
+    if (!Array.isArray(s.media_items)) throw bad("فهرست آیتم‌هایِ مدیا باید آرایه باشد.");
+    out.media_items = s.media_items.map((raw: any, i: number) => {
+      if (!raw || typeof raw !== "object") throw bad(`آیتمِ مدیایِ شماره ${i + 1} معتبر نیست.`);
+      const itemType = String(raw.type ?? "");
+      if (!["photo", "video", "audio", "document"].includes(itemType))
+        throw bad(`نوعِ آیتمِ مدیایِ شماره ${i + 1} معتبر نیست.`);
+      const fileId = String(raw.file_id ?? "").trim();
+      if (!fileId) throw bad(`آیتمِ مدیایِ شماره ${i + 1} file_id ندارد.`);
+      return { type: itemType, file_id: fileId };
+    });
+  }
+  if (s.mode !== undefined) {
+    if (s.mode !== "shared" && s.mode !== "personal") throw bad("حالتِ کیف‌پول باید «shared» یا «personal» باشد.");
+    out.mode = s.mode;
+  }
   if (s.password !== undefined && s.password !== null) out.password = String(s.password);
   return out;
 }
@@ -241,7 +256,7 @@ router.post("/bots/:botId/panels", requireAuth, async (req: any, res) => {
 
     const panel = newPanel({
       title: validateTitle(body.title),
-      type: validateType(body.type ?? "text"),
+      type: validateType(body.type ?? "media"),
       content: validateContent(body.content ?? ""),
       media_file_id: String(body.media_file_id ?? ""),
       buttons: validateButtons(body.buttons ?? []),
@@ -287,21 +302,15 @@ router.patch("/bots/:botId/panels/:panelId", requireAuth, async (req: any, res) 
     if ("is_active" in body) next.is_active = Boolean(body.is_active);
     if ("parent_id" in body) next.parent_id = validateParent(panels, current.id, body.parent_id);
 
-    // تغییر نوع (باگ B5 — در بات اصلاً ممکن نیست): وقتی نوع جدید مدیا نمی‌گیرد،
-    // مدیای قبلی پاک می‌شود؛ وقتی چندتایی نیست، فقط اولی می‌ماند. هر دو حالت
-    // در پاسخ گزارش می‌شوند تا UI بتواند بگوید دقیقاً چه چیزی رفت.
+    // تغییر نوع (باگ B5 — در بات اصلاً ممکن نیست): «media» تنها نوعی است که
+    // مدیا می‌گیرد؛ رفتن به هر نوعِ دیگری یعنی هر چه آیتمِ مدیا بوده پاک
+    // می‌شود. در پاسخ گزارش می‌شود تا UI بتواند بگوید دقیقاً چه چیزی رفت.
     const dropped: string[] = [];
-    if (next.type !== current.type) {
-      const carousel = Array.isArray(next.settings.carousel_ids) ? (next.settings.carousel_ids as string[]) : [];
-      if (TEXT_ONLY_PANEL_TYPES.includes(next.type)) {
-        if (next.media_file_id || carousel.length) dropped.push("media");
-        next.media_file_id = "";
-        next.settings = { ...next.settings, carousel_ids: [] };
-      } else if (!MULTI_MEDIA_PANEL_TYPES.includes(next.type) && carousel.length > 1) {
-        dropped.push("carousel");
-        next.media_file_id = next.media_file_id || carousel[0];
-        next.settings = { ...next.settings, carousel_ids: [] };
-      }
+    if (next.type !== current.type && next.type !== "media") {
+      const items = Array.isArray(next.settings.media_items) ? (next.settings.media_items as unknown[]) : [];
+      if (next.media_file_id || items.length) dropped.push("media");
+      next.media_file_id = "";
+      next.settings = { ...next.settings, media_items: [] };
     }
 
     await savePanel(spreadsheetId, next);
@@ -468,7 +477,6 @@ router.get("/bots/:botId/panel-catalog", requireAuth, async (req: any, res) => {
       ],
       buttonFixedValues: Object.fromEntries(enabledPluginActions.map((a) => [a.key, a.fixedValue])),
       buttonStyles: BUTTON_STYLES,
-      multiMediaTypes: MULTI_MEDIA_PANEL_TYPES,
       textOnlyTypes: TEXT_ONLY_PANEL_TYPES,
       maxButtonsPerRow: MAX_BUTTONS_PER_ROW,
     });

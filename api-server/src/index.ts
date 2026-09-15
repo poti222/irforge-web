@@ -4,6 +4,7 @@ import { registerTelegramWebhookIfConfigured } from "./lib/telegram";
 import { refreshExchangeRateFromApi } from "./lib/exchangeRate";
 import { expireStaleTopups } from "./lib/walletTopupService";
 import { runStartupCryptoSelfCheck } from "./lib/tokenCrypto.js";
+import { sweepTierExpiry } from "./lib/tierExpiry.js";
 
 const port = Number(process.env.PORT ?? 3000);
 
@@ -22,7 +23,9 @@ app.listen(port, (err?: Error) => {
   logger.info({ port }, "Server listening");
 });
 
-// G8: بی‌صدا و best-effort — نبودش فقط یعنی «اتصال با ربات» غیرفعاله، سرور رو نمی‌خوابونه
+// G8: بی‌صدا و best-effort — نبودش فقط یعنی «اتصال با ربات» غیرفعاله، سرور رو نمی‌خوابونه.
+// از حادثه‌ی امنیتی ۲۰۲۶-۰۹ به بعد، پشتِ TELEGRAM_WEBHOOK_ENABLED گارد شده — ببینید
+// docstringِ خودِ تابع در lib/telegram.ts.
 void registerTelegramWebhookIfConfigured();
 
 // Phase 10 (identityverificationspec.md): نرخ دلار به ریال هر ساعت تازه
@@ -41,3 +44,10 @@ setInterval(() => { void refreshExchangeRateFromApi(); }, 60 * 60 * 1000);
 setInterval(() => {
   void expireStaleTopups().catch((err) => logger.error({ err }, "expireStaleTopups failed"));
 }, 60 * 1000);
+
+// IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — استاندارد/پرو ماهانه‌اند: باید تمدید یا
+// خاموش شوند دقیقاً همان لحظه‌ای که تاریخ می‌رسد، نه فقط یک‌بار در روز. همان
+// الگوی setInterval بالا، بدون هیچ زیرساختِ cron جدید.
+setInterval(() => {
+  void sweepTierExpiry().catch((err) => logger.error({ err }, "sweepTierExpiry failed"));
+}, 10 * 60 * 1000);

@@ -16,35 +16,34 @@
  *      `row_start` منبع حقیقتِ چیدمان ردیف‌هاست، نه `row`
  *      (`_apply_row_starts`، `panel_builder.py:996`).
  *
- *   2. مدیای پنل دو جا زندگی می‌کند: `Panel.media_file_id` (تک‌رشته) و
- *      `Panel.settings.carousel_ids` (لیست، فقط برای نوع carousel) —
- *      `panel_builder.py:1161-1163`. هیچ فیلدی به‌نام `media_ids` روی دیسک
- *      وجود ندارد؛ آن فقط کلید FSM داخل بات است.
+ *   2. مدیای پنل، برای نوعِ `media`، در `Panel.settings.media_items:
+ *      [{type, file_id}, ...]` زندگی می‌کند (`_normalize_ptype_for_save`،
+ *      `panel_builder.py`) — `Panel.media_file_id` هم برای سازگاریِ
+ *      خواننده‌هایِ قدیمی به اولین آیتم مقداردهی می‌شود، ولی منبعِ حقیقت
+ *      `media_items` است. پنل‌هایِ قدیمیِ هنوز-مهاجرت‌نکرده (نوعِ
+ *      text/photo/carousel/video/audio/document) همان شکلِ قدیمی
+ *      (`media_file_id` تک‌رشته + `settings.carousel_ids`) را دارند —
+ *      `mediaCollapse.ts`ی سمتِ فرانت هر دو شکل را می‌فهمد.
  *
- *   3. انواع پنل هشت‌تاست (`CORE_PANEL_TYPES` در `panel_builder.py:32`)، نه
- *      شش‌تایی که کامنت `models.py` می‌گوید — `form` و `sell` هم هستند.
+ *   3. انواع پنلِ هسته سه‌تاست (`media`/`form`/`sell`) — پیش از این پرامپت
+ *      هشت‌تا بود (شش نوعِ مدیاییِ جدا + `form`/`sell`).
  */
 
 // ─── Panel ──────────────────────────────────────────────────────────────────
 
-/** انواع پنل هسته — آینه‌ی `CORE_PANEL_TYPES` (`handlers/panel_builder.py:32`). */
-export const CORE_PANEL_TYPES = [
-  "text",
-  "photo",
-  "carousel",
-  "video",
-  "audio",
-  "document",
-  "form",
-  "sell",
-] as const;
+/**
+ * انواع پنل هسته — آینه‌ی `CORE_PANEL_TYPES` (`handlers/panel_builder.py:32`).
+ *
+ * IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش B — شش نوعِ
+ * قبلی (text/photo/carousel/video/audio/document) در یک نوعِ «media» ادغام
+ * شده‌اند: صفر آیتم یعنی فقط متن، یک آیتم یعنی تکی، چند آیتمِ همه‌عکس یعنی
+ * همان کاروسلِ قبلی. `form`/`sell` دست‌نخورده مانده‌اند.
+ */
+export const CORE_PANEL_TYPES = ["media", "form", "sell"] as const;
 export type CorePanelType = (typeof CORE_PANEL_TYPES)[number];
 
-/** انواعی که چند مدیا می‌پذیرند. بقیه فقط یک `media_file_id` دارند. */
-export const MULTI_MEDIA_PANEL_TYPES: readonly string[] = ["carousel"];
-
 /** انواعی که اصلاً مدیا نمی‌گیرند — تغییر نوع به این‌ها یعنی حذف مدیا. */
-export const TEXT_ONLY_PANEL_TYPES: readonly string[] = ["text", "form", "sell"];
+export const TEXT_ONLY_PANEL_TYPES: readonly string[] = ["form", "sell"];
 
 /**
  * اکشن‌های دکمه — آینه‌ی `CORE_BTN_ACTIONS` (`handlers/panel_builder.py:43`).
@@ -91,6 +90,9 @@ export function disabledButton(button: PanelButton): PanelButton {
   return { ...button, action: "callback", value: "noop" };
 }
 
+/** یک آیتمِ مدیایِ نوعِ `media` — `settings.media_items`. */
+export type PanelMediaItem = { type: "photo" | "video" | "audio" | "document"; file_id: string };
+
 /** کلیدهای شناخته‌شده‌ی `Panel.settings` (همه اختیاری، همه از panel_builder.py). */
 export type PanelSettings = {
   /** حذف خودکار پیام بعد از n ثانیه (۰/غایب = بدون حذف). */
@@ -102,7 +104,13 @@ export type PanelSettings = {
   capacity_used?: number;
   /** آی‌دی گروه‌هایی که پیام کاربر به آن‌ها فوروارد می‌شود. */
   forward_groups?: string[];
-  /** فقط برای نوع `carousel` — لیست کامل file_idها. */
+  /** فقط برای نوعِ `media` — لیستِ کاملِ آیتم‌ها (صفر/یک/چندتایی). */
+  media_items?: PanelMediaItem[];
+  /** فقط برای نوعِ `wallet` — «shared» (صندوقِ مشترک) یا «personal» (کیفِ
+   *  شخصیِ هر کاربر، پیش‌فرضِ نبودنش هم همین‌جا shared است، نه اینجا). */
+  mode?: "shared" | "personal";
+  /** میراثِ نوعِ قدیمیِ `carousel` — فقط برایِ ویرایشِ پنل‌هایِ
+   *  هنوز-مهاجرت‌نکرده خوانده می‌شود؛ ذخیره‌یِ تازه هرگز این را نمی‌نویسد. */
   carousel_ids?: string[];
   [key: string]: unknown;
 };
@@ -289,6 +297,15 @@ export type BotSettings = {
    * `null` یعنی کیبوردی نمایش داده نشود.
    */
   reply_keyboard: ReplyKeyboard | null;
+  /**
+   * منوی «/» تلگرام — منبع حقیقتش همین‌جاست (`routes/botCommands.ts`). باید
+   * حتماً در `BotSettings`/`defaultBotSettings()` باشد، وگرنه `readSettings()`
+   * فقط کلیدهایی را از شیت برمی‌دارد که در `defaultBotSettings()` هست —
+   * نبودنش یعنی این فیلد هر بار که خوانده می‌شود خالی برمی‌گردد، حتی وقتی
+   * درست روی شیت نوشته شده (باگی که همین امضا را داشت: PUT موفق، ولی چک‌باکس
+   * بلافاصله بعد از رفرش دوباره خاموش).
+   */
+  bot_commands: BotCommandMenuEntry[];
   force_join_channels: string[];
   force_join_message: string;
   working_hours: WorkingHours;
@@ -304,6 +321,9 @@ export type BotSettings = {
   order_track_msg: string;
   updated_at: string;
 };
+
+/** یک آیتمِ منوی «/» تلگرام — `routes/botCommands.ts` منبعِ اصلیِ این شکل است. */
+export type BotCommandMenuEntry = { command: string; description: string };
 
 /** پیام‌های متنی تنظیمات و placeholderهای اجباری‌شان (برای ولیدیشن و UI). */
 export const SETTINGS_MESSAGE_FIELDS = [
@@ -423,6 +443,7 @@ export function defaultBotSettings(): BotSettings {
     watermark_enabled: false,
     maintenance: false,
     reply_keyboard: null,
+    bot_commands: [],
     force_join_channels: [],
     force_join_message: "برای استفاده از ربات ابتدا در کانال‌های زیر عضو شوید:",
     working_hours: defaultWorkingHours(),
@@ -447,7 +468,7 @@ export function newPanel(partial: Partial<Panel> = {}): Panel {
   return {
     id: partial.id ?? newUuid(),
     title: partial.title ?? "",
-    type: partial.type ?? "text",
+    type: partial.type ?? "media",
     content: partial.content ?? "",
     media_file_id: partial.media_file_id ?? "",
     buttons: partial.buttons ?? [],

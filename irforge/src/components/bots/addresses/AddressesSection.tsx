@@ -34,6 +34,11 @@ import {
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
 
+type ContactEntryKind = "phone" | "address" | "email" | "link" | "text";
+type ContactEntry = { id: string; kind: ContactEntryKind; label: string; value: string };
+const CONTACT_ENTRY_KINDS: ContactEntryKind[] = ["phone", "address", "email", "link", "text"];
+const MAX_CONTACT_ENTRIES = 20;
+
 type Address = {
   id: string;
   title: string;
@@ -47,6 +52,10 @@ type Address = {
   hours_note?: string;
   is_default?: boolean;
   is_active?: boolean;
+  /** IRFORGE_BOOKING_FORM_CONTACT_REFERRAL_PROMPT پیگیری — لیستِ آزادِ
+   *  شماره‌هایِ اضافی/ایمیل/لینک/یادداشت، ادغام‌شده از نوعِ پنلِ رایگانِ
+   *  contact_info به داخلِ همینِ پلاگین. */
+  contact_entries?: ContactEntry[];
 };
 
 const DEFAULT_CENTER: [number, number] = [35.7219, 51.3347]; // تهران
@@ -138,6 +147,7 @@ function AddressEditor({
   const [isDefault, setIsDefault] = useState(address?.is_default ?? false);
   const [photoFileId, setPhotoFileId] = useState(address?.photo_file_id ?? "");
   const [uploading, setUploading] = useState(false);
+  const [contactEntries, setContactEntries] = useState<ContactEntry[]>(address?.contact_entries ?? []);
 
   async function handlePhoto(file: File) {
     setUploading(true);
@@ -165,7 +175,7 @@ function AddressEditor({
       const body = {
         title, text, latitude: lat, longitude: lng, phone,
         hours_note: hoursNote, plus_code: plusCode, is_default: isDefault,
-        photo_file_id: photoFileId,
+        photo_file_id: photoFileId, contact_entries: contactEntries,
       };
       return address
         ? customFetch(`/api/bots/${botId}/addresses/${address.id}`, { method: "PATCH", body: JSON.stringify(body) })
@@ -216,6 +226,66 @@ function AddressEditor({
           <div className="space-y-1">
             <Label>{t.fieldHoursNote}</Label>
             <Input value={hoursNote} onChange={(e) => setHoursNote(e.target.value)} maxLength={300} />
+          </div>
+
+          <div className="space-y-3 rounded-md border p-3">
+            <div className="space-y-1">
+              <Label>{t.fieldContactEntries}</Label>
+              <p className="text-xs text-muted-foreground">{t.fieldContactEntriesHint}</p>
+            </div>
+            <div className="space-y-3">
+              {contactEntries.map((entry, i) => (
+                <div key={entry.id} className="grid gap-2 rounded-md border p-2 sm:grid-cols-[140px_1fr_1fr_auto]">
+                  <Select
+                    value={entry.kind}
+                    onValueChange={(v) =>
+                      setContactEntries(contactEntries.map((e, j) => (j === i ? { ...e, kind: v as ContactEntryKind } : e)))
+                    }
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CONTACT_ENTRY_KINDS.map((k) => (
+                        <SelectItem key={k} value={k}>{t[`contactEntryKind_${k}` as keyof typeof t] as string}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder={t.contactEntryLabelPlaceholder}
+                    value={entry.label}
+                    onChange={(e) =>
+                      setContactEntries(contactEntries.map((it, j) => (j === i ? { ...it, label: e.target.value } : it)))
+                    }
+                  />
+                  <Input
+                    dir={entry.kind === "link" ? "ltr" : undefined}
+                    placeholder={entry.kind === "link" ? "https://…" : t.contactEntryValuePlaceholder}
+                    value={entry.value}
+                    onChange={(e) =>
+                      setContactEntries(contactEntries.map((it, j) => (j === i ? { ...it, value: e.target.value } : it)))
+                    }
+                  />
+                  <Button
+                    type="button" variant="ghost" size="icon"
+                    aria-label={t.contactEntryRemove}
+                    onClick={() => setContactEntries(contactEntries.filter((_, j) => j !== i))}
+                  >
+                    <Trash2 className="size-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button
+              type="button" variant="outline" size="sm"
+              disabled={contactEntries.length >= MAX_CONTACT_ENTRIES}
+              onClick={() =>
+                setContactEntries([...contactEntries, { id: crypto.randomUUID(), kind: "phone", label: "", value: "" }])
+              }
+            >
+              <Plus className="me-1.5 size-4" /> {t.contactEntryAddCta}
+            </Button>
+            {contactEntries.length >= MAX_CONTACT_ENTRIES && (
+              <p className="text-xs text-muted-foreground">{t.contactEntryMaxReached}</p>
+            )}
           </div>
 
           <div className="space-y-1">
