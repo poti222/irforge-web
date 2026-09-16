@@ -1009,6 +1009,15 @@ CREATE TABLE IF NOT EXISTS product_purchases (
 CREATE INDEX IF NOT EXISTS product_purchases_user_id_idx ON product_purchases(user_id);
 CREATE INDEX IF NOT EXISTS product_purchases_product_id_idx ON product_purchases(product_id);
 
+-- IRFORGE_PAID_SQL_DATABASE_PROMPT — billing-only marker for the paid
+-- Sheets-vs-SQL-database feature (lib/botDatabase.ts). NULL means this bot
+-- has never paid for SQL (data lives on Sheets, the default); a date means
+-- paid-through, same monthly-renewal shape as tier_expires_at above.
+-- (sheets_export_requests, the other half of this feature, lives on
+-- BUSINESS_DATABASE_URL — irforge-app's own Postgres, migrated there by
+-- that repo's migrations/sql/0037_sheets_export_requests.sql, not here.)
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS database_sql_expires_at TIMESTAMPTZ;
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT
