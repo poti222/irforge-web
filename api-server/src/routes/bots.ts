@@ -82,6 +82,35 @@ function isValidSheetId(id: string): boolean {
   return /^[A-Za-z0-9_-]{20,120}$/.test(id);
 }
 
+// ─── Atomic sheet-pool claiming ──────────────────────────────────────────────
+// BUG FIX: every call site used to do a plain SELECT (status='available'
+// LIMIT 1) followed by a separate UPDATE by id — two round trips with no lock
+// held between them. Two bot-creation requests landing close together could
+// both read the same "available" row before either UPDATE committed, so both
+// bots ended up with the same sheetId. Confirmed in production: dozens of
+// spreadsheets each silently shared by 2-6 unrelated bot rows (sometimes
+// across different users), which is what made Sheets Import toggle two bots
+// at once and made deleting one bot able to wipe another bot's live sheet.
+// Folding the SELECT and UPDATE into one statement with FOR UPDATE SKIP
+// LOCKED lets Postgres itself serialize concurrent claims: each caller gets a
+// different row (or null once the pool is empty).
+async function claimFreeSheet(botId: string) {
+  const picked = db
+    .select({ id: sheetPoolTable.id })
+    .from(sheetPoolTable)
+    .where(eq(sheetPoolTable.status, "available"))
+    .limit(1)
+    .for("update", { skipLocked: true });
+
+  const [claimed] = await db
+    .update(sheetPoolTable)
+    .set({ status: "assigned", assignedBotId: botId })
+    .where(inArray(sheetPoolTable.id, picked))
+    .returning();
+
+  return claimed ?? null;
+}
+
 // ─── Sheet title ↔ bot name sync ─────────────────────────────────────────────
 // هر شیتی که به یک بات اختصاص داده می‌شه باید اسمش "irforge-{نام بات}" باشه
 // (فاصله‌ها با خط‌تیره جایگزین می‌شن، مثلاً «کوزه سازان» → «irforge-کوزه-سازان»).
@@ -145,26 +174,48 @@ async function purgeBotFully(
   syncTenantDelete(plainToken);
 
   if (bot.sheetId) {
-    // BUG FIX: قبلاً فقط رجیستری/وضعیت Postgres آزاد می‌شد ولی خودِ
-    // گوگل‌شیت پاک نمی‌شد، پس بات بعدی که این شیت بهش assign می‌شد
-    // تب‌ها و دیتای بات قبلی رو می‌دید. حالا قبل از available کردن،
-    // خودِ شیت کاملاً ریست می‌شه (انگار تازه ساخته شده).
-    try {
-      await resetSpreadsheet(bot.sheetId);
-    } catch (err) {
+    // BUG FIX: pre-existing sheet-pool race conditions (see claimFreeSheet
+    // above) left some sheetIds silently shared by more than one bot row —
+    // sometimes across different users. Wiping/releasing the sheet here used
+    // to assume this bot was its only user; if another bot row still points
+    // at the same sheetId, that would permanently destroy that OTHER bot's
+    // live data and hand its sheet out to a third, unrelated tenant. Check
+    // first, and only touch the real Google Sheet / pool row when this was
+    // truly the sole owner.
+    const [stillInUse] = await db
+      .select({ id: botsTable.id })
+      .from(botsTable)
+      .where(eq(botsTable.sheetId, bot.sheetId))
+      .limit(1);
+
+    if (stillInUse) {
       logger.error(
-        { err, sheetId: bot.sheetId },
-        "resetSpreadsheet failed during bot purge — sheet may still contain previous tenant's data, do NOT reassign without manual check"
+        { sheetId: bot.sheetId, deletedBotId: bot.id, otherBotId: stillInUse.id },
+        "sheetId is still referenced by another bot row after purge — skipping resetSpreadsheet/pool-release " +
+          "to avoid destroying that bot's live data (pre-existing sheet-pool collision, needs manual review)"
       );
+    } else {
+      // قبلاً فقط رجیستری/وضعیت Postgres آزاد می‌شد ولی خودِ گوگل‌شیت پاک
+      // نمی‌شد، پس بات بعدی که این شیت بهش assign می‌شد تب‌ها و دیتای بات
+      // قبلی رو می‌دید. حالا قبل از available کردن، خودِ شیت کاملاً ریست
+      // می‌شه (انگار تازه ساخته شده).
+      try {
+        await resetSpreadsheet(bot.sheetId);
+      } catch (err) {
+        logger.error(
+          { err, sheetId: bot.sheetId },
+          "resetSpreadsheet failed during bot purge — sheet may still contain previous tenant's data, do NOT reassign without manual check"
+        );
+      }
+
+      await db
+        .update(sheetPoolTable)
+        .set({ status: "available", assignedBotId: null })
+        .where(eq(sheetPoolTable.sheetId, bot.sheetId));
+
+      syncSheetPoolUpsert({ sheet_id: bot.sheetId, assigned_to: null, status: "available" });
+      await markSheetTitleFreed(bot.sheetId);
     }
-
-    await db
-      .update(sheetPoolTable)
-      .set({ status: "available", assignedBotId: null })
-      .where(eq(sheetPoolTable.sheetId, bot.sheetId));
-
-    syncSheetPoolUpsert({ sheet_id: bot.sheetId, assigned_to: null, status: "available" });
-    await markSheetTitleFreed(bot.sheetId);
   }
 
   syncDeletionQueueAdd({
@@ -936,21 +987,12 @@ router.post("/bots/trial", requireAuth, perUserRateLimit("bot_create", 10, 60 * 
 
     // ۱. یک شیت آزاد از Pool بگیر — بدون این، بات هیچ‌وقت spreadsheet_id
     //    نداره و runtime اصلی نمی‌تونه دیتای این tenant رو ذخیره کنه.
-    const [freeSheet] = await db
-      .select()
-      .from(sheetPoolTable)
-      .where(eq(sheetPoolTable.status, "available"))
-      .limit(1);
+    const freeSheet = await claimFreeSheet(botId);
 
     if (!freeSheet) {
       res.status(503).json({ error: "در حال حاضر شیت آزادی برای تریال موجود نیست. بعداً دوباره تلاش کن." });
       return;
     }
-
-    await db
-      .update(sheetPoolTable)
-      .set({ status: "assigned", assignedBotId: botId })
-      .where(eq(sheetPoolTable.id, freeSheet.id));
 
     // ۲. admin code بساز — برای ورود به پنل ادمین همین بات لازمه
     const adminCode = generateAdminCode();
@@ -1212,9 +1254,8 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
     // best-effort sheet assignment (unlike receipt approval, this does not 503
     // when the pool is empty — the bot is created and a sheet can be assigned later)
     let sheetId: string | null = null;
-    const [freeSheet] = await db.select().from(sheetPoolTable).where(eq(sheetPoolTable.status, "available")).limit(1);
+    const freeSheet = await claimFreeSheet(botId);
     if (freeSheet) {
-      await db.update(sheetPoolTable).set({ status: "assigned", assignedBotId: botId }).where(eq(sheetPoolTable.id, freeSheet.id));
       sheetId = freeSheet.sheetId;
     }
 
@@ -1419,11 +1460,7 @@ router.post("/bots/:botId/approve-payment", requireSuperAdmin, async (req: any, 
     }
 
     // ۱. یک شیت آزاد از Pool بگیر
-    const [freeSheet] = await db
-      .select()
-      .from(sheetPoolTable)
-      .where(eq(sheetPoolTable.status, "available"))
-      .limit(1);
+    const freeSheet = await claimFreeSheet(botId);
 
     if (!freeSheet) {
       res.status(503).json({
@@ -1431,12 +1468,6 @@ router.post("/bots/:botId/approve-payment", requireSuperAdmin, async (req: any, 
       });
       return;
     }
-
-    // ۲. شیت رو به این بات assign کن
-    await db
-      .update(sheetPoolTable)
-      .set({ status: "assigned", assignedBotId: botId })
-      .where(eq(sheetPoolTable.id, freeSheet.id));
 
     syncSheetPoolUpsert({
       sheet_id: freeSheet.sheetId,
@@ -1948,10 +1979,27 @@ router.post("/sheet-pool/:id/release", requireSuperAdmin, async (req: any, res) 
       return;
     }
 
-    // BUG FIX: قبلاً این دکمه فقط وضعیت رو "available" می‌کرد ولی دیتای
-    // واقعی توی گوگل‌شیت پاک نمی‌شد. حالا اول خودِ شیت ریست می‌شه؛ اگه
-    // ریست fail بشه، شیت اصلاً available نمی‌شه که یه شیت کثیف دوباره
-    // به یه بات جدید داده نشه.
+    // BUG FIX: pre-existing sheet-pool race conditions left some sheetIds
+    // silently shared by more than one bot row. If a bot still points at
+    // this sheetId (even though the pool row itself may show stale/no
+    // assignedBotId), releasing+resetting it here would destroy that bot's
+    // live data out from under it. Block and surface it instead of guessing.
+    const [stillInUse] = await db
+      .select({ id: botsTable.id, name: botsTable.name })
+      .from(botsTable)
+      .where(eq(botsTable.sheetId, entry.sheetId))
+      .limit(1);
+    if (stillInUse) {
+      res.status(409).json({
+        error: `این شیت هنوز به بات «${stillInUse.name}» متصله. اول اون بات رو جدا/حذف کن، بعد شیت رو آزاد کن.`,
+        conflictingBotId: stillInUse.id,
+      });
+      return;
+    }
+
+    // قبلاً این دکمه فقط وضعیت رو "available" می‌کرد ولی دیتای واقعی توی
+    // گوگل‌شیت پاک نمی‌شد. حالا اول خودِ شیت ریست می‌شه؛ اگه ریست fail بشه،
+    // شیت اصلاً available نمی‌شه که یه شیت کثیف دوباره به یه بات جدید داده نشه.
     try {
       await resetSpreadsheet(entry.sheetId);
     } catch (err) {
@@ -2172,16 +2220,8 @@ router.post("/admin/bots", requireSuperAdmin, async (req: any, res) => {
     const botId = crypto.randomUUID();
 
     let sheetId: string | null = null;
-    const [freeSheet] = await db
-      .select()
-      .from(sheetPoolTable)
-      .where(eq(sheetPoolTable.status, "available"))
-      .limit(1);
+    const freeSheet = await claimFreeSheet(botId);
     if (freeSheet) {
-      await db
-        .update(sheetPoolTable)
-        .set({ status: "assigned", assignedBotId: botId })
-        .where(eq(sheetPoolTable.id, freeSheet.id));
       sheetId = freeSheet.sheetId;
     }
 
@@ -2419,16 +2459,8 @@ router.post("/admin/bots/:botId/resync", requireSuperAdmin, async (req: any, res
 
     let sheetJustAssigned = false;
     if (!bot.sheetId) {
-      const [freeSheet] = await db
-        .select()
-        .from(sheetPoolTable)
-        .where(eq(sheetPoolTable.status, "available"))
-        .limit(1);
+      const freeSheet = await claimFreeSheet(bot.id);
       if (freeSheet) {
-        await db
-          .update(sheetPoolTable)
-          .set({ status: "assigned", assignedBotId: bot.id })
-          .where(eq(sheetPoolTable.id, freeSheet.id));
         [bot] = await db
           .update(botsTable)
           .set({ sheetId: freeSheet.sheetId })
