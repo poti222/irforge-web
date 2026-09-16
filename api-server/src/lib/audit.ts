@@ -37,7 +37,10 @@ export type AuditAction =
   | "wallet_topup_confirmed"
   // IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فاز ۱ — سوییچِ سراسریِ
   // Sheets/Postgres برایِ یک entity، از routes/cutoverFlags.ts.
-  | "cutover_flag_changed";
+  | "cutover_flag_changed"
+  // IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فاز ۲ — درخواستِ مهاجرتِ
+  // دیتای یک تننتِ خاص از Sheets به Postgres، از routes/sheetsImport.ts.
+  | "sheets_import_requested";
 
 export async function writeAudit(input: {
   actorUserId: string;

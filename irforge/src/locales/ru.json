@@ -20,6 +20,7 @@
     "pendingPayments": "Ожидающие платежи",
     "sheetPool": "Пул таблиц",
     "cutoverFlags": "Флаги перехода БД",
+    "sheetsImport": "Импорт из таблиц",
     "profileSettings": "Настройки профиля",
     "toggleTheme": "Сменить тему",
     "changeLanguage": "Сменить язык",

@@ -17,6 +17,9 @@ import databaseRouter from "./database.js";
 // IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فاز ۱ — سوییچِ سوپرادمین
 // برایِ Sheets/Postgresِ هر entity، به‌جایِ SQLِ دستی.
 import cutoverFlagsRouter from "./cutoverFlags.js";
+// IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فاز ۲ — مهاجرتِ واقعیِ
+// دیتای یک بات از Sheets به Postgres (کنارِ دکمه‌های Cutover Flags بالا).
+import sheetsImportRouter from "./sheetsImport.js";
 // FIX [Group 4]: Super Admin Code routes
 import superAdminRouter from "./superAdmin.js";
 // G8: اتصال با ربات (webhook دریافت آپدیت از تلگرام)
@@ -105,6 +108,7 @@ router.use(walletTopupRouter);
 router.use(walletTopupSmsWebhookRouter);
 router.use(databaseRouter);
 router.use(cutoverFlagsRouter);
+router.use(sheetsImportRouter);
 // FIX [Group 4]
 router.use(superAdminRouter);
 // G8

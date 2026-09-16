@@ -18,6 +18,7 @@
  *      باید ۴۰۹ بدهیم، نه اینکه کاربر فکر کند ذخیره شد.
  */
 import crypto from "crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import pg from "pg";
 import { db, botsTable, usersTable, botManagersTable } from "@workspace/db";
 import { eq, and, or, exists, sql } from "drizzle-orm";
@@ -128,6 +129,24 @@ export type ResolvedBotSheet = {
   isSuperAdmin: boolean;
 };
 
+/**
+ * آینه‌ی `mainbot/utils/tenant_context.py::current_spreadsheet_id` —
+ * `resolveBotSheet` هر روتِ بات‌ادمین را با همین اسپردشیت وارد می‌کند، پس
+ * `isEntityOnPostgres`/`assertSheetsAuthoritative` می‌توانند بدونِ اینکه هر
+ * ۱۳۰+ call site (`crmStore.ts`, `catalogStore.ts`, ...) صریحاً tenantId را
+ * پاس بدهند، override تک‌تننتیِ همین درخواست را خودشان پیدا کنند —
+ * `enterWith` باقیِ همین زنجیره‌ی async (بقیه‌ی همین درخواستِ HTTP) را پوشش
+ * می‌دهد، نه درخواست‌های موازیِ دیگر.
+ */
+const tenantCutoverContext = new AsyncLocalStorage<string>();
+
+/** فقط برای تست — شبیه‌سازیِ همان `enterWith`ای که `resolveBotSheet` روی یک
+ * درخواستِ واقعی انجام می‌دهد، بدونِ نیاز به یک ردیفِ واقعیِ بات در دیتابیسِ
+ * سایت. */
+export async function __setTenantCutoverContextForTests<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
+  return tenantCutoverContext.run(tenantId, fn);
+}
+
 async function getRole(userId: string): Promise<string> {
   const [u] = await db
     .select({ role: usersTable.role })
@@ -180,6 +199,7 @@ export async function resolveBotSheet(userId: string, botId: string): Promise<Re
       "این بات هنوز شیت اختصاصی ندارد. تا وقتی شیت تخصیص داده نشده، تنظیمات بات قابل ویرایش نیست.",
       "no_sheet"
     );
+  tenantCutoverContext.enterWith(bot.sheetId);
   return { botId: bot.id, spreadsheetId: bot.sheetId, botName: bot.name, isSuperAdmin };
 }
 
@@ -348,7 +368,8 @@ export async function patchSettings(
  * می‌مانیم. کش ۶۰ ثانیه‌ای، هم‌اندازه‌ی `CACHE_TTL` بات.
  */
 const CUTOVER_TTL_MS = 60_000;
-let cutoverCache: Record<string, boolean> = {};
+let cutoverCache: Record<string, boolean> = {}; // global rows only (tenant_id IS NULL)
+let tenantCutoverCache: Record<string, boolean> = {}; // `${entity}:${tenantId}` -> use_db, per-tenant overrides
 let cutoverLoadedAt = 0;
 let cutoverPool: pg.Pool | null = null;
 let cutoverPoolFailed = false;
@@ -379,46 +400,79 @@ export function getCutoverPool(): pg.Pool | null {
   }
 }
 
-async function loadCutoverFlags(): Promise<Record<string, boolean>> {
+async function loadCutoverFlags(): Promise<void> {
   const now = Date.now();
-  if (now - cutoverLoadedAt < CUTOVER_TTL_MS) return cutoverCache;
+  if (now - cutoverLoadedAt < CUTOVER_TTL_MS) return;
   cutoverLoadedAt = now;
   const p = getCutoverPool();
   if (!p) {
     cutoverCache = {};
-    return cutoverCache;
+    tenantCutoverCache = {};
+    return;
   }
   try {
-    const { rows } = await p.query<{ entity_name: string; use_db: boolean }>(
-      "SELECT entity_name, use_db FROM entity_cutover_flags"
+    const { rows } = await p.query<{ entity_name: string; tenant_id: string | null; use_db: boolean }>(
+      "SELECT entity_name, tenant_id, use_db FROM entity_cutover_flags"
     );
-    const next: Record<string, boolean> = {};
-    for (const r of rows) next[r.entity_name] = Boolean(r.use_db);
-    cutoverCache = next;
+    const nextGlobal: Record<string, boolean> = {};
+    const nextTenant: Record<string, boolean> = {};
+    for (const r of rows) {
+      if (r.tenant_id === null) nextGlobal[r.entity_name] = Boolean(r.use_db);
+      else nextTenant[`${r.entity_name}:${r.tenant_id}`] = Boolean(r.use_db);
+    }
+    cutoverCache = nextGlobal;
+    tenantCutoverCache = nextTenant;
   } catch (err) {
     // migration اجرا نشده یا خطای گذرا — مثل بات، روی Sheets می‌مانیم.
     logger.debug({ err }, "cutoverFlags: read failed (fail-open, staying on Sheets)");
     cutoverCache = {};
+    tenantCutoverCache = {};
   }
-  return cutoverCache;
 }
 
-export async function isEntityOnPostgres(entity: string): Promise<boolean> {
-  const flags = await loadCutoverFlags();
-  return flags[entity] === true;
+/**
+ * آینه‌ی `cutover_flags.is_db_enabled(entity, tenant_id)` سمتِ بات: اول
+ * override تک‌تننتیِ همین tenant (اگر ردیفی برایش باشد)، وگرنه پرچمِ
+ * سراسری. `tenantId` معمولاً صریح پاس داده نمی‌شود — از
+ * `tenantCutoverContext`ی همین درخواست (که `resolveBotSheet` ست کرده)
+ * خوانده می‌شود، دقیقاً مثل `current_spreadsheet_id`ی بات.
+ */
+export async function isEntityOnPostgres(entity: string, tenantId?: string): Promise<boolean> {
+  await loadCutoverFlags();
+  const tid = tenantId ?? tenantCutoverContext.getStore();
+  if (tid !== undefined) {
+    const key = `${entity}:${tid}`;
+    if (key in tenantCutoverCache) return tenantCutoverCache[key];
+  }
+  return cutoverCache[entity] === true;
 }
 
-/** همه‌ی پرچم‌ها — برای صفحه‌ی سلامت بات (فاز ۲۴). */
-export async function allCutoverFlags(): Promise<Record<string, boolean>> {
-  return { ...(await loadCutoverFlags()) };
+/** همه‌ی پرچم‌های سراسری — برای صفحه‌ی سلامت بات (فاز ۲۴). override
+ * تک‌تننتیِ همین بات را هم رویِ نسخه‌ی سراسری می‌نشاند تا صفحه‌ی سلامتِ یک
+ * بات که کاناری شده هم وضعیتِ واقعی‌اش را نشان بدهد، نه پرچمِ سراسری را. */
+export async function allCutoverFlags(tenantId?: string): Promise<Record<string, boolean>> {
+  await loadCutoverFlags();
+  const tid = tenantId ?? tenantCutoverContext.getStore();
+  const merged = { ...cutoverCache };
+  if (tid !== undefined) {
+    for (const key of Object.keys(tenantCutoverCache)) {
+      if (!key.endsWith(`:${tid}`)) continue;
+      const entity = key.slice(0, -(`:${tid}`.length));
+      merged[entity] = tenantCutoverCache[key];
+    }
+  }
+  return merged;
 }
 
 /**
  * اگر این entity روی Postgres مهاجرت کرده باشد، ۴۰۹ می‌اندازد. هر روتی که روی
- * یک تب می‌نویسد باید اول این را صدا بزند.
+ * یک تب می‌نویسد باید اول این را صدا بزند. `tenantId` عمداً اختیاری است —
+ * تقریباً همه‌ی ۱۳۰+ call site موجود همان صدازدنِ تک‌آرگومانِ قدیمی را دارند؛
+ * override تک‌تننتی خودش از `tenantCutoverContext` پیدا می‌شود، بدونِ لازم
+ * بودنِ دست‌زدن به هیچ‌کدام از آنها.
  */
-export async function assertSheetsAuthoritative(entity: string): Promise<void> {
-  if (await isEntityOnPostgres(entity)) {
+export async function assertSheetsAuthoritative(entity: string, tenantId?: string): Promise<void> {
+  if (await isEntityOnPostgres(entity, tenantId)) {
     throw new BotConfigError(
       409,
       "این بخش از بات به دیتابیس مهاجرت کرده و دیگر از روی شیت خوانده نمی‌شود؛ فعلاً از اینجا قابل ویرایش نیست.",
@@ -431,6 +485,7 @@ export async function assertSheetsAuthoritative(entity: string): Promise<void> {
  * CUTOVER_TTL_MS) — همان دلیلِ `cutover_flags.invalidate_cache()`ی بات. */
 export function invalidateCutoverCache(): void {
   cutoverCache = {};
+  tenantCutoverCache = {};
   cutoverLoadedAt = 0;
 }
 

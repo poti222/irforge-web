@@ -69,6 +69,7 @@ const Admin = lazy(() => import("@/pages/admin"));
 const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
 const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
 const AdminCutoverFlags = lazy(() => import("@/pages/admin-cutover-flags"));
+const AdminSheetsImport = lazy(() => import("@/pages/admin-sheets-import"));
 const Support = lazy(() => import("@/pages/support"));
 const Notifications = lazy(() => import("@/pages/notifications"));
 const Updates = lazy(() => import("@/pages/updates"));
@@ -289,6 +290,7 @@ function Router() {
       <Route path="/admin/pending-payments"><ProtectedRoute component={AdminPendingPayments} superAdminOnly /></Route>
       <Route path="/admin/sheet-pool"><ProtectedRoute component={AdminSheetPool} superAdminOnly /></Route>
       <Route path="/admin/cutover-flags"><ProtectedRoute component={AdminCutoverFlags} superAdminOnly /></Route>
+      <Route path="/admin/sheets-import"><ProtectedRoute component={AdminSheetsImport} superAdminOnly /></Route>
 
       <Route component={NotFound} />
     </Switch>
