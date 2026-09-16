@@ -36,27 +36,37 @@ test("isEntityOnPostgres resolves per-tenant overrides in isolation, explicit te
   const tenantA = "tenantA-" + Date.now();
   const tenantB = "tenantB-" + Date.now();
 
+  // A dedicated, otherwise-unused entity name for this test's GLOBAL
+  // (tenant_id IS NULL) row -- unlike a tenant-scoped row, a global row
+  // isn't distinguishable by a unique per-test tenant id, so it can only
+  // be made safe against other concurrently-running test files (node:test
+  // runs files in parallel) by not sharing the entity name at all.
+  // cutoverFlags.test.mjs owns 'bot_settings'/'events' for this exact
+  // purpose; sheetsImport.test.mjs owns 'bot_settings'/'custom_commands'
+  // scoped by tenant_id.
+  const globalTestEntity = "wallets";
+
   try {
-    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = 'bot_settings'");
+    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = $1", [globalTestEntity]);
     await rawPool.query(
-      "INSERT INTO entity_cutover_flags (entity_name, tenant_id, use_db) VALUES ('bot_settings', NULL, false), ('bot_settings', $1, true)",
-      [tenantA]
+      "INSERT INTO entity_cutover_flags (entity_name, tenant_id, use_db) VALUES ($1, NULL, false), ($1, $2, true)",
+      [globalTestEntity, tenantA]
     );
     invalidateCutoverCache();
 
-    assert.equal(await isEntityOnPostgres("bot_settings", tenantA), true, "tenant A's own override must apply");
+    assert.equal(await isEntityOnPostgres(globalTestEntity, tenantA), true, "tenant A's own override must apply");
     assert.equal(
-      await isEntityOnPostgres("bot_settings", tenantB),
+      await isEntityOnPostgres(globalTestEntity, tenantB),
       false,
       "tenant B must fall back to the global default, unaffected by tenant A's override"
     );
     assert.equal(
-      await isEntityOnPostgres("bot_settings"),
+      await isEntityOnPostgres(globalTestEntity),
       false,
       "no tenant context at all must also fall back to the global default"
     );
   } finally {
-    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = 'bot_settings'");
+    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = $1", [globalTestEntity]);
     await rawPool.end();
   }
 });
@@ -76,7 +86,12 @@ test("resolveBotSheet seeds the request's tenant context so assertSheetsAuthorit
   const untouchedTenant = "untouched-" + Date.now();
 
   try {
-    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = 'custom_commands'");
+    // Scoped to this test's own dynamic tenant ids, not a blanket delete by
+    // entity_name -- sheetsImport.test.mjs's tests use the same
+    // 'custom_commands' entity concurrently, for their own tenants.
+    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = 'custom_commands' AND tenant_id = ANY($1)", [
+      [migratedTenant, untouchedTenant],
+    ]);
     await rawPool.query(
       "INSERT INTO entity_cutover_flags (entity_name, tenant_id, use_db) VALUES ('custom_commands', $1, true)",
       [migratedTenant]
@@ -98,7 +113,9 @@ test("resolveBotSheet seeds the request's tenant context so assertSheetsAuthorit
       await assert.doesNotReject(() => assertSheetsAuthoritative("custom_commands"));
     });
   } finally {
-    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = 'custom_commands'");
+    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = 'custom_commands' AND tenant_id = ANY($1)", [
+      [migratedTenant, untouchedTenant],
+    ]);
     await rawPool.end();
   }
 });

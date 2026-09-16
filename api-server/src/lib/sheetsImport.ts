@@ -29,8 +29,19 @@ export type SheetsImportRequestRow = {
   entitiesDone: string[];
   entitiesSkipped: string[];
   entitiesFailed: { entity: string; error: string }[];
+  attemptCount: number;
+  nextAttemptAt: string | null;
   updatedAt: string;
 };
+
+/** آینه‌ی lib/sheets_import.py::RETRY_MAX_TOTAL_SECONDS — پنل سوپرادمین
+ * دقیقاً همین بودجه را به کاربر نشان می‌دهد ("معمولاً تا ۳۰ دقیقه")، نه یک
+ * عدد اختراعی جدا از رفتار واقعیِ worker. */
+export const RETRY_MAX_TOTAL_SECONDS = 30 * 60;
+
+/** درخواستی که هنوز کارش تمام نشده — پنل باید تا وقتی یکی از این‌هاست
+ * زنده poll کند. */
+export const IN_FLIGHT_STATUSES = new Set(["pending", "running", "retrying"]);
 
 function toIso(v: unknown): string | null {
   if (v === null || v === undefined) return null;
@@ -50,6 +61,8 @@ function mapRow(r: any): SheetsImportRequestRow {
     entitiesDone: r.entities_done ?? [],
     entitiesSkipped: r.entities_skipped ?? [],
     entitiesFailed: r.entities_failed ?? [],
+    attemptCount: Number(r.attempt_count ?? 0),
+    nextAttemptAt: toIso(r.next_attempt_at),
     updatedAt: toIso(r.updated_at)!,
   };
 }

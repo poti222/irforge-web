@@ -89,7 +89,12 @@ test("listTenantImportStatuses counts per-tenant Postgres-authoritative entities
   const tenantB = "status-test-B-" + Date.now();
 
   try {
-    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name IN ('bot_settings', 'custom_commands')");
+    // Scoped to this test's own dynamic tenant_id, not a blanket delete by
+    // entity_name -- this file's tests run concurrently with other test
+    // files (e.g. botConfigTenantCutover.test.mjs) that use the exact same
+    // 'bot_settings'/'custom_commands' entities for their own tenants; a
+    // blanket delete here would wipe rows those tests just inserted.
+    await rawPool.query("DELETE FROM entity_cutover_flags WHERE tenant_id = ANY($1)", [[tenantA, tenantB]]);
     await rawPool.query(
       "INSERT INTO entity_cutover_flags (entity_name, tenant_id, use_db) VALUES ('bot_settings', $1, true), ('custom_commands', $1, true)",
       [tenantA]
@@ -109,7 +114,7 @@ test("listTenantImportStatuses counts per-tenant Postgres-authoritative entities
     assert.equal(b.postgresEntityCount, 0, "tenant B must be unaffected by tenant A's flags");
     assert.equal(b.latestRequest, null);
   } finally {
-    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name IN ('bot_settings', 'custom_commands')");
+    await rawPool.query("DELETE FROM entity_cutover_flags WHERE tenant_id = ANY($1)", [[tenantA, tenantB]]);
     await rawPool.query("DELETE FROM sheets_import_requests WHERE tenant_id IN ($1, $2)", [tenantA, tenantB]);
     await rawPool.end();
   }
