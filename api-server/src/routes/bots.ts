@@ -67,6 +67,13 @@ import { tomanToRial, rialToToman } from "../lib/currency.js";
 import { addOneMonth } from "../lib/tierExpiry.js";
 import { verifyCaptchaToken } from "../lib/captchaVerify.js";
 import { buildSheetPoolView } from "../lib/sheetPoolView.js";
+import {
+  getBotDatabaseStatus,
+  startSqlMigration,
+  startSheetsReversion,
+  SQL_DATABASE_MONTHLY_PRICE_TOMAN,
+  type BotDatabaseStatus,
+} from "../lib/botDatabase.js";
 
 const router = Router();
 
@@ -3355,6 +3362,139 @@ router.post("/bots/:botId/renew", requireBotOwnership, async (req: any, res) => 
     res.json(formatBot(updated));
   } catch (err) {
     logger.error({ err }, "Renew bot tier error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── Database section — self-serve Sheets ↔ SQL (Postgres) ──────────────────
+// IRFORGE_PAID_SQL_DATABASE_PROMPT — one bot's ENTIRE data lives either on
+// its Google Sheet (the free/default backing store) or on Postgres ("SQL"),
+// a paid upgrade (lib/botDatabase.ts::SQL_DATABASE_MONTHLY_PRICE_TOMAN /
+// month, wallet-charged, same self-serve/requireBotOwnership shape as
+// upgrade-tier and renew above). Actual data movement is the existing
+// sheets_import/export queue engine — these 3 routes only gate access,
+// charge/refund the wallet, and enqueue the job.
+
+// ─── GET /api/bots/:botId/database — live status for the Database panel ─────
+router.get("/bots/:botId/database", requireBotOwnership, async (req: any, res) => {
+  try {
+    const bot = req.bot;
+    if (!bot.sheetId) {
+      // بات هنوز شیتی ندارد (هنوز کامل فعال نشده) — یعنی هیچ داده‌ای هم
+      // برای مهاجرت نیست؛ یک وضعیتِ خنثی برمی‌گردانیم تا پنل خطا ندهد.
+      const empty: BotDatabaseStatus = {
+        mode: "sheets",
+        postgresEntityCount: 0,
+        totalEntityCount: 0,
+        sqlExpiresAt: null,
+        latestImportRequest: null,
+        latestExportRequest: null,
+        priceToman: SQL_DATABASE_MONTHLY_PRICE_TOMAN,
+      };
+      res.json(empty);
+      return;
+    }
+    const status = await getBotDatabaseStatus(bot.sheetId, bot.databaseSqlExpiresAt);
+    res.json(status);
+  } catch (err) {
+    logger.error({ err }, "Get bot database status error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/bots/:botId/database/activate-sql — Sheets → SQL, self-serve ─
+router.post("/bots/:botId/database/activate-sql", requireBotOwnership, async (req: any, res) => {
+  try {
+    const bot = req.bot;
+    if (!bot.sheetId) {
+      res.status(400).json({ error: "این بات هنوز شیتی ندارد.", code: "no_sheet" });
+      return;
+    }
+    const current = await getBotDatabaseStatus(bot.sheetId, bot.databaseSqlExpiresAt);
+    if (current.mode === "migrating" || current.mode === "reverting") {
+      res.status(400).json({ error: "یک انتقالِ دیگر در حال انجام است.", code: "transfer_in_progress" });
+      return;
+    }
+    if (current.mode === "sql") {
+      res.status(400).json({ error: "دیتابیسِ این بات از قبل روی SQL است.", code: "already_sql" });
+      return;
+    }
+
+    const ok = await deductWallet(
+      req.userId,
+      tomanToRial(SQL_DATABASE_MONTHLY_PRICE_TOMAN),
+      `SQL database activation: ${bot.name}`
+    );
+    if (!ok) {
+      res.status(400).json({ error: "موجودی کیف پول کافی نیست.", code: "insufficient" });
+      return;
+    }
+
+    const nextExpiry = addOneMonth(new Date());
+    const [updated] = await db.update(botsTable)
+      .set({ databaseSqlExpiresAt: nextExpiry })
+      .where(eq(botsTable.id, bot.id))
+      .returning();
+
+    await startSqlMigration(bot.sheetId, req.userId);
+
+    await createNotification({
+      userId: req.userId,
+      botId: bot.id,
+      type: "purchase_success",
+      severity: "info",
+      title: "انتقال به دیتابیس SQL آغاز شد",
+      message: `${formatTomanFa(SQL_DATABASE_MONTHLY_PRICE_TOMAN)} برای دیتابیس SQL بات «${bot.name}» از کیف پول کسر شد — انتقالِ داده در حال انجام است.`,
+    });
+
+    const status = await getBotDatabaseStatus(bot.sheetId, updated.databaseSqlExpiresAt);
+    res.json(status);
+  } catch (err) {
+    logger.error({ err }, "Activate SQL database error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/bots/:botId/database/revert-to-sheets — SQL → Sheets ─────────
+// بدون بازگشتِ وجه (طبق تصمیمِ صریحِ کاربر) — چه وسطِ ماه دستی درخواست شود چه
+// از طریقِ sweep خودکار بعدِ شکستِ تمدید (lib/sqlDatabaseExpiry.ts).
+router.post("/bots/:botId/database/revert-to-sheets", requireBotOwnership, async (req: any, res) => {
+  try {
+    const bot = req.bot;
+    if (!bot.sheetId) {
+      res.status(400).json({ error: "این بات هنوز شیتی ندارد.", code: "no_sheet" });
+      return;
+    }
+    const current = await getBotDatabaseStatus(bot.sheetId, bot.databaseSqlExpiresAt);
+    if (current.mode === "migrating" || current.mode === "reverting") {
+      res.status(400).json({ error: "یک انتقالِ دیگر در حال انجام است.", code: "transfer_in_progress" });
+      return;
+    }
+    if (current.mode === "sheets") {
+      res.status(400).json({ error: "دیتابیسِ این بات از قبل روی Sheet است.", code: "already_sheets" });
+      return;
+    }
+
+    const [updated] = await db.update(botsTable)
+      .set({ databaseSqlExpiresAt: null })
+      .where(eq(botsTable.id, bot.id))
+      .returning();
+
+    await startSheetsReversion(bot.sheetId, req.userId);
+
+    await createNotification({
+      userId: req.userId,
+      botId: bot.id,
+      type: "info",
+      severity: "info",
+      title: "بازگشت به Sheet آغاز شد",
+      message: `دیتابیسِ بات «${bot.name}» در حال بازگشت به Google Sheet است — بدون بازگشتِ وجه.`,
+    });
+
+    const status = await getBotDatabaseStatus(bot.sheetId, updated.databaseSqlExpiresAt);
+    res.json(status);
+  } catch (err) {
+    logger.error({ err }, "Revert to Sheets database error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

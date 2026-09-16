@@ -57,6 +57,7 @@ export type TutorialSectionId =
   | "crm"
   | "catalog"
   | "wallet"
+  | "database"
   | "language"
   | "settings";
 

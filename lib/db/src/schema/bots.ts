@@ -105,6 +105,19 @@ export const botsTable = pgTable("bots", {
    */
   tierExpiresAt: timestamp("tier_expires_at", { withTimezone: true }),
 
+  /**
+   * IRFORGE_PAID_SQL_DATABASE_PROMPT — این باتِ مشخص روی «دیتابیسِ SQL»یِ
+   * پولی است یا نه. `null` یعنی هنوز نخریده (دیتایش رویِ Sheet است، همان
+   * پیش‌فرضِ همیشگی). یک تاریخ یعنی تا آن لحظه پرداخت شده و ماهانه باید
+   * تمدید شود — دقیقاً همان الگویِ `tierExpiresAt` بالا، برایِ یک محصولِ
+   * کاملاً جدا (خودِ tier به کامپیوتِ بات مربوط است، این ستون به اینکه
+   * دیتایِ بات کجا زندگی می‌کند). عمداً این ستون تنها منبعِ صحتِ **پرداخت**
+   * است، نه اینکه دیتا واقعاً کجاست — آن را همیشه زنده از
+   * `entity_cutover_flags` می‌خوانیم (`lib/botDatabase.ts::getBotDatabaseStatus`)
+   * تا یک مهاجرتِ نیمه‌تمام هیچ‌وقت با این ستون ناهماهنگ نماند.
+   */
+  databaseSqlExpiresAt: timestamp("database_sql_expires_at", { withTimezone: true }),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

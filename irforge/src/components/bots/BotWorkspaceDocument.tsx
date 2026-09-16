@@ -36,6 +36,7 @@ import {
   Languages,
   Newspaper,
   GitBranch,
+  Database,
   type LucideIcon,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
@@ -78,6 +79,7 @@ import { DripSection } from "@/components/bots/drip/DripSection";
 import { CrmSection } from "@/components/bots/crm/CrmSection";
 import { CatalogSection } from "@/components/bots/catalog/CatalogSection";
 import { WalletSection } from "@/components/bots/wallet/WalletSection";
+import { DatabaseSection } from "@/components/bots/database/DatabaseSection";
 import { SurveySection } from "@/components/bots/survey/SurveySection";
 import { GiveawaySection } from "@/components/bots/giveaway/GiveawaySection";
 import { LoyaltySection } from "@/components/bots/loyalty/LoyaltySection";
@@ -125,6 +127,7 @@ type SectionKey =
   | "crm"
   | "catalog"
   | "wallet"
+  | "database"
   | "language"
   | "settings";
 
@@ -274,6 +277,10 @@ const SECTION_GROUPS: SectionGroup[] = [
       { key: "relations", icon: Share2, labelKey: "sectionRelations" },
       { key: "workflows", icon: Workflow, labelKey: "sectionWorkflows" },
       { key: "plugins", icon: Blocks, labelKey: "sectionPlugins" },
+      // IRFORGE_PAID_SQL_DATABASE_PROMPT — انتخابِ Sheet/SQL برای این بات؛
+      // همیشه قابلِ دیدن است (بدون requiresPlugin)، چون به هیچ پلاگینی
+      // وابسته نیست، به خودِ زیرساختِ داده‌ی بات.
+      { key: "database", icon: Database, labelKey: "sectionDatabase" },
     ],
   },
   {
@@ -543,6 +550,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "crm" && <CrmSection bot={bot} />}
             {section === "catalog" && <CatalogSection bot={bot} />}
             {section === "wallet" && <WalletSection bot={bot} />}
+            {section === "database" && <DatabaseSection bot={bot} />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}

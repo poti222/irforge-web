@@ -5,6 +5,7 @@ import { refreshExchangeRateFromApi } from "./lib/exchangeRate";
 import { expireStaleTopups } from "./lib/walletTopupService";
 import { runStartupCryptoSelfCheck } from "./lib/tokenCrypto.js";
 import { sweepTierExpiry } from "./lib/tierExpiry.js";
+import { sweepSqlDatabaseExpiry } from "./lib/sqlDatabaseExpiry.js";
 
 const port = Number(process.env.PORT ?? 3000);
 
@@ -50,4 +51,10 @@ setInterval(() => {
 // الگوی setInterval بالا، بدون هیچ زیرساختِ cron جدید.
 setInterval(() => {
   void sweepTierExpiry().catch((err) => logger.error({ err }, "sweepTierExpiry failed"));
+}, 10 * 60 * 1000);
+
+// IRFORGE_PAID_SQL_DATABASE_PROMPT — همان دلیلِ sweepTierExpiry بالا، برایِ
+// اشتراکِ ماهانه‌ی دیتابیسِ SQL هر بات.
+setInterval(() => {
+  void sweepSqlDatabaseExpiry().catch((err) => logger.error({ err }, "sweepSqlDatabaseExpiry failed"));
 }, 10 * 60 * 1000);
