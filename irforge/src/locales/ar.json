@@ -3180,6 +3180,8 @@
     "prev": "السابق",
     "close": "إغلاق",
     "finish": "إنهاء",
-    "titleFormat": "دليل الاستخدام: {section}"
+    "titleFormat": "دليل الاستخدام: {section}",
+    "fullPageCta": "دليل مصور",
+    "notFound": "لم يتم العثور على صفحة الدليل هذه."
   }
 }

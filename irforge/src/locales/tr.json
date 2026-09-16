@@ -3180,6 +3180,8 @@
     "prev": "Önceki",
     "close": "Kapat",
     "finish": "Bitti",
-    "titleFormat": "Eğitim: {section}"
+    "titleFormat": "Eğitim: {section}",
+    "fullPageCta": "Görsel Eğitim",
+    "notFound": "Bu eğitim sayfası bulunamadı."
   }
 }

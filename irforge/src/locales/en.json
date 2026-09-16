@@ -3180,6 +3180,8 @@
     "prev": "Previous",
     "close": "Close",
     "finish": "Done",
-    "titleFormat": "Tutorial: {section}"
+    "titleFormat": "Tutorial: {section}",
+    "fullPageCta": "Visual Tutorial",
+    "notFound": "This tutorial page was not found."
   }
 }

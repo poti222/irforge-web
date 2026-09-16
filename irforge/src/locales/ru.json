@@ -3180,6 +3180,8 @@
     "prev": "Назад",
     "close": "Закрыть",
     "finish": "Готово",
-    "titleFormat": "Обучение: {section}"
+    "titleFormat": "Обучение: {section}",
+    "fullPageCta": "Наглядное обучение",
+    "notFound": "Эта обучающая страница не найдена."
   }
 }

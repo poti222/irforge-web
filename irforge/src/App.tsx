@@ -57,6 +57,7 @@ const BuyBot = lazy(() => import("@/pages/buy-bot"));
 const BuyBotDetail = lazy(() => import("@/pages/buy-bot-detail"));
 const Checkout = lazy(() => import("@/pages/checkout"));
 const BotWorkspace = lazy(() => import("@/pages/bot-workspace"));
+const TutorialPage = lazy(() => import("@/pages/tutorial"));
 const Marketplace = lazy(() => import("@/pages/marketplace"));
 const PluginDetail = lazy(() => import("@/pages/plugin-detail"));
 const Invoices = lazy(() => import("@/pages/invoices"));
@@ -266,6 +267,7 @@ function Router() {
       {/* Must come before /bots/:botId so "cart" isn't parsed as a bot id */}
       <Route path="/bots/cart"><ProtectedRoute component={Checkout} /></Route>
       <Route path="/bots/:botId"><ProtectedRoute component={BotWorkspace} /></Route>
+      <Route path="/tutorials/:section"><ProtectedRoute component={TutorialPage} /></Route>
       <Route path="/marketplace"><ProtectedRoute component={Marketplace} /></Route>
       <Route path="/marketplace/:pluginId"><ProtectedRoute component={PluginDetail} /></Route>
       <Route path="/invoices"><ProtectedRoute component={Invoices} /></Route>

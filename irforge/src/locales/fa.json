@@ -3180,6 +3180,8 @@
     "prev": "قبلی",
     "close": "بستن",
     "finish": "پایان",
-    "titleFormat": "آموزش: {section}"
+    "titleFormat": "آموزش: {section}",
+    "fullPageCta": "آموزش تصویری",
+    "notFound": "این صفحه‌ی آموزشی پیدا نشد."
   }
 }
