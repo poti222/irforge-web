@@ -179,4 +179,33 @@ router.delete("/database/:target/tabs/:tab/rows/:key", requireAuth, async (req: 
   }
 });
 
+// ─── GET /api/database/migration/bots — list bots for migration ──────────────
+router.get("/database/migration/bots", requireAuth, async (req: any, res) => {
+  try {
+    const bots = await db
+      .select({
+        id: botsTable.id,
+        name: botsTable.name,
+        databaseSqlExpiresAt: botsTable.databaseSqlExpiresAt,
+        sheetId: botsTable.sheetId,
+      })
+      .from(botsTable)
+      .where(eq(botsTable.userId, req.userId));
+
+    type BotRow = { id: string; name: string; databaseSqlExpiresAt: Date | null; sheetId: string | null };
+    const botsList = (bots as BotRow[])
+      .filter((b: BotRow) => Boolean(b.sheetId))
+      .map((b: BotRow) => ({
+        id: b.id,
+        name: b.name,
+        isMigrated: b.databaseSqlExpiresAt !== null,
+        expiresAt: b.databaseSqlExpiresAt,
+      }));
+
+    res.json({ bots: botsList });
+  } catch (err) {
+    fail(res, err, "Failed to list migration-eligible bots");
+  }
+});
+
 export default router;
