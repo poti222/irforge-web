@@ -8,10 +8,8 @@ import {
   RefreshCw,
   Table as TableIcon,
   Eye,
-  Check,
-  Clock,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -24,7 +22,6 @@ import {
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
-import { formatToman } from "@/lib/format";
 
 type Target = { target: string; label: string; kind: string; sheetId: string };
 type Row = { key: string; value: unknown; raw: boolean };
@@ -62,8 +59,6 @@ function preview(value: unknown, raw: boolean): string {
   }
 }
 
-type MigrationBot = { id: string; name: string; isMigrated: boolean; expiresAt: Date | string | null };
-
 export default function DatabasePage() {
   usePrivatePageTitle(useT("pageTitles").database);
   const { lang } = useLanguage();
@@ -72,13 +67,6 @@ export default function DatabasePage() {
 
   const [target, setTarget] = useState<string>("");
   const [tab, setTab] = useState<string>("");
-
-  // Migration section
-  const migrationBotsQ = useQuery({
-    queryKey: ["database", "migration", "bots"],
-    queryFn: () => customFetch<{ bots: MigrationBot[] }>("/api/database/migration/bots"),
-  });
-  const migrationBots = migrationBotsQ.data?.bots ?? [];
 
   const t = (f: string, e: string) => (fa ? f : e);
 
@@ -116,86 +104,8 @@ export default function DatabasePage() {
   const rows = useMemo(() => allRows.filter((r) => !INTERNAL_KEY.test(r.key)), [allRows]);
   const hiddenCount = allRows.length - rows.length;
 
-  function formatExpiryDate(date: Date | string | null): string {
-    if (!date) return "";
-    const d = typeof date === "string" ? new Date(date) : date;
-    return d.toLocaleDateString(fa ? "fa-IR" : "en-US", { year: "numeric", month: "short", day: "numeric" });
-  }
-
   return (
     <div className="space-y-6">
-      {/* Database Migration Section */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold tracking-tight">{t("پایگاه داده SQL", "PostgreSQL Database Migration")}</h2>
-        {migrationBotsQ.isLoading ? (
-          <Card>
-            <CardContent className="p-8 text-center text-sm text-muted-foreground">
-              <Loader2 className="mx-auto mb-2 size-5 animate-spin" />
-              {t("در حال بارگذاری…", "Loading…")}
-            </CardContent>
-          </Card>
-        ) : migrationBots.length === 0 ? (
-          <div className="rounded-xl border border-dashed py-10 text-center">
-            <DatabaseIcon className="mx-auto mb-3 size-9 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">{t("هنوز باتی با شیت اختصاصی نداری.", "No bot with a sheet yet. Create a bot first.")}</p>
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            {migrationBots.map((bot) => {
-              const expiresAt = bot.expiresAt ? (typeof bot.expiresAt === "string" ? new Date(bot.expiresAt) : bot.expiresAt) : null;
-              const isExpired = expiresAt && expiresAt < new Date();
-              const isActive = bot.isMigrated && !isExpired;
-              return (
-                <Card key={bot.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{bot.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {bot.isMigrated ? (
-                            isExpired ? (
-                              <span className="text-red-500">{t("مهلت به پایان رسیده", "Expired")}</span>
-                            ) : (
-                              <span className="text-green-600 dark:text-green-400">{t("تا", "Expires")} {formatExpiryDate(expiresAt)}</span>
-                            )
-                          ) : (
-                            <span>{formatToman(170000)} {t("تومان", "toman")}</span>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {isActive && (
-                          <Badge variant="default" className="gap-1 bg-green-600 hover:bg-green-700">
-                            <Check className="size-3" />
-                            {t("فعال", "Active")}
-                          </Badge>
-                        )}
-                        {isExpired && (
-                          <Badge variant="destructive" className="gap-1">
-                            <Clock className="size-3" />
-                            {t("منقضی", "Expired")}
-                          </Badge>
-                        )}
-                        {!bot.isMigrated && (
-                          <Button size="sm" variant="default">
-                            {t("خریدِ دیتابیسِ SQL", "Buy SQL Database")}
-                          </Button>
-                        )}
-                        {isExpired && (
-                          <Button size="sm" variant="default">
-                            {t("تمدید", "Renew")}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
       {/* header */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
