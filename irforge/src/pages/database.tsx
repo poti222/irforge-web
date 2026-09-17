@@ -62,7 +62,7 @@ function preview(value: unknown, raw: boolean): string {
   }
 }
 
-type MigrationBot = { id: string; name: string; isMigrated: boolean; expiresAt: Date | null };
+type MigrationBot = { id: string; name: string; isMigrated: boolean; expiresAt: Date | string | null };
 
 export default function DatabasePage() {
   usePrivatePageTitle(useT("pageTitles").database);
@@ -116,9 +116,9 @@ export default function DatabasePage() {
   const rows = useMemo(() => allRows.filter((r) => !INTERNAL_KEY.test(r.key)), [allRows]);
   const hiddenCount = allRows.length - rows.length;
 
-  function formatExpiryDate(date: Date | null): string {
+  function formatExpiryDate(date: Date | string | null): string {
     if (!date) return "";
-    const d = new Date(date);
+    const d = typeof date === "string" ? new Date(date) : date;
     return d.toLocaleDateString(fa ? "fa-IR" : "en-US", { year: "numeric", month: "short", day: "numeric" });
   }
 
@@ -142,7 +142,7 @@ export default function DatabasePage() {
         ) : (
           <div className="grid gap-3">
             {migrationBots.map((bot) => {
-              const expiresAt = bot.expiresAt ? new Date(bot.expiresAt) : null;
+              const expiresAt = bot.expiresAt ? (typeof bot.expiresAt === "string" ? new Date(bot.expiresAt) : bot.expiresAt) : null;
               const isExpired = expiresAt && expiresAt < new Date();
               const isActive = bot.isMigrated && !isExpired;
               return (
