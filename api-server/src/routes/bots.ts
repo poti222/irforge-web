@@ -703,6 +703,47 @@ async function reconcileBotsFromRegistry(userId: string, telegramId: string | nu
           /* corrupt/legacy row — skip */
         }
       }
+
+      // BUG FIX: a token with no Postgres match at all used to always mean
+      // "insert a brand-new bot row" — but a bot recreated with a fresh
+      // BotFather token (owner used /removebot then registered again, or a
+      // trial got swept and the same sheet got recycled back to them) also
+      // lands here, and its registry tenant carries the SAME sheetId as the
+      // row that already exists for this owner. Inserting yet another row
+      // in that case is exactly the "duplicate bot" bug report: a second
+      // (then third, then...) permanent "Unknown"-tier ghost row piling up
+      // on top of the real one every time this happens, since nothing ever
+      // pruned the old row. Two real bots for the same owner can never
+      // legitimately share a sheetId (each gets its own from the pool), so
+      // same-owner-same-sheetId here can only mean "this is that bot again,
+      // under a new token" — update the existing row's token/identity in
+      // place instead of piling on a new one. Only applies when the tenant
+      // actually carries a sheetId; with none there's nothing reliable to
+      // match on, so it falls through to the original insert-new behavior.
+      if (sheetId) {
+        const sameOwnerSameSheet = raced.filter((b) => b.userId === userId && b.sheetId === sheetId);
+        if (sameOwnerSameSheet.length > 0) {
+          const keeper = sameOwnerSameSheet.reduce((best, b) => {
+            const bReal = Boolean(best.tier || best.isTrial);
+            const cReal = Boolean(b.tier || b.isTrial);
+            if (bReal !== cReal) return cReal ? b : best;
+            return b.updatedAt > best.updatedAt ? b : best;
+          });
+          const [updated] = await tx
+            .update(botsTable)
+            .set({
+              name: t.bot_name || keeper.name,
+              token: encryptToken(t.bot_token),
+              username: t.bot_username ?? keeper.username,
+              status: t.status === "active" ? "active" : "inactive",
+              adminCode: t.admin_password || keeper.adminCode,
+            })
+            .where(eq(botsTable.id, keeper.id))
+            .returning();
+          return updated;
+        }
+      }
+
       const newId = crypto.randomUUID();
       const [inserted] = await tx
         .insert(botsTable)
