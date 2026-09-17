@@ -176,14 +176,6 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/database"} tooltip={nav.database}>
-                  <Link href="/database" data-testid="nav-database" onClick={closeMobileMenu}>
-                    <Database />
-                    <span>{nav.database}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
               {/* Bot Language moved into the per-bot workspace and Plans
                   merged into Buy Bot, so neither has a top-level row any more.
                   What's left is exactly the order the spec asks for. */}
