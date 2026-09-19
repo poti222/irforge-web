@@ -18,11 +18,12 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
+import type { User } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Blocks, Loader2, Info, ArrowLeft, ArrowRight } from "lucide-react";
+import { Blocks, Loader2, Info, ArrowLeft, ArrowRight, Wallet } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
@@ -77,6 +78,12 @@ export function PluginsManager({ botId }: { botId: string }) {
       ),
   });
 
+  const { data: wallet } = useQuery({
+    queryKey: ["wallet"],
+    queryFn: () => customFetch<{ balance: number }>("/api/wallet"),
+    refetchInterval: 10000,
+  });
+
   const toggle = useMutation({
     mutationFn: ({ pluginId, enabled }: { pluginId: string; enabled: boolean }) =>
       customFetch(`/api/bots/${botId}/plugins/${pluginId}`, {
@@ -117,13 +124,25 @@ export function PluginsManager({ botId }: { botId: string }) {
   return (
     <div className="space-y-8">
       <section>
-        <h3 className="mb-1 text-base font-semibold">
-          {t.installedTitle}{" "}
-          <Badge variant="outline" className="tabular-nums align-middle">
-            {usable.length.toLocaleString(fa ? "fa-IR" : "en-US")}
-          </Badge>
-        </h3>
-        <p className="mb-3 text-sm text-muted-foreground">{t.installedDesc}</p>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h3 className="mb-1 text-base font-semibold">
+              {t.installedTitle}{" "}
+              <Badge variant="outline" className="tabular-nums align-middle">
+                {usable.length.toLocaleString(fa ? "fa-IR" : "en-US")}
+              </Badge>
+            </h3>
+            <p className="text-sm text-muted-foreground">{t.installedDesc}</p>
+          </div>
+          {wallet && (
+            <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
+              <Wallet className="size-4 text-primary" />
+              <span className="whitespace-nowrap text-sm font-semibold">
+                {formatToman(wallet.balance, lang)}
+              </span>
+            </div>
+          )}
+        </div>
 
         {usable.length === 0 ? (
           <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">

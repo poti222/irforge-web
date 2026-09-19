@@ -178,6 +178,7 @@ const SECTION_GROUPS: SectionGroup[] = [
     items: [
       { key: "overview", icon: LayoutDashboard, labelKey: "sectionOverview" },
       { key: "profile", icon: IdCard, labelKey: "sectionProfile" },
+      { key: "plugins", icon: Blocks, labelKey: "sectionPlugins" },
       { key: "stats", icon: Activity, labelKey: "sectionStats" },
     ],
   },
@@ -276,7 +277,6 @@ const SECTION_GROUPS: SectionGroup[] = [
       { key: "objects", icon: Boxes, labelKey: "sectionObjects" },
       { key: "relations", icon: Share2, labelKey: "sectionRelations" },
       { key: "workflows", icon: Workflow, labelKey: "sectionWorkflows" },
-      { key: "plugins", icon: Blocks, labelKey: "sectionPlugins" },
       // IRFORGE_PAID_SQL_DATABASE_PROMPT — انتخابِ Sheet/SQL برای این بات؛
       // همیشه قابلِ دیدن است (بدون requiresPlugin)، چون به هیچ پلاگینی
       // وابسته نیست، به خودِ زیرساختِ داده‌ی بات.
