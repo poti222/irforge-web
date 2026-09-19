@@ -1,4 +1,4 @@
-import { useListBots, getListBotsQueryKey } from "@workspace/api-client-react";
+import { useListBots } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Bot as BotIcon, ArrowRight, Gift, Settings } from "lucide-react";
@@ -69,14 +69,7 @@ export default function Bots() {
   usePrivatePageTitle(useT("pageTitles").bots);
   const { lang } = useLanguage();
   const t = useT("bots");
-  // Live incident: a bot's on/off status looked stuck wrong until a manual
-  // reload — this list is the primary place users check it, so it polls
-  // instead of relying only on the toggle's own invalidation (which only
-  // fires from THIS tab's own click, not e.g. a duplicate-row status this
-  // page didn't cause and can't otherwise learn about without a refetch).
-  const { data: bots, isLoading } = useListBots({
-    query: { queryKey: getListBotsQueryKey(), refetchInterval: 5000 },
-  });
+  const { data: bots, isLoading } = useListBots();
 
   return (
     <div className="space-y-8">
