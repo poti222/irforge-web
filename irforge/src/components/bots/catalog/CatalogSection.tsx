@@ -20,11 +20,12 @@
  * product's generic media, not inside the fulfillment section.
  */
 import { useState } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
 import {
-  Store, Loader2, Plus, Trash2, Pencil, Archive, ArchiveRestore, PackageOpen, FolderTree, AlertTriangle,
+  Store, Loader2, Plus, Trash2, Pencil, Archive, ArchiveRestore, PackageOpen, FolderTree, AlertTriangle, ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,9 +111,16 @@ function formatPrice(price: number, currency: string): string {
 
 // ─── دسته‌بندی ───────────────────────────────────────────────────────────────
 
+/**
+ * صفحه‌ی کامل (نه دیالوگِ کوچک) — همان الگویی که `PanelEditor` برایِ ویرایشِ
+ * یک پنل استفاده می‌کند: هدر با دکمه‌ی بازگشت، بعد فرم با فضایِ کامل. قبلِ این،
+ * این ویرایشگر داخلِ یک `<Dialog max-w-sm>` بود — برایِ یک دسته‌بندیِ ساده
+ * کافی بود، ولی خواسته‌ی صریحِ کاربر «صفحه‌ی جدا برایِ هر دسته‌بندی هم» بود، تا
+ * تجربه با ویرایشگرِ کالا یکدست بماند.
+ */
 function CategoryEditor({
-  botId, category, onClose,
-}: { botId: string; category: Category | null; onClose: () => void }) {
+  botId, category, onBack,
+}: { botId: string; category: Category | null; onBack: () => void }) {
   const t = useT("botCatalog");
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -131,16 +139,24 @@ function CategoryEditor({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bot-catalog-categories", botId] });
       toast({ title: category ? t.categoryUpdated : t.categoryCreated });
-      onClose();
+      onBack();
     },
     onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
   });
 
   return (
-    <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader><DialogTitle>{category ? t.editCategory : t.newCategory}</DialogTitle></DialogHeader>
-        <div className="space-y-3">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={onBack}>
+          <ArrowRight className="me-1.5 size-4 rtl-flip" /> {t.backToList}
+        </Button>
+        <h3 className="min-w-0 flex-1 truncate text-lg font-semibold">
+          {category ? (category.name_fa || category.name) : t.newCategory}
+        </h3>
+      </div>
+
+      <Card className="max-w-lg">
+        <CardContent className="space-y-3 pt-6">
           <div className="space-y-1">
             <Label>{t.fieldCategoryName}</Label>
             <Input value={name} maxLength={200} onChange={(e) => setName(e.target.value)} />
@@ -159,23 +175,21 @@ function CategoryEditor({
               <Switch checked={isActive} onCheckedChange={setIsActive} />
             </div>
           </div>
-        </div>
-        <DialogFooter>
-          <Button onClick={() => save.mutate()} disabled={!name.trim() || save.isPending}>
+
+          <Button onClick={() => save.mutate()} disabled={!name.trim() || save.isPending} className="w-full">
             {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
             {t.save}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
-function CategoriesTab({ botId }: { botId: string }) {
+function CategoriesTab({ botId, onOpen }: { botId: string; onOpen: (id: string | "new") => void }) {
   const t = useT("botCatalog");
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [editing, setEditing] = useState<Category | "new" | null>(null);
 
   const categoriesKey = ["bot-catalog-categories", botId] as const;
   const { data, isLoading } = useQuery({
@@ -196,7 +210,7 @@ function CategoriesTab({ botId }: { botId: string }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">{t.categoriesSectionDesc}</p>
-        <Button size="sm" onClick={() => setEditing("new")}>
+        <Button size="sm" onClick={() => onOpen("new")}>
           <Plus className="me-1.5 size-4" /> {t.newCategory}
         </Button>
       </div>
@@ -208,20 +222,22 @@ function CategoriesTab({ botId }: { botId: string }) {
           {categories.map((cat) => (
             <div key={cat.id} className="flex items-center justify-between gap-2 rounded-md border p-3">
               <div className="min-w-0">
-                <p className="truncate font-medium">{cat.name_fa || cat.name}</p>
+                <button
+                  type="button"
+                  className="truncate text-start font-medium hover:text-primary hover:underline"
+                  onClick={() => onOpen(cat.id)}
+                >
+                  {cat.name_fa || cat.name}
+                </button>
                 {!cat.is_active && <Badge variant="outline" className="mt-1">{t.categoryInactiveBadge}</Badge>}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <Button size="icon" variant="ghost" onClick={() => setEditing(cat)}><Pencil className="size-4" /></Button>
+                <Button size="icon" variant="ghost" onClick={() => onOpen(cat.id)}><Pencil className="size-4" /></Button>
                 <Button size="icon" variant="ghost" onClick={() => remove.mutate(cat.id)}><Trash2 className="size-4 text-destructive" /></Button>
               </div>
             </div>
           ))}
         </div>
-      )}
-
-      {editing && (
-        <CategoryEditor botId={botId} category={editing === "new" ? null : editing} onClose={() => setEditing(null)} />
       )}
     </div>
   );
@@ -926,9 +942,21 @@ function FulfillmentConfigEditor({
 
 // ─── ویرایشگر کالا/سرویس ─────────────────────────────────────────────────────
 
+type ItemEditorTab = "basic" | "content" | "options" | "fulfillment";
+
+/**
+ * صفحه‌ی کاملِ ویرایشِ یک کالا/سرویس — قبلِ این همه‌چیز (اطلاعاتِ پایه، محتوا،
+ * دکمه‌ها، پلن‌ها، و برایِ pool حتی افزودنِ انبوهِ آیتم + لیستِ فروخته‌شده‌ها) در
+ * یک `<Dialog max-w-lg max-h-[85vh] overflow-y-auto>` تنگ جا می‌شد؛ خواسته‌ی
+ * صریحِ کاربر یک صفحه‌ی جدا و کامل بود. همان الگویِ `PanelEditor`: هدر با
+ * دکمه‌ی بازگشت، بعد Tabs برایِ گروه‌بندیِ منطقیِ فیلدها به‌جایِ یک اسکرولِ
+ * طولانی، و یک نوارِ ذخیره‌ی ثابت که مستقل از تبِ فعال همیشه دیده می‌شود (چون
+ * همه‌ی این فیلدها — بجز پلن‌ها و پیکربندیِ تحویل که خودشان جدا ذخیره می‌شوند —
+ * در یک PATCH/POST واحد ذخیره می‌شوند).
+ */
 function ItemEditor({
-  botId, item, categories, onClose,
-}: { botId: string; item: CatalogItem | "new"; categories: Category[]; onClose: () => void }) {
+  botId, item, categories, onBack,
+}: { botId: string; item: CatalogItem | "new"; categories: Category[]; onBack: () => void }) {
   const t = useT("botCatalog");
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -950,6 +978,7 @@ function ItemEditor({
   const [mediaFileIds, setMediaFileIds] = useState<string[]>(base?.media?.map((m) => m.file_id) ?? []);
   const [bodyHtml, setBodyHtml] = useState(base?.body_html ?? "");
   const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows(base?.buttons ?? []));
+  const [tab, setTab] = useState<ItemEditorTab>("basic");
 
   const { data: panelsData } = usePanels(botId);
 
@@ -975,170 +1004,204 @@ function ItemEditor({
       qc.invalidateQueries({ queryKey: itemsKey });
       toast({ title: current ? t.itemUpdated : t.itemCreated });
       setCurrent(res.item);
-      // ویرایشِ یک کالای موجود بعد از ذخیره بسته می‌شود — دقیقاً همان
-      // رفتاری که کاربر از یک فرمِ ویرایش انتظار دارد. برای یک کالای **تازه**
-      // (item === "new") عمداً باز می‌ماند: اولین ذخیره‌ست که current را پر
-      // می‌کند و بخش‌های گزینه‌ها/تحویل را نشان می‌دهد — بستنِ فوری یعنی
-      // کاربر هرگز نمی‌تواند همان لحظه آن‌ها را تنظیم کند.
-      if (item !== "new") onClose();
     },
     onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
   });
 
   return (
-    <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
-        <DialogHeader><DialogTitle>{current ? t.editItem : t.newItem}</DialogTitle></DialogHeader>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={onBack}>
+          <ArrowRight className="me-1.5 size-4 rtl-flip" /> {t.backToList}
+        </Button>
+        <h3 className="min-w-0 flex-1 truncate text-lg font-semibold">
+          {current ? (current.name_fa || current.name) : t.newItem}
+        </h3>
+        {current?.status === "draft" && <Badge variant="outline">{t.status_draft}</Badge>}
+        {current?.status === "archived" && <Badge variant="outline">{t.status_archived}</Badge>}
+      </div>
 
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>{t.fieldName}</Label>
-              <Input value={name} maxLength={200} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>{t.fieldNameFa}</Label>
-              <Input value={nameFa} maxLength={200} onChange={(e) => setNameFa(e.target.value)} placeholder={name} />
-            </div>
-          </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as ItemEditorTab)}>
+        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+          <TabsList className="w-max">
+            <TabsTrigger value="basic">{t.tabBasicInfo}</TabsTrigger>
+            <TabsTrigger value="content">{t.tabContent}</TabsTrigger>
+            <TabsTrigger value="options" disabled={!current}>{t.tabOptions}</TabsTrigger>
+            <TabsTrigger value="fulfillment" disabled={!current}>{t.tabFulfillment}</TabsTrigger>
+          </TabsList>
+        </div>
 
-          <div className="space-y-1">
-            <Label>{t.fieldDescription}</Label>
-            <Textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
+        <TabsContent value="basic" className="mt-4">
+          <Card className="max-w-2xl">
+            <CardContent className="space-y-3 pt-6">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>{t.fieldName}</Label>
+                  <Input value={name} maxLength={200} onChange={(e) => setName(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{t.fieldNameFa}</Label>
+                  <Input value={nameFa} maxLength={200} onChange={(e) => setNameFa(e.target.value)} placeholder={name} />
+                </div>
+              </div>
 
-          <div className="space-y-1">
-            <Label>{t.fieldCategory}</Label>
-            <Select value={categoryId || "__none__"} onValueChange={(v) => setCategoryId(v === "__none__" ? "" : v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">{t.noCategoryOption}</SelectItem>
-                {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name_fa || c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="space-y-1">
+                <Label>{t.fieldDescription}</Label>
+                <Textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+              </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label>{t.fieldPrice}</Label>
-              <AmountInput value={price} onChange={(e) => setPrice(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>{t.fieldCurrency}</Label>
-              <Input dir="ltr" value={currency} maxLength={10} onChange={(e) => setCurrency(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>{t.fieldCompareAtPrice}</Label>
-              <AmountInput value={compareAtPrice} onChange={(e) => setCompareAtPrice(e.target.value)} />
-            </div>
-          </div>
+              <div className="space-y-1">
+                <Label>{t.fieldCategory}</Label>
+                <Select value={categoryId || "__none__"} onValueChange={(v) => setCategoryId(v === "__none__" ? "" : v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{t.noCategoryOption}</SelectItem>
+                    {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name_fa || c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>{t.fieldItemType}</Label>
-              <Input value={itemType} maxLength={40} onChange={(e) => setItemType(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>{t.fieldFulfillmentType}</Label>
-              <Select value={fulfillmentType} onValueChange={setFulfillmentType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {FULFILLMENT_TYPES.map((ft) => (
-                    <SelectItem key={ft} value={ft}>{(t as Record<string, string>)[`fulfillment_${ft}`] ?? ft}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label>{t.fieldPrice}</Label>
+                  <AmountInput value={price} onChange={(e) => setPrice(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{t.fieldCurrency}</Label>
+                  <Input dir="ltr" value={currency} maxLength={10} onChange={(e) => setCurrency(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{t.fieldCompareAtPrice}</Label>
+                  <AmountInput value={compareAtPrice} onChange={(e) => setCompareAtPrice(e.target.value)} />
+                </div>
+              </div>
 
-          <div className="flex items-center justify-between gap-2 rounded-md border p-2">
-            <Label className="text-sm">{t.fieldTrackStock}</Label>
-            <Switch checked={trackStock} onCheckedChange={setTrackStock} />
-          </div>
-          {trackStock && (
-            <div className="space-y-1">
-              <Label>{t.fieldStockQty}</Label>
-              <Input type="number" dir="ltr" value={stockQty} onChange={(e) => setStockQty(e.target.value)} />
-            </div>
-          )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>{t.fieldItemType}</Label>
+                  <Input value={itemType} maxLength={40} onChange={(e) => setItemType(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{t.fieldFulfillmentType}</Label>
+                  <Select value={fulfillmentType} onValueChange={setFulfillmentType}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {FULFILLMENT_TYPES.map((ft) => (
+                        <SelectItem key={ft} value={ft}>{(t as Record<string, string>)[`fulfillment_${ft}`] ?? ft}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-          <div className="space-y-1">
-            <Label>{t.fieldStatus}</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>{(t as Record<string, string>)[`status_${s}`] ?? s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="flex items-center justify-between gap-2 rounded-md border p-2">
+                <Label className="text-sm">{t.fieldTrackStock}</Label>
+                <Switch checked={trackStock} onCheckedChange={setTrackStock} />
+              </div>
+              {trackStock && (
+                <div className="space-y-1">
+                  <Label>{t.fieldStockQty}</Label>
+                  <Input type="number" dir="ltr" value={stockQty} onChange={(e) => setStockQty(e.target.value)} />
+                </div>
+              )}
 
-          <div className="space-y-2 border-t pt-3">
-            <div>
-              <p className="text-sm font-medium">{t.contentSectionTitle}</p>
-              <p className="text-xs text-muted-foreground">{t.contentSectionDesc}</p>
-            </div>
-            <MediaList botId={botId} fileIds={mediaFileIds} multiple accept="image/*" onChange={setMediaFileIds} />
-            <div className="space-y-1 pt-1">
-              <Label>{t.fieldBodyHtml}</Label>
-              <Textarea
-                dir="rtl" rows={4}
-                value={bodyHtml}
-                maxLength={4096}
-                placeholder={t.bodyHtmlPlaceholder}
-                onChange={(e) => setBodyHtml(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">{t.bodyHtmlHint}</p>
-            </div>
-            <div className="space-y-1.5 pt-1">
-              <Label>{t.buttonsTitle}</Label>
-              <p className="text-xs text-muted-foreground">{t.buttonsDesc}</p>
-              <ButtonBuilder
-                botId={botId}
-                rows={buttonRows}
-                panels={panelsData?.panels ?? []}
-                forms={[]}
-                catalog={PRODUCT_BUTTON_CATALOG}
-                onChange={setButtonRows}
-              />
-            </div>
-          </div>
+              <div className="space-y-1">
+                <Label>{t.fieldStatus}</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>{(t as Record<string, string>)[`status_${s}`] ?? s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <Button onClick={() => save.mutate()} disabled={!name.trim() || save.isPending} className="w-full">
-            {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
-            {t.save}
-          </Button>
+        <TabsContent value="content" className="mt-4">
+          <Card className="max-w-2xl">
+            <CardContent className="space-y-3 pt-6">
+              <div>
+                <p className="text-sm font-medium">{t.contentSectionTitle}</p>
+                <p className="text-xs text-muted-foreground">{t.contentSectionDesc}</p>
+              </div>
+              <MediaList botId={botId} fileIds={mediaFileIds} multiple accept="image/*" onChange={setMediaFileIds} />
+              <div className="space-y-1 pt-1">
+                <Label>{t.fieldBodyHtml}</Label>
+                <Textarea
+                  dir="rtl" rows={4}
+                  value={bodyHtml}
+                  maxLength={4096}
+                  placeholder={t.bodyHtmlPlaceholder}
+                  onChange={(e) => setBodyHtml(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">{t.bodyHtmlHint}</p>
+              </div>
+              <div className="space-y-1.5 pt-1">
+                <Label>{t.buttonsTitle}</Label>
+                <p className="text-xs text-muted-foreground">{t.buttonsDesc}</p>
+                <ButtonBuilder
+                  botId={botId}
+                  rows={buttonRows}
+                  panels={panelsData?.panels ?? []}
+                  forms={[]}
+                  catalog={PRODUCT_BUTTON_CATALOG}
+                  onChange={setButtonRows}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          {current && (
-            <>
-              <div className="border-t pt-3">
+        {current && (
+          <TabsContent value="options" className="mt-4">
+            <Card className="max-w-2xl">
+              <CardContent className="pt-6">
                 <p className="mb-2 text-sm font-medium">{t.optionsTitle}</p>
                 <OptionsEditorPanel botId={botId} itemId={current.id} />
-              </div>
-              <div className="border-t pt-3">
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {current && (
+          <TabsContent value="fulfillment" className="mt-4">
+            <Card>
+              <CardContent className="pt-6">
                 <p className="mb-2 text-sm font-medium">{t.fulfillmentConfigTitle}</p>
                 <p className="mb-2 text-xs text-muted-foreground">{t.fulfillmentConfigDesc}</p>
                 <FulfillmentConfigEditor
                   botId={botId} itemId={current.id}
                   fulfillmentType={fulfillmentType} savedFulfillmentType={current.fulfillment_type}
                 />
-              </div>
-            </>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
+
+      {/* نوارِ ذخیره‌ی ثابت — مستقل از تبِ فعال، چون basic/content یک PATCH
+          واحدند (پلن‌ها/پیکربندیِ تحویل خودشان جدا ذخیره می‌شوند). */}
+      <div className="flex items-center gap-2 border-t pt-4">
+        <Button onClick={() => save.mutate()} disabled={!name.trim() || save.isPending}>
+          {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+          {t.save}
+        </Button>
+      </div>
+    </div>
   );
 }
 
 // ─── فهرست کالا/سرویس ────────────────────────────────────────────────────────
 
-function ItemsTab({ botId, categories }: { botId: string; categories: Category[] }) {
+function ItemsTab({
+  botId, categories, onOpen,
+}: { botId: string; categories: Category[]; onOpen: (id: string | "new") => void }) {
   const t = useT("botCatalog");
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [editing, setEditing] = useState<CatalogItem | "new" | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
   const itemsKey = ["bot-catalog-items", botId] as const;
@@ -1176,7 +1239,7 @@ function ItemsTab({ botId, categories }: { botId: string; categories: Category[]
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Switch checked={showArchived} onCheckedChange={setShowArchived} /> {t.showArchived}
           </label>
-          <Button size="sm" onClick={() => setEditing("new")}>
+          <Button size="sm" onClick={() => onOpen("new")}>
             <Plus className="me-1.5 size-4" /> {t.newItem}
           </Button>
         </div>
@@ -1199,9 +1262,13 @@ function ItemsTab({ botId, categories }: { botId: string; categories: Category[]
                 )}
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className={`truncate font-medium ${it.status === "archived" ? "text-muted-foreground line-through" : ""}`}>
+                    <button
+                      type="button"
+                      className={`truncate text-start font-medium hover:text-primary hover:underline ${it.status === "archived" ? "text-muted-foreground line-through" : ""}`}
+                      onClick={() => onOpen(it.id)}
+                    >
                       {it.name_fa || it.name}
-                    </p>
+                    </button>
                     {it.status === "draft" && <Badge variant="outline">{t.status_draft}</Badge>}
                     {it.status === "archived" && <Badge variant="outline">{t.status_archived}</Badge>}
                   </div>
@@ -1211,7 +1278,7 @@ function ItemsTab({ botId, categories }: { botId: string; categories: Category[]
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <Button size="icon" variant="ghost" onClick={() => setEditing(it)}><Pencil className="size-4" /></Button>
+                <Button size="icon" variant="ghost" onClick={() => onOpen(it.id)}><Pencil className="size-4" /></Button>
                 {it.status === "archived" ? (
                   <Button size="icon" variant="ghost" onClick={() => restore.mutate(it.id)}><ArchiveRestore className="size-4" /></Button>
                 ) : (
@@ -1223,10 +1290,6 @@ function ItemsTab({ botId, categories }: { botId: string; categories: Category[]
           ))}
         </div>
       )}
-
-      {editing && (
-        <ItemEditor botId={botId} item={editing} categories={categories} onClose={() => setEditing(null)} />
-      )}
     </div>
   );
 }
@@ -1236,6 +1299,8 @@ function ItemsTab({ botId, categories }: { botId: string; categories: Category[]
 export function CatalogSection({ bot }: { bot: Bot }) {
   const t = useT("botCatalog");
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
+  const search = useSearch();
 
   const categoriesKey = ["bot-catalog-categories", bot.id] as const;
   const { data: categoriesData, isLoading, error } = useQuery({
@@ -1243,7 +1308,38 @@ export function CatalogSection({ bot }: { bot: Bot }) {
     queryFn: () => customFetch<{ categories: Category[] }>(`/api/bots/${bot.id}/catalog/categories`),
   });
 
+  // همان کوئری‌کیِ `ItemsTab` — react-query کش را به اشتراک می‌گذارد، پس این
+  // یک fetch اضافه نیست؛ فقط برای این‌جا لازم است تا لینکِ مستقیمِ
+  // `?item=<id>` (رفرشِ صفحه، یا پیست‌کردنِ لینک) بتواند خودِ آیتم را پیدا کند.
+  const itemsKey = ["bot-catalog-items", bot.id] as const;
+  const { data: itemsData } = useQuery({
+    queryKey: itemsKey,
+    queryFn: () => customFetch<{ items: CatalogItem[] }>(`/api/bots/${bot.id}/catalog/items?includeArchived=1`),
+  });
+
   const { toast } = useToast();
+
+  const categories = categoriesData?.categories ?? [];
+  const itemId = new URLSearchParams(search).get("item");
+  const categoryId = new URLSearchParams(search).get("category");
+  const selectedItem = itemId && itemId !== "new" ? (itemsData?.items ?? []).find((i) => i.id === itemId) ?? null : null;
+  const selectedCategory = categoryId && categoryId !== "new" ? categories.find((c) => c.id === categoryId) ?? null : null;
+
+  function openItem(id: string | null) {
+    const params = new URLSearchParams(search);
+    params.set("section", "catalog");
+    params.delete("category");
+    if (id) params.set("item", id); else params.delete("item");
+    navigate(`/bots/${bot.id}?${params.toString()}`);
+  }
+
+  function openCategory(id: string | null) {
+    const params = new URLSearchParams(search);
+    params.set("section", "catalog");
+    params.delete("item");
+    if (id) params.set("category", id); else params.delete("category");
+    navigate(`/bots/${bot.id}?${params.toString()}`);
+  }
 
   const activate = useMutation({
     mutationFn: () => customFetch(`/api/bots/${bot.id}/plugins/catalog`, { method: "PATCH", body: JSON.stringify({ enabled: true }) }),
@@ -1293,6 +1389,46 @@ export function CatalogSection({ bot }: { bot: Bot }) {
     );
   }
 
+  // لینکِ مستقیم به آیتم/دسته‌ای که دیگر وجود ندارد (حذف‌شده یا لینکِ کهنه) —
+  // برگرد به لیست به‌جای صفحه‌ی خالی، همان الگویِ PanelsSection.
+  if (itemId && itemId !== "new" && !selectedItem) {
+    return (
+      <div className="space-y-3 rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+        <p>{t.itemGone}</p>
+        <Button variant="outline" size="sm" onClick={() => openItem(null)}>{t.backToList}</Button>
+      </div>
+    );
+  }
+  if (categoryId && categoryId !== "new" && !selectedCategory) {
+    return (
+      <div className="space-y-3 rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+        <p>{t.categoryGone}</p>
+        <Button variant="outline" size="sm" onClick={() => openCategory(null)}>{t.backToList}</Button>
+      </div>
+    );
+  }
+
+  if (itemId) {
+    return (
+      <ItemEditor
+        botId={bot.id}
+        item={itemId === "new" ? "new" : selectedItem!}
+        categories={categories}
+        onBack={() => openItem(null)}
+      />
+    );
+  }
+
+  if (categoryId) {
+    return (
+      <CategoryEditor
+        botId={bot.id}
+        category={categoryId === "new" ? null : selectedCategory}
+        onBack={() => openCategory(null)}
+      />
+    );
+  }
+
   return (
     <Tabs defaultValue="items" className="space-y-4">
       <TabsList>
@@ -1300,10 +1436,10 @@ export function CatalogSection({ bot }: { bot: Bot }) {
         <TabsTrigger value="categories"><FolderTree className="me-1.5 size-4" /> {t.tabCategories}</TabsTrigger>
       </TabsList>
       <TabsContent value="items">
-        <ItemsTab botId={bot.id} categories={categoriesData?.categories ?? []} />
+        <ItemsTab botId={bot.id} categories={categories} onOpen={openItem} />
       </TabsContent>
       <TabsContent value="categories">
-        <CategoriesTab botId={bot.id} />
+        <CategoriesTab botId={bot.id} onOpen={openCategory} />
       </TabsContent>
     </Tabs>
   );
