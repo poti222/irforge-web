@@ -15,7 +15,6 @@ import { SidebarBrandHeader } from "@/components/layout/brand-home";
 import {
   Bot,
   LayoutDashboard,
-  Store,
   Settings,
   ShieldAlert,
   Users,
