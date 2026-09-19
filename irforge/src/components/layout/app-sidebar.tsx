@@ -127,14 +127,6 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/marketplace"} tooltip={nav.marketplace}>
-                  <Link href="/marketplace" data-testid="nav-marketplace" onClick={closeMobileMenu}>
-                    <Store />
-                    <span>{nav.marketplace}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location === "/wallet"} tooltip={nav.myWallet}>
                   <Link href="/wallet" data-testid="nav-wallet" onClick={closeMobileMenu}>
                     <Wallet />

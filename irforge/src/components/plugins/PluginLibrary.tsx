@@ -16,7 +16,7 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import {
-  ArrowLeft, ArrowRight, Blocks, Check, Info, Loader2, Search, ShoppingCart, Trash2,
+  ArrowLeft, ArrowRight, Blocks, Check, Info, Loader2, Search, ShoppingCart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +38,7 @@ import { formatToman, formatConvertedAmount } from "@/lib/format";
 import { pluginName, pluginDescription } from "@/lib/plugin-text";
 import { SECTION_LABEL_KEYS } from "@/lib/plugin-sections";
 import {
-  usePluginLicences, useBuyPluginForBots, useRemoveLicence,
+  usePluginLicences, useBuyPluginForBots,
   type LicencedPlugin, type LicenceBot,
 } from "@/hooks/use-plugin-licences";
 
@@ -60,10 +60,6 @@ function OwnedCard({ plugin }: { plugin: LicencedPlugin }) {
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const ArrowIcon = fa ? ArrowLeft : ArrowRight;
-  const { toast } = useToast();
-
-  const remove = useRemoveLicence();
-  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
   const licence = plugin.licences[0];
   const sectionKey = plugin.webSection ? SECTION_LABEL_KEYS[plugin.webSection] : undefined;
@@ -111,44 +107,8 @@ function OwnedCard({ plugin }: { plugin: LicencedPlugin }) {
           <Button size="sm" variant="ghost" asChild>
             <Link href={`/marketplace/${plugin.id}`}>{t.details}</Link>
           </Button>
-          {licence && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setConfirmRemove(licence.licenceId)}
-              title={t.removeFromBot}
-            >
-              <Trash2 className="size-3.5 text-destructive" />
-            </Button>
-          )}
         </div>
       </CardContent>
-
-      <AlertDialog open={confirmRemove !== null} onOpenChange={(open) => !open && setConfirmRemove(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t.removeFromBotTitle}</AlertDialogTitle>
-            <AlertDialogDescription>{t.removeFromBotWarning}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t.cancel}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() =>
-                licence && remove.mutate(
-                  { botId: licence.botId, licenceId: licence.licenceId },
-                  {
-                    onSuccess: () => { toast({ title: t.removed }); setConfirmRemove(null); },
-                    onError: (err: any) =>
-                      toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
-                  },
-                )
-              }
-            >
-              {t.removeFromBot}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Card>
   );
 }
@@ -178,12 +138,10 @@ function AvailableCard({
   const buy = useBuyPluginForBots();
   const takenBotIds = new Set(plugin.licences.map((l) => l.botId));
   const buyableBots = bots.filter((b) => !takenBotIds.has(b.id));
-  // پیش‌فرض: باتی که در آن هستیم (اگر هنوز نداردش)، وگرنه اگر فقط یک بات
-  // باقی مانده همان.
-  const defaultBotId = scopeBotId && !takenBotIds.has(scopeBotId)
-    ? scopeBotId
-    : (buyableBots.length === 1 ? buyableBots[0].id : "");
-  const [selectedBotIds, setSelectedBotIds] = useState<string[]>(defaultBotId ? [defaultBotId] : []);
+
+  // When called from a specific bot's plugin section (scopeBotId set), only allow purchasing for that bot
+  const isPerBotContext = !!scopeBotId && !takenBotIds.has(scopeBotId);
+  const [selectedBotIds, setSelectedBotIds] = useState<string[]>(isPerBotContext ? [scopeBotId] : []);
 
   const sectionKey = plugin.webSection ? SECTION_LABEL_KEYS[plugin.webSection] : undefined;
   const sectionLabel = sectionKey ? (tw[sectionKey] as string) : null;
@@ -200,7 +158,7 @@ function AvailableCard({
       {
         onSuccess: (results) => {
           const okCount = results.filter((r) => r.ok).length;
-          setSelectedBotIds([]);
+          setSelectedBotIds(isPerBotContext ? [scopeBotId] : []);
           if (okCount === 0) {
             toast({ variant: "destructive", title: t.purchaseSummaryNone, description: results[0]?.error });
           } else if (okCount < results.length) {
@@ -256,6 +214,17 @@ function AvailableCard({
           <p className="rounded-md border border-dashed p-2.5 text-muted-foreground">
             {t.needABotFirst}
           </p>
+        ) : isPerBotContext ? (
+          // Per-bot context: just show buy button, no bot selector
+          <Button
+            size="sm"
+            className="w-full"
+            disabled={buy.isPending}
+            onClick={submitPurchase}
+          >
+            {buy.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <ShoppingCart className="size-3.5" />}
+            {plugin.isFree ? t.install : t.buy}
+          </Button>
         ) : (
           <div className="space-y-1.5">
             <p className="text-muted-foreground">

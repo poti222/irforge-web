@@ -55,7 +55,9 @@ export default function BuyBot() {
 
   const { data: categories, isLoading: categoriesLoading } = useListProductCategories();
   const sortedCategories = useMemo(
-    () => [...(categories ?? [])].sort((a, b) => a.sortOrder - b.sortOrder),
+    () => [...(categories ?? [])]
+      .filter((c) => c.id !== "bot_plugins")
+      .sort((a, b) => a.sortOrder - b.sortOrder),
     [categories],
   );
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
