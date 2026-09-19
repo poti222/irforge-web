@@ -373,9 +373,10 @@ function generateAdminCode(): string {
  * بدون این چک، وارد کردن یک توکن تکراری دو بات جدا (با دو سیم‌شیت/ادمین‌کد
  * جدا) می‌سازه که هر دو سعی می‌کنن روی همون بات تلگرام کار کنن.
  */
-async function isTokenAlreadyUsed(token: string): Promise<boolean> {
+async function isTokenAlreadyUsed(token: string, excludeBotId?: string): Promise<boolean> {
   const existingBots = await db.select().from(botsTable);
   return existingBots.some((b) => {
+    if (excludeBotId && b.id === excludeBotId) return false;
     try {
       return decryptToken(b.token) === token;
     } catch {
@@ -2629,10 +2630,24 @@ router.get("/bots/:botId", requireAuth, async (req: any, res) => {
 router.patch("/bots/:botId", requireAuth, async (req: any, res) => {
   try {
     const { name, description, token } = req.body;
+    const newToken: string | undefined = token !== undefined ? String(token).trim() : undefined;
+
+    // Live incident 2026-09-19 -- this route used to accept a replacement
+    // token with zero duplicate check. Every OTHER token-accepting path
+    // (POST /bots, /bots/trial, /bots/wallet-purchase) checks
+    // isTokenAlreadyUsed() first; skipping it here let "Replace token" quietly
+    // point a bot at a token another bot already owns, producing exactly the
+    // two-rows-one-real-token registry shape that caused today's whole
+    // incident (see utils/registry.py's dedupe/repair on the bot runtime side).
+    if (newToken !== undefined && newToken.length > 0 && (await isTokenAlreadyUsed(newToken, req.params.botId))) {
+      res.status(409).json({ error: "This bot token is already registered", code: "duplicate_token" });
+      return;
+    }
+
     const update: Record<string, any> = {};
     if (name !== undefined) update.name = name;
     if (description !== undefined) update.description = description;
-    if (token !== undefined) update.token = encryptToken(token);
+    if (newToken !== undefined) update.token = encryptToken(newToken);
     // BUG FIX: Drizzle crashes if SET has no fields
     if (Object.keys(update).length === 0) {
       res.status(400).json({ error: "No fields to update" });
@@ -2656,6 +2671,39 @@ router.patch("/bots/:botId", requireAuth, async (req: any, res) => {
       userCount: bot.userCount, messageCount: bot.messageCount,
       createdAt: bot.createdAt, updatedAt: bot.updatedAt,
     });
+
+    // Live incident 2026-09-19 -- "Replace token" used to only ever touch
+    // Postgres. The bot RUNTIME never reads bots.token directly; it reads the
+    // registry `tenants` tab (utils/registry.py on mainbot), which every OTHER
+    // write path here (status toggle, resync, approve-payment, ...) keeps in
+    // sync via syncTenantUpsert(). Without this, a corrected token sat
+    // correctly in Postgres but the tenant kept running (or failing to start)
+    // against whatever stale token the registry still had -- looked fixed in
+    // the UI, did nothing for the actual bot -- until some unrelated action
+    // (e.g. a later Start/Stop click) happened to trigger a sync. Same for
+    // the sheet_pool `used_by` row, which mainbot also keys off the live token.
+    if (newToken !== undefined && bot.sheetId) {
+      const [tenantOwner] = await db
+        .select({ telegramId: usersTable.telegramId })
+        .from(usersTable).where(eq(usersTable.id, bot.userId)).limit(1);
+      syncTenantUpsert({
+        bot_token: newToken,
+        bot_name: bot.name,
+        bot_username: bot.username,
+        owner_user_id: bot.userId,
+        owner_telegram_id: tenantOwner?.telegramId ?? null,
+        sheet_id: bot.sheetId,
+        admin_password: bot.adminCode ?? "",
+        status: bot.status,
+        created_at: bot.createdAt,
+      });
+      syncSheetPoolUpsert({
+        sheet_id: bot.sheetId,
+        status: "assigned",
+        assigned_to: bot.id,
+        used_by: newToken,
+      });
+    }
     res.json(formatBot(bot));
   } catch (err) {
     logger.error({ err }, "Update bot error");
