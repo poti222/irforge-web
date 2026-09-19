@@ -30,7 +30,11 @@ export default function BotWorkspace() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: bot, isLoading } = useGetBot(botId);
+  // Live incident: this page's own Start/Stop badge looked stuck wrong
+  // until a manual reload — polls so it self-corrects without one.
+  const { data: bot, isLoading } = useGetBot(botId, {
+    query: { queryKey: getGetBotQueryKey(botId), refetchInterval: 5000 },
+  });
   const toggle = useToggleBotStatus();
 
   // Tracks the in-flight countdown toast (if any) so a second click can

@@ -42,6 +42,7 @@ function bot(overrides = {}) {
     token: encryptToken("123:AAA"),
     sheetId: null,
     createdAt: new Date("2026-01-01T00:00:00Z"),
+    updatedAt: overrides.createdAt ?? new Date("2026-01-01T00:00:00Z"),
     ...overrides,
   };
 }
@@ -66,14 +67,37 @@ test("در میانِ چند ردیفِ هم‌توکن، آنی که شیت د�
   assert.equal(result[0].id, "has-sheet");
 });
 
-test("وقتی هیچ‌کدام شیت ندارند، قدیمی‌ترین (نه آخرین درجِ تکراری) برنده است", () => {
+test("وقتی هیچ‌کدام شیت ندارند، آنی که اخیراً واقعاً به‌روزرسانی شده برنده است", () => {
   const rows = [
-    bot({ id: "older", createdAt: new Date("2026-01-01T00:00:00Z") }),
-    bot({ id: "newer", createdAt: new Date("2026-01-02T00:00:00Z") }),
+    bot({ id: "stale", createdAt: new Date("2026-01-01T00:00:00Z"), updatedAt: new Date("2026-01-01T00:00:00Z") }),
+    bot({ id: "recently-touched", createdAt: new Date("2026-01-02T00:00:00Z"), updatedAt: new Date("2026-01-05T00:00:00Z") }),
   ];
   const result = dedupeBotsByToken(rows);
   assert.equal(result.length, 1);
-  assert.equal(result[0].id, "older");
+  assert.equal(result[0].id, "recently-touched");
+});
+
+test("live incident 2026-09-19: یک ردیفِ قدیمی‌تر ولی به‌تازگی toggle‌شده (مثلاً Start/Stop) باید برنده شود، نه ردیفِ تازه‌درج‌شده و دست‌نخورده", () => {
+  // Both have a sheetId (the real, live shape of the actual production
+  // incident — both rows are usable bots, not "a real one vs. an orphan").
+  // "original" is the row the user has actually been toggling on/off via
+  // the website (its updatedAt keeps advancing); "fresher-insert" is a
+  // duplicate that was created later but never touched again since.
+  const rows = [
+    bot({
+      id: "original", sheetId: "sheet_1",
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      updatedAt: new Date("2026-09-19T15:00:00Z"), // just toggled by the user
+    }),
+    bot({
+      id: "fresher-insert", sheetId: "sheet_2",
+      createdAt: new Date("2026-01-02T00:00:00Z"), // created AFTER "original"
+      updatedAt: new Date("2026-01-02T00:00:00Z"), // never touched since
+    }),
+  ];
+  const result = dedupeBotsByToken(rows);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, "original", "آخرین ردیفِ واقعاً به‌روزرسانی‌شده باید نمایش داده شود، نه صرفاً جدیدترین درجِ اولیه");
 });
 
 test("توکن‌های واقعاً متفاوت هر دو باقی می‌مانند", () => {

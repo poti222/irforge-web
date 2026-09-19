@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useGetDashboardStats, useGetDashboardActivity, useListBots, customFetch } from "@workspace/api-client-react";
+import { useGetDashboardStats, useGetDashboardActivity, useListBots, getListBotsQueryKey, customFetch } from "@workspace/api-client-react";
 import type { ActivityItem, ActivityItemType, Bot as BotType } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,7 +110,11 @@ export default function Dashboard() {
   const { user, refreshUser } = useAuth();
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: activity, isLoading: activityLoading } = useGetDashboardActivity();
-  const { data: bots } = useListBots();
+  // Same reasoning as bots.tsx: keeps "needs attention" (off/expired bots)
+  // current without requiring a manual reload.
+  const { data: bots } = useListBots({
+    query: { queryKey: getListBotsQueryKey(), refetchInterval: 5000 },
+  });
   const attentionItems = botsNeedingAttention(bots ?? []);
 
   // فاز ۱۱ (identityverificationspec.md): بنرِ پیشنهادِ تریال، فقط برای

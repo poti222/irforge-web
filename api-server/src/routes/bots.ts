@@ -437,8 +437,25 @@ async function tokenUsedInTx(tx: any, token: string): Promise<boolean> {
  * or not the write side that caused it has since been fixed. Keeps the row
  * most likely to be "the real one": one with a sheet already assigned (a
  * bot leftover from a lost race typically never got one, since sheet
- * assignment happens once per successful create/import), else the oldest
- * row (the original, not a later duplicate insert).
+ * assignment happens once per successful create/import); among rows tied on
+ * that, the one with the most recent `updatedAt`.
+ *
+ * Live incident 2026-09-19 (user report): "I turn a bot off, refresh, it
+ * still shows on — every time." Root cause traced to the *previous* version
+ * of this tie-break, which preferred the OLDEST row (by `createdAt`) rather
+ * than the most recently touched one. `botsTable.updatedAt` auto-bumps on
+ * every write (`$onUpdate`), including the PATCH /bots/:botId/status the
+ * Start/Stop toggle makes — so for a user who has, unknowingly, been
+ * interacting with a *newer* duplicate (both rows have a sheetId, since
+ * both a genuine tenant and a duplicate that later got its own sheet can
+ * end up with one), the old "oldest wins" rule meant GET /bots kept
+ * surfacing the stale OTHER row's status forever, no matter how many times
+ * the real, actively-used row was toggled. Preferring the most-recently-
+ * updated row instead means the row the user is actually acting on always
+ * wins the display, regardless of which one happened to be created first —
+ * the same "most recent real value wins" policy already agreed for the
+ * full N-to-1 cleanup script (`scripts/cleanupDuplicateBots.ts`), applied
+ * here as a read-time fix that needs no database write or migration.
  */
 function dedupeBotsByToken(
   bots: (typeof botsTable.$inferSelect)[]
@@ -461,7 +478,7 @@ function dedupeBotsByToken(
     }
     const currentIsBetter =
       Boolean(current.sheetId) === Boolean(bot.sheetId)
-        ? current.createdAt <= bot.createdAt
+        ? current.updatedAt >= bot.updatedAt
         : Boolean(current.sheetId);
     if (!currentIsBetter) byToken.set(token, bot);
   }
