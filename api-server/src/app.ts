@@ -86,25 +86,38 @@ app.use(cookieParser());
 // backup restore, admin update post images — see botMedia.ts, botBackup.ts,
 // bots.ts, updates.ts) get the larger limit back, scoped to just their
 // path prefix, so they keep working without widening the cap for everyone
-// else.
+// else. `POST /bots/:botId/media` gets its own, still-larger tier: it's the
+// one route meant to carry real video/voice/music files (base64 inflates
+// ~33%), and widening LARGE_BODY_LIMIT itself for that would also widen the
+// body-size attack surface of every other /api/bots/* route for no reason.
 const SMALL_BODY_LIMIT = "256kb";
 const LARGE_BODY_LIMIT = "10mb";
+const MEDIA_BODY_LIMIT = "42mb";
 const LARGE_BODY_PREFIXES = ["/api/bots", "/api/admin/updates"];
+const MEDIA_UPLOAD_PATH = /^\/api\/bots\/[^/]+\/media$/;
 
 function needsLargeBody(req: Request): boolean {
   return LARGE_BODY_PREFIXES.some((p) => req.path.startsWith(p));
 }
 
+function needsMediaBody(req: Request): boolean {
+  return req.method === "POST" && MEDIA_UPLOAD_PATH.test(req.path);
+}
+
 const smallJson = express.json({ limit: SMALL_BODY_LIMIT });
 const largeJson = express.json({ limit: LARGE_BODY_LIMIT });
+const mediaJson = express.json({ limit: MEDIA_BODY_LIMIT });
 const smallUrlencoded = express.urlencoded({ extended: true, limit: SMALL_BODY_LIMIT });
 const largeUrlencoded = express.urlencoded({ extended: true, limit: LARGE_BODY_LIMIT });
+const mediaUrlencoded = express.urlencoded({ extended: true, limit: MEDIA_BODY_LIMIT });
 
 app.use((req: Request, res: Response, next: NextFunction) => {
-  const large = needsLargeBody(req);
-  (large ? largeJson : smallJson)(req, res, (err?: unknown) => {
+  const tier = needsMediaBody(req) ? "media" : needsLargeBody(req) ? "large" : "small";
+  const json = tier === "media" ? mediaJson : tier === "large" ? largeJson : smallJson;
+  const urlencoded = tier === "media" ? mediaUrlencoded : tier === "large" ? largeUrlencoded : smallUrlencoded;
+  json(req, res, (err?: unknown) => {
     if (err) { next(err); return; }
-    (large ? largeUrlencoded : smallUrlencoded)(req, res, next);
+    urlencoded(req, res, next);
   });
 });
 // IRFORGE_PROMPT_V3 Phase 4.5 — prototype-pollution backstop, after body

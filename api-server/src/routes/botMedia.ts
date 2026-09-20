@@ -26,29 +26,34 @@ import { resolveBotSheet, readSettings, sendBotConfigError, BotConfigError } fro
 const router = Router();
 
 /**
- * سقف حجم آپلود. تلگرام تا ۵۰MB می‌پذیرد، ولی سقف واقعیِ ما بدنه‌ی JSON است:
- * `app.ts` روی `express.json({ limit: "10mb" })` تنظیم شده و base64 حدود ۳۳٪
- * به حجم اضافه می‌کند. ۷MB خام ≈ ۹.۴MB بدنه — با حاشیه‌ی امن زیر آن سقف.
- * بالا بردن سقف سراسری برای یک اندپوینت، همه‌ی اندپوینت‌های دیگر را هم در
- * معرض بدنه‌های بزرگ می‌گذارد، پس عمداً این‌طور نشده.
+ * سقف حجم آپلود. تلگرام تا ۵۰MB می‌پذیرد؛ سقف واقعیِ ما بدنه‌ی JSON است —
+ * `app.ts` این مسیر را روی یک تایرِ جداگانه‌ی بزرگ‌تر (`MEDIA_BODY_LIMIT`،
+ * فعلاً ۴۲mb) گذاشته، نه تایرِ عمومیِ `/api/bots` (۱۰mb)، دقیقاً چون فقط این
+ * اندپوینت قرار است فایل ویدیو/صوت واقعی حمل کند و بالا بردنِ تایرِ عمومی
+ * سطحِ حمله‌ی بدنه‌ی بزرگ را برای همه‌ی مسیرهای دیگرِ `/api/bots/*` هم باز
+ * می‌کرد. base64 حدود ۳۳٪ به حجم اضافه می‌کند؛ ۳۰MB خام ≈ ۴۰MB بدنه — زیر آن
+ * سقف با حاشیه‌ی امن.
  */
-const MAX_UPLOAD_BYTES = 7 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
 
 /**
- * فقط **تصویر و صوت**.
- *
- * ویدیو عمداً بیرون است: یک پنل ویدیویی روی موبایلِ کاربر نهایی چند ده مگابایت
- * دانلود می‌کند و تجربه‌ی «منوی بات» را خراب می‌کند؛ همین‌طور فایل عمومی
- * (`application/*`)، که پنل را به یک اشتراک‌گذار فایل تبدیل می‌کرد. این تصمیم
+ * تصویر، ویدیو و صوت — یعنی هر چیزی که یک پنل بات واقعاً ممکن است نیاز داشته
+ * باشد (عکس، گیف، ویدیوی کوتاه، پیام صوتی، آهنگ). فایل عمومی (`application/*`)
+ * عمداً بیرون می‌ماند، که پنل را به یک اشتراک‌گذار فایل تبدیل می‌کرد. این تصمیم
  * محصولی است و باید **هر دو طرف** اعمال شود — کلاینت `accept` می‌گذارد، ولی
  * تنها چیزی که واقعاً جلویش را می‌گیرد همین لیست است.
  */
-const ALLOWED_PREFIXES = ["image/", "audio/"];
+const ALLOWED_PREFIXES = ["image/", "video/", "audio/"];
 
 /** نوع تلگرامیِ متناسب با mime — تعیین می‌کند کدام متد و کدام کلید پاسخ. */
 function telegramTarget(mimeType: string): { method: string; field: string; resultKey: string } {
-  if (mimeType.startsWith("image/") && mimeType !== "image/gif")
-    return { method: "sendPhoto", field: "photo", resultKey: "photo" };
+  // گیف با sendAnimation می‌رود نه sendPhoto/sendDocument: تلگرام همین‌طور
+  // نگهش می‌دارد (بی‌صدا، حلقه‌ای)، در حالی که sendPhoto گیف را به یک فریمِ
+  // ثابت تبدیل می‌کند و sendDocument پیش‌نمایشِ داخلِ چت را از دست می‌دهد.
+  if (mimeType === "image/gif")
+    return { method: "sendAnimation", field: "animation", resultKey: "animation" };
+  if (mimeType.startsWith("image/")) return { method: "sendPhoto", field: "photo", resultKey: "photo" };
+  if (mimeType.startsWith("video/")) return { method: "sendVideo", field: "video", resultKey: "video" };
   // صوت به‌عنوان **voice** فرستاده می‌شود نه audio: پنل‌های بات پیام صوتی
   // می‌خواهند (همان حباب موج‌دار)، نه یک ترک موزیک با کاور و عنوان. تلگرام
   // برای voice فقط OGG/Opus را قبول می‌کند، پس بقیه‌ی فرمت‌ها audio می‌مانند.
@@ -150,7 +155,7 @@ router.post("/bots/:botId/media", requireAuth, perUserRateLimit("media_upload", 
     if (!ALLOWED_PREFIXES.some((p) => mimeType.startsWith(p)))
       throw new BotConfigError(
         400,
-        `نوع فایل «${mimeType}» پشتیبانی نمی‌شود. مدیای پنل فقط می‌تواند تصویر یا فایل صوتی باشد.`,
+        `نوع فایل «${mimeType}» پشتیبانی نمی‌شود. مدیای پنل فقط می‌تواند تصویر، ویدیو یا فایل صوتی باشد.`,
         "unsupported_type"
       );
 
@@ -225,5 +230,7 @@ router.get("/bots/:botId/media-status", requireAuth, async (req: any, res) => {
     sendBotConfigError(res, err, "Failed to read media status");
   }
 });
+
+export const __testables = { telegramTarget, ALLOWED_PREFIXES, MAX_UPLOAD_BYTES };
 
 export default router;

@@ -13,7 +13,7 @@
  * «پیشرفته» — چون آپلود به توکن بات و یک چت مقصد وابسته است و ممکن است روی
  * یک بات خاص کار نکند.
  *
- * فقط **تصویر و صوت**: ویدیو و فایل عمومی سمت سرور هم رد می‌شوند
+ * **تصویر، ویدیو و صوت**: فایل عمومی سمت سرور هم رد می‌شود
  * (`api-server/src/routes/botMedia.ts`).
  */
 import { useEffect, useRef, useState } from "react";
@@ -32,7 +32,7 @@ import { apiErrorMessage } from "./api";
 type MediaStatus = { available: boolean; maxBytes: number; reason?: string; code?: string | null };
 
 /** فرمت‌هایی که هم تلگرام می‌پذیرد و هم سرور اجازه می‌دهد. */
-const ACCEPT = "image/*,audio/*";
+const ACCEPT = "image/*,video/*,audio/*";
 
 /** `accept="image/*"` → `["image/"]`؛ برای رد کردن محلیِ فایل‌های نوعِ نادرست قبل از آپلود، پیش از اینکه سرور همان محدودیت را برگرداند. */
 function acceptedPrefixes(accept: string): string[] {
@@ -223,6 +223,7 @@ export function MediaList({
 
   const atLimit = !multiple && fileIds.length >= 1;
   const audioAllowed = accept.includes("audio/");
+  const videoAllowed = accept.includes("video/");
 
   // آپلود در دسترس نیست → بخش دستی باید از اول باز باشد، وگرنه کاربر هیچ راهی
   // برای افزودن مدیا نمی‌بیند.
@@ -267,7 +268,11 @@ export function MediaList({
         { method: "POST", body: JSON.stringify({ dataUrl, filename: file.name }) }
       );
       addFileId(res.fileId, {
-        kind: res.type === "photo" ? "photo" : "audio",
+        kind:
+          res.type === "photo" ? "photo"
+          : res.type === "video" || res.type === "animation" ? "video"
+          : res.type === "document" ? "document"
+          : "audio",
         duration: res.duration,
       });
       toast({ title: t.mediaUploaded });
@@ -357,6 +362,7 @@ export function MediaList({
               />
               <div className="flex items-center gap-1.5 text-muted-foreground">
                 <ImageIcon className="size-4" />
+                {videoAllowed && <Film className="size-4" />}
                 {audioAllowed && <Music className="size-4" />}
               </div>
               <p className="text-sm text-muted-foreground">{t.mediaDropHint}</p>
