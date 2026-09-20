@@ -35,11 +35,17 @@ export type ContactEntry = { id: string; kind: ContactEntryKind; label: string; 
 
 export interface Address {
   id: string;
+  /** تنها فیلدِ اجباری — برچسبِ داخلیِ ادمین برای شناساییِ رکورد (لیستِ
+   * آدرس‌ها، انتخاب‌گرِ نوعِ پنل/دکمه). هرگز به کاربرِ نهایی فرستاده نمی‌شود
+   * (`plugins/address/handlers.py::send_address`، سمتِ بات). */
   title: string;
-  text: string;
-  latitude: number;
-  longitude: number;
+  text?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   photo_file_id?: string;
+  /** چند عکس (آلبوم در تلگرام اگه بیش از یکی بود). `photo_file_id` تکی فقط
+   * برای رکوردهای قدیمی نگه داشته شده -- نوشتن‌های جدید فقط این را پر می‌کنند. */
+  photo_file_ids?: string[];
   phone?: string;
   plus_code?: string;
   map_url?: string;
@@ -59,8 +65,14 @@ function bad(message: string, code?: string): BotConfigError {
   return new BotConfigError(400, message, code);
 }
 
-/** Validates a create/update body into a clean partial `Address` — anything
- * malformed is a 400, not a silently-dropped field. */
+const MAX_PHOTOS = 10;
+
+/** User report: "همه‌ی فیلدها اجباریه" — `title` تنها فیلدِ اجباری است، یک
+ * برچسبِ داخلیِ ادمین برای شناساییِ رکورد که هرگز به کاربرِ نهایی فرستاده
+ * نمی‌شود. ادمین می‌تواند آدرسی بسازد که فقط شماره‌تماس باشد، فقط متن، یا
+ * فقط یک پینِ نقشه — هر فیلدِ دیگری کاملاً اختیاری است. عرض/طولِ جغرافیایی
+ * یک‌جفتی هستند: یا هر دو ست می‌شوند یا (برای پاک‌کردنِ موقعیت) هر دو
+ * صریحاً `null`. */
 export function parseAddressInput(body: any, { partial }: { partial: boolean }): Partial<Address> {
   const out: Partial<Address> = {};
 
@@ -69,20 +81,27 @@ export function parseAddressInput(body: any, { partial }: { partial: boolean }):
     if (!title) throw bad("عنوان آدرس نمی‌تواند خالی باشد.", "bad_title");
     out.title = title.slice(0, 120);
   }
-  if (!partial || body.text !== undefined) {
-    const text = String(body.text ?? "").trim();
-    if (!text) throw bad("متن آدرس نمی‌تواند خالی باشد.", "bad_text");
-    out.text = text.slice(0, 500);
+  if (body.text !== undefined) out.text = String(body.text || "").trim().slice(0, 500);
+
+  const touchesLocation = body.latitude !== undefined || body.longitude !== undefined;
+  if (touchesLocation) {
+    const latRaw = body.latitude, lngRaw = body.longitude;
+    if (latRaw === null && lngRaw === null) {
+      out.latitude = null;
+      out.longitude = null;
+    } else {
+      const lat = Number(latRaw), lng = Number(lngRaw);
+      if (!Number.isFinite(lat) || lat < -90 || lat > 90) throw bad("عرض جغرافیایی نامعتبر است.", "bad_latitude");
+      if (!Number.isFinite(lng) || lng < -180 || lng > 180) throw bad("طول جغرافیایی نامعتبر است.", "bad_longitude");
+      out.latitude = round5(lat);
+      out.longitude = round5(lng);
+    }
   }
-  if (!partial || body.latitude !== undefined) {
-    const lat = Number(body.latitude);
-    if (!Number.isFinite(lat) || lat < -90 || lat > 90) throw bad("عرض جغرافیایی نامعتبر است.", "bad_latitude");
-    out.latitude = round5(lat);
-  }
-  if (!partial || body.longitude !== undefined) {
-    const lng = Number(body.longitude);
-    if (!Number.isFinite(lng) || lng < -180 || lng > 180) throw bad("طول جغرافیایی نامعتبر است.", "bad_longitude");
-    out.longitude = round5(lng);
+
+  if (body.photo_file_ids !== undefined) {
+    if (!Array.isArray(body.photo_file_ids)) throw bad("فهرستِ عکس‌ها باید آرایه باشد.", "bad_photos");
+    if (body.photo_file_ids.length > MAX_PHOTOS) throw bad(`حداکثر ${MAX_PHOTOS} عکس مجاز است.`, "bad_photos");
+    out.photo_file_ids = body.photo_file_ids.map((v: unknown) => String(v || "").slice(0, 200)).filter(Boolean);
   }
   if (body.photo_file_id !== undefined) out.photo_file_id = String(body.photo_file_id || "").slice(0, 200);
   if (body.phone !== undefined) out.phone = String(body.phone || "").slice(0, 32);
@@ -120,17 +139,23 @@ function parseContactEntries(value: unknown): ContactEntry[] {
   });
 }
 
+/** رکوردهای قبل از پشتیبانیِ چند-عکسه فقط `photo_file_id` تکی داشتند. */
+function withPhotoFallback(addr: Address): Address {
+  if (addr.photo_file_ids && addr.photo_file_ids.length > 0) return addr;
+  return addr.photo_file_id ? { ...addr, photo_file_ids: [addr.photo_file_id] } : addr;
+}
+
 export async function listAddresses(spreadsheetId: string): Promise<Address[]> {
   const rows = await listEntity<Address>(spreadsheetId, ADDRESSES_TAB);
   return rows
     .filter((r) => r.value && typeof r.value === "object")
-    .map((r) => ({ ...(r.value as Address), id: r.key }))
+    .map((r) => withPhotoFallback({ ...(r.value as Address), id: r.key }))
     .sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")));
 }
 
 export async function getAddress(spreadsheetId: string, id: string): Promise<Address | null> {
   const value = await getEntity<Address>(spreadsheetId, ADDRESSES_TAB, id);
-  return value ? { ...value, id } : null;
+  return value ? withPhotoFallback({ ...value, id }) : null;
 }
 
 /** یک آدرسِ پیش‌فرض بیشتر معنا ندارد — ست‌کردن یکی، بقیه را خودکار خاموش می‌کند. */
@@ -150,10 +175,11 @@ export async function createAddress(spreadsheetId: string, body: any): Promise<A
   const record: Address = {
     id,
     title: parsed.title!,
-    text: parsed.text!,
-    latitude: parsed.latitude!,
-    longitude: parsed.longitude!,
+    text: parsed.text ?? "",
+    latitude: parsed.latitude ?? null,
+    longitude: parsed.longitude ?? null,
     photo_file_id: parsed.photo_file_id ?? "",
+    photo_file_ids: parsed.photo_file_ids ?? [],
     phone: parsed.phone ?? "",
     plus_code: parsed.plus_code ?? "",
     map_url: parsed.map_url ?? "",

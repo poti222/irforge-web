@@ -213,3 +213,61 @@ test("contact_entries kind=phone has no https:// requirement — any text is acc
   });
   assert.equal(created.contact_entries[0].value, "021-12345678");
 });
+
+// ── User report: "همه‌ی فیلدها اجباریه" — فقط title باید اجباری بمونه ────────
+
+test("createAddress only requires a title — text and location are optional", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, { title: "فقط عنوان" });
+  assert.equal(created.text, "");
+  assert.equal(created.latitude, null);
+  assert.equal(created.longitude, null);
+});
+
+test("createAddress with only a phone number, no text, no location", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, { title: "داخلی", phone: "02112345678" });
+  assert.equal(created.phone, "02112345678");
+  assert.equal(created.text, "");
+  assert.equal(created.latitude, null);
+});
+
+test("createAddress rejects latitude without longitude — a half-set pair is not a location", async () => {
+  installSheet();
+  await assert.rejects(() => store.createAddress(SID, { title: "داخلی", latitude: 35.7 }));
+});
+
+test("updateAddress can explicitly clear a previously-set location with both null", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, VALID);
+  const updated = await store.updateAddress(SID, created.id, { latitude: null, longitude: null });
+  assert.equal(updated.latitude, null);
+  assert.equal(updated.longitude, null);
+});
+
+// ── چند عکس (`photo_file_ids`) ──────────────────────────────────────────────
+
+test("createAddress persists multiple photo_file_ids", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, { title: "داخلی", photo_file_ids: ["f1", "f2", "f3"] });
+  assert.deepEqual(created.photo_file_ids, ["f1", "f2", "f3"]);
+});
+
+test("photo_file_ids rejects more than 10 photos", async () => {
+  installSheet();
+  const many = Array.from({ length: 11 }, (_, i) => `f${i}`);
+  await assert.rejects(() => store.createAddress(SID, { title: "داخلی", photo_file_ids: many }));
+});
+
+test("listAddresses/getAddress fall back to the legacy single photo_file_id for old rows", async () => {
+  const tabs = installSheet();
+  const created = await store.createAddress(SID, { title: "داخلی" });
+  // شبیه‌سازیِ یک ردیفِ قدیمی که هنوز photo_file_ids ندارد.
+  const row = tabs.get("addresses").get(created.id);
+  tabs.get("addresses").set(created.id, { ...row, photo_file_id: "legacy_fid", photo_file_ids: [] });
+
+  const fetched = await store.getAddress(SID, created.id);
+  assert.deepEqual(fetched.photo_file_ids, ["legacy_fid"]);
+  const listed = await store.listAddresses(SID);
+  assert.deepEqual(listed.find((a) => a.id === created.id).photo_file_ids, ["legacy_fid"]);
+});
