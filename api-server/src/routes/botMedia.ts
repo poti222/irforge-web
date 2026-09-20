@@ -71,15 +71,10 @@ function telegramTarget(mimeType: string): { method: string; field: string; resu
  * فرستادن با توکنِ بات تننت» (نگاه کن `lib/uploadSessions.ts::
  * convertItemForBot`). استخراج شد تا دو مصرف‌کننده یک منطق را کپی نکنند.
  */
-export async function uploadBufferToBotChat(
-  token: string,
-  chatId: string,
-  buffer: Buffer,
-  mimeType: string,
-  filename: string,
-): Promise<{ fileId: string; type: string; duration: number | null }> {
-  const { method, field, resultKey } = telegramTarget(mimeType);
-
+async function _sendToTelegram(
+  token: string, chatId: string, method: string, field: string,
+  buffer: Buffer, mimeType: string, filename: string,
+): Promise<{ ok: boolean; description?: string; result?: Record<string, any> }> {
   const form = new FormData();
   form.set("chat_id", chatId);
   form.set("disable_notification", "true");
@@ -89,19 +84,46 @@ export async function uploadBufferToBotChat(
     method: "POST",
     body: form,
   });
-  const payload = (await response.json()) as { ok: boolean; description?: string; result?: Record<string, any> };
+  return (await response.json()) as { ok: boolean; description?: string; result?: Record<string, any> };
+}
+
+export async function uploadBufferToBotChat(
+  token: string,
+  chatId: string,
+  buffer: Buffer,
+  mimeType: string,
+  filename: string,
+): Promise<{ fileId: string; type: string; duration: number | null }> {
+  const { method, field, resultKey } = telegramTarget(mimeType);
+
+  let payload = await _sendToTelegram(token, chatId, method, field, buffer, mimeType, filename);
+  let usedResultKey = resultKey;
+
+  // تلگرام sendPhoto/sendVideo/sendAnimation را برای فایل‌هایی با ابعاد یا
+  // حجمِ خارج از محدودیتِ خودش رد می‌کند (مثلاً یک پوسترِ تبلیغاتیِ
+  // خیلی‌بزرگ یا کشیده) — sendDocument همان محدودیت‌ها را ندارد، پس اگر
+  // ارسالِ «طبیعی» رد شد، دوباره به‌عنوانِ فایلِ ساده امتحان می‌کنیم تا
+  // آپلود فقط به‌خاطرِ «فرمتِ اشتباه» کلاً شکست نخورد.
+  if (!payload.ok && method !== "sendDocument") {
+    logger.warn(
+      { method, description: payload.description },
+      "uploadBufferToBotChat: native send rejected, retrying as sendDocument"
+    );
+    payload = await _sendToTelegram(token, chatId, "sendDocument", "document", buffer, mimeType, filename);
+    usedResultKey = "document";
+  }
 
   if (!payload.ok) {
     throw new BotConfigError(409, `تلگرام فایل را نپذیرفت: ${payload.description ?? "خطای نامشخص"}`, "telegram_rejected");
   }
 
   const result = payload.result ?? {};
-  const raw = result[resultKey];
+  const raw = result[usedResultKey];
   const fileId = Array.isArray(raw) ? raw[raw.length - 1]?.file_id : raw?.file_id;
   if (!fileId) throw new BotConfigError(502, "تلگرام فایل را ذخیره کرد ولی شناسه‌ای برنگرداند.");
   const duration = Array.isArray(raw) ? null : typeof raw?.duration === "number" ? raw.duration : null;
 
-  return { fileId, type: resultKey, duration };
+  return { fileId, type: usedResultKey, duration };
 }
 
 export async function botToken(botId: string): Promise<string> {

@@ -624,6 +624,17 @@ async function handleUploadStart(botToken: string, chatId: string, sessionId: st
  * می‌شوند — رفتارِ قدیمی، حفظ‌شده. بقیه فقط append می‌شوند و منتظرِ دکمه‌ی
  * «پایان» می‌مانند (`handleUploadFinish`).
  */
+/**
+ * فهرستِ کپی‌پذیرِ `file_id` هر آیتم (داخلِ `<code>`، برای تپ‌و‌کپیِ آسان در
+ * تلگرام) — کاربر خواست بعد از ثبت، آیدی هر فایل را همان‌جا در متن ببیند.
+ * آیتمِ متنی `file_id` ندارد، پس فقط با برچسب «متن» نشان داده می‌شود.
+ */
+function fileIdsList(items: Array<{ type: string; fileId: string | null }>): string {
+  return items
+    .map((item, i) => (item.fileId ? `${i + 1}. <code>${item.fileId}</code>` : `${i + 1}. (متن)`))
+    .join("\n");
+}
+
 async function tryCaptureUpload(botToken: string, chatId: string, message: any) {
   const session = await openSessionForChat(chatId);
   if (!session) return;
@@ -649,6 +660,7 @@ async function tryCaptureUpload(botToken: string, chatId: string, message: any) 
       botToken,
       chatId,
       "✅ <b>پیام شما ثبت شد.</b>\n\nبه صفحه‌ی سایت برگردید؛ همان‌جا نمایش داده می‌شود." +
+        `\n\n${fileIdsList(finished.items as any)}` +
         (siteUrl ? `\n\n${siteUrl}` : "")
     );
     return;
@@ -682,6 +694,7 @@ async function handleUploadFinish(botToken: string, callbackQuery: any) {
     botToken,
     chatId,
     `✅ <b>${finished.items.length} آیتم ثبت شد.</b>\n\nبه صفحه‌ی سایت برگردید؛ همان‌جا نمایش داده می‌شوند.` +
+      `\n\n${fileIdsList(finished.items as any)}` +
       (siteUrl ? `\n\n${siteUrl}` : "")
   );
 }

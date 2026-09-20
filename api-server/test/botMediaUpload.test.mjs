@@ -30,8 +30,23 @@ import { dirname, join } from "path";
 process.env.DATABASE_URL ??= "postgresql://test:test@127.0.0.1:1/testdb";
 process.env.BOT_TOKEN_ENCRYPTION_KEY ??= "c".repeat(64);
 
-const { __testables } = await import("../src/routes/botMedia.ts");
+const { __testables, uploadBufferToBotChat } = await import("../src/routes/botMedia.ts");
 const { telegramTarget, ALLOWED_PREFIXES, MAX_UPLOAD_BYTES } = __testables;
+
+function withFetchSpy(responses, run) {
+  const calls = [];
+  const original = global.fetch;
+  let i = 0;
+  global.fetch = async (url) => {
+    calls.push(String(url));
+    const body = responses[Math.min(i, responses.length - 1)];
+    i += 1;
+    return { json: async () => body };
+  };
+  return run(calls).finally(() => {
+    global.fetch = original;
+  });
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -86,6 +101,73 @@ test("telegramTarget: other audio/* (music) goes to sendAudio, distinct from voi
 test("telegramTarget: an unrecognized type still falls back to sendDocument, not a crash", () => {
   const target = telegramTarget("application/pdf");
   assert.equal(target.method, "sendDocument");
+});
+
+// User report: "همچنان موقعِ ارسالِ این عکس میگه تلگرام نپذیرفت ... اگه فرمتِ
+// اشتباهی داره یه کاری کن که با این فرمت هم بشه" — a specific oversized/odd-
+// shaped photo (a marketing collage) is rejected by sendPhoto's stricter
+// dimension/size limits. uploadBufferToBotChat now retries as sendDocument
+// instead of failing the whole upload.
+
+test("uploadBufferToBotChat: when sendPhoto rejects the file, it retries as sendDocument and succeeds", async () => {
+  await withFetchSpy(
+    [
+      { ok: false, description: "PHOTO_INVALID_DIMENSIONS" },
+      { ok: true, result: { document: { file_id: "doc_fallback_123" } } },
+    ],
+    async (calls) => {
+      const result = await uploadBufferToBotChat(
+        "TEST_TOKEN", "123456", Buffer.from("fake-image-bytes"), "image/jpeg", "collage.jpg"
+      );
+      assert.equal(result.fileId, "doc_fallback_123");
+      assert.equal(result.type, "document", "must report the actual outcome (document), not the original resultKey (photo)");
+      assert.equal(calls.length, 2);
+      assert.match(calls[0], /sendPhoto/);
+      assert.match(calls[1], /sendDocument/);
+    }
+  );
+});
+
+test("uploadBufferToBotChat: a successful first attempt never triggers the sendDocument fallback", async () => {
+  await withFetchSpy(
+    [{ ok: true, result: { photo: [{ file_id: "photo_ok_1" }, { file_id: "photo_ok_2" }] } }],
+    async (calls) => {
+      const result = await uploadBufferToBotChat(
+        "TEST_TOKEN", "123456", Buffer.from("fake-image-bytes"), "image/jpeg", "normal.jpg"
+      );
+      assert.equal(result.fileId, "photo_ok_2");
+      assert.equal(result.type, "photo");
+      assert.equal(calls.length, 1);
+    }
+  );
+});
+
+test("uploadBufferToBotChat: if sendDocument itself also rejects (the fallback's own attempt), it throws instead of retrying forever", async () => {
+  await withFetchSpy(
+    [
+      { ok: false, description: "PHOTO_INVALID_DIMENSIONS" },
+      { ok: false, description: "FILE_TOO_BIG" },
+    ],
+    async (calls) => {
+      await assert.rejects(
+        () => uploadBufferToBotChat("TEST_TOKEN", "123456", Buffer.from("x"), "image/jpeg", "huge.jpg"),
+        (err) => {
+          assert.match(err.message, /تلگرام فایل را نپذیرفت/);
+          return true;
+        }
+      );
+      assert.equal(calls.length, 2, "must attempt the sendDocument fallback exactly once, then stop");
+    }
+  );
+});
+
+test("uploadBufferToBotChat: a sendDocument rejection is never retried again as sendDocument (no infinite loop)", async () => {
+  await withFetchSpy([{ ok: false, description: "FILE_TOO_BIG" }], async (calls) => {
+    await assert.rejects(() =>
+      uploadBufferToBotChat("TEST_TOKEN", "123456", Buffer.from("x"), "application/pdf", "doc.pdf")
+    );
+    assert.equal(calls.length, 1, "method was already sendDocument, so there is no distinct fallback to retry with");
+  });
 });
 
 test("route rejects an unsupported type (e.g. application/pdf) with a 400 before ever calling Telegram", () => {
