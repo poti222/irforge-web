@@ -170,6 +170,64 @@ test("uploadBufferToBotChat: a sendDocument rejection is never retried again as 
   });
 });
 
+// Live incident (golazin): the sendDocument-fallback fix above did NOT fix
+// this report — Railway logs showed sendPhoto rejected with description
+// "Not Found", not a dimension/size error. That's Telegram's own signature
+// for "this bot token is invalid", completely unrelated to the file, and
+// retrying as sendDocument only wastes a call before failing identically.
+// uploadBufferToBotChat must recognize this and say so, instead of the
+// generic (and here actively misleading) "تلگرام فایل را نپذیرفت".
+
+test("uploadBufferToBotChat: a 404 'Not Found' (invalid bot token) is reported as a token problem, not a file problem, and skips the sendDocument retry", async () => {
+  await withFetchSpy(
+    [{ ok: false, error_code: 404, description: "Not Found" }],
+    async (calls) => {
+      await assert.rejects(
+        () => uploadBufferToBotChat("BAD_TOKEN", "123456", Buffer.from("fake-image-bytes"), "image/jpeg", "collage.jpg"),
+        (err) => {
+          assert.match(err.message, /توکن/);
+          assert.doesNotMatch(err.message, /تلگرام فایل را نپذیرفت/);
+          assert.equal(err.code, "invalid_token");
+          return true;
+        }
+      );
+      assert.equal(calls.length, 1, "an invalid-token response must not trigger the sendDocument retry -- it would just fail the same way again");
+    }
+  );
+});
+
+test("uploadBufferToBotChat: a 401 'Unauthorized' (revoked bot token) is also reported as a token problem", async () => {
+  await withFetchSpy(
+    [{ ok: false, error_code: 401, description: "Unauthorized" }],
+    async (calls) => {
+      await assert.rejects(
+        () => uploadBufferToBotChat("REVOKED_TOKEN", "123456", Buffer.from("x"), "image/jpeg", "photo.jpg"),
+        (err) => {
+          assert.equal(err.code, "invalid_token");
+          return true;
+        }
+      );
+      assert.equal(calls.length, 1);
+    }
+  );
+});
+
+test("uploadBufferToBotChat: a real file rejection (not a token problem) still falls through to the sendDocument retry", async () => {
+  await withFetchSpy(
+    [
+      { ok: false, description: "PHOTO_INVALID_DIMENSIONS" },
+      { ok: true, result: { document: { file_id: "doc_ok" } } },
+    ],
+    async (calls) => {
+      const result = await uploadBufferToBotChat(
+        "TEST_TOKEN", "123456", Buffer.from("x"), "image/jpeg", "collage.jpg"
+      );
+      assert.equal(result.fileId, "doc_ok");
+      assert.equal(calls.length, 2, "a genuine file rejection must still get the sendDocument retry -- only the token-invalid case skips it");
+    }
+  );
+});
+
 test("route rejects an unsupported type (e.g. application/pdf) with a 400 before ever calling Telegram", () => {
   const source = readFileSync(join(__dirname, "../src/routes/botMedia.ts"), "utf-8");
   const idx = source.indexOf("ALLOWED_PREFIXES.some");

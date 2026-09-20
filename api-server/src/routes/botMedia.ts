@@ -74,7 +74,7 @@ function telegramTarget(mimeType: string): { method: string; field: string; resu
 async function _sendToTelegram(
   token: string, chatId: string, method: string, field: string,
   buffer: Buffer, mimeType: string, filename: string,
-): Promise<{ ok: boolean; description?: string; result?: Record<string, any> }> {
+): Promise<{ ok: boolean; error_code?: number; description?: string; result?: Record<string, any> }> {
   const form = new FormData();
   form.set("chat_id", chatId);
   form.set("disable_notification", "true");
@@ -84,7 +84,21 @@ async function _sendToTelegram(
     method: "POST",
     body: form,
   });
-  return (await response.json()) as { ok: boolean; description?: string; result?: Record<string, any> };
+  return (await response.json()) as { ok: boolean; error_code?: number; description?: string; result?: Record<string, any> };
+}
+
+/**
+ * توکنِ خراب/نامعتبر -- هیچ ربطی به خودِ فایل ندارد، برخلافِ ردِ یک فایلِ
+ * واقعی (که همیشه توضیحِ مشخصِ فایل‌محور دارد، مثلاً PHOTO_INVALID_DIMENSIONS
+ * یا FILE_TOO_BIG). تلگرام برای توکنِ بدشکل یا دیگر-معتبرنبوده با ۴۰۱
+ * «Unauthorized» یا ۴۰۴ «Not Found» جواب می‌دهد -- زنده دیده شد (گل‌آذین:
+ * sendPhoto → «Not Found»، بارها، حتی بعدِ fallbackِ sendDocument پایین،
+ * چون مشکل از فرمتِ فایل نبود). سندِ retry-as-sendDocument برای این حالت
+ * فقط یک تماسِ بی‌فایده‌ی اضافه به تلگرام است، پس زودتر رد می‌شود.
+ */
+function _isInvalidTokenError(payload: { error_code?: number; description?: string }): boolean {
+  const desc = (payload.description || "").toLowerCase();
+  return payload.error_code === 401 || payload.error_code === 404 || desc === "not found" || desc === "unauthorized";
 }
 
 export async function uploadBufferToBotChat(
@@ -99,6 +113,18 @@ export async function uploadBufferToBotChat(
   let payload = await _sendToTelegram(token, chatId, method, field, buffer, mimeType, filename);
   let usedResultKey = resultKey;
 
+  // زنده دیده شد (گل‌آذین): توکنِ ذخیره‌شده دیگر معتبر نیست و تلگرام هر
+  // متدی را با ۴۰۱/۴۰۴ رد می‌کند -- retry-as-sendDocument پایین این را
+  // درست نمی‌کند (مشکل از فرمتِ فایل نیست) و فقط پیامِ گمراه‌کننده‌ای
+  // می‌سازد که انگار خودِ فایل رد شده. زودتر با پیامِ درست متوقف می‌شود.
+  if (!payload.ok && _isInvalidTokenError(payload)) {
+    throw new BotConfigError(
+      409,
+      "توکنِ این بات دیگر برایِ تلگرام معتبر نیست. از تنظیماتِ بات، توکن را دوباره از BotFather بگیرید و ذخیره کنید.",
+      "invalid_token"
+    );
+  }
+
   // تلگرام sendPhoto/sendVideo/sendAnimation را برای فایل‌هایی با ابعاد یا
   // حجمِ خارج از محدودیتِ خودش رد می‌کند (مثلاً یک پوسترِ تبلیغاتیِ
   // خیلی‌بزرگ یا کشیده) — sendDocument همان محدودیت‌ها را ندارد، پس اگر
@@ -111,6 +137,14 @@ export async function uploadBufferToBotChat(
     );
     payload = await _sendToTelegram(token, chatId, "sendDocument", "document", buffer, mimeType, filename);
     usedResultKey = "document";
+  }
+
+  if (!payload.ok && _isInvalidTokenError(payload)) {
+    throw new BotConfigError(
+      409,
+      "توکنِ این بات دیگر برایِ تلگرام معتبر نیست. از تنظیماتِ بات، توکن را دوباره از BotFather بگیرید و ذخیره کنید.",
+      "invalid_token"
+    );
   }
 
   if (!payload.ok) {
