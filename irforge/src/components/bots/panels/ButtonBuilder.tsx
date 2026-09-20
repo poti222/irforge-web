@@ -40,6 +40,16 @@ function useCatalogItemsForPicker(botId: string, enabled: boolean) {
   });
 }
 
+/** آینه‌ی بالا برایِ اکشنِ «نمایش یک آدرسِ خاص» — همان queryKeyِ
+ * `AddressesSection.tsx`/`PanelEditor.tsx` تا کش بینِ سه‌تا مشترک شود. */
+function useAddressesForPicker(botId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["bot-addresses", botId],
+    queryFn: () => customFetch<{ addresses: Array<{ id: string; title: string }> }>(`/api/bots/${botId}/addresses`),
+    enabled,
+  });
+}
+
 /** ورودی مناسبِ هر اکشن — نه یک فیلد متنی که uuid دستی بخواهد. */
 function ValueField({
   botId,
@@ -62,6 +72,9 @@ function ValueField({
   const isCatalogOrder = button.action === "catalog_order";
   const { data: catalogItems, isLoading: catalogItemsLoading } = useCatalogItemsForPicker(botId, isCatalogOrder);
 
+  const isAddressShow = button.action === "address_show";
+  const { data: addressOptionsData, isLoading: addressOptionsLoading } = useAddressesForPicker(botId, isAddressShow);
+
   if (button.action === "phone" || (catalog?.buttonFixedValues && button.action in catalog.buttonFixedValues)) {
     return <p className="text-xs text-muted-foreground">{t.valueNoneNeeded}</p>;
   }
@@ -83,6 +96,27 @@ function ValueField({
             <SelectItem key={item.id} value={item.id}>
               {(lang === "fa" ? item.name_fa : item.name) || item.name || item.name_fa}
             </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  if (isAddressShow) {
+    const addresses = addressOptionsData?.addresses ?? [];
+    if (addressOptionsLoading) {
+      return <p className="text-xs text-muted-foreground">{t.loadingAddresses}</p>;
+    }
+    if (addresses.length === 0) {
+      return <p className="text-xs text-muted-foreground">{t.settingAddressNoneYet}</p>;
+    }
+    return (
+      <Select value={button.value || "__none__"} onValueChange={(v) => onChange(v === "__none__" ? "" : v)}>
+        <SelectTrigger><SelectValue placeholder={t.pickAddress} /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">{t.pickAddress}</SelectItem>
+          {addresses.map((a) => (
+            <SelectItem key={a.id} value={a.id}>{a.title || a.id}</SelectItem>
           ))}
         </SelectContent>
       </Select>

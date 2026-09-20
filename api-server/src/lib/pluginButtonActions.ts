@@ -49,3 +49,15 @@ export const CATALOG_ORDER_ACTION = {
   key: "catalog_order",
   label: "🛒 ثبت سفارش یک محصول",
 } as const;
+
+/**
+ * «نمایش یک آدرسِ خاص» — دقیقاً همان دلیلِ CATALOG_ORDER_ACTION: برخلاف
+ * `address` بالا (مقصدِ ثابتِ «همه‌ی آدرس‌ها»)، این یکی هر بار می‌پرسد
+ * کدام یک آدرس، پس مقدار لازم دارد. باید دقیقاً با
+ * `handlers/panel_builder.py::BTN_ACTIONS()`'s "address_show" یکی بماند.
+ */
+export const ADDRESS_SHOW_ACTION = {
+  pluginId: "address",
+  key: "address_show",
+  label: "📍 نمایش یک آدرسِ خاص",
+} as const;

@@ -79,6 +79,20 @@ function useSellCatalogItems(botId: string, enabled: boolean) {
   });
 }
 
+/**
+ * آدرس‌های فعالِ پلاگین `address` — انتخابگرِ «کدام آدرس نمایش داده شود» برای
+ * پنلِ نوعِ `address`. همان اندپوینتِ `AddressesSection.tsx`، فقط اینجا فقط
+ * برای پرکردنِ یک Select لازم است.
+ */
+function useAddressOptions(botId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["bot-addresses", botId],
+    queryFn: () => customFetch<{ addresses: Array<{ id: string; title: string }> }>(`/api/bots/${botId}/addresses`),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
 /** گزینه‌های (option) یک آیتمِ catalog — فقط وقتی که آیتمی برای پنل انتخاب شده. */
 function useSellCatalogOptions(botId: string, itemId: string) {
   return useQuery({
@@ -186,6 +200,11 @@ export function PanelEditor({
   const sellCatalogItemMissing =
     Boolean(sellCatalogItemId) && !sellCatalogItemsLoading &&
     !sellCatalogItems.some((i) => i.id === sellCatalogItemId);
+
+  const addressId = String(settings.address_id ?? "");
+  const { data: addressOptionsData, isLoading: addressOptionsLoading } =
+    useAddressOptions(botId, type === "address");
+  const addressOptions = addressOptionsData?.addresses ?? [];
 
   const dirty = useMemo(() => {
     const before = {
@@ -635,6 +654,31 @@ export function PanelEditor({
                     {Boolean(sellCatalogItemId) && (
                       <p className="text-xs text-muted-foreground">{t.settingSellManualFieldsDisabledHint}</p>
                     )}
+                  </div>
+                )}
+
+                {type === "address" && (
+                  <div className="space-y-1.5 rounded-md border p-3">
+                    <Label htmlFor="pe-address">{t.settingAddressPick}</Label>
+                    {addressOptionsLoading ? (
+                      <p className="text-xs text-muted-foreground">{t.loadingAddresses}</p>
+                    ) : addressOptions.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">{t.settingAddressNoneYet}</p>
+                    ) : (
+                      <Select
+                        value={addressId || "__all__"}
+                        onValueChange={(v) => setSetting("address_id", v === "__all__" ? "" : v)}
+                      >
+                        <SelectTrigger id="pe-address"><SelectValue placeholder={t.pickAddress} /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__all__">{t.settingAddressShowAll}</SelectItem>
+                          {addressOptions.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>{a.title || a.id}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <p className="text-xs text-muted-foreground">{t.settingAddressPickHint}</p>
                   </div>
                 )}
 
