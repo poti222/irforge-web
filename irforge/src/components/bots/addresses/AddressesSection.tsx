@@ -2,8 +2,12 @@
  * AddressesSection.tsx — IRFORGE_PROMPT_V3 Phase 18
  * ─────────────────────────────────────────────────────────────────────────────
  * List + editor for the new `address` plugin. The editor's map picker is
- * built on Leaflet + OpenStreetMap tiles — no API key, no billing account,
- * works from Iran (unlike the Google Maps JS SDK) — per the phase spec.
+ * built on Leaflet, tiled from CARTO's free basemap CDN — no API key, no
+ * billing account, works from Iran (unlike the Google Maps JS SDK). Raw
+ * OpenStreetMap tile subdomains (`{s}.tile.openstreetmap.org`) used to be
+ * here but OSM's tile usage policy 403s exactly this kind of embedded,
+ * unauthenticated traffic once it's not a one-off; CARTO's tiles are
+ * explicitly free for this.
  *
  * Photo upload reuses the existing `POST /api/bots/:botId/media` endpoint
  * (already used elsewhere for panel/broadcast media): the browser sends a
@@ -17,7 +21,7 @@ import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { MapPin, Loader2, Plus, Star, Trash2, Pencil, Phone } from "lucide-react";
+import { MapPin, Loader2, Plus, Star, Trash2, Pencil, Phone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,14 +42,15 @@ type ContactEntryKind = "phone" | "address" | "email" | "link" | "text";
 type ContactEntry = { id: string; kind: ContactEntryKind; label: string; value: string };
 const CONTACT_ENTRY_KINDS: ContactEntryKind[] = ["phone", "address", "email", "link", "text"];
 const MAX_CONTACT_ENTRIES = 20;
+const MAX_PHOTOS = 10;
 
 type Address = {
   id: string;
   title: string;
   text: string;
-  latitude: number;
-  longitude: number;
-  photo_file_id?: string;
+  latitude: number | null;
+  longitude: number | null;
+  photo_file_ids?: string[];
   phone?: string;
   plus_code?: string;
   map_url?: string;
@@ -99,9 +104,10 @@ function MapPicker({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current).setView([lat || DEFAULT_CENTER[0], lng || DEFAULT_CENTER[1]], 14);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
-      maxZoom: 19,
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+      subdomains: "abcd",
+      maxZoom: 20,
     }).addTo(map);
 
     const marker = L.marker([lat || DEFAULT_CENTER[0], lng || DEFAULT_CENTER[1]], { draggable: true, icon: DEFAULT_ICON })
@@ -139,30 +145,35 @@ function AddressEditor({
 
   const [title, setTitle] = useState(address?.title ?? "");
   const [text, setText] = useState(address?.text ?? "");
+  const [hasLocation, setHasLocation] = useState(address?.latitude != null && address?.longitude != null);
   const [lat, setLat] = useState(address?.latitude ?? DEFAULT_CENTER[0]);
   const [lng, setLng] = useState(address?.longitude ?? DEFAULT_CENTER[1]);
   const [phone, setPhone] = useState(address?.phone ?? "");
   const [hoursNote, setHoursNote] = useState(address?.hours_note ?? "");
   const [plusCode, setPlusCode] = useState(address?.plus_code ?? "");
   const [isDefault, setIsDefault] = useState(address?.is_default ?? false);
-  const [photoFileId, setPhotoFileId] = useState(address?.photo_file_id ?? "");
+  const [photoFileIds, setPhotoFileIds] = useState<string[]>(address?.photo_file_ids ?? []);
   const [uploading, setUploading] = useState(false);
   const [contactEntries, setContactEntries] = useState<ContactEntry[]>(address?.contact_entries ?? []);
 
-  async function handlePhoto(file: File) {
+  async function handlePhotos(files: FileList) {
+    const remaining = MAX_PHOTOS - photoFileIds.length;
+    if (remaining <= 0) return;
     setUploading(true);
     try {
-      const dataUrl: string = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const result = await customFetch<{ fileId: string }>(`/api/bots/${botId}/media`, {
-        method: "POST",
-        body: JSON.stringify({ dataUrl, filename: file.name }),
-      });
-      setPhotoFileId(result.fileId);
+      for (const file of Array.from(files).slice(0, remaining)) {
+        const dataUrl: string = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const result = await customFetch<{ fileId: string }>(`/api/bots/${botId}/media`, {
+          method: "POST",
+          body: JSON.stringify({ dataUrl, filename: file.name }),
+        });
+        setPhotoFileIds((prev) => [...prev, result.fileId]);
+      }
     } catch (err: any) {
       toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) });
     } finally {
@@ -173,9 +184,11 @@ function AddressEditor({
   const save = useMutation({
     mutationFn: () => {
       const body = {
-        title, text, latitude: lat, longitude: lng, phone,
-        hours_note: hoursNote, plus_code: plusCode, is_default: isDefault,
-        photo_file_id: photoFileId, contact_entries: contactEntries,
+        title, text,
+        latitude: hasLocation ? lat : null,
+        longitude: hasLocation ? lng : null,
+        phone, hours_note: hoursNote, plus_code: plusCode, is_default: isDefault,
+        photo_file_ids: photoFileIds, contact_entries: contactEntries,
       };
       return address
         ? customFetch(`/api/bots/${botId}/addresses/${address.id}`, { method: "PATCH", body: JSON.stringify(body) })
@@ -199,17 +212,25 @@ function AddressEditor({
           <div className="space-y-1">
             <Label>{t.fieldTitle}</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
+            <p className="text-xs text-muted-foreground">{t.fieldTitleHint}</p>
           </div>
           <div className="space-y-1">
             <Label>{t.fieldText}</Label>
             <Textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} maxLength={500} />
           </div>
 
-          <div className="space-y-1">
-            <Label>{t.fieldMap}</Label>
-            <p className="text-xs text-muted-foreground">{t.mapHelp}</p>
-            <MapPicker lat={lat} lng={lng} onChange={(a, b) => { setLat(a); setLng(b); }} />
-            <p dir="ltr" className="text-xs text-muted-foreground">{lat.toFixed(5)}, {lng.toFixed(5)}</p>
+          <div className="space-y-1 rounded-md border p-3">
+            <div className="flex items-center gap-3">
+              <Switch checked={hasLocation} onCheckedChange={setHasLocation} />
+              <span>{t.fieldLocationToggle}</span>
+            </div>
+            {hasLocation && (
+              <div className="space-y-1 pt-2">
+                <p className="text-xs text-muted-foreground">{t.mapHelp}</p>
+                <MapPicker lat={lat} lng={lng} onChange={(a, b) => { setLat(a); setLng(b); }} />
+                <p dir="ltr" className="text-xs text-muted-foreground">{lat.toFixed(5)}, {lng.toFixed(5)}</p>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -290,22 +311,37 @@ function AddressEditor({
 
           <div className="space-y-1">
             <Label>{t.fieldPhoto}</Label>
-            <div className="flex items-center gap-3">
-              {photoFileId && (
-                <img
-                  src={`/api/bots/${botId}/media/${photoFileId}`}
-                  alt=""
-                  className="h-16 w-16 rounded-md border object-cover"
+            <div className="flex flex-wrap items-center gap-3">
+              {photoFileIds.map((fid) => (
+                <div key={fid} className="relative">
+                  <img
+                    src={`/api/bots/${botId}/media/${fid}`}
+                    alt=""
+                    className="h-16 w-16 rounded-md border object-cover"
+                  />
+                  <button
+                    type="button"
+                    aria-label={t.photoRemove}
+                    onClick={() => setPhotoFileIds((prev) => prev.filter((x) => x !== fid))}
+                    className="absolute -end-1.5 -top-1.5 rounded-full bg-destructive p-0.5 text-destructive-foreground"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ))}
+              {photoFileIds.length < MAX_PHOTOS && (
+                <Input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  disabled={uploading}
+                  className="w-auto"
+                  onChange={(e) => { if (e.target.files?.length) handlePhotos(e.target.files); e.target.value = ""; }}
                 />
               )}
-              <Input
-                type="file"
-                accept="image/*"
-                disabled={uploading}
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhoto(f); }}
-              />
               {uploading && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
             </div>
+            {photoFileIds.length >= MAX_PHOTOS && <p className="text-xs text-muted-foreground">{t.photoMaxReached}</p>}
           </div>
 
           <div className="flex items-center gap-3">
@@ -316,7 +352,7 @@ function AddressEditor({
         <DialogFooter>
           <Button
             onClick={() => save.mutate()}
-            disabled={save.isPending || !title.trim() || !text.trim() || uploading}
+            disabled={save.isPending || !title.trim() || uploading}
           >
             {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
             {t.save}
@@ -436,7 +472,7 @@ export function AddressesSection({ bot }: { bot: Bot }) {
                       <span className="truncate">{addr.title}</span>
                       {addr.is_default && <Badge variant="outline"><Star className="me-1 size-3" />{t.defaultBadge}</Badge>}
                     </div>
-                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{addr.text}</p>
+                    {addr.text && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{addr.text}</p>}
                     {addr.phone && (
                       <p dir="ltr" className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                         <Phone className="size-3" /> {addr.phone}
