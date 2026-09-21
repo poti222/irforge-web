@@ -674,9 +674,9 @@ async function reconcileBotsFromRegistry(userId: string, telegramId: string | nu
   );
   if (mine.length === 0) return;
 
-  // Registry stores tokens in plaintext; Postgres stores them AES-GCM
-  // encrypted with a random IV each time, so ciphertexts can't be compared
-  // directly — decrypt once and match on plaintext token instead.
+  // Postgres stores tokens AES-GCM encrypted with a random IV each time, so
+  // ciphertexts can't be compared directly — decrypt once and match on
+  // plaintext token instead.
   const allBots = await db.select().from(botsTable);
   const byToken = new Map<string, (typeof allBots)[number]>();
   for (const b of allBots) {
@@ -689,7 +689,30 @@ async function reconcileBotsFromRegistry(userId: string, telegramId: string | nu
 
   for (const t of mine) {
     if (!t.bot_token) continue;
-    const existing = byToken.get(t.bot_token);
+    // Live incident 2026-09-21 -- this used to treat t.bot_token as plaintext
+    // (true when this comment was first written), but syncTenantUpsert()
+    // (sheetsSync.ts's buildTenantRegistryValue) has encrypted every tenant
+    // row's bot_token, on both the Postgres and legacy-Sheets write paths,
+    // since the Registry R1-R6 encryption migration -- this function was
+    // never updated to match. The mismatch was silent because decryptToken()
+    // never throws on a 3-part string it can't actually decrypt with the
+    // WRONG assumption (it just runs the AES-GCM math), so `existing` below
+    // came back undefined for every reconcile call, and the "same owner,
+    // same sheet" repair branch further down then did
+    // `encryptToken(t.bot_token)` on an ALREADY-encrypted value -- re-
+    // encrypting a bot's real, working token into unusable double-ciphertext
+    // on every single GET /bots (including the refetch right after a
+    // successful "replace token" save, which is exactly why the token
+    // looked fixed for one request and broken again immediately after).
+    // decryptToken() gracefully returns its input unchanged for a legacy
+    // plaintext row (not 3 colon-separated parts), so this is safe either way.
+    let plainToken: string;
+    try {
+      plainToken = decryptToken(t.bot_token);
+    } catch {
+      continue; // corrupt/undecryptable registry row -- never propagate garbage
+    }
+    const existing = byToken.get(plainToken);
     const sheetId = t.spreadsheet_id || t.sheet_id || null;
 
     if (existing) {
@@ -712,11 +735,11 @@ async function reconcileBotsFromRegistry(userId: string, telegramId: string | nu
     // serializes on the token; the re-check inside it (not just the map
     // above) is what actually closes the race — the lock alone only orders
     // timing, the losing caller still has to see the winner's committed row.
-    const imported = await withTokenCreationLock(t.bot_token, async (tx) => {
+    const imported = await withTokenCreationLock(plainToken, async (tx) => {
       const raced = await tx.select().from(botsTable);
       for (const b of raced) {
         try {
-          if (decryptToken(b.token) === t.bot_token) return b;
+          if (decryptToken(b.token) === plainToken) return b;
         } catch {
           /* corrupt/legacy row — skip */
         }
@@ -751,7 +774,7 @@ async function reconcileBotsFromRegistry(userId: string, telegramId: string | nu
             .update(botsTable)
             .set({
               name: t.bot_name || keeper.name,
-              token: encryptToken(t.bot_token),
+              token: encryptToken(plainToken),
               username: t.bot_username ?? keeper.username,
               status: t.status === "active" ? "active" : "inactive",
               adminCode: t.admin_password || keeper.adminCode,
@@ -769,7 +792,7 @@ async function reconcileBotsFromRegistry(userId: string, telegramId: string | nu
           id: newId,
           name: t.bot_name || "Bot",
           description: null,
-          token: encryptToken(t.bot_token),
+          token: encryptToken(plainToken),
           userId,
           username: t.bot_username ?? null,
           status: t.status === "active" ? "active" : "inactive",
@@ -780,7 +803,7 @@ async function reconcileBotsFromRegistry(userId: string, telegramId: string | nu
         .returning();
       return inserted;
     });
-    byToken.set(t.bot_token, imported);
+    byToken.set(plainToken, imported);
   }
 }
 
