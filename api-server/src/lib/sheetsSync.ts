@@ -632,14 +632,35 @@ export function syncTenantUpsert(tenant: TenantUpsertInput) {
   }, `tenant-upsert:${tenant.owner_user_id}`);
 }
 
+async function tenantDeleteWork(botToken: string): Promise<void> {
+  await registryPgDelete("registry_tenants", botToken);
+  if (await isEntityOnPostgres("tenant_registry")) return;
+  const spreadsheetId = registrySheetId();
+  if (!spreadsheetId) return;
+  await deleteKVByKey(spreadsheetId, "tenants", botToken);
+}
+
 export function syncTenantDelete(botToken: string) {
-  bg(async () => {
-    await registryPgDelete("registry_tenants", botToken);
-    if (await isEntityOnPostgres("tenant_registry")) return;
-    const spreadsheetId = registrySheetId();
-    if (!spreadsheetId) return;
-    await deleteKVByKey(spreadsheetId, "tenants", botToken);
-  }, `tenant-delete`);
+  bg(() => tenantDeleteWork(botToken), `tenant-delete`);
+}
+
+/**
+ * Live incident 2026-09-21: a bot deleted via the site stayed visible in
+ * the list, with its commands/users reset to zero -- purgeBotFully()
+ * deleted the Postgres row, then fired syncTenantDelete() (the fire-and-
+ * forget syncTenantDelete above) and returned 204 immediately. The
+ * frontend's own onSuccess handler invalidates the bots-list query right
+ * away, and reconcileBotsFromRegistry() (bots.ts, run on every GET /bots)
+ * has no way to tell "deleted on purpose, registry write just hasn't
+ * landed yet" apart from "never registered" -- a tenant still sitting in
+ * the registry with no matching Postgres row gets RE-IMPORTED as a brand
+ * new bot row, with none of the old stats. Awaiting the SAME work here
+ * (instead of firing it in the background) closes that window: the route
+ * doesn't respond until the registry row is actually gone, so the very
+ * next reconcile pass no longer finds it.
+ */
+export async function syncTenantDeleteAwait(botToken: string): Promise<void> {
+  await tenantDeleteWork(botToken);
 }
 
 // ── SHEET POOL ─────────────────────────────────────────────────────────────

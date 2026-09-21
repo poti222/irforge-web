@@ -46,7 +46,7 @@ import {
   syncSheetPoolUpsert,
   syncSheetPoolDelete,
   syncTenantUpsert,
-  syncTenantDelete,
+  syncTenantDeleteAwait,
   syncDeletionQueueAdd,
   readAllKV,
   readKV,
@@ -171,7 +171,26 @@ async function purgeBotFully(
   syncBotDelete(bot.id);
 
   const plainToken = decryptToken(bot.token);
-  syncTenantDelete(plainToken);
+  // Live incident 2026-09-21: this used to be the fire-and-forget
+  // syncTenantDelete(), so the route could (and did) respond 204 before the
+  // registry row was actually gone. The frontend's own onSuccess handler
+  // invalidates the bots-list query immediately, and reconcileBotsFromRegistry()
+  // (run on every GET /bots) can't tell "deleted on purpose, sync just hasn't
+  // landed yet" apart from "never registered" -- it re-imported the tenant
+  // as a brand-new bot row (zero commands/users) the moment that refetch beat
+  // the background write. Awaiting it here closes that race. A failure here
+  // is logged loudly but doesn't fail the whole delete -- the bot's actual
+  // data (commands/plugins/Postgres row, and the sheet reset below) is
+  // already irreversibly gone by this point either way.
+  try {
+    await syncTenantDeleteAwait(plainToken);
+  } catch (err) {
+    logger.error(
+      { err, botId: bot.id },
+      "registry tenant-delete failed during purge -- the bot's Postgres row is gone, but a stale registry " +
+        "row may still resurrect it as an empty duplicate on the next GET /bots reconcile pass"
+    );
+  }
 
   if (bot.sheetId) {
     // BUG FIX: pre-existing sheet-pool race conditions (see claimFreeSheet

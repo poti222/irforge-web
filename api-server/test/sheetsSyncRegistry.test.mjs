@@ -151,15 +151,33 @@ test("registryPgDelete resolves without throwing when BUSINESS_DATABASE_URL is u
 // instead of) the unconditional Postgres write above it.
 
 function functionBody(name) {
-  const start = sheetsSyncSource.indexOf(`export function ${name}(`);
+  const start =
+    sheetsSyncSource.indexOf(`export function ${name}(`) >= 0
+      ? sheetsSyncSource.indexOf(`export function ${name}(`)
+      : sheetsSyncSource.indexOf(`async function ${name}(`);
   assert.ok(start >= 0, `${name} not found in sheetsSync.ts`);
-  const nextExport = sheetsSyncSource.indexOf("\nexport function ", start + 1);
-  return sheetsSyncSource.slice(start, nextExport >= 0 ? nextExport : undefined);
+  const nextFn = sheetsSyncSource.indexOf("\nexport ", start + 1);
+  return sheetsSyncSource.slice(start, nextFn >= 0 ? nextFn : undefined);
 }
+
+// Live incident 2026-09-21: syncTenantDelete() itself used to be fire-and-
+// forget everywhere (see purgeBotFully()'s own comment in bots.ts for the
+// resurrected-empty-bot incident that caused), so its actual Postgres-write
+// -> cutover-check -> Sheets-write logic was extracted into the un-exported
+// tenantDeleteWork() -- syncTenantDeleteAwait() now calls it directly
+// (awaited, for the delete route) and syncTenantDelete() still wraps it in
+// bg() (fire-and-forget, for callers that don't need to wait). The source-
+// scan below checks whichever one actually holds the write-order logic.
+const REGISTRY_SYNC_BODY_SOURCE = {
+  syncTenantUpsert: "syncTenantUpsert",
+  syncTenantDelete: "tenantDeleteWork",
+  syncSheetPoolUpsert: "syncSheetPoolUpsert",
+  syncSheetPoolDelete: "syncSheetPoolDelete",
+};
 
 for (const name of ["syncTenantUpsert", "syncTenantDelete", "syncSheetPoolUpsert", "syncSheetPoolDelete"]) {
   test(`${name} checks isEntityOnPostgres("tenant_registry") after the Postgres write, before the Sheets write`, () => {
-    const body = functionBody(name);
+    const body = functionBody(REGISTRY_SYNC_BODY_SOURCE[name]);
     const pgCallIdx = body.search(/await registryPg(Upsert|Delete)\(/);
     const guardIdx = body.indexOf('isEntityOnPostgres("tenant_registry")');
     const sheetsWriteIdx = body.search(/await (upsertKV|deleteKVByKey)\(/);
@@ -171,6 +189,35 @@ for (const name of ["syncTenantUpsert", "syncTenantDelete", "syncSheetPoolUpsert
     assert.ok(guardIdx < sheetsWriteIdx, "the cutover check must gate the Sheets write");
   });
 }
+
+// ─── syncTenantDeleteAwait: the actual live-incident fix ──────────────────
+//
+// Live incident 2026-09-21: purgeBotFully() used to fire syncTenantDelete()
+// (bg(), fire-and-forget) and respond 204 immediately. The frontend's
+// onSuccess handler refetches the bots list right away, and
+// reconcileBotsFromRegistry() (bots.ts, run on every GET /bots) re-imported
+// the tenant as a brand-new, all-zero bot row if the registry deletion
+// hadn't landed yet -- a deleted bot "stayed" visible with wiped stats.
+// syncTenantDeleteAwait() does the identical work but returns the real
+// Promise so the delete route can await it before responding, closing that
+// window. The distinguishing, testable-without-I/O fact: syncTenantDelete()
+// (bg()) returns undefined -- the caller has no promise to await, by
+// construction -- while syncTenantDeleteAwait() returns a real Promise.
+
+test("syncTenantDelete() (fire-and-forget) returns undefined -- callers can never await it", async () => {
+  const { syncTenantDelete } = await import("../src/lib/sheetsSync.ts");
+  const result = syncTenantDelete("test-token-fire-and-forget");
+  assert.equal(result, undefined, "bg()-wrapped syncTenantDelete must not hand back a promise");
+});
+
+test("syncTenantDeleteAwait() returns a real Promise the caller can await -- the actual fix", async () => {
+  const { syncTenantDeleteAwait } = await import("../src/lib/sheetsSync.ts");
+  const result = syncTenantDeleteAwait("test-token-awaited");
+  assert.ok(result instanceof Promise, "syncTenantDeleteAwait must return a Promise, unlike the fire-and-forget version");
+  // Resolves without throwing even with no BUSINESS_DATABASE_URL configured
+  // in this sandbox -- same documented fail-open contract as registryPgDelete.
+  await result;
+});
 
 // ─── live Postgres — tenant_registry specifically drives the guard ────────
 
