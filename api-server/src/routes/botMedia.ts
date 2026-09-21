@@ -117,13 +117,32 @@ export async function uploadBufferToBotChat(
   // متدی را با ۴۰۱/۴۰۴ رد می‌کند -- retry-as-sendDocument پایین این را
   // درست نمی‌کند (مشکل از فرمتِ فایل نیست) و فقط پیامِ گمراه‌کننده‌ای
   // می‌سازد که انگار خودِ فایل رد شده. زودتر با پیامِ درست متوقف می‌شود.
-  if (!payload.ok && _isInvalidTokenError(payload)) {
+  //
+  // Live incident 2026-09-21 -- this fired again right after a fresh token
+  // PATCH (200 on the update). _throwInvalidToken never logs the token
+  // itself, but its LENGTH and whether it matches Telegram's own
+  // <digits>:<secret> shape distinguish "wrong/truncated paste" from
+  // "a well-formed token Telegram still rejects" (revoked/wrong bot),
+  // without ever needing to see the value.
+  const _throwInvalidToken = (currentMethod: string): never => {
+    logger.warn(
+      {
+        method: currentMethod,
+        error_code: payload.error_code,
+        description: payload.description,
+        tokenLength: token.length,
+        tokenShapeOk: /^\d{6,}:[A-Za-z0-9_-]{30,}$/.test(token),
+      },
+      "uploadBufferToBotChat: token rejected by Telegram"
+    );
     throw new BotConfigError(
       409,
       "توکنِ این بات دیگر برایِ تلگرام معتبر نیست. از تنظیماتِ بات، توکن را دوباره از BotFather بگیرید و ذخیره کنید.",
       "invalid_token"
     );
-  }
+  };
+
+  if (!payload.ok && _isInvalidTokenError(payload)) _throwInvalidToken(method);
 
   // تلگرام sendPhoto/sendVideo/sendAnimation را برای فایل‌هایی با ابعاد یا
   // حجمِ خارج از محدودیتِ خودش رد می‌کند (مثلاً یک پوسترِ تبلیغاتیِ
@@ -139,13 +158,7 @@ export async function uploadBufferToBotChat(
     usedResultKey = "document";
   }
 
-  if (!payload.ok && _isInvalidTokenError(payload)) {
-    throw new BotConfigError(
-      409,
-      "توکنِ این بات دیگر برایِ تلگرام معتبر نیست. از تنظیماتِ بات، توکن را دوباره از BotFather بگیرید و ذخیره کنید.",
-      "invalid_token"
-    );
-  }
+  if (!payload.ok && _isInvalidTokenError(payload)) _throwInvalidToken("sendDocument");
 
   if (!payload.ok) {
     throw new BotConfigError(409, `تلگرام فایل را نپذیرفت: ${payload.description ?? "خطای نامشخص"}`, "telegram_rejected");
