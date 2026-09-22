@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
+import { useAuthedBlobUrl } from "@/hooks/use-authed-media";
 import { formatOrderAmount } from "@/lib/order-amount";
 
 type Order = {
@@ -74,6 +75,20 @@ function errMessage(err: any, fallback: string): string {
 }
 function errCode(err: any): string | null {
   return err?.data?.code ?? null;
+}
+
+/** پروکسیِ مدیا احرازهویت می‌خواهد، پس `<img src>` خام نمی‌تواند مستقیم به
+ * آن اشاره کند (نگاه کن use-authed-media.ts). */
+function ReceiptImage({ botId, fileId, alt }: { botId: string; fileId: string; alt: string }) {
+  const { url: blobSrc } = useAuthedBlobUrl(`/api/bots/${botId}/media/${encodeURIComponent(fileId)}`);
+  if (!blobSrc) {
+    return (
+      <div className="flex h-40 w-full items-center justify-center rounded-md border bg-muted/40">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  return <img src={blobSrc} alt={alt} className="max-h-72 w-full rounded-md border object-contain" />;
 }
 
 export function InvoicesSection({ bot }: { bot: Bot }) {
@@ -239,13 +254,7 @@ export function InvoicesSection({ bot }: { bot: Bot }) {
               {selected.receipt_file_id && (
                 <div className="space-y-1.5">
                   <Label>{t.receipt}</Label>
-                  <img
-                    src={`/api/bots/${bot.id}/media/${encodeURIComponent(selected.receipt_file_id)}`}
-                    alt={t.receipt}
-                    loading="lazy"
-                    decoding="async"
-                    className="max-h-72 w-full rounded-md border object-contain"
-                  />
+                  <ReceiptImage botId={bot.id} fileId={selected.receipt_file_id} alt={t.receipt} />
                 </div>
               )}
             </div>

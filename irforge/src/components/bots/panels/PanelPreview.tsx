@@ -6,8 +6,9 @@
  * بات می‌کشد (`handlers/user.py` دکمه‌ها را بر اساس `row` گروه می‌کند).
  */
 import { useState } from "react";
-import { Bot, Film, Music, FileText, Images } from "lucide-react";
+import { Bot, Film, Music, FileText, Images, Loader2 } from "lucide-react";
 import { useT } from "@/hooks/use-translation";
+import { useAuthedBlobUrl } from "@/hooks/use-authed-media";
 import type { PanelButton } from "@/lib/panel-buttons";
 import type { MediaMeta } from "./MediaList";
 
@@ -35,14 +36,19 @@ const STYLE_CLASS: Record<string, string> = {
  */
 function MediaThumb({ botId, fileId, knownKind }: { botId: string; fileId: string; knownKind?: MediaMeta["kind"] }) {
   const [guessedAudio, setGuessedAudio] = useState(false);
-  const src = `/api/bots/${botId}/media/${encodeURIComponent(fileId)}`;
-  const isAudio = knownKind ? knownKind === "audio" : guessedAudio;
+  const apiSrc = `/api/bots/${botId}/media/${encodeURIComponent(fileId)}`;
+  const { url: blobSrc, failed } = useAuthedBlobUrl(apiSrc);
+  const isAudio = knownKind ? knownKind === "audio" : guessedAudio || failed;
 
   if (isAudio) {
     return (
       <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
         <Music className="size-4 shrink-0 text-muted-foreground" />
-        <audio src={src} controls preload="metadata" className="h-8 min-w-0 flex-1" />
+        {blobSrc ? (
+          <audio src={blobSrc} controls preload="metadata" className="h-8 min-w-0 flex-1" />
+        ) : (
+          <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+        )}
       </div>
     );
   }
@@ -58,9 +64,17 @@ function MediaThumb({ botId, fileId, knownKind }: { botId: string; fileId: strin
     );
   }
 
+  if (!blobSrc) {
+    return (
+      <div className="flex max-h-44 w-full items-center justify-center rounded-md border bg-muted/40 p-6">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <img
-      src={src}
+      src={blobSrc}
       alt=""
       className="max-h-44 w-full rounded-md border object-cover"
       onError={() => { if (!knownKind) setGuessedAudio(true); }}

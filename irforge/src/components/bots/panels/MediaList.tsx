@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthedBlobUrl } from "@/hooks/use-authed-media";
 import { apiErrorMessage } from "./api";
 
 type MediaStatus = { available: boolean; maxBytes: number; reason?: string; code?: string | null };
@@ -101,10 +102,16 @@ function MediaRow({
   onRemove: () => void;
   t: Record<string, string>;
 }) {
-  const src = `/api/bots/${botId}/media/${encodeURIComponent(fileId)}`;
+  const apiSrc = `/api/bots/${botId}/media/${encodeURIComponent(fileId)}`;
+  const { url: blobSrc, failed } = useAuthedBlobUrl(apiSrc);
   // نوع نامعلوم: اول تصویر امتحان می‌شود و اگر لود نشد، صوت. این تنها راهِ
   // بدون تغییرِ شکل داده روی شیت است.
   const kind = meta?.kind ?? "unknown";
+
+  useEffect(() => {
+    if (failed && kind === "unknown") onMeta({ kind: "audio", duration: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failed]);
 
   return (
     <li className="flex items-center gap-2 rounded-md border p-2">
@@ -112,18 +119,21 @@ function MediaRow({
 
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {(kind === "photo" || kind === "unknown") && (
-          // پیش‌نمایش از پروکسی سرور می‌آید؛ URL خام تلگرام توکن بات را
-          // داخل خودش دارد و هرگز به کلاینت نمی‌رسد. نوعِ نامعلوم (پنلِ
-          // قدیمیِ عکس/صوتِ ذخیره‌شده پیش از این که نوعش را بدانیم): اول
-          // تصویر امتحان می‌شود و اگر لود نشد، صوت.
-          <img
-            src={src}
-            alt=""
-            loading="lazy"
-            className="size-12 shrink-0 rounded border object-cover"
-            onLoad={() => { if (kind === "unknown") onMeta({ kind: "photo", duration: null }); }}
-            onError={() => { if (kind === "unknown") onMeta({ kind: "audio", duration: null }); }}
-          />
+          // نوعِ نامعلوم (پنلِ قدیمیِ عکس/صوتِ ذخیره‌شده پیش از این که نوعش
+          // را بدانیم): اول تصویر امتحان می‌شود و اگر لود نشد، صوت.
+          blobSrc ? (
+            <img
+              src={blobSrc}
+              alt=""
+              className="size-12 shrink-0 rounded border object-cover"
+              onLoad={() => { if (kind === "unknown") onMeta({ kind: "photo", duration: null }); }}
+              onError={() => { if (kind === "unknown") onMeta({ kind: "audio", duration: null }); }}
+            />
+          ) : (
+            <div className="flex size-12 shrink-0 items-center justify-center rounded border bg-muted/40 text-muted-foreground">
+              {failed ? <ImageIcon className="size-5 opacity-40" /> : <Loader2 className="size-4 animate-spin" />}
+            </div>
+          )
         )}
 
         {(kind === "video" || kind === "document") && (
@@ -136,16 +146,20 @@ function MediaRow({
         {kind === "audio" ? (
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <Music className="size-4 shrink-0 text-muted-foreground" />
-            <audio
-              src={src}
-              controls
-              preload="metadata"
-              className="h-8 min-w-0 flex-1"
-              onLoadedMetadata={(e) => {
-                const d = (e.currentTarget as HTMLAudioElement).duration;
-                if (meta?.duration == null && Number.isFinite(d)) onMeta({ kind: "audio", duration: d });
-              }}
-            />
+            {blobSrc ? (
+              <audio
+                src={blobSrc}
+                controls
+                preload="metadata"
+                className="h-8 min-w-0 flex-1"
+                onLoadedMetadata={(e) => {
+                  const d = (e.currentTarget as HTMLAudioElement).duration;
+                  if (meta?.duration == null && Number.isFinite(d)) onMeta({ kind: "audio", duration: d });
+                }}
+              />
+            ) : (
+              <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+            )}
             {meta?.duration != null && (
               <span dir="ltr" className="shrink-0 text-xs tabular-nums text-muted-foreground">
                 {formatDuration(meta.duration)}
