@@ -496,9 +496,19 @@ function dedupeBotsByToken(
       byToken.set(token, bot);
       continue;
     }
+    // باگِ گزارش‌شده: بدونِ ORDER BY روی db.select() بالا، ترتیبِ ردیف‌ها بینِ
+    // دو فراخوانیِ پشتِ‌سرهم تضمین‌شده نیست؛ `>=` روی یک تساویِ دقیقِ
+    // updatedAt (مثلاً دو ردیف که یک عملیاتِ دسته‌ای هر دو را با یک
+    // timestamp لمس کرده) یعنی برنده = هر کدام که زودتر iterate شده —
+    // نتیجه‌اش این بود که «کدوم بات active نشون داده میشه» بینِ رفرش‌ها عوض
+    // می‌شد، بدونِ اینکه واقعاً چیزی تغییر کرده باشه. تساوی حالا با `id`
+    // (پایدار، مستقل از ترتیب) شکسته می‌شود — نتیجه دیگر به ترتیبِ ورودی
+    // بستگی ندارد.
     const currentIsBetter =
       Boolean(current.sheetId) === Boolean(bot.sheetId)
-        ? current.updatedAt >= bot.updatedAt
+        ? current.updatedAt.getTime() !== bot.updatedAt.getTime()
+          ? current.updatedAt > bot.updatedAt
+          : current.id < bot.id
         : Boolean(current.sheetId);
     if (!currentIsBetter) byToken.set(token, bot);
   }
@@ -787,7 +797,11 @@ async function reconcileBotsFromRegistry(userId: string, telegramId: string | nu
             const bReal = Boolean(best.tier || best.isTrial);
             const cReal = Boolean(b.tier || b.isTrial);
             if (bReal !== cReal) return cReal ? b : best;
-            return b.updatedAt > best.updatedAt ? b : best;
+            // همان دلیلِ dedupeBotsByToken بالا: تساوی دقیقِ updatedAt با
+            // `id` شکسته می‌شود تا نتیجه به ترتیبِ (بدونِ ORDER BY)ِ
+            // `raced` وابسته نباشد.
+            if (b.updatedAt.getTime() !== best.updatedAt.getTime()) return b.updatedAt > best.updatedAt ? b : best;
+            return b.id < best.id ? b : best;
           });
           const [updated] = await tx
             .update(botsTable)

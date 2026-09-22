@@ -129,3 +129,23 @@ test("یک بات تنها، دست‌نخورده برمی‌گردد", () => {
   assert.equal(result.length, 1);
   assert.equal(result[0].id, "only-one");
 });
+
+test("گزارشِ کاربر: وقتی دو ردیفِ هم‌توکن دقیقاً همان updatedAt دارند، برنده مستقل از ترتیبِ ورودی است (نه صرفاً «هر کدوم اول iterate شد»)", () => {
+  // db.select() بالادست هیچ ORDER BY ندارد، پس ترتیبِ rows بینِ دو فراخوانیِ
+  // پشتِ‌سرهم تضمین‌شده نیست. قبل از این فیکس، تساویِ دقیقِ updatedAt یعنی
+  // `current.updatedAt >= bot.updatedAt` همیشه true می‌داد، پس برنده = هر
+  // کدوم زودتر در آرایه بود — دقیقاً همون چیزی که «رفرشِ اول بات X روشنه،
+  // رفرشِ دوم بات Y روشنه» را توضیح می‌دهد بدونِ اینکه واقعاً چیزی در
+  // Postgres عوض شده باشد.
+  const tiedAt = new Date("2026-09-22T12:00:00Z");
+  const a = bot({ id: "row-a", sheetId: "sheet_1", status: "active", updatedAt: tiedAt });
+  const b = bot({ id: "row-b", sheetId: "sheet_1", status: "inactive", updatedAt: tiedAt });
+
+  const orderOne = dedupeBotsByToken([a, b]);
+  const orderTwo = dedupeBotsByToken([b, a]);
+
+  assert.equal(orderOne.length, 1);
+  assert.equal(orderTwo.length, 1);
+  assert.equal(orderOne[0].id, orderTwo[0].id, "همان بات، صرف‌نظر از اینکه کدوم اول در آرایه بود، باید برنده باشد");
+  assert.equal(orderOne[0].status, orderTwo[0].status, "همان status، بدونِ پلک‌زدن بینِ رفرش‌ها");
+});
