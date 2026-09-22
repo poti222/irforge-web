@@ -1681,7 +1681,16 @@
     "healthMore": "and {n} more",
     "repairCta": "Repair",
     "repairDone": "{n} panel(s) fixed",
-    "mediaAddMore": "Add another"
+    "mediaAddMore": "Add another",
+    "type_gameserver_cs2": "🎮 CS2 Server Manager",
+    "action_gameserver_cs2": "🎮 Manage CS2 servers",
+    "action_gameserver_manage": "🎮 Manage one specific server",
+    "pickGameServer": "Pick a server",
+    "loadingGameServers": "Loading servers…",
+    "settingGameServerPick": "Which server should this manage?",
+    "settingGameServerPickHint": "\"Manage all\" opens the same picker the admin quick link shows — the user picks a server themselves.",
+    "settingGameServerShowAll": "🗂 Manage all (default)",
+    "settingGameServerNoneYet": "No servers yet — add one in the \"CS2 Servers\" section."
   },
   "botForms": {
     "loading": "Loading forms…",

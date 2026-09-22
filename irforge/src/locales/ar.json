@@ -1681,7 +1681,16 @@
     "healthMore": "و{n} أخرى",
     "repairCta": "إصلاح",
     "repairDone": "تم إصلاح {n} لوحة",
-    "mediaAddMore": "إضافة عنصر آخر"
+    "mediaAddMore": "إضافة عنصر آخر",
+    "type_gameserver_cs2": "🎮 إدارة خادم CS2",
+    "action_gameserver_cs2": "🎮 إدارة خوادم CS2",
+    "action_gameserver_manage": "🎮 إدارة خادم معيّن",
+    "pickGameServer": "اختر خادماً",
+    "loadingGameServers": "جارٍ تحميل الخوادم…",
+    "settingGameServerPick": "أي خادم يُدار؟",
+    "settingGameServerPickHint": "«إدارة الكل» تفتح نفس القائمة التي يعرضها رابط الإدارة السريع — يختار المستخدم خادماً بنفسه.",
+    "settingGameServerShowAll": "🗂 إدارة الكل (افتراضي)",
+    "settingGameServerNoneYet": "لا توجد خوادم بعد — أضف واحداً من قسم «خوادم CS2»."
   },
   "botForms": {
     "loading": "جارٍ تحميل النماذج…",

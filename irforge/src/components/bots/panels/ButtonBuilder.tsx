@@ -50,6 +50,16 @@ function useAddressesForPicker(botId: string, enabled: boolean) {
   });
 }
 
+/** آینه‌ی بالا برایِ اکشنِ «مدیریتِ یک سرورِ خاص» — همان queryKeyِ
+ * `GameServersSection.tsx`/`PanelEditor.tsx` تا کش بینِ سه‌تا مشترک شود. */
+function useGameServersForPicker(botId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["bot-gameservers", botId],
+    queryFn: () => customFetch<{ servers: Array<{ id: string; label: string }> }>(`/api/bots/${botId}/gameservers`),
+    enabled,
+  });
+}
+
 /** ورودی مناسبِ هر اکشن — نه یک فیلد متنی که uuid دستی بخواهد. */
 function ValueField({
   botId,
@@ -74,6 +84,10 @@ function ValueField({
 
   const isAddressShow = button.action === "address_show";
   const { data: addressOptionsData, isLoading: addressOptionsLoading } = useAddressesForPicker(botId, isAddressShow);
+
+  const isGameServerManage = button.action === "gameserver_manage";
+  const { data: gameServerOptionsData, isLoading: gameServerOptionsLoading } =
+    useGameServersForPicker(botId, isGameServerManage);
 
   if (button.action === "phone" || (catalog?.buttonFixedValues && button.action in catalog.buttonFixedValues)) {
     return <p className="text-xs text-muted-foreground">{t.valueNoneNeeded}</p>;
@@ -117,6 +131,27 @@ function ValueField({
           <SelectItem value="__none__">{t.pickAddress}</SelectItem>
           {addresses.map((a) => (
             <SelectItem key={a.id} value={a.id}>{a.title || a.id}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  if (isGameServerManage) {
+    const servers = gameServerOptionsData?.servers ?? [];
+    if (gameServerOptionsLoading) {
+      return <p className="text-xs text-muted-foreground">{t.loadingGameServers}</p>;
+    }
+    if (servers.length === 0) {
+      return <p className="text-xs text-muted-foreground">{t.settingGameServerNoneYet}</p>;
+    }
+    return (
+      <Select value={button.value || "__none__"} onValueChange={(v) => onChange(v === "__none__" ? "" : v)}>
+        <SelectTrigger><SelectValue placeholder={t.pickGameServer} /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">{t.pickGameServer}</SelectItem>
+          {servers.map((s) => (
+            <SelectItem key={s.id} value={s.id}>{s.label || s.id}</SelectItem>
           ))}
         </SelectContent>
       </Select>

@@ -36,6 +36,7 @@ export const PLUGIN_BUTTON_ACTIONS: PluginButtonAction[] = [
   { pluginId: "address", key: "address", label: "📍 آدرس و تماس", fixedValue: "addr:start" },
   { pluginId: "discount", key: "discount", label: "🎟 کد تخفیف", fixedValue: "dc:check_prompt" },
   { pluginId: "subscription", key: "subscription", label: "💳 اشتراک", fixedValue: "sb:plans" },
+  { pluginId: "gameserver_cs2", key: "gameserver_cs2", label: "🎮 مدیریتِ سرورهایِ CS2", fixedValue: "gs:list" },
 ];
 
 /**
@@ -60,4 +61,16 @@ export const ADDRESS_SHOW_ACTION = {
   pluginId: "address",
   key: "address_show",
   label: "📍 نمایش یک آدرسِ خاص",
+} as const;
+
+/**
+ * «مدیریتِ یک سرورِ خاص» — همان دلیلِ ADDRESS_SHOW_ACTION: برخلاف
+ * `gameserver_cs2` بالا (مقصدِ ثابتِ «فهرستِ همه‌ی سرورها»)، این یکی هر بار
+ * می‌پرسد کدام یک سرور، پس مقدار لازم دارد. باید دقیقاً با
+ * `handlers/panel_builder.py::BTN_ACTIONS()`'s "gameserver_manage" یکی بماند.
+ */
+export const GAMESERVER_MANAGE_ACTION = {
+  pluginId: "gameserver_cs2",
+  key: "gameserver_manage",
+  label: "🎮 مدیریتِ یک سرورِ خاص",
 } as const;

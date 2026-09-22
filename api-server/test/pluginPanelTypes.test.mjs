@@ -32,6 +32,12 @@ test("هیچ نوعِ پنلِ پلاگینی با انواعِ هسته تدا�
   for (const p of PLUGIN_PANEL_TYPES) assert.ok(!CORE.includes(p.key));
 });
 
+test("gameserver_cs2 در PLUGIN_PANEL_TYPES هست", () => {
+  const gs = PLUGIN_PANEL_TYPES.find((p) => p.key === "gameserver_cs2");
+  assert.ok(gs, "gameserver_cs2 در PLUGIN_PANEL_TYPES نیست");
+  assert.equal(gs.pluginId, "gameserver_cs2");
+});
+
 test("IRFORGE_TELEGRAM_UPLOAD_PANELTYPES_VPNDELIVERY_PROMPT بخش B — wallet و wallet_balance در یک ردیف ادغام شده‌اند", () => {
   const wallet = PLUGIN_PANEL_TYPES.find((p) => p.key === "wallet");
   const balance = PLUGIN_PANEL_TYPES.find((p) => p.key === "wallet_balance");

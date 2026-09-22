@@ -1681,7 +1681,16 @@
     "healthMore": "و {n} مورد دیگر",
     "repairCta": "رفع خودکار",
     "repairDone": "{n} پنل اصلاح شد",
-    "mediaAddMore": "افزودن مورد دیگر"
+    "mediaAddMore": "افزودن مورد دیگر",
+    "type_gameserver_cs2": "🎮 مدیریتِ سرورِ CS2",
+    "action_gameserver_cs2": "🎮 مدیریتِ سرورهایِ CS2",
+    "action_gameserver_manage": "🎮 مدیریتِ یک سرورِ خاص",
+    "pickGameServer": "یک سرور انتخاب کنید",
+    "loadingGameServers": "در حال بارگذاری سرورها…",
+    "settingGameServerPick": "کدام سرور مدیریت شود؟",
+    "settingGameServerPickHint": "«مدیریتِ همه» یعنی همان فهرستی که کوییک‌لینکِ ادمین نشان می‌دهد — خودِ کاربر یک سرور انتخاب می‌کند.",
+    "settingGameServerShowAll": "🗂 مدیریتِ همه (پیش‌فرض)",
+    "settingGameServerNoneYet": "هنوز سروری ثبت نشده — از بخش «سرورهایِ CS2» اضافه کنید."
   },
   "botForms": {
     "loading": "در حال بارگذاری فرم‌ها…",

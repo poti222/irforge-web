@@ -1681,7 +1681,16 @@
     "healthMore": "ve {n} tane daha",
     "repairCta": "Onar",
     "repairDone": "{n} panel düzeltildi",
-    "mediaAddMore": "Bir tane daha ekle"
+    "mediaAddMore": "Bir tane daha ekle",
+    "type_gameserver_cs2": "🎮 CS2 Sunucu Yönetimi",
+    "action_gameserver_cs2": "🎮 CS2 sunucularını yönet",
+    "action_gameserver_manage": "🎮 Belirli bir sunucuyu yönet",
+    "pickGameServer": "Bir sunucu seçin",
+    "loadingGameServers": "Sunucular yükleniyor…",
+    "settingGameServerPick": "Hangi sunucu yönetilsin?",
+    "settingGameServerPickHint": "\"Hepsini yönet\" yönetici hızlı bağlantısının gösterdiği aynı listeyi açar — kullanıcı sunucuyu kendisi seçer.",
+    "settingGameServerShowAll": "🗂 Hepsini yönet (varsayılan)",
+    "settingGameServerNoneYet": "Henüz sunucu yok — \"CS2 Sunucuları\" bölümünden ekleyin."
   },
   "botForms": {
     "loading": "Formlar yükleniyor…",
