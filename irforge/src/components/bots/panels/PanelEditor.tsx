@@ -93,6 +93,17 @@ function useAddressOptions(botId: string, enabled: boolean) {
   });
 }
 
+/** آینه‌ی بالا برایِ پنلِ «gameserver_cs2» — همان queryKeyِ
+ * `GameServersSection.tsx` تا کش بینِ آن سکشن و این ویرایشگر مشترک شود. */
+function useGameServerOptions(botId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["bot-gameservers", botId],
+    queryFn: () => customFetch<{ servers: Array<{ id: string; label: string }> }>(`/api/bots/${botId}/gameservers`),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
 /** گزینه‌های (option) یک آیتمِ catalog — فقط وقتی که آیتمی برای پنل انتخاب شده. */
 function useSellCatalogOptions(botId: string, itemId: string) {
   return useQuery({
@@ -205,6 +216,11 @@ export function PanelEditor({
   const { data: addressOptionsData, isLoading: addressOptionsLoading } =
     useAddressOptions(botId, type === "address");
   const addressOptions = addressOptionsData?.addresses ?? [];
+
+  const gameServerId = String(settings.server_id ?? "");
+  const { data: gameServerOptionsData, isLoading: gameServerOptionsLoading } =
+    useGameServerOptions(botId, type === "gameserver_cs2");
+  const gameServerOptions = gameServerOptionsData?.servers ?? [];
 
   const dirty = useMemo(() => {
     const before = {
@@ -679,6 +695,31 @@ export function PanelEditor({
                       </Select>
                     )}
                     <p className="text-xs text-muted-foreground">{t.settingAddressPickHint}</p>
+                  </div>
+                )}
+
+                {type === "gameserver_cs2" && (
+                  <div className="space-y-1.5 rounded-md border p-3">
+                    <Label htmlFor="pe-gameserver">{t.settingGameServerPick}</Label>
+                    {gameServerOptionsLoading ? (
+                      <p className="text-xs text-muted-foreground">{t.loadingGameServers}</p>
+                    ) : gameServerOptions.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">{t.settingGameServerNoneYet}</p>
+                    ) : (
+                      <Select
+                        value={gameServerId || "__all__"}
+                        onValueChange={(v) => setSetting("server_id", v === "__all__" ? "" : v)}
+                      >
+                        <SelectTrigger id="pe-gameserver"><SelectValue placeholder={t.pickGameServer} /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__all__">{t.settingGameServerShowAll}</SelectItem>
+                          {gameServerOptions.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.label || s.id}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <p className="text-xs text-muted-foreground">{t.settingGameServerPickHint}</p>
                   </div>
                 )}
 

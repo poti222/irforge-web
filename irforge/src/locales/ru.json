@@ -1681,7 +1681,16 @@
     "healthMore": "и ещё {n}",
     "repairCta": "Исправить",
     "repairDone": "Исправлено панелей: {n}",
-    "mediaAddMore": "Добавить ещё"
+    "mediaAddMore": "Добавить ещё",
+    "type_gameserver_cs2": "🎮 Управление сервером CS2",
+    "action_gameserver_cs2": "🎮 Управление серверами CS2",
+    "action_gameserver_manage": "🎮 Управление одним сервером",
+    "pickGameServer": "Выберите сервер",
+    "loadingGameServers": "Загрузка серверов…",
+    "settingGameServerPick": "Каким сервером управлять?",
+    "settingGameServerPickHint": "«Управлять всеми» открывает тот же список, что и быстрая ссылка администратора — пользователь сам выбирает сервер.",
+    "settingGameServerShowAll": "🗂 Управлять всеми (по умолчанию)",
+    "settingGameServerNoneYet": "Серверов пока нет — добавьте в разделе «Серверы CS2»."
   },
   "botForms": {
     "loading": "Загрузка форм…",

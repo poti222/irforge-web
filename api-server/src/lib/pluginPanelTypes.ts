@@ -45,4 +45,5 @@ export const PLUGIN_PANEL_TYPES: PluginPanelType[] = [
   { pluginId: "giveaway", key: "giveaway", label: "🎁 قرعه‌کشی" },
   { pluginId: "booking", key: "booking", label: "📅 رزرو نوبت" },
   { pluginId: "catalog", key: "catalog_store", label: "🛍 فروشگاه" },
+  { pluginId: "gameserver_cs2", key: "gameserver_cs2", label: "🎮 مدیریتِ سرورِ CS2" },
 ];

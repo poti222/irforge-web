@@ -42,7 +42,9 @@ import {
 } from "../lib/botTypes.js";
 import { putEntities } from "../lib/botConfig.js";
 import { isPluginEnabled } from "../lib/pluginGate.js";
-import { PLUGIN_BUTTON_ACTIONS, CATALOG_ORDER_ACTION, ADDRESS_SHOW_ACTION } from "../lib/pluginButtonActions.js";
+import {
+  PLUGIN_BUTTON_ACTIONS, CATALOG_ORDER_ACTION, ADDRESS_SHOW_ACTION, GAMESERVER_MANAGE_ACTION,
+} from "../lib/pluginButtonActions.js";
 import { PLUGIN_PANEL_TYPES } from "../lib/pluginPanelTypes.js";
 
 const router = Router();
@@ -467,6 +469,7 @@ router.get("/bots/:botId/panel-catalog", requireAuth, async (req: any, res) => {
     ).filter((a): a is (typeof PLUGIN_BUTTON_ACTIONS)[number] => a !== null);
     const catalogOrderEnabled = await isPluginEnabled(spreadsheetId, CATALOG_ORDER_ACTION.pluginId);
     const addressShowEnabled = await isPluginEnabled(spreadsheetId, ADDRESS_SHOW_ACTION.pluginId);
+    const gameserverManageEnabled = await isPluginEnabled(spreadsheetId, GAMESERVER_MANAGE_ACTION.pluginId);
 
     res.json({
       panelTypes: [...CORE_PANEL_TYPES, ...enabledPanelTypes.map((p) => p.key)],
@@ -476,6 +479,7 @@ router.get("/bots/:botId/panel-catalog", requireAuth, async (req: any, res) => {
         ...enabledPluginActions.map((a) => a.key),
         ...(catalogOrderEnabled ? [CATALOG_ORDER_ACTION.key] : []),
         ...(addressShowEnabled ? [ADDRESS_SHOW_ACTION.key] : []),
+        ...(gameserverManageEnabled ? [GAMESERVER_MANAGE_ACTION.key] : []),
       ],
       buttonFixedValues: Object.fromEntries(enabledPluginActions.map((a) => [a.key, a.fixedValue])),
       buttonStyles: BUTTON_STYLES,
