@@ -436,7 +436,8 @@
     "sectionCatalog": "فروشگاه / کاتالوگ",
     "sectionWallet": "کیف پول",
     "sectionDatabase": "دیتابیس",
-    "sectionGuidedFlow": "گفت‌وگویِ راهنما"
+    "sectionGuidedFlow": "گفت‌وگویِ راهنما",
+    "sectionGameServers": "سرورهای CS2"
   },
   "marketplace": {
     "walletBalance": "موجودی کیف پول",
@@ -3233,5 +3234,36 @@
     "titleFormat": "آموزش: {section}",
     "fullPageCta": "آموزش تصویری",
     "notFound": "این صفحه‌ی آموزشی پیدا نشد."
+  },
+  "botGameServers": {
+    "loading": "در حال بارگذاری سرورها…",
+    "errorGeneric": "خطایی رخ داد. دوباره تلاش کنید.",
+    "noSheetYet": "این بات هنوز اسپردشیت اختصاصی ندارد؛ با اختصاص آن، مدیریت سرورها باز می‌شود.",
+    "pluginDisabledTitle": "مدیریت سرورهای CS2 را روشن کنید",
+    "pluginDisabledDesc": "سرورهای CS2 خود را از طریق RCON، مستقیم از داخل بات مدیریت کنید — بن، میوت، کیک، تغییر مپ — بعد از روشن‌شدن این پلاگین.",
+    "activatePlugin": "فعال‌سازی",
+    "activating": "در حال فعال‌سازی…",
+    "sectionDesc": "سرورهای CS2 (موتور Source) که ادمین‌های بات می‌توانند از طریق RCON مدیریت کنند — بن/میوت/کیک، پلیرهای آنلاین، تغییر مپ.",
+    "newServer": "سرور جدید",
+    "editServer": "ویرایش سرور",
+    "noServers": "هنوز سروری ثبت نشده است.",
+    "serverCreated": "سرور اضافه شد",
+    "serverUpdated": "سرور به‌روزرسانی شد",
+    "serverDeleted": "سرور حذف شد",
+    "edit": "ویرایش",
+    "delete": "حذف",
+    "save": "ذخیره",
+    "cancel": "انصراف",
+    "fieldLabel": "نام",
+    "fieldLabelHint": "فقط برای تشخیص سرورها در این پنل و داخل بات.",
+    "fieldHost": "آدرس سرور",
+    "fieldHostHint": "آدرس IP یا دامنه.",
+    "fieldPort": "پورت RCON",
+    "fieldRconPassword": "رمز RCON",
+    "fieldRconPasswordHintNew": "رمزگذاری‌شده ذخیره می‌شود. بعد از ذخیره دیگر نمایش داده نمی‌شود.",
+    "fieldRconPasswordHintEdit": "برای حفظ رمز فعلی، خالی بگذارید.",
+    "fieldRconPasswordPlaceholder": "••••••••",
+    "statusActive": "فعال",
+    "statusInactive": "غیرفعال"
   }
 }

@@ -436,7 +436,8 @@
     "sectionCatalog": "المتجر / الكتالوج",
     "sectionWallet": "المحفظة",
     "sectionDatabase": "قاعدة البيانات",
-    "sectionGuidedFlow": "الحوار الموجّه"
+    "sectionGuidedFlow": "الحوار الموجّه",
+    "sectionGameServers": "خوادم CS2"
   },
   "marketplace": {
     "walletBalance": "رصيد المحفظة",
@@ -3233,5 +3234,36 @@
     "titleFormat": "دليل الاستخدام: {section}",
     "fullPageCta": "دليل مصور",
     "notFound": "لم يتم العثور على صفحة الدليل هذه."
+  },
+  "botGameServers": {
+    "loading": "جارٍ تحميل الخوادم…",
+    "errorGeneric": "حدث خطأ ما. حاول مرة أخرى.",
+    "noSheetYet": "لا يملك هذا البوت جدول بيانات خاصًا به بعد؛ ستُفتح إدارة الخوادم بمجرد تخصيص واحد.",
+    "pluginDisabledTitle": "فعّل إدارة خوادم CS2",
+    "pluginDisabledDesc": "أدر خوادم CS2 الخاصة بك عبر RCON مباشرة من داخل البوت — حظر، كتم، طرد، تغيير الخرائط — بعد تفعيل هذا.",
+    "activatePlugin": "تفعيل",
+    "activating": "جارٍ التفعيل…",
+    "sectionDesc": "خوادم CS2 (محرك Source) التي يمكن لمشرفي البوت إدارتها عبر RCON — حظر/كتم/طرد، اللاعبون المتصلون، تغيير الخريطة.",
+    "newServer": "خادم جديد",
+    "editServer": "تعديل الخادم",
+    "noServers": "لا يوجد خوادم مسجلة بعد.",
+    "serverCreated": "تمت إضافة الخادم",
+    "serverUpdated": "تم تحديث الخادم",
+    "serverDeleted": "تمت إزالة الخادم",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "fieldLabel": "الاسم",
+    "fieldLabelHint": "فقط لتمييز الخوادم في هذه اللوحة وداخل البوت.",
+    "fieldHost": "المضيف",
+    "fieldHostHint": "عنوان IP أو اسم النطاق.",
+    "fieldPort": "منفذ RCON",
+    "fieldRconPassword": "كلمة مرور RCON",
+    "fieldRconPasswordHintNew": "تُخزَّن مشفّرة. لن تُعرض مجددًا بعد الحفظ.",
+    "fieldRconPasswordHintEdit": "اتركه فارغًا للاحتفاظ بكلمة المرور الحالية.",
+    "fieldRconPasswordPlaceholder": "••••••••",
+    "statusActive": "نشط",
+    "statusInactive": "غير نشط"
   }
 }

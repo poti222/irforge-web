@@ -436,7 +436,8 @@
     "sectionCatalog": "Каталог",
     "sectionWallet": "Кошелёк",
     "sectionDatabase": "База данных",
-    "sectionGuidedFlow": "Направленный диалог"
+    "sectionGuidedFlow": "Направленный диалог",
+    "sectionGameServers": "Серверы CS2"
   },
   "marketplace": {
     "walletBalance": "Баланс кошелька",
@@ -3233,5 +3234,36 @@
     "titleFormat": "Обучение: {section}",
     "fullPageCta": "Наглядное обучение",
     "notFound": "Эта обучающая страница не найдена."
+  },
+  "botGameServers": {
+    "loading": "Загрузка серверов…",
+    "errorGeneric": "Что-то пошло не так. Попробуйте снова.",
+    "noSheetYet": "У этого бота ещё нет собственной таблицы; управление серверами станет доступно после её назначения.",
+    "pluginDisabledTitle": "Включите менеджер серверов CS2",
+    "pluginDisabledDesc": "Управляйте серверами CS2 через RCON прямо из бота — бан, мут, кик, смена карты — после включения этого плагина.",
+    "activatePlugin": "Активировать",
+    "activating": "Активация…",
+    "sectionDesc": "Серверы CS2 (движок Source), которыми администраторы бота могут управлять через RCON — бан/мут/кик, игроки онлайн, смена карты.",
+    "newServer": "Новый сервер",
+    "editServer": "Редактировать сервер",
+    "noServers": "Серверы ещё не добавлены.",
+    "serverCreated": "Сервер добавлен",
+    "serverUpdated": "Сервер обновлён",
+    "serverDeleted": "Сервер удалён",
+    "edit": "Изменить",
+    "delete": "Удалить",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "fieldLabel": "Название",
+    "fieldLabelHint": "Только для различения серверов в этой панели и в боте.",
+    "fieldHost": "Хост",
+    "fieldHostHint": "IP-адрес или доменное имя.",
+    "fieldPort": "Порт RCON",
+    "fieldRconPassword": "Пароль RCON",
+    "fieldRconPasswordHintNew": "Хранится в зашифрованном виде. После сохранения больше не показывается.",
+    "fieldRconPasswordHintEdit": "Оставьте пустым, чтобы сохранить текущий пароль.",
+    "fieldRconPasswordPlaceholder": "••••••••",
+    "statusActive": "Активен",
+    "statusInactive": "Неактивен"
   }
 }

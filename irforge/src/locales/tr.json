@@ -436,7 +436,8 @@
     "sectionCatalog": "Katalog",
     "sectionWallet": "Cüzdan",
     "sectionDatabase": "Veritabanı",
-    "sectionGuidedFlow": "Rehberli Akış"
+    "sectionGuidedFlow": "Rehberli Akış",
+    "sectionGameServers": "CS2 Sunucuları"
   },
   "marketplace": {
     "walletBalance": "Cüzdan bakiyesi",
@@ -3233,5 +3234,36 @@
     "titleFormat": "Eğitim: {section}",
     "fullPageCta": "Görsel Eğitim",
     "notFound": "Bu eğitim sayfası bulunamadı."
+  },
+  "botGameServers": {
+    "loading": "Sunucular yükleniyor…",
+    "errorGeneric": "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
+    "noSheetYet": "Bu botun henüz kendi elektronik tablosu yok; bir tablo atandığında sunucu yönetimi açılır.",
+    "pluginDisabledTitle": "CS2 sunucu yöneticisini açın",
+    "pluginDisabledDesc": "Bu eklenti açıldıktan sonra CS2 sunucularınızı doğrudan bot içinden RCON üzerinden yönetin — ban, susturma, atma, harita değiştirme.",
+    "activatePlugin": "Etkinleştir",
+    "activating": "Etkinleştiriliyor…",
+    "sectionDesc": "Bot yöneticilerinin RCON üzerinden yönetebileceği CS2 (Source motoru) sunucuları — ban/susturma/atma, çevrimiçi oyuncular, harita değiştirme.",
+    "newServer": "Yeni sunucu",
+    "editServer": "Sunucuyu düzenle",
+    "noServers": "Henüz kayıtlı sunucu yok.",
+    "serverCreated": "Sunucu eklendi",
+    "serverUpdated": "Sunucu güncellendi",
+    "serverDeleted": "Sunucu kaldırıldı",
+    "edit": "Düzenle",
+    "delete": "Sil",
+    "save": "Kaydet",
+    "cancel": "Vazgeç",
+    "fieldLabel": "Etiket",
+    "fieldLabelHint": "Yalnızca bu panelde ve bot içinde sunucuları ayırt etmek için.",
+    "fieldHost": "Sunucu adresi",
+    "fieldHostHint": "IP adresi veya alan adı.",
+    "fieldPort": "RCON portu",
+    "fieldRconPassword": "RCON şifresi",
+    "fieldRconPasswordHintNew": "Şifrelenmiş olarak saklanır. Kaydedildikten sonra bir daha gösterilmez.",
+    "fieldRconPasswordHintEdit": "Mevcut şifreyi korumak için boş bırakın.",
+    "fieldRconPasswordPlaceholder": "••••••••",
+    "statusActive": "Aktif",
+    "statusInactive": "Pasif"
   }
 }
