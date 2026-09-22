@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthedBlobUrl, openAuthedMediaInNewTab } from "@/hooks/use-authed-media";
 
 type Ticket = {
   id: string;
@@ -57,26 +58,45 @@ type TicketMessage = {
   attachments?: TicketAttachment[];
 };
 
-/** پیش‌نمایش یک پیوست — عکس مستقیم، بقیه فقط لینک دانلود از همان پروکسیِ رسانه. */
+/**
+ * پیش‌نمایش یک پیوست — عکس مستقیم، بقیه فقط لینک دانلود از همان پروکسیِ
+ * رسانه. پروکسی احرازهویت می‌خواهد (`Authorization: Bearer`)، پس نه
+ * `<img src>` خام و نه ناوبریِ عادیِ `<a href>` می‌تواند مستقیم به آن اشاره
+ * کند — نگاه کن use-authed-media.ts.
+ */
 function AttachmentPreview({ botId, attachment }: { botId: string; attachment: TicketAttachment }) {
   const t = useT("botTickets");
-  const url = `/api/bots/${botId}/media/${attachment.file_id}`;
+  const { toast } = useToast();
+  const apiUrl = `/api/bots/${botId}/media/${attachment.file_id}`;
+  const { url: blobSrc } = useAuthedBlobUrl(attachment.type === "photo" ? apiUrl : null);
+
+  const openInNewTab = () => {
+    openAuthedMediaInNewTab(apiUrl).catch(() =>
+      toast({ variant: "destructive", title: t.errorGeneric })
+    );
+  };
+
   if (attachment.type === "photo") {
     return (
-      <a href={url} target="_blank" rel="noreferrer" className="block">
-        <img src={url} alt={attachment.caption || ""} className="max-h-48 rounded-md border object-contain" />
-      </a>
+      <button type="button" onClick={openInNewTab} className="block">
+        {blobSrc ? (
+          <img src={blobSrc} alt={attachment.caption || ""} className="max-h-48 rounded-md border object-contain" />
+        ) : (
+          <div className="flex h-24 w-24 items-center justify-center rounded-md border bg-muted/40">
+            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
+      </button>
     );
   }
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer"
+    <button
+      type="button"
+      onClick={openInNewTab}
       className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
     >
       <Paperclip className="size-3.5" /> {attachment.type}
-    </a>
+    </button>
   );
 }
 

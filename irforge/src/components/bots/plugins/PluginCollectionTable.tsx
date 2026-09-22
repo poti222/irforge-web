@@ -36,6 +36,7 @@ import {
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthedBlobUrl } from "@/hooks/use-authed-media";
 import { MediaList } from "@/components/bots/panels/MediaList";
 
 /** متن دوزبانه‌ای که سرور می‌دهد — `api-server/src/lib/pluginCollections.ts`. */
@@ -117,6 +118,20 @@ function isoToLocalInput(value: unknown): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/** پروکسیِ مدیا احرازهویت می‌خواهد، پس `<img src>` خام نمی‌تواند مستقیم به
+ * آن اشاره کند (نگاه کن use-authed-media.ts). */
+function ImageCell({ botId, fileId }: { botId: string; fileId: string }) {
+  const { url: blobSrc } = useAuthedBlobUrl(`/api/bots/${botId}/media/${encodeURIComponent(fileId)}`);
+  if (!blobSrc) {
+    return (
+      <div className="flex size-10 items-center justify-center rounded border bg-muted/40">
+        <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  return <img src={blobSrc} alt="" className="size-10 rounded border object-cover" />;
+}
+
 /** نمایش یک سلول — خواندنی برای انسان، نه JSON خام. */
 function renderCell(
   field: FieldSpec | undefined,
@@ -129,14 +144,7 @@ function renderCell(
   if (value === undefined || value === null || value === "") return <span className="text-muted-foreground">—</span>;
 
   if (field?.type === "image") {
-    return (
-      <img
-        src={`/api/bots/${botId}/media/${encodeURIComponent(String(value))}`}
-        alt=""
-        loading="lazy"
-        className="size-10 rounded border object-cover"
-      />
-    );
+    return <ImageCell botId={botId} fileId={String(value)} />;
   }
 
   if (field?.type === "boolean" || typeof value === "boolean") {

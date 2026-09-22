@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthedBlobUrl } from "@/hooks/use-authed-media";
 
 type ContactEntryKind = "phone" | "address" | "email" | "link" | "text";
 type ContactEntry = { id: string; kind: ContactEntryKind; label: string; value: string };
@@ -134,6 +135,31 @@ function MapPicker({
   }, [lat, lng]);
 
   return <div ref={containerRef} className="h-72 w-full rounded-md border" />;
+}
+
+/** پیش‌نمایشِ یک عکسِ آدرس — پروکسیِ مدیا احرازهویت می‌خواهد، پس `<img
+ * src>` خام نمی‌تواند مستقیم به آن اشاره کند (نگاه کن use-authed-media.ts). */
+function AddressPhotoThumb({ botId, fid, onRemove, t }: { botId: string; fid: string; onRemove: () => void; t: Record<string, string> }) {
+  const { url: blobSrc } = useAuthedBlobUrl(`/api/bots/${botId}/media/${fid}`);
+  return (
+    <div className="relative">
+      {blobSrc ? (
+        <img src={blobSrc} alt="" className="h-16 w-16 rounded-md border object-cover" />
+      ) : (
+        <div className="flex h-16 w-16 items-center justify-center rounded-md border bg-muted/40">
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      <button
+        type="button"
+        aria-label={t.photoRemove}
+        onClick={onRemove}
+        className="absolute -end-1.5 -top-1.5 rounded-full bg-destructive p-0.5 text-destructive-foreground"
+      >
+        <X className="size-3" />
+      </button>
+    </div>
+  );
 }
 
 function AddressEditor({
@@ -313,21 +339,13 @@ function AddressEditor({
             <Label>{t.fieldPhoto}</Label>
             <div className="flex flex-wrap items-center gap-3">
               {photoFileIds.map((fid) => (
-                <div key={fid} className="relative">
-                  <img
-                    src={`/api/bots/${botId}/media/${fid}`}
-                    alt=""
-                    className="h-16 w-16 rounded-md border object-cover"
-                  />
-                  <button
-                    type="button"
-                    aria-label={t.photoRemove}
-                    onClick={() => setPhotoFileIds((prev) => prev.filter((x) => x !== fid))}
-                    className="absolute -end-1.5 -top-1.5 rounded-full bg-destructive p-0.5 text-destructive-foreground"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </div>
+                <AddressPhotoThumb
+                  key={fid}
+                  botId={botId}
+                  fid={fid}
+                  onRemove={() => setPhotoFileIds((prev) => prev.filter((x) => x !== fid))}
+                  t={t as unknown as Record<string, string>}
+                />
               ))}
               {photoFileIds.length < MAX_PHOTOS && (
                 <Input

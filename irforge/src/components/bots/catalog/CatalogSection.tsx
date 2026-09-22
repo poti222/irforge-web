@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthedBlobUrl } from "@/hooks/use-authed-media";
 import { SendViaBotButton, materializeSession, type CapturedContent, type MaterializedItem } from "@/components/bots/SendViaBotButton";
 import { MediaList, type MediaMeta } from "../panels/MediaList";
 import { ButtonBuilder } from "../panels/ButtonBuilder";
@@ -107,6 +108,20 @@ function errCode(err: any): string | null {
 }
 function formatPrice(price: number, currency: string): string {
   return `${price.toLocaleString("fa-IR")} ${currency}`;
+}
+
+/** پروکسیِ مدیا احرازهویت می‌خواهد، پس `<img src>` خام نمی‌تواند مستقیم به
+ * آن اشاره کند (نگاه کن use-authed-media.ts). */
+function CatalogItemThumb({ botId, fileId }: { botId: string; fileId: string }) {
+  const { url: blobSrc } = useAuthedBlobUrl(`/api/bots/${botId}/media/${encodeURIComponent(fileId)}`);
+  if (!blobSrc) {
+    return (
+      <div className="flex size-10 shrink-0 items-center justify-center rounded border bg-muted/40">
+        <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  return <img src={blobSrc} alt="" className="size-10 shrink-0 rounded border object-cover" />;
 }
 
 // ─── دسته‌بندی ───────────────────────────────────────────────────────────────
@@ -1253,12 +1268,7 @@ function ItemsTab({
             <div key={it.id} className="flex items-center justify-between gap-2 rounded-md border p-3">
               <div className="flex min-w-0 items-center gap-3">
                 {it.media?.[0]?.file_id && (
-                  <img
-                    src={`/api/bots/${botId}/media/${encodeURIComponent(it.media[0].file_id)}`}
-                    alt=""
-                    loading="lazy"
-                    className="size-10 shrink-0 rounded border object-cover"
-                  />
+                  <CatalogItemThumb botId={botId} fileId={it.media[0].file_id} />
                 )}
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
