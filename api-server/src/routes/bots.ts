@@ -684,6 +684,24 @@ async function readAllTenants(force = false): Promise<RegistryTenant[]> {
 }
 
 /**
+ * Pure decision logic behind the stale-duplicate-registry-row skip in
+ * `reconcileBotsFromRegistry` below — every registry sheetId that's already
+ * matched to a real Postgres bot by its (decrypted) token. Kept separate
+ * from the decrypt/DB-lookup plumbing so it's unit-testable without a live
+ * database, per this file's existing test convention.
+ */
+export function computeResolvedSheetIds(
+  entries: Array<{ plainToken: string; sheetId: string | null }>,
+  knownTokens: ReadonlySet<string>
+): Set<string> {
+  const resolved = new Set<string>();
+  for (const { plainToken, sheetId } of entries) {
+    if (sheetId && knownTokens.has(plainToken)) resolved.add(sheetId);
+  }
+  return resolved;
+}
+
+/**
  * Import/repair this user's bots from the registry sheet before Postgres is
  * read. `telegramId` is required to match ownership because that's the key
  * mainbot writes (`owner_id`) when a bot is created directly through the bot.
@@ -715,6 +733,41 @@ async function reconcileBotsFromRegistry(userId: string, telegramId: string | nu
       /* corrupt/legacy row — skip */
     }
   }
+
+  /**
+   * لایوباگ: «My Products» بینِ رفرش‌ها وضعیتِ فعال/غیرفعالِ باتی که
+   * دست‌نخورده مانده بود عوض می‌شد. علتش: `readAllTenants()` رجیستری را
+   * بدونِ dedup برمی‌گرداند — اگر یک تننت روزی توکنش عوض شده باشد (یا هر
+   * دلیلِ دیگری) و ردیفِ رجیستریِ کهنه هرگز پاک نشده باشد، `mine` هم آن
+   * ردیفِ کهنه و هم ردیفِ تازه‌ی همان بات را با هم دارد. ردیفِ تازه با
+   * `byToken` مچ می‌شود (پایین، `existing`)، ولی ردیفِ کهنه با توکنِ
+   * دیگرش مچ نمی‌شود و مستقیم به شاخه‌ی «همان owner، همان sheetId»
+   * می‌رفت — که هویتِ باتِ **درست** را با دیتایِ کهنه (status/name/token)
+   * بازنویسی می‌کرد، هر بار که این حلقه به آن ردیفِ کهنه می‌رسید. کدام
+   * ردیف «آخر» پردازش می‌شد به ترتیبِ برگشتیِ Sheets API بستگی داشت —
+   * دقیقاً همان چیزی که رفتارش را بینِ رفرش‌ها بی‌ثبات می‌کرد.
+   *
+   * پیش از حلقه‌ی اصلی، هر sheetId ای که از قبل با یک توکنِ واقعی مچ شده
+   * علامت می‌خورد؛ هر ردیفِ رجیستریِ دیگر که مچِ توکن ندارد ولی همان
+   * sheetId را دارد، به‌جایِ «بازسازی/درج»، نادیده گرفته می‌شود — چون به
+   * احتمالِ زیاد همان ردیفِ کهنه‌ی رجیستری است، نه یک بات واقعاً جدید.
+   * تصمیمِ خالص (بدونِ I/O) در `computeResolvedSheetIds` است تا بدونِ
+   * دیتابیسِ واقعی هم تست شود — همان قراردادِ این فایل برای رمزگشاییِ
+   * توکن (نگاه کن `registryTokenDoubleEncryption.test.mjs`).
+   */
+  const tokenSheetPairs: Array<{ plainToken: string; sheetId: string | null }> = [];
+  for (const t of mine) {
+    if (!t.bot_token) continue;
+    try {
+      tokenSheetPairs.push({
+        plainToken: decryptToken(t.bot_token),
+        sheetId: t.spreadsheet_id || t.sheet_id || null,
+      });
+    } catch {
+      /* corrupt/legacy row — همان‌جا در حلقه‌ی اصلی هم نادیده گرفته می‌شود */
+    }
+  }
+  const resolvedSheetIds = computeResolvedSheetIds(tokenSheetPairs, new Set(byToken.keys()));
 
   for (const t of mine) {
     if (!t.bot_token) continue;
@@ -748,6 +801,19 @@ async function reconcileBotsFromRegistry(userId: string, telegramId: string | nu
       if (existing.userId !== userId) {
         await db.update(botsTable).set({ userId }).where(eq(botsTable.id, existing.id));
       }
+      continue;
+    }
+
+    // این توکن با هیچ ردیفی مچ نشد، ولی sheetId‌اش قبلاً (در حلقه‌ی بالا)
+    // با یک توکنِ واقعیِ دیگر مچ شده بود — به‌جایِ ریسکِ بازنویسیِ باتِ
+    // درست با دیتایِ این ردیفِ به‌احتمالِ‌زیاد-کهنه، کامل نادیده گرفته
+    // می‌شود. نگاه کن توضیحِ بالایِ resolvedSheetIds.
+    const sheetIdForSkipCheck = t.spreadsheet_id || t.sheet_id || null;
+    if (sheetIdForSkipCheck && resolvedSheetIds.has(sheetIdForSkipCheck)) {
+      logger.warn(
+        { userId, sheetId: sheetIdForSkipCheck, botName: t.bot_name },
+        "reconcileBotsFromRegistry: skipping a registry row whose token doesn't match Postgres but whose sheetId already has a real match — likely a stale duplicate registry row"
+      );
       continue;
     }
 
@@ -3819,6 +3885,7 @@ router.post("/bots/:botId/sheet", requireSuperAdmin, async (req: any, res) => {
 export const __testables = {
   requireBotOwnership, requireBotAccess,
   dedupeBotsByToken, withTokenCreationLock, tokenUsedInTx, DuplicateTokenError,
+  computeResolvedSheetIds,
 };
 
 export default router;

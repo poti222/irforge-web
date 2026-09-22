@@ -33,7 +33,7 @@ process.env.DATABASE_URL ??= "postgresql://test:test@127.0.0.1:1/testdb";
 process.env.BOT_TOKEN_ENCRYPTION_KEY ??= "c".repeat(64);
 
 const { __testables } = await import("../src/routes/bots.ts");
-const { dedupeBotsByToken } = __testables;
+const { dedupeBotsByToken, computeResolvedSheetIds } = __testables;
 const { encryptToken } = await import("../src/lib/tokenCrypto.ts");
 
 function bot(overrides = {}) {
@@ -148,4 +148,51 @@ test("گزارشِ کاربر: وقتی دو ردیفِ هم‌توکن دقیق
   assert.equal(orderTwo.length, 1);
   assert.equal(orderOne[0].id, orderTwo[0].id, "همان بات، صرف‌نظر از اینکه کدوم اول در آرایه بود، باید برنده باشد");
   assert.equal(orderOne[0].status, orderTwo[0].status, "همان status، بدونِ پلک‌زدن بینِ رفرش‌ها");
+});
+
+// ─── computeResolvedSheetIds — گزارشِ کاربر ۲۰۲۶-۰۹-۲۲: «My Products» بینِ
+// رفرش‌ها status سه بات کاملاً متفاوت را عوض می‌کرد، نه یک باتِ تکراری.
+// فیکسِ بالا (dedupeBotsByToken) این حالت را نمی‌گرفت چون هر بات توکنِ خودش
+// را دارد -- ریشه‌ی واقعی در reconcileBotsFromRegistry بود: readAllTenants()
+// بدونِ dedup است، پس یک ردیفِ رجیستریِ کهنه (توکنِ عوض‌شده، همان sheetId)
+// می‌توانست شاخه‌ی «همان owner همان sheet» را بگیرد و بات درست را با دیتایِ
+// کهنه بازنویسی کند. computeResolvedSheetIds تصمیمِ خالصِ پشتِ فیکس است:
+// هر sheetId که از قبل با یک توکنِ واقعی مچ شده، دیگر کاندیدِ آن شاخه نیست.
+test("computeResolvedSheetIds: sheetId ای که با توکنِ واقعی مچ شده resolved است", () => {
+  const known = new Set(["real-token-abc"]);
+  const result = computeResolvedSheetIds(
+    [{ plainToken: "real-token-abc", sheetId: "sheet_1" }],
+    known
+  );
+  assert.ok(result.has("sheet_1"));
+});
+
+test("computeResolvedSheetIds: ردیفِ رجیستریِ کهنه (توکنِ نامچ، همان sheetId) resolved حساب نمی‌شود", () => {
+  // این دقیقاً سناریوی زنده است: یک تننت دو ردیفِ رجیستری دارد -- یکی با
+  // توکنِ فعلی (که با byToken مچ می‌شود) و یکی کهنه با توکنِ قبلی، هر دو
+  // روی همان sheetId.
+  const known = new Set(["current-token"]);
+  const result = computeResolvedSheetIds(
+    [
+      { plainToken: "current-token", sheetId: "sheet_1" },
+      { plainToken: "stale-old-token", sheetId: "sheet_1" },
+    ],
+    known
+  );
+  assert.deepEqual([...result], ["sheet_1"], "همان یک sheetId -- کافی است یکی از ردیف‌ها مچ کرده باشد");
+});
+
+test("computeResolvedSheetIds: بدونِ هیچ توکنِ واقعیِ مچ‌شده، sheetId اصلاً resolved نمی‌شود", () => {
+  const known = new Set(["something-else"]);
+  const result = computeResolvedSheetIds(
+    [{ plainToken: "unmatched-token", sheetId: "sheet_1" }],
+    known
+  );
+  assert.equal(result.size, 0, "بدونِ مچِ توکن، sheetId نباید مانعِ شاخه‌ی import/insert معمولی شود");
+});
+
+test("computeResolvedSheetIds: sheetId خالی/نال هیچ‌وقت اضافه نمی‌شود، حتی با توکنِ مچ‌شده", () => {
+  const known = new Set(["real-token"]);
+  const result = computeResolvedSheetIds([{ plainToken: "real-token", sheetId: null }], known);
+  assert.equal(result.size, 0);
 });
