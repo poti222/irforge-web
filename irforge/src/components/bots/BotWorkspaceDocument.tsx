@@ -37,6 +37,7 @@ import {
   Newspaper,
   GitBranch,
   Database,
+  Gamepad2,
   type LucideIcon,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
@@ -75,6 +76,7 @@ import { TranslatePostSection } from "@/components/bots/translate-post/Translate
 import { PostboxSection } from "@/components/bots/postbox/PostboxSection";
 import { GuidedFlowSection } from "@/components/bots/guidedFlow/GuidedFlowSection";
 import { AddressesSection } from "@/components/bots/addresses/AddressesSection";
+import { GameServersSection } from "@/components/bots/gameserver_cs2/GameServersSection";
 import { DripSection } from "@/components/bots/drip/DripSection";
 import { CrmSection } from "@/components/bots/crm/CrmSection";
 import { CatalogSection } from "@/components/bots/catalog/CatalogSection";
@@ -117,6 +119,7 @@ type SectionKey =
   | "loyalty"
   | "booking"
   | "addresses"
+  | "gameservers"
   | "subscriptions"
   | "giveaways"
   | "surveys"
@@ -232,6 +235,8 @@ const SECTION_GROUPS: SectionGroup[] = [
       { key: "booking", icon: CalendarClock, labelKey: "sectionBooking", requiresPlugin: "booking", showWhenDisabled: true },
       // IRFORGE_PROMPT_V3 Phase 18
       { key: "addresses", icon: MapPin, labelKey: "sectionAddresses", requiresPlugin: "address", showWhenDisabled: true },
+      // IRFORGE_CS2_RCON_PLUGIN_PROMPT Phase 3 — همان الگوی showWhenDisabled.
+      { key: "gameservers", icon: Gamepad2, labelKey: "sectionGameServers", requiresPlugin: "gameserver_cs2", showWhenDisabled: true },
       // IRFORGE_PROMPT_V3 Phase 24 — همان الگوی `showWhenDisabled`ی booking/address:
       // سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
       { key: "catalog", icon: Store, labelKey: "sectionCatalog", requiresPlugin: "catalog", showWhenDisabled: true },
@@ -540,6 +545,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "loyalty" && <LoyaltySection bot={bot} />}
             {section === "booking" && <BookingSection bot={bot} />}
             {section === "addresses" && <AddressesSection bot={bot} />}
+            {section === "gameservers" && <GameServersSection bot={bot} />}
             {section === "subscriptions" && <PluginSection bot={bot} plugin="subscription" />}
             {section === "giveaways" && <GiveawaySection bot={bot} />}
             {section === "surveys" && <SurveySection bot={bot} />}

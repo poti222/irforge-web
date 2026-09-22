@@ -47,6 +47,7 @@ export type TutorialSectionId =
   | "loyalty"
   | "booking"
   | "addresses"
+  | "gameservers"
   | "subscriptions"
   | "giveaways"
   | "surveys"

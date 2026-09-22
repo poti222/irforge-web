@@ -436,7 +436,8 @@
     "sectionCatalog": "Catalog",
     "sectionWallet": "Wallet",
     "sectionDatabase": "Database",
-    "sectionGuidedFlow": "Guided Flow"
+    "sectionGuidedFlow": "Guided Flow",
+    "sectionGameServers": "CS2 Servers"
   },
   "marketplace": {
     "walletBalance": "Wallet balance",
@@ -3233,5 +3234,36 @@
     "titleFormat": "Tutorial: {section}",
     "fullPageCta": "Visual Tutorial",
     "notFound": "This tutorial page was not found."
+  },
+  "botGameServers": {
+    "loading": "Loading servers…",
+    "errorGeneric": "Something went wrong. Please try again.",
+    "noSheetYet": "This bot doesn't have its own spreadsheet yet; servers unlock once one is assigned.",
+    "pluginDisabledTitle": "Turn on the CS2 server manager",
+    "pluginDisabledDesc": "Manage your CS2 servers over RCON from inside the bot — ban, mute, kick, change maps — once this is on.",
+    "activatePlugin": "Activate",
+    "activating": "Activating…",
+    "sectionDesc": "CS2 (Source engine) servers your bot's admins can manage over RCON — ban/mute/kick, online players, map changes.",
+    "newServer": "New server",
+    "editServer": "Edit server",
+    "noServers": "No servers registered yet.",
+    "serverCreated": "Server added",
+    "serverUpdated": "Server updated",
+    "serverDeleted": "Server removed",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "fieldLabel": "Label",
+    "fieldLabelHint": "Just for you to tell servers apart in this panel and in the bot.",
+    "fieldHost": "Host",
+    "fieldHostHint": "IP address or domain name.",
+    "fieldPort": "RCON port",
+    "fieldRconPassword": "RCON password",
+    "fieldRconPasswordHintNew": "Stored encrypted. Never shown again once saved.",
+    "fieldRconPasswordHintEdit": "Leave blank to keep the current password.",
+    "fieldRconPasswordPlaceholder": "••••••••",
+    "statusActive": "Active",
+    "statusInactive": "Inactive"
   }
 }
