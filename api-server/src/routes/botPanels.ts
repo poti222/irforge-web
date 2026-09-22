@@ -251,7 +251,6 @@ router.get("/bots/:botId/panels/:panelId/references", requireAuth, async (req: a
 router.post("/bots/:botId/panels", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(PANELS_TAB);
 
     const body = req.body ?? {};
     const panels = await listPanels(spreadsheetId);
@@ -285,7 +284,6 @@ router.post("/bots/:botId/panels", requireAuth, async (req: any, res) => {
 router.patch("/bots/:botId/panels/:panelId", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(PANELS_TAB);
 
     const panels = await listPanels(spreadsheetId);
     const current = panels.find((p) => p.id === req.params.panelId);
@@ -341,7 +339,6 @@ router.patch("/bots/:botId/panels/:panelId", requireAuth, async (req: any, res) 
 router.delete("/bots/:botId/panels/:panelId", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(PANELS_TAB);
 
     const strategy = String(req.query.strategy ?? "");
     if (!["cascade", "reparent", "orphan"].includes(strategy))
@@ -375,7 +372,6 @@ router.delete("/bots/:botId/panels/:panelId", requireAuth, async (req: any, res)
 router.post("/bots/:botId/panels/:panelId/home", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(PANELS_TAB);
     const panels = await setHomePanel(spreadsheetId, req.params.panelId);
     res.json({ panels, homePanelId: req.params.panelId });
   } catch (err: any) {
@@ -390,7 +386,6 @@ router.post("/bots/:botId/panels/:panelId/home", requireAuth, async (req: any, r
 router.post("/bots/:botId/panels/:panelId/toggle", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(PANELS_TAB);
     const panel = await getPanel(spreadsheetId, req.params.panelId);
     if (!panel) throw new BotConfigError(404, "این پنل پیدا نشد.", "panel_not_found");
     const next = { ...panel, is_active: !panel.is_active };
@@ -404,7 +399,6 @@ router.post("/bots/:botId/panels/:panelId/toggle", requireAuth, async (req: any,
 router.post("/bots/:botId/panels/:panelId/link", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(PANELS_TAB);
 
     const panels = await listPanels(spreadsheetId);
     const panel = panels.find((p) => p.id === req.params.panelId);
