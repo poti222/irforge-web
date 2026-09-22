@@ -26,6 +26,8 @@ import { logger } from "./logger.js";
 import { readTabRows, upsertRow, deleteRow, listTabs } from "./tenantSheets.js";
 import { isSheetsNotConfiguredError } from "./sheets.js";
 import { bustTabCache, bustTabsCache } from "./botCacheBust.js";
+import { getBusinessPool } from "./businessDbPool.js";
+import { isKnownPgEntity, pgListEntity, pgGetEntity, pgSetEntity, pgSetEntities, pgDeleteEntity } from "./businessPg.js";
 import {
   defaultBotSettings,
   defaultWorkingHours,
@@ -237,11 +239,27 @@ export async function getBotOwnerAndManagerIds(botId: string, ownerUserId: strin
 export type EntityRow<T> = { key: string; value: T };
 
 /**
+ * آیا این تب برای این تننت باید از Postgres خوانده/نوشته شود؟ فقط وقتی هم
+ * `businessPg.ts` schema‌اش را می‌شناسد (امروز فقط «panels» — نگاه کن آن
+ * فایل) و هم پرچمِ cutoverِ این تننت روشن است. هر تبِ دیگر (حتی اگر
+ * cutover شده باشد) دقیقاً همان مسیرِ قدیمیِ Sheets را می‌رود — رفتارش با
+ * قبل از این تابع، بیت‌به‌بیت یکی است؛ مسدودشدنِ نوشتن برایشان همچنان کارِ
+ * `assertSheetsAuthoritative()`ی خودِ هر route است، اینجا دست‌نخورده مانده.
+ */
+async function usesPostgres(spreadsheetId: string, tab: string): Promise<boolean> {
+  return isKnownPgEntity(tab) && (await isEntityOnPostgres(tab, spreadsheetId));
+}
+
+/**
  * همه‌ی سطرهای یک تب. سطرهایی که مقدارشان object نیست (سلولِ غیر-JSON) هم
  * برگردانده می‌شوند — بات هم همان رشته‌ی خام را تحمل می‌کند و ما حق نداریم
  * بی‌سروصدا دورشان بریزیم.
  */
 export async function listEntity<T = unknown>(spreadsheetId: string, tab: string): Promise<EntityRow<T>[]> {
+  if (await usesPostgres(spreadsheetId, tab)) {
+    const rows = await pgListEntity(spreadsheetId, tab);
+    return rows.map((r) => ({ key: r.key, value: r.value as T }));
+  }
   const rows = await sheetLayer.readTabRows(spreadsheetId, tab);
   return rows.map((r) => ({ key: r.key, value: r.value as T }));
 }
@@ -251,29 +269,42 @@ export async function getEntity<T = unknown>(
   tab: string,
   key: string
 ): Promise<T | null> {
+  if (await usesPostgres(spreadsheetId, tab)) {
+    const value = await pgGetEntity(spreadsheetId, tab, key);
+    return (value ?? null) as T | null;
+  }
   const rows = await sheetLayer.readTabRows(spreadsheetId, tab);
   const hit = rows.find((r) => r.key === key);
   return hit ? (hit.value as T) : null;
 }
 
-/** یک سطر را می‌نویسد (JSON) و کش بات را باطل می‌کند. */
+/** یک سطر را می‌نویسد (JSON، یا برای تننت‌هایِ cutover‌شده مستقیم Postgres) و کش بات را باطل می‌کند. */
 export async function putEntity(
   spreadsheetId: string,
   tab: string,
   key: string,
   value: unknown
 ): Promise<{ created: boolean }> {
+  if (await usesPostgres(spreadsheetId, tab)) {
+    const existed = (await pgGetEntity(spreadsheetId, tab, key)) !== null;
+    await pgSetEntity(spreadsheetId, tab, key, value);
+    return { created: !existed };
+  }
   const result = await sheetLayer.upsertRow(spreadsheetId, tab, key, value);
   await bustTabCache(spreadsheetId, tab);
   return result;
 }
 
-/** چند سطر پشت‌سرهم (ترتیبی، چون Sheets روی نوشتن موازی race می‌دهد). */
+/** چند سطر — روی Postgres یک تراکنش، روی Sheets ترتیبی (چون نوشتن موازی race می‌دهد). */
 export async function putEntities(
   spreadsheetId: string,
   tab: string,
   entries: Array<{ key: string; value: unknown }>
 ): Promise<void> {
+  if (await usesPostgres(spreadsheetId, tab)) {
+    await pgSetEntities(spreadsheetId, tab, entries);
+    return;
+  }
   for (const e of entries) {
     await sheetLayer.upsertRow(spreadsheetId, tab, e.key, e.value);
   }
@@ -281,6 +312,9 @@ export async function putEntities(
 }
 
 export async function removeEntity(spreadsheetId: string, tab: string, key: string): Promise<boolean> {
+  if (await usesPostgres(spreadsheetId, tab)) {
+    return pgDeleteEntity(spreadsheetId, tab, key);
+  }
   const ok = await sheetLayer.deleteRow(spreadsheetId, tab, key);
   if (ok) await bustTabCache(spreadsheetId, tab);
   return ok;
@@ -371,33 +405,16 @@ const CUTOVER_TTL_MS = 60_000;
 let cutoverCache: Record<string, boolean> = {}; // global rows only (tenant_id IS NULL)
 let tenantCutoverCache: Record<string, boolean> = {}; // `${entity}:${tenantId}` -> use_db, per-tenant overrides
 let cutoverLoadedAt = 0;
-let cutoverPool: pg.Pool | null = null;
-let cutoverPoolFailed = false;
 
 /**
- * صادر شده تا `sheetsSync.ts` هم بتواند از همین یک pool به
- * `BUSINESS_DATABASE_URL` برای نوشتنِ رجیستری استفاده کند (تننت‌ها/sheet_pool)
- * — نه یک اتصالِ دومِ جدا به همان دیتابیس.
+ * صادر شده تا `sheetsSync.ts` و `businessPg.ts` هم بتوانند از همین یک pool به
+ * `BUSINESS_DATABASE_URL` استفاده کنند — نه یک اتصالِ دومِ جدا به همان
+ * دیتابیس. خودِ pool در `businessDbPool.ts` ساخته می‌شود (تا `businessPg.ts`
+ * بتواند بدونِ import چرخه‌ای همان pool را بگیرد)؛ این فقط یک نام‌مستعارِ
+ * قدیمی برای همان تابع است.
  */
 export function getCutoverPool(): pg.Pool | null {
-  if (!process.env.BUSINESS_DATABASE_URL || cutoverPoolFailed) return null;
-  if (cutoverPool) return cutoverPool;
-  try {
-    cutoverPool = new Pool({
-      connectionString: process.env.BUSINESS_DATABASE_URL,
-      max: 2,
-      connectionTimeoutMillis: 5000,
-      idleTimeoutMillis: 30_000,
-    });
-    cutoverPool.on("error", (err) => {
-      logger.warn({ err }, "cutoverFlags: idle client error (ignored)");
-    });
-    return cutoverPool;
-  } catch (err) {
-    cutoverPoolFailed = true;
-    logger.warn({ err }, "cutoverFlags: could not create pool (fail-open)");
-    return null;
-  }
+  return getBusinessPool();
 }
 
 async function loadCutoverFlags(): Promise<void> {
