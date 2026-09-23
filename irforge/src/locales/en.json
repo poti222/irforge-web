@@ -1811,6 +1811,8 @@
     "commandCreated": "Command created",
     "commandDeleted": "Command deleted",
     "deleteCta": "Delete command",
+    "moveCommandUp": "Move command up",
+    "moveCommandDown": "Move command down",
     "fieldCommand": "Command name",
     "fieldCommandHint": "Lowercase letters, digits and underscores, up to 32 characters. No leading slash.",
     "fieldTarget": "Target",

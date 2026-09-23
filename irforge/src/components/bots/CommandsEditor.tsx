@@ -10,7 +10,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import {
-  Plus, Loader2, Trash2, Terminal, ArrowLeftRight, AlertTriangle, Check, X,
+  Plus, Loader2, Trash2, Terminal, ArrowLeftRight, AlertTriangle, Check, X, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -231,6 +231,16 @@ export function CommandsEditor({ botId }: { botId: string }) {
       customFetch(`/api/bots/${botId}/commands/${command}`, { method: "DELETE" }),
     onSuccess: invalidate,
   });
+  const reorder = useMutation({
+    mutationFn: ({ command, direction }: { command: string; direction: "up" | "down" }) =>
+      customFetch<{ commands: BotCommand[] }>(`/api/bots/${botId}/commands/${command}/reorder`, {
+        method: "POST",
+        body: JSON.stringify({ direction }),
+      }),
+    onSuccess: invalidate,
+    onError: (err: any) =>
+      toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
+  });
   /**
    * افزودن/برداشتن از منوی «/» تلگرام. جدا از `update` است چون سرور علاوه بر
    * نوشتن روی شیت، همان لحظه `setMyCommands` را هم صدا می‌زند و ممکن است
@@ -338,7 +348,7 @@ export function CommandsEditor({ botId }: { botId: string }) {
               </tr>
             </thead>
             <tbody>
-              {commands.map((cmd) => (
+              {commands.map((cmd, index) => (
                 <tr key={cmd.command} className="border-t">
                   <td className="p-2">
                     <code dir="ltr" className="flex items-center gap-1 font-mono">
@@ -380,17 +390,33 @@ export function CommandsEditor({ botId }: { botId: string }) {
                     />
                   </td>
                   <td className="p-2 text-end">
-                    <Button
-                      variant="ghost" size="icon" aria-label={t.deleteCta}
-                      onClick={() =>
-                        remove.mutate(cmd.command, {
-                          onSuccess: () => toast({ title: t.commandDeleted }),
-                          onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
-                        })
-                      }
-                    >
-                      <Trash2 className="size-4 text-destructive" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button
+                        variant="ghost" size="icon" aria-label={t.moveCommandUp}
+                        disabled={index === 0 || reorder.isPending}
+                        onClick={() => reorder.mutate({ command: cmd.command, direction: "up" })}
+                      >
+                        <ArrowUp className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon" aria-label={t.moveCommandDown}
+                        disabled={index === commands.length - 1 || reorder.isPending}
+                        onClick={() => reorder.mutate({ command: cmd.command, direction: "down" })}
+                      >
+                        <ArrowDown className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon" aria-label={t.deleteCta}
+                        onClick={() =>
+                          remove.mutate(cmd.command, {
+                            onSuccess: () => toast({ title: t.commandDeleted }),
+                            onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
+                          })
+                        }
+                      >
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}

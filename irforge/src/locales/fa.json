@@ -1811,6 +1811,8 @@
     "commandCreated": "کامند ساخته شد",
     "commandDeleted": "کامند حذف شد",
     "deleteCta": "حذف کامند",
+    "moveCommandUp": "انتقال کامند به بالا",
+    "moveCommandDown": "انتقال کامند به پایین",
     "fieldCommand": "نام کامند",
     "fieldCommandHint": "حروف کوچک انگلیسی، عدد و زیرخط، حداکثر ۳۲ کاراکتر. بدون / ابتدای نام.",
     "fieldTarget": "مقصد",
