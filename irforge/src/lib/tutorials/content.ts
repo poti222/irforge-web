@@ -59,7 +59,6 @@ export type TutorialSectionId =
   | "catalog"
   | "wallet"
   | "database"
-  | "language"
   | "settings";
 
 export const TUTORIALS: Partial<Record<TutorialSectionId, TutorialStep[]>> = {
@@ -349,18 +348,6 @@ export const TUTORIALS: Partial<Record<TutorialSectionId, TutorialStep[]>> = {
       title: "موجودی و تراکنش‌ها را ببین",
       image: "/tutorials/wallet/02-view.png",
       body: "با تبِ «کیف‌پولِ کاربر» موجودیِ هرکسی را دستی شارژ یا کم کن؛ تبِ «شارژ/بازگشتِ سفارش» تراکنش‌هایِ خودکار (خرید با کیف‌پول، بازگشتِ وجه) را نشان می‌دهد.",
-    },
-  ],
-  language: [
-    {
-      title: "برو توی بخش «زبان بات»",
-      image: "/tutorials/language/01-sidebar.png",
-      body: "از منویِ سمتِ راست، روی «زبان بات» بزن. این پلاگین به کاربرانی که فارسی بلد نیستند هم اجازه می‌دهد با بات کار کنند.",
-    },
-    {
-      title: "زبانِ پیش‌فرض و رشته‌ها را تنظیم کن",
-      image: "/tutorials/language/02-view.png",
-      body: "«زبانِ پیش‌فرض» زبانی‌ست که برایِ کاربرانِ ناشناس استفاده می‌شود. در «رشته‌هایِ بات» هم می‌توانی هر متنِ ثابتِ بات را برایِ هر زبان بازنویسی کنی.",
     },
   ],
   settings: [
