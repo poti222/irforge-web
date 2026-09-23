@@ -229,6 +229,10 @@ const SECTION_GROUPS: SectionGroup[] = [
       // templates) that used to be Telegram-command-only. Same
       // `showWhenDisabled` pattern as booking/address/crm below.
       { key: "wallet", icon: Wallet, labelKey: "sectionWallet", requiresPlugin: "wallet", showWhenDisabled: true },
+      // 2026-09-23 — پرداخت‌ها از گروه «سایر» (قفل‌شده) به اینجا، زیر کیف پول،
+      // برگشت و فعال شد. ترتیب سکشن‌های فروش: catalog → wallet → payments →
+      // booking. همان گیت پلاگین کیف پول و همان الگوی `showWhenDisabled`.
+      { key: "payments", icon: CreditCard, labelKey: "sectionPayments", requiresPlugin: "wallet", showWhenDisabled: true },
       // IRFORGE_PROMPT_V3 Phase 17 — همان الگوی `showWhenDisabled` تیکت
       // (فاز ۱۶): سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA
       // فعال‌سازی نشان می‌دهد (`BookingSection.tsx`'s plugin_disabled branch).
@@ -281,9 +285,6 @@ const SECTION_GROUPS: SectionGroup[] = [
     labelKey: "groupOther",
     items: [
       { key: "orders", icon: ShoppingCart, labelKey: "sectionOrders", requiresPlugin: "wallet", showWhenDisabled: true, locked: true },
-      // پرداخت‌ها از تنظیمات عمومی به اینجا منتقل شد: به همان دنیایی تعلق
-      // دارد که سفارش‌ها، و پشت همان گیت است.
-      { key: "payments", icon: CreditCard, labelKey: "sectionPayments", requiresPlugin: "wallet", showWhenDisabled: true, locked: true },
       // IRFORGE_RECEIPT_DEBUG_INVOICES_PROMPT Part 2 — a new view on the
       // same `payments` data Orders already reads, not a new data source.
       { key: "invoices", icon: Receipt, labelKey: "sectionInvoices", requiresPlugin: "wallet", showWhenDisabled: true, locked: true },
