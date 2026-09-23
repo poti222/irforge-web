@@ -35,6 +35,8 @@ import {
 import { listPanels, COMMANDS_TAB } from "../lib/panelOps.js";
 import { FORMS_TAB } from "./botForms.js";
 import { nowIso, type CustomCommand, type Form } from "../lib/botTypes.js";
+import { isPluginEnabled } from "../lib/pluginGate.js";
+import { PLUGIN_COMMAND_TARGETS } from "../lib/pluginCommandTargets.js";
 
 const router = Router();
 
@@ -192,11 +194,27 @@ async function dropFromMenu(spreadsheetId: string, botId: string, commandName: s
   }
 }
 
+/**
+ * ترتیبِ مؤثر یک کامند — یا مقدارِ صریحِ `order` (که هنگامِ ساخت با
+ * `Date.now()` پر می‌شود)، یا برای کامندهای قدیمی‌تر که این فیلد را ندارند،
+ * همان لحظه‌ی ساختش (`created_at`). هر دو روی یک مقیاس‌اند (میلی‌ثانیه از
+ * epoch)، پس کنار هم قابل مقایسه‌اند بدون نیاز به یک migration جدا — اولین
+ * جابه‌جاییِ یک کامندِ قدیمی همین مقدارِ محاسبه‌شده را صریح ذخیره می‌کند.
+ */
+function effectiveOrder(c: CustomCommand): number {
+  return typeof c.order === "number" ? c.order : Date.parse(c.created_at) || 0;
+}
+
+function sortCommands(commands: CustomCommand[]): CustomCommand[] {
+  return [...commands].sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
+}
+
 async function readCommands(spreadsheetId: string): Promise<CustomCommand[]> {
   const rows = await listEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB);
-  return rows
+  const commands = rows
     .filter((r) => r.value && typeof r.value === "object")
     .map((r) => ({ ...(r.value as CustomCommand), command: (r.value as CustomCommand).command ?? r.key }));
+  return sortCommands(commands);
 }
 
 /** `bots.commandCount` را از روی تب شیت به‌روز می‌کند (نه از روی جدول Postgres). */
@@ -261,7 +279,17 @@ router.put("/bots/:botId/commands/:command/menu", requireAuth, async (req: any, 
     const token = await botToken(req.params.botId);
     const merged = await mergedMenu(token, stored);
     // آیتمی که کاربر همین الان برداشت نباید از راه ادغام برگردد.
-    const finalMenu = inMenu ? merged : merged.filter((m) => m.command !== key);
+    const unordered = inMenu ? merged : merged.filter((m) => m.command !== key);
+
+    // منوی «/» تلگرام هم از همان ترتیبی پیروی می‌کند که خودِ سایت نشان
+    // می‌دهد — وگرنه «ترتیب» فقط روی جدولِ سایت اثر داشت و همان چیزی که
+    // کاربرِ نهایی واقعاً در تلگرام می‌بیند دست‌نخورده می‌ماند. آیتمی که
+    // بیرون از شیتِ ما روی منو نشسته (مثلاً با BotFather) در نقشه نیست و
+    // sort پایدار جایش را همان‌جایی که در merged بود نگه می‌دارد.
+    const orderIndex = new Map((await readCommands(spreadsheetId)).map((c, i) => [c.command, i]));
+    const finalMenu = [...unordered].sort(
+      (a, b) => (orderIndex.get(a.command) ?? Infinity) - (orderIndex.get(b.command) ?? Infinity)
+    );
 
     const applied = await tgApi(token, "setMyCommands", { commands: finalMenu });
     if (!applied.ok)
@@ -281,16 +309,27 @@ router.put("/bots/:botId/commands/:command/menu", requireAuth, async (req: any, 
   }
 });
 
-/** مقصدهای قابل انتخاب — تا UI مجبور نباشد uuid دستی بگیرد. */
+/**
+ * مقصدهای قابل انتخاب — تا UI مجبور نباشد uuid دستی بگیرد.
+ *
+ * `builtin` تا امروز فقط چهار مقصدِ هسته بود (`BUILTIN_TARGETS`)، در حالی
+ * که همان مفهومِ «مقصد» برای انواعِ پنل (`lib/pluginPanelTypes.ts`) و اکشنِ
+ * دکمه (`lib/pluginButtonActions.ts`) از قبل کاملِ فهرستِ پلاگینی را نشان
+ * می‌داد — این شکاف را `PLUGIN_COMMAND_TARGETS` می‌بندد، با همان گیتِ
+ * per-tenant (`isPluginEnabled`) که آن دو مسیر هم دارند.
+ */
 router.get("/bots/:botId/commands/targets", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    const [panels, forms] = await Promise.all([
+    const [panels, forms, enabledPluginTargets] = await Promise.all([
       listPanels(spreadsheetId),
       listEntity<Form>(spreadsheetId, FORMS_TAB),
+      Promise.all(
+        PLUGIN_COMMAND_TARGETS.map(async (t) => ((await isPluginEnabled(spreadsheetId, t.pluginId)) ? t : null))
+      ).then((rows) => rows.filter((t): t is (typeof PLUGIN_COMMAND_TARGETS)[number] => t !== null)),
     ]);
     res.json({
-      builtin: BUILTIN_TARGETS,
+      builtin: [...BUILTIN_TARGETS, ...enabledPluginTargets.map((t) => ({ value: t.key, label: t.label }))],
       panels: panels.map((p) => ({ id: p.id, title: p.title })),
       forms: forms
         .filter((f) => f.value && typeof f.value === "object")
@@ -373,6 +412,9 @@ router.post("/bots/:botId/commands", requireAuth, async (req: any, res) => {
       admin_only: Boolean(body.admin_only),
       is_active: body.is_active === undefined ? true : Boolean(body.is_active),
       created_at: nowIso(),
+      // تازه‌ترین همیشه ته لیست — Date.now() از effectiveOrder هر کامندِ
+      // قبلی (چه صریح، چه برگرفته از created_at) همیشه بزرگ‌تر است.
+      order: Date.now(),
     };
 
     await putEntity(spreadsheetId, COMMANDS_TAB, name, command);
@@ -425,6 +467,47 @@ router.patch("/bots/:botId/commands/:command", requireAuth, async (req: any, res
   }
 });
 
+/**
+ * جابه‌جاییِ یک کامند در فهرست — با **دکمه**، نه drag (دقیقاً همان دلیلِ
+ * `ButtonBuilder.tsx`: روی موبایل کشیدن داخل یک جدولِ اسکرول‌شونده عملاً کار
+ * نمی‌کند). فقط با همسایه‌ی بالا/پایینِ خودش (طبق `effectiveOrder` فعلی)
+ * `order` را عوض می‌کند — نه یک عددِ کامل جدید برای همه، که هم روی Sheets
+ * چند نوشتنِ غیرلازم بود و هم race بین دو تب باز را بدتر می‌کرد.
+ */
+router.post("/bots/:botId/commands/:command/reorder", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    await assertSheetsAuthoritative(COMMANDS_TAB);
+
+    const key = String(req.params.command).replace(/^\//, "");
+    const direction = req.body?.direction;
+    if (direction !== "up" && direction !== "down")
+      throw bad("جهت جابه‌جایی نامعتبر است.", "bad_direction");
+
+    const commands = await readCommands(spreadsheetId);
+    const index = commands.findIndex((c) => c.command === key);
+    if (index === -1) throw new BotConfigError(404, "این کامند پیدا نشد.", "command_not_found");
+
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= commands.length) {
+      // از قبل بالاترین/پایین‌ترین است — نه خطا، فقط بدونِ تغییر برمی‌گردد.
+      res.json({ commands });
+      return;
+    }
+
+    const a = commands[index];
+    const b = commands[swapIndex];
+    const orderA = effectiveOrder(a);
+    const orderB = effectiveOrder(b);
+    await putEntity(spreadsheetId, COMMANDS_TAB, a.command, { ...a, order: orderB });
+    await putEntity(spreadsheetId, COMMANDS_TAB, b.command, { ...b, order: orderA });
+
+    res.json({ commands: await readCommands(spreadsheetId) });
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to reorder command");
+  }
+});
+
 router.delete("/bots/:botId/commands/:command", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
@@ -440,5 +523,8 @@ router.delete("/bots/:botId/commands/:command", requireAuth, async (req: any, re
     sendBotConfigError(res, err, "Failed to delete command");
   }
 });
+
+/** خالص و بدون DB — برای تست مستقیم بدون راه‌انداختن روت/شیت کامل. */
+export const __testables = { effectiveOrder, sortCommands, validateCommandName };
 
 export default router;

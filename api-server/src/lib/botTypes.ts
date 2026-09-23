@@ -232,6 +232,10 @@ export type CustomCommand = {
   admin_only: boolean;
   is_active: boolean;
   created_at: string;
+  /** ترتیب نمایش/منو — عدد بزرگ‌تر یعنی پایین‌تر. کامندهای قدیمی‌تر از قبل
+   * از این فیلد این را ندارند؛ `routes/botCommands.ts::effectiveOrder` برای
+   * آن‌ها از `created_at` استفاده می‌کند، پس این فیلد اختیاری می‌ماند. */
+  order?: number;
 };
 
 // ─── Bot settings ───────────────────────────────────────────────────────────

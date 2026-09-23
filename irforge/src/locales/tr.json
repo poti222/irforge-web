@@ -1811,6 +1811,8 @@
     "commandCreated": "Komut oluşturuldu",
     "commandDeleted": "Komut silindi",
     "deleteCta": "Komutu sil",
+    "moveCommandUp": "Komutu yukarı taşı",
+    "moveCommandDown": "Komutu aşağı taşı",
     "fieldCommand": "Komut adı",
     "fieldCommandHint": "Küçük harfler, rakamlar ve alt çizgi; en fazla 32 karakter. Başında / olmadan.",
     "fieldTarget": "Hedef",

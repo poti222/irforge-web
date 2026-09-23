@@ -1811,6 +1811,8 @@
     "commandCreated": "تم إنشاء الأمر",
     "commandDeleted": "تم حذف الأمر",
     "deleteCta": "حذف الأمر",
+    "moveCommandUp": "نقل الأمر لأعلى",
+    "moveCommandDown": "نقل الأمر لأسفل",
     "fieldCommand": "اسم الأمر",
     "fieldCommandHint": "حروف إنجليزية صغيرة وأرقام وشرطة سفلية، حتى 32 حرفاً. بدون / في البداية.",
     "fieldTarget": "الوجهة",
