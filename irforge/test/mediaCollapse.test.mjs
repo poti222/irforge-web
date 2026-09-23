@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { isMediaLikeType, isWalletLikeType, panelMediaItems, panelWalletMode } = await import(
+const { isMediaLikeType, isWalletLikeType, panelMediaItems, panelWalletMode, mediaKindFromMimeType } = await import(
   "../src/components/bots/panels/mediaCollapse.ts"
 );
 
@@ -83,4 +83,23 @@ test("panelWalletMode: wallet بدونِ mode پیش‌فرضش مشترک اس�
 test("panelWalletMode: wallet با mode صریح همان را برمی‌گرداند", () => {
   assert.equal(panelWalletMode(panel({ type: "wallet", settings: { mode: "personal" } })), "personal");
   assert.equal(panelWalletMode(panel({ type: "wallet", settings: { mode: "shared" } })), "shared");
+});
+
+// noshazin_bot incident — نوعِ یک پنل به‌اشتباه "audio" ذخیره شده بود برایِ
+// یک عکسِ واقعی و هر ویرایشِ بعدیِ پنل (حتی بی‌ربط) همان مقدارِ غلط را
+// دوباره ذخیره می‌کرد. mediaKindFromMimeType جایگزینِ حدسِ قدیمی
+// («اگر لود نشد، حتماً صوت است») با Content-Typeی واقعیِ خودِ فایل است.
+test("mediaKindFromMimeType: انواعِ واقعی را درست تشخیص می‌دهد", () => {
+  assert.equal(mediaKindFromMimeType("image/jpeg"), "photo");
+  assert.equal(mediaKindFromMimeType("image/png"), "photo");
+  assert.equal(mediaKindFromMimeType("image/gif"), "photo");
+  assert.equal(mediaKindFromMimeType("video/mp4"), "video");
+  assert.equal(mediaKindFromMimeType("audio/ogg"), "audio");
+  assert.equal(mediaKindFromMimeType("audio/mpeg"), "audio");
+});
+
+test("mediaKindFromMimeType: هر چیزِ دیگری document می‌شود (نه یک حدسِ صوتی)", () => {
+  assert.equal(mediaKindFromMimeType("application/pdf"), "document");
+  assert.equal(mediaKindFromMimeType("application/octet-stream"), "document");
+  assert.equal(mediaKindFromMimeType("text/plain"), "document");
 });

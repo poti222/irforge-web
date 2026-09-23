@@ -122,8 +122,12 @@ function mediaOf(panel: Panel): string[] {
   return panelMediaItems(panel).map((it) => it.file_id);
 }
 
-/** نوعِ واقعیِ هر فایل — برایِ پرکردنِ اولیه‌یِ `mediaMeta` از رویِ داده‌یِ
- * ذخیره‌شده، بدونِ نیازِ به حدس‌زدن دوباره در مرورگر. */
+/** مقدارِ اولیه‌ی `mediaMeta` از رویِ نوعِ ذخیره‌شده — فقط یک حدسِ شروع
+ * برایِ اولین رندر، نه حقیقت: اگر پنل قدیمی باشد و نوعش قبلاً غلط ذخیره
+ * شده باشد (مثلاً از باگِ heuristicِ سابقِ `MediaList.tsx`)، همین مقدارِ
+ * غلط اینجا برمی‌گردد — `MediaList.tsx::MediaRow` آن را با mimeTypeِ
+ * واقعیِ خودِ فایل بازبینی و در صورتِ نیاز اصلاح می‌کند
+ * (`mediaKindFromMimeType`)، نه اینکه اینجا از قبل درست فرض شود. */
 function mediaMetaOf(panel: Panel): Record<string, MediaMeta> {
   const out: Record<string, MediaMeta> = {};
   for (const it of panelMediaItems(panel)) out[it.file_id] = { kind: it.type, duration: null };
