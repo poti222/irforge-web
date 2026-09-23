@@ -68,3 +68,30 @@ export function panelWalletMode(panel: Pick<Panel, "type" | "settings">): "share
   if (panel.type === "wallet_balance") return "personal";
   return panel.settings?.mode === "personal" ? "personal" : "shared";
 }
+
+/**
+ * نوعِ واقعیِ یک فایل، از رویِ Content-Type واقعیِ سرور — همان مقداری که
+ * پروکسیِ دانلود (`GET /api/bots/:id/media/:fileId`) از پاسخِ خودِ تلگرام
+ * می‌گیرد و بدونِ تغییر forward می‌کند (`botMedia.ts`)، یعنی منبعِ حقیقتِ
+ * واقعی است، نه یک حدس.
+ *
+ * جایگزینِ heuristicِ قدیمیِ «اگر بارگذاریِ blob شکست خورد یا `<img>` آن را
+ * decode نکرد، حتماً صوت است» (`MediaList.tsx`ی سابق) — آن heuristic با هر
+ * خطای موقتیِ شبکه هم فعال می‌شد، نه فقط وقتی فایل واقعاً صوت بود. زنده دیده
+ * شد: noshazin_bot — یک عکس یک‌بار با ۴۰۱ پشتِ‌سرِ‌هم مواجه شد (باگِ دیگری،
+ * الان رفع‌شده)، heuristic حدسِ «صوت» زد، و آن نوعِ غلط روی خودِ پنل ذخیره و
+ * با هر ویرایشِ بعدیِ پنل (even بی‌ربط) دوباره ذخیره شد — چون
+ * `PanelEditor.tsx`ی سایت نوعِ ذخیره‌شده را عینِ حقیقت فرض می‌کرد. حالا
+ * `MediaRow` همیشه این تابع را روی mime‌typeِ واقعیِ خودِ فایل صدا می‌زند و
+ * نتیجه را جایگزینِ هر نوعِ ذخیره‌شده‌ی قبلی می‌کند — چه پنل تازه باشد چه
+ * قدیمی و از قبل با نوعِ غلط ذخیره‌شده — بدونِ هیچ حدسی. وقتی fetch خودِ blob
+ * شکست بخورد mimeType هرگز نمی‌رسد، پس این تابع اصلاً صدا زده نمی‌شود و نوعِ
+ * ذخیره‌شده دست‌نخورده می‌ماند — دیگر هیچ شکستِ موقتی نوعِ فایل را عوض
+ * نمی‌کند.
+ */
+export function mediaKindFromMimeType(mimeType: string): MediaItemType {
+  if (mimeType.startsWith("image/")) return "photo";
+  if (mimeType.startsWith("video/")) return "video";
+  if (mimeType.startsWith("audio/")) return "audio";
+  return "document";
+}

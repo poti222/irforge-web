@@ -29,6 +29,7 @@ import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthedBlobUrl } from "@/hooks/use-authed-media";
 import { apiErrorMessage } from "./api";
+import { mediaKindFromMimeType } from "./mediaCollapse";
 
 type MediaStatus = { available: boolean; maxBytes: number; reason?: string; code?: string | null };
 
@@ -79,8 +80,12 @@ function shortFileId(fileId: string): string {
  *
  * روی شیت فقط `file_id` ذخیره می‌شود (شکلی که خودِ بات می‌خواند)، پس نوع و
  * مدت **حالت گذرا**ی همین صفحه‌اند: بعد از آپلود از پاسخ سرور می‌آیند، و
- * برای فایل‌های قدیمی از روی خودِ پیش‌نمایش حدس زده می‌شوند. هیچ‌کدام در
- * شیت نوشته نمی‌شوند — وگرنه شکل داده با آنچه بات انتظار دارد فرق می‌کرد.
+ * برای فایل‌های قدیمی از رویِ `panel.settings.media_items[i].type`ی
+ * ذخیره‌شده پر می‌شوند (`PanelEditor.tsx::mediaMetaOf`) — که فقط یک حدسِ
+ * اولیه است، نه حقیقت: `MediaRow` همیشه آن را با mimeTypeِ واقعیِ خودِ
+ * فایل بازبینی و در صورتِ نیاز اصلاح می‌کند (`mediaKindFromMimeType`).
+ * هیچ‌کدام در شیت نوشته نمی‌شوند — وگرنه شکل داده با آنچه بات انتظار دارد
+ * فرق می‌کرد.
  */
 export type MediaMeta = { kind: "photo" | "video" | "audio" | "document" | "unknown"; duration: number | null };
 
@@ -103,35 +108,41 @@ function MediaRow({
   t: Record<string, string>;
 }) {
   const apiSrc = `/api/bots/${botId}/media/${encodeURIComponent(fileId)}`;
-  const { url: blobSrc, failed } = useAuthedBlobUrl(apiSrc);
-  // نوع نامعلوم: اول تصویر امتحان می‌شود و اگر لود نشد، صوت. این تنها راهِ
-  // بدون تغییرِ شکل داده روی شیت است.
+  const { url: blobSrc, failed, mimeType } = useAuthedBlobUrl(apiSrc);
   const kind = meta?.kind ?? "unknown";
 
+  // `mimeType` نوعِ واقعیِ فایل است (Content-Type خودِ تلگرام، از پروکسیِ
+  // سرور) — هر وقت برسد، جایگزینِ هر نوعِ ذخیره‌شده‌ی قبلی می‌شود، چه آن
+  // نوع از قبل درست بوده باشد چه (برایِ یک پنلِ قدیمی) غلط. وقتی fetch شکست
+  // بخورد mimeType هرگز نمی‌رسد، پس این هیچ‌وقت حدس نمی‌زند — نوعِ
+  // ذخیره‌شده دست‌نخورده می‌ماند تا خطای بعدی/موفقیت واقعی آن را روشن کند.
   useEffect(() => {
-    if (failed && kind === "unknown") onMeta({ kind: "audio", duration: null });
+    if (!mimeType) return;
+    const real = mediaKindFromMimeType(mimeType);
+    if (real !== kind) onMeta({ kind: real, duration: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [failed]);
+  }, [mimeType]);
 
   return (
     <li className="flex items-center gap-2 rounded-md border p-2">
       <span className="text-xs text-muted-foreground tabular-nums">{index + 1}</span>
 
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        {(kind === "photo" || kind === "unknown") && (
-          // نوعِ نامعلوم (پنلِ قدیمیِ عکس/صوتِ ذخیره‌شده پیش از این که نوعش
-          // را بدانیم): اول تصویر امتحان می‌شود و اگر لود نشد، صوت.
+        {kind === "unknown" && (
+          // هنوز mimeType نرسیده: یا در حالِ لود است یا fetch شکست خورده.
+          // دیگر هیچ‌وقت حدس نمی‌زنیم — تا وقتی نوعِ واقعی معلوم نشود، فقط
+          // نشانگرِ لود/خطا نشان داده می‌شود.
+          <div className="flex size-12 shrink-0 items-center justify-center rounded border bg-muted/40 text-muted-foreground">
+            {failed ? <ImageIcon className="size-5 opacity-40" /> : <Loader2 className="size-4 animate-spin" />}
+          </div>
+        )}
+
+        {kind === "photo" && (
           blobSrc ? (
-            <img
-              src={blobSrc}
-              alt=""
-              className="size-12 shrink-0 rounded border object-cover"
-              onLoad={() => { if (kind === "unknown") onMeta({ kind: "photo", duration: null }); }}
-              onError={() => { if (kind === "unknown") onMeta({ kind: "audio", duration: null }); }}
-            />
+            <img src={blobSrc} alt="" className="size-12 shrink-0 rounded border object-cover" />
           ) : (
             <div className="flex size-12 shrink-0 items-center justify-center rounded border bg-muted/40 text-muted-foreground">
-              {failed ? <ImageIcon className="size-5 opacity-40" /> : <Loader2 className="size-4 animate-spin" />}
+              <Loader2 className="size-4 animate-spin" />
             </div>
           )
         )}

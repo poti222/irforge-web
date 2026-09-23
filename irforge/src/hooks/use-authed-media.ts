@@ -14,29 +14,39 @@
  * authِ اضافه‌ای لودش می‌کنند. `openAuthedMediaInNewTab` همان کار را برایِ
  * «باز کردن در تبِ جدید» / دانلود انجام می‌دهد، چون `<a href>` هم همین
  * مشکل را دارد.
+ *
+ * `mimeType` هم برمی‌گردد: `Blob.type` مرورگر که مستقیم از هدرِ
+ * `Content-Type`ی پاسخ می‌آید — همان مقداری که پروکسیِ سرور از خودِ تلگرام
+ * می‌گیرد (`botMedia.ts`، `GET /bots/:id/media/:fileId`)، یعنی نوعِ واقعیِ
+ * فایل، نه یک حدس. `MediaList.tsx` این را برایِ تشخیصِ نوعِ مدیا استفاده
+ * می‌کند به‌جایِ heuristicِ قدیمیِ «اگر لود نشد حتماً صوت است».
  */
 import { useEffect, useState } from "react";
 import { customFetch } from "@workspace/api-client-react";
 
-export function useAuthedBlobUrl(apiUrl: string | null | undefined): { url: string | null; failed: boolean } {
-  const [state, setState] = useState<{ url: string | null; failed: boolean }>({ url: null, failed: false });
+export function useAuthedBlobUrl(
+  apiUrl: string | null | undefined
+): { url: string | null; failed: boolean; mimeType: string | null } {
+  const [state, setState] = useState<{ url: string | null; failed: boolean; mimeType: string | null }>({
+    url: null, failed: false, mimeType: null,
+  });
 
   useEffect(() => {
     if (!apiUrl) {
-      setState({ url: null, failed: false });
+      setState({ url: null, failed: false, mimeType: null });
       return;
     }
     let cancelled = false;
     let objectUrl: string | null = null;
-    setState({ url: null, failed: false });
+    setState({ url: null, failed: false, mimeType: null });
     (async () => {
       try {
         const blob = await customFetch<Blob>(apiUrl, { responseType: "blob" });
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
-        setState({ url: objectUrl, failed: false });
+        setState({ url: objectUrl, failed: false, mimeType: blob.type || null });
       } catch {
-        if (!cancelled) setState({ url: null, failed: true });
+        if (!cancelled) setState({ url: null, failed: true, mimeType: null });
       }
     })();
     return () => {
