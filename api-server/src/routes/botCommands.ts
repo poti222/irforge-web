@@ -12,6 +12,15 @@
  * هرگز نمی‌دیدش. این فایل جای آن روت‌ها را می‌گیرد (نسخه‌های قدیمی از
  * `routes/bots.ts` حذف شده‌اند) و **جدول `commands` را پاک نمی‌کند** — فقط دیگر
  * منبع حقیقت نیست و `POST /commands/migrate` محتوایش را یک‌بار به شیت می‌برد.
+ *
+ * لایوباگ ۲۰۲۶-۰۹-۲۳: «توی بات نه پنل اومد نه کامند» — دقیقاً همان باگِ
+ * forms (این فایل، پایین‌تر): همه‌ی روت‌های نوشتن اینجا بی‌قیدوشرط
+ * `assertSheetsAuthoritative(COMMANDS_TAB)` صدا می‌زدند، که به محضِ
+ * روشن‌شدنِ پرچمِ cutoverِ «custom_commands» یک تننت با ۴۰۹ رد می‌شد —
+ * `lib/businessPg.ts` هنوز «custom_commands» را نمی‌شناخت. حالا که آن فایل
+ * می‌شناسد، این قفل از هر پنج روتِ نوشتن (migrate/create/patch/reorder/
+ * delete) برداشته شده — `listEntity`/`putEntity`/`removeEntity` خودشان
+ * برای تننتِ cutover‌شده به Postgres می‌روند.
  */
 import { Router } from "express";
 import { db, botsTable, commandsTable } from "@workspace/db";
@@ -28,7 +37,6 @@ import {
   removeEntity,
   readSettings,
   patchSettings,
-  assertSheetsAuthoritative,
   sendBotConfigError,
   BotConfigError,
 } from "../lib/botConfig.js";
@@ -348,7 +356,6 @@ router.get("/bots/:botId/commands/targets", requireAuth, async (req: any, res) =
 router.post("/bots/:botId/commands/migrate", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(COMMANDS_TAB);
 
     const legacy = await db.select().from(commandsTable).where(eq(commandsTable.botId, req.params.botId));
     const existing = new Set((await readCommands(spreadsheetId)).map((c) => c.command));
@@ -398,7 +405,6 @@ router.post("/bots/:botId/commands/migrate", requireAuth, async (req: any, res) 
 router.post("/bots/:botId/commands", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(COMMANDS_TAB);
 
     const body = req.body ?? {};
     const name = validateCommandName(body.command);
@@ -428,7 +434,6 @@ router.post("/bots/:botId/commands", requireAuth, async (req: any, res) => {
 router.patch("/bots/:botId/commands/:command", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(COMMANDS_TAB);
 
     const key = String(req.params.command).replace(/^\//, "");
     const current = await getEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB, key);
@@ -477,7 +482,6 @@ router.patch("/bots/:botId/commands/:command", requireAuth, async (req: any, res
 router.post("/bots/:botId/commands/:command/reorder", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(COMMANDS_TAB);
 
     const key = String(req.params.command).replace(/^\//, "");
     const direction = req.body?.direction;
@@ -511,7 +515,6 @@ router.post("/bots/:botId/commands/:command/reorder", requireAuth, async (req: a
 router.delete("/bots/:botId/commands/:command", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(COMMANDS_TAB);
 
     const key = String(req.params.command).replace(/^\//, "");
     const removed = await removeEntity(spreadsheetId, COMMANDS_TAB, key);

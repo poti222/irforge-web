@@ -102,6 +102,25 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema> = {
     includeIdInValue: true,
     rowUpdatedAtCol: "updated_at",
   },
+  // PHASE 17.8 on the bot side. Live bug, 2026-09-23: the row key IS the
+  // command name (no separate `id` field on the value — `command` is just
+  // an ordinary column that happens to equal the key, same as
+  // users.user_id), so includeIdInValue is NOT needed here, unlike
+  // panels/forms. `order` (this repo's own newer reorder feature) is
+  // deliberately NOT listed: it's not in the bot-side EntitySchema either,
+  // so it would silently get dropped on every Postgres write anyway —
+  // reordering degrades to the `effectiveOrder` created_at fallback for a
+  // cut-over tenant rather than persisting, a known, narrow limitation
+  // (not a data-loss or crash risk for anything else) left for a follow-up
+  // migration rather than rushed in under this fix's own time pressure.
+  custom_commands: {
+    table: "custom_commands",
+    columns: ["command", "target", "description", "admin_only", "is_active", "created_at"],
+    jsonbColumns: [],
+    kvMode: false,
+    includeIdInValue: false,
+    rowUpdatedAtCol: "updated_at",
+  },
 };
 
 export function isKnownPgEntity(entity: string): boolean {
