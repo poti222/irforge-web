@@ -8,7 +8,6 @@ import {
   Blocks,
   Activity,
   Settings,
-  Globe,
   Lock,
   LayoutPanelLeft,
   FileText,
@@ -69,7 +68,6 @@ import { InvoicesSection } from "@/components/bots/invoices/InvoicesSection";
 import { ObjectsSection } from "@/components/bots/advanced/ObjectsSection";
 import { RelationsSection } from "@/components/bots/advanced/RelationsSection";
 import { WorkflowsSection } from "@/components/bots/advanced/WorkflowsSection";
-import { LanguageSection } from "@/components/bots/language/LanguageSection";
 import { TicketsSection } from "@/components/bots/tickets/TicketsSection";
 import { BookingSection } from "@/components/bots/booking/BookingSection";
 import { TranslatePostSection } from "@/components/bots/translate-post/TranslatePostSection";
@@ -131,7 +129,6 @@ type SectionKey =
   | "catalog"
   | "wallet"
   | "database"
-  | "language"
   | "settings";
 
 type SectionMeta = {
@@ -173,6 +170,17 @@ type SectionGroup = {
  * The workspace is deliberately split into small, separate sections instead of
  * one giant page: "build a panel" is not "bot settings" is not "forms". The
  * groups below mirror how a bot admin actually thinks about their bot.
+ *
+ * Reorganized per explicit operator direction (2026-09-23): a smaller,
+ * curated top-level set (the first 7 groups), with every other pre-existing
+ * section demoted into the trailing "other" group and locked there —
+ * visible so nothing silently vanishes for a tenant already relying on it
+ * via a bookmark, but not reachable by anyone until a future phase
+ * deliberately promotes one back up. `showWhenDisabled: true` was added to
+ * a few items here (orders/payments/invoices/loyalty) that didn't have it
+ * before, specifically so the lock applies uniformly to every tenant
+ * regardless of that plugin's on/off state — the request was "disable for
+ * everyone", not "disable only for tenants who already had it visible".
  */
 const SECTION_GROUPS: SectionGroup[] = [
   {
@@ -182,7 +190,10 @@ const SECTION_GROUPS: SectionGroup[] = [
       { key: "overview", icon: LayoutDashboard, labelKey: "sectionOverview" },
       { key: "profile", icon: IdCard, labelKey: "sectionProfile" },
       { key: "plugins", icon: Blocks, labelKey: "sectionPlugins" },
-      { key: "stats", icon: Activity, labelKey: "sectionStats" },
+      // IRFORGE_PAID_SQL_DATABASE_PROMPT — انتخابِ Sheet/SQL برای این بات؛
+      // همیشه قابلِ دیدن است (بدون requiresPlugin)، چون به هیچ پلاگینی
+      // وابسته نیست، به خودِ زیرساختِ داده‌ی بات.
+      { key: "database", icon: Database, labelKey: "sectionDatabase" },
     ],
   },
   {
@@ -198,6 +209,7 @@ const SECTION_GROUPS: SectionGroup[] = [
     key: "people",
     labelKey: "groupPeople",
     items: [
+      { key: "stats", icon: Activity, labelKey: "sectionStats" },
       { key: "users", icon: Users, labelKey: "sectionUsers" },
       { key: "admins", icon: ShieldCheck, labelKey: "sectionAdmins" },
     ],
@@ -206,40 +218,21 @@ const SECTION_GROUPS: SectionGroup[] = [
     key: "sales",
     labelKey: "groupSales",
     items: [
-      { key: "orders", icon: ShoppingCart, labelKey: "sectionOrders", requiresPlugin: "wallet" },
-      // پرداخت‌ها از تنظیمات عمومی به اینجا منتقل شد: به همان دنیایی تعلق
-      // دارد که سفارش‌ها، و پشت همان گیت است.
-      { key: "payments", icon: CreditCard, labelKey: "sectionPayments", requiresPlugin: "wallet" },
+      // IRFORGE_PROMPT_V3 Phase 24 — همان الگوی `showWhenDisabled`ی booking/address:
+      // سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
+      { key: "catalog", icon: Store, labelKey: "sectionCatalog", requiresPlugin: "catalog", showWhenDisabled: true },
+      // پلاگین‌های تازه‌ی فروش‌محور. هرکدام فقط وقتی رندر می‌شوند که پلاگینشان
+      // روی این بات روشن باشد — گیت واقعی سمت سرور است (`lib/pluginGate.ts`).
+      { key: "subscriptions", icon: BadgeCheck, labelKey: "sectionSubscriptions", requiresPlugin: "subscription" },
       // IRFORGE_PROMPT_V3 Phase 24 — admin-only wallet actions (balance
       // lookup, credit/debit, freeze/unfreeze, order charge/refund, notify
       // templates) that used to be Telegram-command-only. Same
       // `showWhenDisabled` pattern as booking/address/crm below.
       { key: "wallet", icon: Wallet, labelKey: "sectionWallet", requiresPlugin: "wallet", showWhenDisabled: true },
-      // IRFORGE_RECEIPT_DEBUG_INVOICES_PROMPT Part 2 — a new view on the
-      // same `payments` data Orders already reads, not a new data source.
-      { key: "invoices", icon: Receipt, labelKey: "sectionInvoices", requiresPlugin: "wallet" },
-      // Deliberately still locked, and the only one left. "Discounts" means two
-      // different things here: the platform's own discount codes (routes/
-      // discounts.ts, site Postgres) and the bot's `discount` plugin with its
-      // own `discounts` tab. Wiring this section to either without deciding
-      // which one it represents would repeat exactly the B13/B14 mistake, and
-      // no migration phase covers it — see docs/BOT_ADMIN_ON_WEB.md.
-      { key: "discounts", icon: Ticket, labelKey: "sectionDiscounts", locked: true },
-      // پلاگین‌های تازه‌ی فروش‌محور. هرکدام فقط وقتی رندر می‌شوند که پلاگینشان
-      // روی این بات روشن باشد — گیت واقعی سمت سرور است (`lib/pluginGate.ts`).
-      { key: "subscriptions", icon: BadgeCheck, labelKey: "sectionSubscriptions", requiresPlugin: "subscription" },
-      { key: "loyalty", icon: Star, labelKey: "sectionLoyalty", requiresPlugin: "loyalty" },
       // IRFORGE_PROMPT_V3 Phase 17 — همان الگوی `showWhenDisabled` تیکت
       // (فاز ۱۶): سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA
       // فعال‌سازی نشان می‌دهد (`BookingSection.tsx`'s plugin_disabled branch).
       { key: "booking", icon: CalendarClock, labelKey: "sectionBooking", requiresPlugin: "booking", showWhenDisabled: true },
-      // IRFORGE_PROMPT_V3 Phase 18
-      { key: "addresses", icon: MapPin, labelKey: "sectionAddresses", requiresPlugin: "address", showWhenDisabled: true },
-      // IRFORGE_CS2_RCON_PLUGIN_PROMPT Phase 3 — همان الگوی showWhenDisabled.
-      { key: "gameservers", icon: Gamepad2, labelKey: "sectionGameServers", requiresPlugin: "gameserver_cs2", showWhenDisabled: true },
-      // IRFORGE_PROMPT_V3 Phase 24 — همان الگوی `showWhenDisabled`ی booking/address:
-      // سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
-      { key: "catalog", icon: Store, labelKey: "sectionCatalog", requiresPlugin: "catalog", showWhenDisabled: true },
     ],
   },
   {
@@ -256,48 +249,64 @@ const SECTION_GROUPS: SectionGroup[] = [
       // IRFORGE_PROMPT_V3 Phase 19 — همان الگوی `showWhenDisabled`ی booking/address:
       // سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
       { key: "drip", icon: Send, labelKey: "sectionDrip", requiresPlugin: "drip", showWhenDisabled: true },
-      // پستِ چندزبانه (Google Translate API) — همان الگوی showWhenDisabled:
-      // سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
-      { key: "translatePost", icon: Languages, labelKey: "sectionTranslatePost", requiresPlugin: "translate_post", showWhenDisabled: true },
-      // IRFORGE_POSTBOX_PROMPT Phase B2 — همان الگویِ showWhenDisabled: سکشن
-      // ناپدید نمی‌شود، فقط وقتی پلاگین «اتوپست» خاموش است یک CTA فعال‌سازی
-      // نشان می‌دهد (`PostboxSection.tsx`'s plugin_disabled branch).
-      { key: "postbox", icon: Newspaper, labelKey: "sectionPostbox", requiresPlugin: "autoposter", showWhenDisabled: true },
-      // IRFORGE_PROMPT_V3 Phase 20
-      { key: "giveaways", icon: Gift, labelKey: "sectionGiveaways", requiresPlugin: "giveaway", showWhenDisabled: true },
-      // IRFORGE_PROMPT_V3 Phase 20
-      { key: "surveys", icon: ClipboardList, labelKey: "sectionSurveys", requiresPlugin: "survey", showWhenDisabled: true },
-      // IRFORGE_GUIDED_FLOW_INVITE_CARD_PROMPT فازِ B1 — همان الگویِ
-      // showWhenDisabled: سکشن ناپدید نمی‌شود، فقط وقتی پلاگین «گفت‌وگویِ
-      // راهنما» خاموش است یک CTA فعال‌سازی نشان می‌دهد.
-      { key: "guidedFlow", icon: GitBranch, labelKey: "sectionGuidedFlow", requiresPlugin: "guided_flow", showWhenDisabled: true },
-      // IRFORGE_PROMPT_V3 Phase 20 — همان الگوی `showWhenDisabled`ی booking/address/drip.
-      { key: "crm", icon: Contact, labelKey: "sectionCrm", requiresPlugin: "crm", showWhenDisabled: true },
     ],
   },
   {
     key: "advanced",
     labelKey: "groupAdvanced",
     items: [
-      { key: "objects", icon: Boxes, labelKey: "sectionObjects" },
-      { key: "relations", icon: Share2, labelKey: "sectionRelations" },
-      { key: "workflows", icon: Workflow, labelKey: "sectionWorkflows" },
-      // IRFORGE_PAID_SQL_DATABASE_PROMPT — انتخابِ Sheet/SQL برای این بات؛
-      // همیشه قابلِ دیدن است (بدون requiresPlugin)، چون به هیچ پلاگینی
-      // وابسته نیست، به خودِ زیرساختِ داده‌ی بات.
-      { key: "database", icon: Database, labelKey: "sectionDatabase" },
+      // IRFORGE_PROMPT_V3 Phase 18
+      { key: "addresses", icon: MapPin, labelKey: "sectionAddresses", requiresPlugin: "address", showWhenDisabled: true },
+      // IRFORGE_PROMPT_V3 Phase 20
+      { key: "giveaways", icon: Gift, labelKey: "sectionGiveaways", requiresPlugin: "giveaway", showWhenDisabled: true },
     ],
   },
   {
     key: "settings",
     labelKey: "groupSettings",
     items: [
-      // The standalone /language page is gone; bot language belongs to the bot,
-      // not to the account — this section edits bot_settings.language and the
-      // bot's own translatable strings on its tenant sheet.
-      { key: "language", icon: Globe, labelKey: "sectionLanguage" },
-      // The gear, always last in the list.
+      // The gear, always last of the curated groups.
       { key: "settings", icon: Settings, labelKey: "sectionSettings" },
+    ],
+  },
+  {
+    // 2026-09-23 — everything not in the curated set above, demoted here and
+    // locked (visible, never selectable — see BotWorkspaceDocument's `goTo`/
+    // `section` gate, which already refuses to navigate to a locked key even
+    // via a direct URL). `showWhenDisabled: true` is added wherever a
+    // `requiresPlugin` item didn't already have it, so the lock is the same
+    // for every tenant instead of only appearing for the ones whose plugin
+    // happened to be on.
+    key: "other",
+    labelKey: "groupOther",
+    items: [
+      { key: "orders", icon: ShoppingCart, labelKey: "sectionOrders", requiresPlugin: "wallet", showWhenDisabled: true, locked: true },
+      // پرداخت‌ها از تنظیمات عمومی به اینجا منتقل شد: به همان دنیایی تعلق
+      // دارد که سفارش‌ها، و پشت همان گیت است.
+      { key: "payments", icon: CreditCard, labelKey: "sectionPayments", requiresPlugin: "wallet", showWhenDisabled: true, locked: true },
+      // IRFORGE_RECEIPT_DEBUG_INVOICES_PROMPT Part 2 — a new view on the
+      // same `payments` data Orders already reads, not a new data source.
+      { key: "invoices", icon: Receipt, labelKey: "sectionInvoices", requiresPlugin: "wallet", showWhenDisabled: true, locked: true },
+      // Deliberately still locked, and the only one left. "Discounts" means two
+      // different things here: the platform's own discount codes (routes/
+      // discounts.ts, site Postgres) and the bot's `discount` plugin with its
+      // own `discounts` tab. Wiring this section to either without deciding
+      // which one it represents would repeat exactly the B13/B14 mistake, and
+      // no migration phase covers it — see docs/BOT_ADMIN_ON_WEB.md.
+      { key: "discounts", icon: Ticket, labelKey: "sectionDiscounts", locked: true },
+      { key: "loyalty", icon: Star, labelKey: "sectionLoyalty", requiresPlugin: "loyalty", showWhenDisabled: true, locked: true },
+      { key: "objects", icon: Boxes, labelKey: "sectionObjects", locked: true },
+      { key: "relations", icon: Share2, labelKey: "sectionRelations", locked: true },
+      { key: "workflows", icon: Workflow, labelKey: "sectionWorkflows", locked: true },
+      // IRFORGE_CS2_RCON_PLUGIN_PROMPT Phase 3 — همان الگوی showWhenDisabled.
+      { key: "gameservers", icon: Gamepad2, labelKey: "sectionGameServers", requiresPlugin: "gameserver_cs2", showWhenDisabled: true, locked: true },
+      { key: "surveys", icon: ClipboardList, labelKey: "sectionSurveys", requiresPlugin: "survey", showWhenDisabled: true, locked: true },
+      // پستِ چندزبانه (Google Translate API) — همان الگوی showWhenDisabled.
+      { key: "translatePost", icon: Languages, labelKey: "sectionTranslatePost", requiresPlugin: "translate_post", showWhenDisabled: true, locked: true },
+      // IRFORGE_POSTBOX_PROMPT Phase B2 — همان الگویِ showWhenDisabled.
+      { key: "postbox", icon: Newspaper, labelKey: "sectionPostbox", requiresPlugin: "autoposter", showWhenDisabled: true, locked: true },
+      { key: "guidedFlow", icon: GitBranch, labelKey: "sectionGuidedFlow", requiresPlugin: "guided_flow", showWhenDisabled: true, locked: true },
+      { key: "crm", icon: Contact, labelKey: "sectionCrm", requiresPlugin: "crm", showWhenDisabled: true, locked: true },
     ],
   },
 ];
@@ -540,7 +549,6 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "objects" && <ObjectsSection bot={bot} />}
             {section === "relations" && <RelationsSection bot={bot} />}
             {section === "workflows" && <WorkflowsSection bot={bot} />}
-            {section === "language" && <LanguageSection bot={bot} />}
             {section === "tickets" && <TicketsSection bot={bot} />}
             {section === "loyalty" && <LoyaltySection bot={bot} />}
             {section === "booking" && <BookingSection bot={bot} />}
