@@ -68,11 +68,12 @@ test("businessPg: wrapForColumn JSON-stringifies only the jsonb columns (buttons
   assert.equal(__testables.wrapForColumn(s, "is_home", true), true);
 });
 
-test("businessPg: isKnownPgEntity is scoped to exactly the registered entities — panels and forms yes, everything else no (conservative-by-design)", async () => {
+test("businessPg: isKnownPgEntity is scoped to exactly the registered entities — panels/forms/custom_commands yes, everything else no (conservative-by-design)", async () => {
   const { isKnownPgEntity } = await import("../src/lib/businessPg.ts");
   assert.equal(isKnownPgEntity("panels"), true);
   assert.equal(isKnownPgEntity("forms"), true);
-  for (const other of ["users", "bot_settings", "custom_commands", "workflows", "events", "payments", "wallet"]) {
+  assert.equal(isKnownPgEntity("custom_commands"), true);
+  for (const other of ["users", "bot_settings", "workflows", "events", "payments", "wallet"]) {
     assert.equal(isKnownPgEntity(other), false, `'${other}' must stay on the old Sheets-only path until it's actually registered here`);
   }
 });
@@ -118,6 +119,28 @@ test("businessPg: wrapForColumn JSON-stringifies fields/destination_admin_ids/th
   assert.equal(__testables.wrapForColumn(s, "destination_admin_ids", ["120391329"]), '["120391329"]');
   assert.equal(__testables.wrapForColumn(s, "thank_you_media_file_id", "AAA111"), "AAA111");
   assert.equal(__testables.wrapForColumn(s, "is_active", true), true);
+});
+
+// ─── custom_commands (PHASE 17.8 — live "can't edit" bug, 2026-09-23) ────────
+
+test("businessPg: custom_commands schema matches bot/migrations/sql/0008_custom_commands.sql + business_repository.py's EntitySchema", async () => {
+  const { __testables } = await import("../src/lib/businessPg.ts");
+  const s = __testables.ENTITY_SCHEMAS.custom_commands;
+  assert.ok(s, "custom_commands must be registered");
+  assert.deepEqual(s.columns, ["command", "target", "description", "admin_only", "is_active", "created_at"]);
+  assert.deepEqual(s.jsonbColumns, [], "every custom_commands column is a scalar, no JSONB");
+  assert.equal(s.kvMode, false);
+  assert.equal(s.includeIdInValue, false, "the row key IS the command name — no separate id field on the value, unlike Panel/Form");
+  assert.equal(s.rowUpdatedAtCol, "updated_at", "no own updated_at field, so no collision");
+});
+
+test("businessPg: rowToValue for custom_commands does NOT echo an id (includeIdInValue is false)", async () => {
+  const { __testables } = await import("../src/lib/businessPg.ts");
+  const s = __testables.ENTITY_SCHEMAS.custom_commands;
+  const row = { id: "wallet", command: "wallet", target: "wallet", description: "", admin_only: false, is_active: true, created_at: "x" };
+  const value = __testables.rowToValue(s, row);
+  assert.equal(value.command, "wallet");
+  assert.equal(value.id, undefined, "custom_commands' CustomCommand type has no id field — echoing one back would be wrong here, unlike Panel/Form");
 });
 
 // ─── real-Postgres integration tests ────────────────────────────────────────
@@ -205,6 +228,39 @@ test("businessPg: pgSetEntity + pgGetEntity + pgListEntity round-trip a form exa
     assert.equal(await pgGetEntity(tenantId, "forms", formId), null);
   } finally {
     await rawPool.query("DELETE FROM forms WHERE tenant_id = $1", [tenantId]);
+    await rawPool.end();
+  }
+});
+
+test("businessPg: pgSetEntity + pgGetEntity + pgListEntity round-trip a custom command exactly — the live bug this closes (creating/editing a command could not be edited at all for a cut-over tenant before 'custom_commands' was registered here)", { skip }, async () => {
+  const pgModule = await import("pg");
+  const { Pool } = pgModule.default ?? pgModule;
+  const rawPool = new Pool({ connectionString: process.env.BUSINESS_DATABASE_URL });
+  const { pgSetEntity, pgGetEntity, pgListEntity, pgDeleteEntity } = await import("../src/lib/businessPg.ts");
+
+  const tenantId = "biz-pg-cmd-test-" + Date.now();
+  const command = {
+    command: "wallet", target: "wallet", description: "باز کردن کیف پول",
+    admin_only: false, is_active: true, created_at: "2026-01-01T00:00:00",
+  };
+
+  try {
+    await pgSetEntity(tenantId, "custom_commands", "wallet", command);
+
+    const got = await pgGetEntity(tenantId, "custom_commands", "wallet");
+    assert.equal(got.command, "wallet");
+    assert.equal(got.target, "wallet");
+    assert.equal(got.id, undefined, "no id echoed back — custom_commands has no separate id field on its value");
+
+    const list = await pgListEntity(tenantId, "custom_commands");
+    assert.equal(list.length, 1);
+    assert.equal(list[0].key, "wallet");
+
+    const deleted = await pgDeleteEntity(tenantId, "custom_commands", "wallet");
+    assert.equal(deleted, true);
+    assert.equal(await pgGetEntity(tenantId, "custom_commands", "wallet"), null);
+  } finally {
+    await rawPool.query("DELETE FROM custom_commands WHERE tenant_id = $1", [tenantId]);
     await rawPool.end();
   }
 });
@@ -346,7 +402,7 @@ test("botConfig listEntity/getEntity/putEntity/removeEntity route 'panels' to Po
   }
 });
 
-test("botConfig listEntity leaves a NON-registered entity completely on the old Sheets path even when that tenant is cut over for it (custom_commands isn't registered in businessPg.ts — only panels/forms are, today)", { skip }, async () => {
+test("botConfig listEntity leaves a NON-registered entity completely on the old Sheets path even when that tenant is cut over for it (workflows isn't registered in businessPg.ts — only panels/forms/custom_commands are, today)", { skip }, async () => {
   const pgModule = await import("pg");
   const { Pool } = pgModule.default ?? pgModule;
   const rawPool = new Pool({ connectionString: process.env.BUSINESS_DATABASE_URL });
@@ -354,7 +410,7 @@ test("botConfig listEntity leaves a NON-registered entity completely on the old 
   const { listEntity, invalidateCutoverCache } = botConfig;
 
   const tenantId = "biz-dispatch-other-entity-" + Date.now();
-  const sheetTabs = new Map([["custom_commands", new Map([["cmd1", { command: "cmd1" }]])]]);
+  const sheetTabs = new Map([["workflows", new Map([["wf1", { name: "wf1" }]])]]);
   Object.assign(botConfig.sheetLayer, {
     async readTabRows(_sid, tab) {
       const rows = sheetTabs.get(tab);
@@ -364,18 +420,18 @@ test("botConfig listEntity leaves a NON-registered entity completely on the old 
 
   try {
     await rawPool.query(
-      "INSERT INTO entity_cutover_flags (entity_name, tenant_id, use_db) VALUES ('custom_commands', $1, true)",
+      "INSERT INTO entity_cutover_flags (entity_name, tenant_id, use_db) VALUES ('workflows', $1, true)",
       [tenantId]
     );
     invalidateCutoverCache();
 
-    // custom_commands در businessPg.ts هنوز ثبت نشده — پس حتی با cutover
+    // workflows در businessPg.ts هنوز ثبت نشده — پس حتی با cutover
     // روشن، باید همچنان از همان شیتِ جعلی بخواند (رفتارِ قدیم، دست‌نخورده).
-    const rows = await listEntity(tenantId, "custom_commands");
+    const rows = await listEntity(tenantId, "workflows");
     assert.equal(rows.length, 1);
-    assert.equal(rows[0].key, "cmd1");
+    assert.equal(rows[0].key, "wf1");
   } finally {
-    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = 'custom_commands' AND tenant_id = $1", [tenantId]);
+    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = 'workflows' AND tenant_id = $1", [tenantId]);
     invalidateCutoverCache();
     await rawPool.end();
   }
