@@ -5,6 +5,15 @@
  * (`ap:formdests`) قابل ویرایش است و با ویرایش خود فرم یکی نیست. اینجا هر فیلد
  * فرم — از عنوان تا مقصد تا فیلدهایش — در یک منبع واحد ذخیره و در یک صفحه
  * ویرایش می‌شود.
+ *
+ * لایوباگ: «نمی‌شه فرم رو ادیت کرد» — تا امروز POST/PATCH/DELETE هر سه
+ * بی‌قیدوشرط `assertSheetsAuthoritative(FORMS_TAB)` را صدا می‌زدند، که به
+ * محض روشن‌شدنِ پرچمِ cutoverِ «forms» یک تننت (از خریدِ خودسرویسِ دیتابیسِ
+ * SQL یا ابزار Sheets Import سوپرادمین) با ۴۰۹ رد می‌شد — چون
+ * `lib/businessPg.ts` هنوز نمی‌دانست «forms» چیست. حالا که آن فایل «forms»
+ * را هم می‌شناسد، `listEntity`/`putEntity`/`removeEntity` خودشان برای
+ * تننتِ cutover‌شده به Postgres می‌روند و دیگر نیازی به این قفل نیست —
+ * دقیقاً همان چیزی که برای «panels» قبلاً اصلاح شد.
  */
 import { Router } from "express";
 import { requireAuth } from "./auth.js";
@@ -14,7 +23,6 @@ import {
   getEntity,
   putEntity,
   removeEntity,
-  assertSheetsAuthoritative,
   sendBotConfigError,
   BotConfigError,
 } from "../lib/botConfig.js";
@@ -27,7 +35,13 @@ import {
   type Form,
   type FormField,
   type Panel,
+  type PanelButton,
 } from "../lib/botTypes.js";
+import { validateButtons } from "./botPanels.js";
+
+/** انواعِ مدیایِ مجاز برایِ پیامِ تشکر — عیناً چهارتایی که handlers/user.py
+ * برایِ نوعِ پنلِ «media» تک‌آیتمی می‌شناسد (photo/video/audio/document). */
+const THANK_YOU_MEDIA_TYPES = ["photo", "video", "audio", "document"] as const;
 
 const router = Router();
 export const FORMS_TAB = "forms";
@@ -125,6 +139,28 @@ function validateAdminIds(value: unknown): string[] {
   return value.map((v) => String(v).trim()).filter(Boolean);
 }
 
+/** نوعِ مدیایِ پیامِ تشکر — خالی یعنی «بدون مدیا». */
+function validateThankYouMediaType(value: unknown): string {
+  const t = String(value ?? "").trim();
+  if (!t) return "";
+  if (!(THANK_YOU_MEDIA_TYPES as readonly string[]).includes(t))
+    throw bad("نوع مدیای پیام تشکر معتبر نیست.");
+  return t;
+}
+
+/** `file_id`ی تلگرام — همان سقفِ طولِ بقیه‌ی فیلدهای `file_id`‌مانندِ این کدبیس. */
+function validateThankYouMediaFileId(value: unknown): string {
+  const s = String(value ?? "").trim();
+  if (s.length > 500) throw bad("شناسه‌ی مدیای پیام تشکر خیلی طولانی است.");
+  return s;
+}
+
+/** دکمه‌های پیامِ تشکر — دقیقاً همان اعتبارسنجیِ دکمه‌های پنل
+ * (`routes/botPanels.ts::validateButtons`)، عمداً reuse شده نه کپی. */
+function validateThankYouButtons(value: unknown): PanelButton[] {
+  return validateButtons(value);
+}
+
 async function readForms(spreadsheetId: string): Promise<Form[]> {
   const rows = await listEntity<Form>(spreadsheetId, FORMS_TAB);
   return rows
@@ -193,7 +229,10 @@ router.get("/bots/:botId/forms/:formId/references", requireAuth, async (req: any
 router.post("/bots/:botId/forms", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(FORMS_TAB);
+    // "forms" روی businessPg.ts ثبت شده — listEntity/putEntity/removeEntity
+    // خودشان برای تننتِ cutover‌شده به Postgres می‌روند، پس اینجا دیگر
+    // نیازی به assertSheetsAuthoritative نیست (همان چیزی که routes/botPanels.ts
+    // برای panels از وقتی همین اتفاق برایش افتاد دیگر انجام نمی‌دهد).
 
     const body = req.body ?? {};
     const title = validateText(body.title ?? "", "عنوان فرم", 200).trim();
@@ -207,6 +246,9 @@ router.post("/bots/:botId/forms", requireAuth, async (req: any, res) => {
       thank_you_message: body.thank_you_message
         ? validateText(body.thank_you_message, "پیام تشکر")
         : undefined,
+      thank_you_media_file_id: validateThankYouMediaFileId(body.thank_you_media_file_id),
+      thank_you_media_type: validateThankYouMediaType(body.thank_you_media_type),
+      thank_you_buttons: validateThankYouButtons(body.thank_you_buttons ?? []),
       is_active: body.is_active === undefined ? true : Boolean(body.is_active),
       notify_admin: body.notify_admin === undefined ? true : Boolean(body.notify_admin),
       allow_edit: Boolean(body.allow_edit),
@@ -222,7 +264,6 @@ router.post("/bots/:botId/forms", requireAuth, async (req: any, res) => {
 router.patch("/bots/:botId/forms/:formId", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(FORMS_TAB);
 
     const current = await getEntity<Form>(spreadsheetId, FORMS_TAB, req.params.formId);
     if (!current) throw new BotConfigError(404, "این فرم پیدا نشد.", "form_not_found");
@@ -239,6 +280,11 @@ router.patch("/bots/:botId/forms/:formId", requireAuth, async (req: any, res) =>
     if ("destination_group" in body) next.destination_group = validateDestination(body.destination_group);
     if ("destination_admin_ids" in body) next.destination_admin_ids = validateAdminIds(body.destination_admin_ids);
     if ("thank_you_message" in body) next.thank_you_message = validateText(body.thank_you_message, "پیام تشکر");
+    if ("thank_you_media_file_id" in body)
+      next.thank_you_media_file_id = validateThankYouMediaFileId(body.thank_you_media_file_id);
+    if ("thank_you_media_type" in body)
+      next.thank_you_media_type = validateThankYouMediaType(body.thank_you_media_type);
+    if ("thank_you_buttons" in body) next.thank_you_buttons = validateThankYouButtons(body.thank_you_buttons);
     if ("is_active" in body) next.is_active = Boolean(body.is_active);
     if ("notify_admin" in body) next.notify_admin = Boolean(body.notify_admin);
     if ("allow_edit" in body) next.allow_edit = Boolean(body.allow_edit);
@@ -253,7 +299,6 @@ router.patch("/bots/:botId/forms/:formId", requireAuth, async (req: any, res) =>
 router.delete("/bots/:botId/forms/:formId", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(FORMS_TAB);
     const removed = await removeEntity(spreadsheetId, FORMS_TAB, req.params.formId);
     if (!removed) throw new BotConfigError(404, "این فرم پیدا نشد.", "form_not_found");
     // برخلاف پنل‌ها، ارجاع‌دهنده‌ها اینجا خودکار اصلاح نمی‌شوند: یک دکمه‌ی
@@ -264,5 +309,14 @@ router.delete("/bots/:botId/forms/:formId", requireAuth, async (req: any, res) =
     sendBotConfigError(res, err, "Failed to delete form");
   }
 });
+
+/** خالص و بدون DB — برای تست مستقیم بدون راه‌انداختن روت/شیت کامل. */
+export const __testables = {
+  validateThankYouMediaType,
+  validateThankYouMediaFileId,
+  validateThankYouButtons,
+  validateDestination,
+  validateAdminIds,
+};
 
 export default router;

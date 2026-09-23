@@ -162,6 +162,11 @@ export type Form = {
   destination_group: string;
   destination_admin_ids: string[];
   thank_you_message: string;
+  /** اختیاری: مدیا و دکمه‌های پیام تشکر — دقیقاً همان شکل Panel.buttons، تا
+   * ButtonBuilder.tsx بدون تغییر برای فرم‌ها هم استفاده شود. */
+  thank_you_media_file_id: string;
+  thank_you_media_type: string; // "" | photo | video | audio | document
+  thank_you_buttons: PanelButton[];
   is_active: boolean;
   notify_admin: boolean;
   allow_edit: boolean;
@@ -494,6 +499,9 @@ export function newForm(partial: Partial<Form> = {}): Form {
     destination_group: partial.destination_group ?? "",
     destination_admin_ids: partial.destination_admin_ids ?? [],
     thank_you_message: partial.thank_you_message ?? "فرم شما با موفقیت ثبت شد. ✅",
+    thank_you_media_file_id: partial.thank_you_media_file_id ?? "",
+    thank_you_media_type: partial.thank_you_media_type ?? "",
+    thank_you_buttons: partial.thank_you_buttons ?? [],
     is_active: partial.is_active ?? true,
     notify_admin: partial.notify_admin ?? true,
     allow_edit: partial.allow_edit ?? false,

@@ -16,12 +16,19 @@
  * Sheets... and the bot, reading only Postgres now, never saw.
  *
  * This file is the other half: real Postgres read/write, scoped to
- * exactly the entities registered below — today just `panels`, the one
- * behind that bug report (see PROGRESS.md). Adding another entity is one
- * more `ENTITY_SCHEMAS` entry, copied verbatim from that Python file's own
- * `EntitySchema` for it and the matching `bot/migrations/sql/00NN_<entity>.sql`
- * column list — not a guess, and not done speculatively for entities
- * nothing here has verified against.
+ * exactly the entities registered below — `panels` (the one behind that
+ * bug report, see PROGRESS.md) and now `forms` (same bug, reported live:
+ * `POST/PATCH/DELETE /bots/:botId/forms/*` unconditionally called
+ * `assertSheetsAuthoritative(FORMS_TAB)`, which 409s the instant a
+ * tenant's `forms` cutover flag is on — completely blocking form edits
+ * from the site for any tenant migrated via the self-serve SQL Database
+ * purchase or the superadmin Sheets Import tool, with no data-loss risk
+ * involved at all, just a route that never learned Postgres exists).
+ * Adding another entity is one more `ENTITY_SCHEMAS` entry, copied
+ * verbatim from that Python file's own `EntitySchema` for it and the
+ * matching `bot/migrations/sql/00NN_<entity>.sql` column list — not a
+ * guess, and not done speculatively for entities nothing here has
+ * verified against.
  *
  * RLS: every PHASE 17 table has FORCE ROW LEVEL SECURITY
  * (`bot/migrations/sql/0028_row_level_security.sql`), gated on
@@ -72,6 +79,28 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema> = {
     kvMode: false,
     includeIdInValue: true,
     rowUpdatedAtCol: "row_updated_at",
+  },
+  // PHASE 17.6 on the bot side (business_repository.py). Form.id duplicates
+  // the row key like Panel does (includeIdInValue), but unlike Panel, Form
+  // has no `updated_at` domain field to collide with the generic bookkeeping
+  // column — only `created_at` is a real string field, and that column is
+  // never referenced by name here (INSERT relies on the table's own
+  // `row_created_at DEFAULT now()`, this file's writes never touch it).
+  // `thank_you_media_file_id`/`thank_you_media_type`/`thank_you_buttons`
+  // (bot/migrations/sql/0038_forms_thank_you_media.sql) added alongside the
+  // Postgres-cutover fix above, in the same pass — buttons reuse the exact
+  // same shape as panels.buttons.
+  forms: {
+    table: "forms",
+    columns: [
+      "title", "fields", "destination_group", "destination_admin_ids",
+      "thank_you_message", "thank_you_media_file_id", "thank_you_media_type",
+      "thank_you_buttons", "is_active", "notify_admin", "allow_edit", "created_at",
+    ],
+    jsonbColumns: ["fields", "destination_admin_ids", "thank_you_buttons"],
+    kvMode: false,
+    includeIdInValue: true,
+    rowUpdatedAtCol: "updated_at",
   },
 };
 
