@@ -3290,13 +3290,45 @@ async function syncBotAvatar(botId: string, token: string, current: string | nul
   }
 }
 
+/**
+ * setMyName/setMyDescription/setMyShortDescription (و همتاهای get) همه یک
+ * language_code اختیاری دارند — بدونش، همان متنِ «پیش‌فرض»ی که همه‌جا نشان
+ * داده می‌شود. با یک کدِ زبان، فقط override اختصاصیِ همان زبان خوانده/نوشته
+ * می‌شود (روی خواندن، رشته‌ی خالی یعنی برای این زبان چیزی ست نشده — نه اینکه
+ * پیش‌فرض همین است؛ تلگرام همین‌طور جواب می‌دهد، اینجا شبیه‌سازی نشده).
+ */
+function telegramLanguageParam(raw: unknown): { language_code: string } | undefined {
+  return typeof raw === "string" && raw.trim() ? { language_code: raw.trim() } : undefined;
+}
+
+type ProfilePhotoUploadResolution =
+  | { kind: "static" | "animated"; maxBytes: number }
+  | { error: string };
+
+/**
+ * "animated" — InputProfilePhotoAnimated (یک ویدیویِ MPEG4)، در برابرِ
+ * "static" (پیش‌فرض) — InputProfilePhotoStatic (JPG). ویدیو ذاتاً بزرگ‌تر
+ * از عکس است، پس سقفِ بزرگ‌تری هم دارد — هنوز خیلی کمتر از حداکثرِ واقعیِ
+ * آپلودِ تلگرام، چون این فقط یک آواتارِ کوتاه است، نه یک فایلِ رسانه‌ای عادی.
+ */
+function resolveProfilePhotoUpload(bodyType: unknown, mimeType: string): ProfilePhotoUploadResolution {
+  const kind: "static" | "animated" = bodyType === "animated" ? "animated" : "static";
+  if (kind === "animated") {
+    if (!mimeType.startsWith("video/")) return { error: "animated photo must be a video" };
+    return { kind, maxBytes: 20 * 1024 * 1024 };
+  }
+  if (!mimeType.startsWith("image/")) return { error: "photo must be an image" };
+  return { kind, maxBytes: 5 * 1024 * 1024 };
+}
+
 router.get("/bots/:botId/telegram-profile", requireBotAccess, async (req: any, res) => {
   try {
     const token = decryptToken(req.bot.token);
+    const langParam = telegramLanguageParam(req.query.lang);
     const [nameRes, descRes, shortDescRes, avatarFileId] = await Promise.all([
-      tgApi<{ name: string }>(token, "getMyName"),
-      tgApi<{ description: string }>(token, "getMyDescription"),
-      tgApi<{ short_description: string }>(token, "getMyShortDescription"),
+      tgApi<{ name: string }>(token, "getMyName", langParam),
+      tgApi<{ description: string }>(token, "getMyDescription", langParam),
+      tgApi<{ short_description: string }>(token, "getMyShortDescription", langParam),
       syncBotAvatar(req.bot.id, token, req.bot.avatarFileId ?? null),
     ]);
     res.json({
@@ -3313,24 +3345,25 @@ router.get("/bots/:botId/telegram-profile", requireBotAccess, async (req: any, r
 
 router.patch("/bots/:botId/telegram-profile", requireBotAccess, async (req: any, res) => {
   try {
-    const { name, description, shortDescription } = req.body ?? {};
+    const { name, description, shortDescription, language } = req.body ?? {};
     if (name === undefined && description === undefined && shortDescription === undefined) {
       res.status(400).json({ error: "At least one of name, description, shortDescription is required" });
       return;
     }
     const token = decryptToken(req.bot.token);
     const errors: string[] = [];
+    const langParam = telegramLanguageParam(language);
 
     if (name !== undefined) {
-      const r = await tgApi(token, "setMyName", { name });
+      const r = await tgApi(token, "setMyName", { name, ...langParam });
       if (!r.ok) errors.push(r.description ?? "setMyName failed");
     }
     if (description !== undefined) {
-      const r = await tgApi(token, "setMyDescription", { description });
+      const r = await tgApi(token, "setMyDescription", { description, ...langParam });
       if (!r.ok) errors.push(r.description ?? "setMyDescription failed");
     }
     if (shortDescription !== undefined) {
-      const r = await tgApi(token, "setMyShortDescription", { short_description: shortDescription });
+      const r = await tgApi(token, "setMyShortDescription", { short_description: shortDescription, ...langParam });
       if (!r.ok) errors.push(r.description ?? "setMyShortDescription failed");
     }
 
@@ -3369,18 +3402,18 @@ router.post("/bots/:botId/telegram-profile/photo", requireBotAccess, async (req:
       return;
     }
     const [, mimeType, base64] = match;
-    if (!mimeType.startsWith("image/")) {
-      res.status(400).json({ error: "photo must be an image" });
+    const resolved = resolveProfilePhotoUpload(req.body?.type, mimeType);
+    if ("error" in resolved) {
+      res.status(400).json({ error: resolved.error });
       return;
     }
     const buffer = Buffer.from(base64, "base64");
-    const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
-    if (buffer.length > MAX_PHOTO_BYTES) {
-      res.status(400).json({ error: "Photo is too large (max 5MB)" });
+    if (buffer.length > resolved.maxBytes) {
+      res.status(400).json({ error: `File is too large (max ${resolved.maxBytes / (1024 * 1024)}MB)` });
       return;
     }
     const token = decryptToken(req.bot.token);
-    const result = await tgSetProfilePhoto(token, buffer, mimeType);
+    const result = await tgSetProfilePhoto(token, buffer, mimeType, resolved.kind);
     if (!result.ok) {
       res.status(400).json({ error: result.description ?? "setMyProfilePhoto failed" });
       return;
@@ -3885,7 +3918,7 @@ router.post("/bots/:botId/sheet", requireSuperAdmin, async (req: any, res) => {
 export const __testables = {
   requireBotOwnership, requireBotAccess,
   dedupeBotsByToken, withTokenCreationLock, tokenUsedInTx, DuplicateTokenError,
-  computeResolvedSheetIds,
+  computeResolvedSheetIds, telegramLanguageParam, resolveProfilePhotoUpload,
 };
 
 export default router;
