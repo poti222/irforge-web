@@ -8,6 +8,15 @@
  * sitting on Postgres, so on a failed renewal we immediately (no grace
  * period) kick off the reverse migration back to Sheets rather than leaving
  * a paid dataset stranded on SQL with nobody paying for it.
+ *
+ * 2026-09-23 — the SQL database purchase became one-time/unlimited
+ * (`botDatabase.ts::SQL_DATABASE_UNLIMITED_EXPIRY`, a sentinel far in the
+ * future) instead of a recurring monthly charge, so every *new* purchase's
+ * `databaseSqlExpiresAt` never satisfies `<= now` below — this sweep is
+ * effectively dormant for them, by design, with no code change needed here:
+ * the existing date comparisons already do the right thing for a sentinel
+ * that far out. Left in place (not deleted) as a defensive no-op in case
+ * any pre-existing dated expiry is still around.
  */
 import { db, botsTable } from "@workspace/db";
 import { eq, isNotNull } from "drizzle-orm";
@@ -15,7 +24,7 @@ import { deductWallet } from "./wallet.js";
 import { tomanToRial } from "./currency.js";
 import { createNotification, formatTomanFa } from "./notify.js";
 import { addOneMonth } from "./tierExpiry.js";
-import { SQL_DATABASE_MONTHLY_PRICE_TOMAN, startSheetsReversion } from "./botDatabase.js";
+import { SQL_DATABASE_PRICE_TOMAN, startSheetsReversion } from "./botDatabase.js";
 import { logger } from "./logger.js";
 
 /** How many days ahead of the renewal deadline the owner gets warned — same
@@ -41,7 +50,7 @@ async function warnUpcomingExpiry(bot: BotRow): Promise<void> {
 async function handleExpiredSqlDatabase(bot: BotRow): Promise<void> {
   const renewed = await deductWallet(
     bot.userId,
-    tomanToRial(SQL_DATABASE_MONTHLY_PRICE_TOMAN),
+    tomanToRial(SQL_DATABASE_PRICE_TOMAN),
     `Auto-renew: SQL database for ${bot.name}`
   );
 
@@ -54,7 +63,7 @@ async function handleExpiredSqlDatabase(bot: BotRow): Promise<void> {
       type: "sql_database_auto_renewed",
       severity: "info",
       title: "اشتراک دیتابیس SQL به‌صورت خودکار تمدید شد",
-      message: `${formatTomanFa(SQL_DATABASE_MONTHLY_PRICE_TOMAN)} برای تمدیدِ یک‌ماهه‌ی دیتابیسِ SQL بات «${bot.name}» از کیف پول کسر شد.`,
+      message: `${formatTomanFa(SQL_DATABASE_PRICE_TOMAN)} برای تمدیدِ دیتابیسِ SQL بات «${bot.name}» از کیف پول کسر شد.`,
       dedupeKey: `sql-db-renewed:${bot.id}:${nextExpiry.toISOString().slice(0, 10)}`,
     });
     return;

@@ -4,14 +4,19 @@
  * Self-serve counterpart to the superadmin-only "Sheets Import" tool
  * (pages/admin-sheets-import.tsx, whose status-badge/progress visual
  * language this reuses): a bot owner picks between Google Sheets (free,
- * default) and SQL/Postgres (paid, `priceToman`/month, wallet-charged) for
- * where this ONE bot's entire data lives, and can move it back later.
+ * default) and SQL/Postgres (paid, `priceToman` once — unlimited, no
+ * recurring charge — wallet-charged) for where this ONE bot's entire data
+ * lives, and can move it back later.
  *
  * `GET .../database` (lib/botDatabase.ts::getBotDatabaseStatus, server-side)
- * always computes `mode` live from the same cutover-flag counts the admin
- * migration tool reads — never cached — so a slow/stuck transfer shows up
- * as "migrating"/"reverting" here instead of silently disagreeing with what
- * `databaseSqlExpiresAt` (billing) says.
+ * always computes `mode` live — never cached. `mode` reports "sql" the
+ * moment the purchase clears (billing), even before every entity has
+ * necessarily finished copying in the background; `importInFlight`/
+ * `exportInFlight` (independent of `mode`) drive this file's own separate
+ * "still copying N/M" progress note and the migrating/reverting badges for
+ * a transfer the superadmin tool started instead (that path never sets
+ * billing, so `mode` there still waits for `postgresEntityCount` to reach
+ * `totalEntityCount` exactly as it always has).
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -47,16 +52,13 @@ type BotDatabaseStatus = {
   postgresEntityCount: number;
   totalEntityCount: number;
   sqlExpiresAt: string | null;
+  unlimited: boolean;
+  importInFlight: boolean;
+  exportInFlight: boolean;
   latestImportRequest: ImportRequestRow | null;
   latestExportRequest: ImportRequestRow | null;
   priceToman: number;
 };
-
-function daysLeft(iso: string | null): number | null {
-  if (!iso) return null;
-  const ms = new Date(iso).getTime() - Date.now();
-  return Math.ceil(ms / (24 * 60 * 60 * 1000));
-}
 
 function errMessage(err: any, fallback: string): string {
   return err?.data?.error ?? err?.message ?? fallback;
@@ -76,7 +78,13 @@ export function DatabaseSection({ bot }: { bot: Bot }) {
     queryFn: () => customFetch<BotDatabaseStatus>(`/api/bots/${bot.id}/database`),
     refetchInterval: (query) => {
       const s = query.state.data as BotDatabaseStatus | undefined;
-      return s?.mode === "migrating" || s?.mode === "reverting" ? 4000 : false;
+      // importInFlight/exportInFlight هم چک می‌شود، نه فقط mode: یک تننتِ
+      // خریداری‌کرده همان لحظه‌ی خرید mode="sql" می‌گیرد، ولی مهاجرتِ
+      // واقعی هنوز پشتِ‌صحنه در جریان است — بدونِ این، شمارشگرِ پیشرفت
+      // (X/Y) تا رفرشِ دستیِ بعدی همان‌جا یخ می‌زد.
+      return s?.mode === "migrating" || s?.mode === "reverting" || s?.importInFlight || s?.exportInFlight
+        ? 4000
+        : false;
     },
   });
 
@@ -112,7 +120,6 @@ export function DatabaseSection({ bot }: { bot: Bot }) {
   }
 
   const noSheet = !bot.sheetId;
-  const remaining = daysLeft(status.sqlExpiresAt);
   const progress = status.totalEntityCount > 0 ? Math.round((status.postgresEntityCount / status.totalEntityCount) * 100) : 0;
   const busy = activate.isPending || revert.isPending;
 
@@ -167,14 +174,26 @@ export function DatabaseSection({ bot }: { bot: Bot }) {
                 <CardDescription>{t.sqlDescription}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-sm font-medium">{t.priceLabel}: {formatToman(status.priceToman, lang)} / {t.perMonth}</p>
+                <p className="text-sm font-medium">{t.priceLabel}: {formatToman(status.priceToman, lang)} ({t.oneTimeLabel})</p>
 
-                {status.mode === "sql" && remaining != null && (
-                  <p className={`text-xs ${remaining <= 3 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
-                    {remaining >= 0
-                      ? t.renewsIn.replace("{n}", String(remaining))
-                      : t.renewalOverdue}
-                  </p>
+                {status.mode === "sql" && status.unlimited && (
+                  <p className="text-xs text-muted-foreground">{t.unlimitedNote}</p>
+                )}
+
+                {/* پرداختِ یک‌باره‌ای که مهاجرتِ همه‌ی جدول‌ها را می‌خرد — وضعیت
+                    همان لحظه‌ی خرید "sql" می‌شود، حتی اگر پشتِ‌صحنه هنوز چند
+                    جدول در حالِ کپی‌شدن باشند؛ این بخش فقط همان پیشرفت را
+                    جداگانه نشان می‌دهد، بدونِ اینکه برچسبِ اصلی را عوض کند. */}
+                {status.mode === "sql" && status.importInFlight && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Loader2 className="size-3.5 animate-spin" />
+                      {t.stillMigratingNote
+                        .replace("{n}", String(status.postgresEntityCount))
+                        .replace("{m}", String(status.totalEntityCount))}
+                    </div>
+                    <Progress value={progress} />
+                  </div>
                 )}
 
                 {(status.mode === "migrating" || status.mode === "reverting") && (
@@ -200,7 +219,13 @@ export function DatabaseSection({ bot }: { bot: Bot }) {
                     </Button>
                   )}
                   {status.mode === "sql" && (
-                    <Button size="sm" variant="outline" className="gap-1.5" disabled={busy} onClick={() => setConfirmRevert(true)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      disabled={busy || status.importInFlight}
+                      onClick={() => setConfirmRevert(true)}
+                    >
                       {revert.isPending ? <Loader2 className="size-4 animate-spin" /> : <RotateCw className="size-4" />}
                       {t.revertCta}
                     </Button>

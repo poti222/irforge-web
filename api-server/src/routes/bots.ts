@@ -71,7 +71,8 @@ import {
   getBotDatabaseStatus,
   startSqlMigration,
   startSheetsReversion,
-  SQL_DATABASE_MONTHLY_PRICE_TOMAN,
+  SQL_DATABASE_PRICE_TOMAN,
+  SQL_DATABASE_UNLIMITED_EXPIRY,
   type BotDatabaseStatus,
 } from "../lib/botDatabase.js";
 
@@ -3662,11 +3663,11 @@ router.post("/bots/:botId/renew", requireBotOwnership, async (req: any, res) => 
 // ─── Database section — self-serve Sheets ↔ SQL (Postgres) ──────────────────
 // IRFORGE_PAID_SQL_DATABASE_PROMPT — one bot's ENTIRE data lives either on
 // its Google Sheet (the free/default backing store) or on Postgres ("SQL"),
-// a paid upgrade (lib/botDatabase.ts::SQL_DATABASE_MONTHLY_PRICE_TOMAN /
-// month, wallet-charged, same self-serve/requireBotOwnership shape as
-// upgrade-tier and renew above). Actual data movement is the existing
-// sheets_import/export queue engine — these 3 routes only gate access,
-// charge/refund the wallet, and enqueue the job.
+// a paid upgrade (lib/botDatabase.ts::SQL_DATABASE_PRICE_TOMAN, one-time,
+// unlimited duration, wallet-charged, same self-serve/requireBotOwnership
+// shape as upgrade-tier and renew above). Actual data movement is the
+// existing sheets_import/export queue engine — these 3 routes only gate
+// access, charge/refund the wallet, and enqueue the job.
 
 // ─── GET /api/bots/:botId/database — live status for the Database panel ─────
 router.get("/bots/:botId/database", requireBotOwnership, async (req: any, res) => {
@@ -3680,9 +3681,12 @@ router.get("/bots/:botId/database", requireBotOwnership, async (req: any, res) =
         postgresEntityCount: 0,
         totalEntityCount: 0,
         sqlExpiresAt: null,
+        unlimited: false,
+        importInFlight: false,
+        exportInFlight: false,
         latestImportRequest: null,
         latestExportRequest: null,
-        priceToman: SQL_DATABASE_MONTHLY_PRICE_TOMAN,
+        priceToman: SQL_DATABASE_PRICE_TOMAN,
       };
       res.json(empty);
       return;
@@ -3704,7 +3708,11 @@ router.post("/bots/:botId/database/activate-sql", requireBotOwnership, async (re
       return;
     }
     const current = await getBotDatabaseStatus(bot.sheetId, bot.databaseSqlExpiresAt);
-    if (current.mode === "migrating" || current.mode === "reverting") {
+    // عمداً importInFlight/exportInFlight چک می‌شود، نه current.mode: بعدِ
+    // تغییرِ ۲۰۲۶-۰۹-۲۳، mode همان لحظه‌ی خرید هم "sql" می‌شود (حتی وقتی
+    // مهاجرت هنوز پشتِ‌صحنه در حالِ اجراست) — چکِ mode اینجا دیگر جلویِ
+    // خریدِ دوباره‌ی یک انتقالِ نیمه‌کاره را نمی‌گرفت.
+    if (current.importInFlight || current.exportInFlight) {
       res.status(400).json({ error: "یک انتقالِ دیگر در حال انجام است.", code: "transfer_in_progress" });
       return;
     }
@@ -3715,7 +3723,7 @@ router.post("/bots/:botId/database/activate-sql", requireBotOwnership, async (re
 
     const ok = await deductWallet(
       req.userId,
-      tomanToRial(SQL_DATABASE_MONTHLY_PRICE_TOMAN),
+      tomanToRial(SQL_DATABASE_PRICE_TOMAN),
       `SQL database activation: ${bot.name}`
     );
     if (!ok) {
@@ -3723,9 +3731,8 @@ router.post("/bots/:botId/database/activate-sql", requireBotOwnership, async (re
       return;
     }
 
-    const nextExpiry = addOneMonth(new Date());
     const [updated] = await db.update(botsTable)
-      .set({ databaseSqlExpiresAt: nextExpiry })
+      .set({ databaseSqlExpiresAt: SQL_DATABASE_UNLIMITED_EXPIRY })
       .where(eq(botsTable.id, bot.id))
       .returning();
 
@@ -3737,7 +3744,7 @@ router.post("/bots/:botId/database/activate-sql", requireBotOwnership, async (re
       type: "purchase_success",
       severity: "info",
       title: "انتقال به دیتابیس SQL آغاز شد",
-      message: `${formatTomanFa(SQL_DATABASE_MONTHLY_PRICE_TOMAN)} برای دیتابیس SQL بات «${bot.name}» از کیف پول کسر شد — انتقالِ داده در حال انجام است.`,
+      message: `${formatTomanFa(SQL_DATABASE_PRICE_TOMAN)} یک‌بار برای دیتابیس SQL بات «${bot.name}» از کیف پول کسر شد — بدونِ هزینه‌ی بعدی. انتقالِ داده در حال انجام است.`,
     });
 
     const status = await getBotDatabaseStatus(bot.sheetId, updated.databaseSqlExpiresAt);
@@ -3749,8 +3756,7 @@ router.post("/bots/:botId/database/activate-sql", requireBotOwnership, async (re
 });
 
 // ─── POST /api/bots/:botId/database/revert-to-sheets — SQL → Sheets ─────────
-// بدون بازگشتِ وجه (طبق تصمیمِ صریحِ کاربر) — چه وسطِ ماه دستی درخواست شود چه
-// از طریقِ sweep خودکار بعدِ شکستِ تمدید (lib/sqlDatabaseExpiry.ts).
+// بدون بازگشتِ وجه (طبق تصمیمِ صریحِ کاربر).
 router.post("/bots/:botId/database/revert-to-sheets", requireBotOwnership, async (req: any, res) => {
   try {
     const bot = req.bot;
@@ -3759,7 +3765,10 @@ router.post("/bots/:botId/database/revert-to-sheets", requireBotOwnership, async
       return;
     }
     const current = await getBotDatabaseStatus(bot.sheetId, bot.databaseSqlExpiresAt);
-    if (current.mode === "migrating" || current.mode === "reverting") {
+    // همان دلیلِ activate-sql بالا: importInFlight/exportInFlight، نه mode —
+    // وگرنه می‌شد وسطِ مهاجرتِ هنوز-درحال‌انجام (که mode را همان لحظه‌ی خرید
+    // "sql" می‌کند) درخواستِ بازگشت داد و با انتقالِ رفت مسابقه گذاشت.
+    if (current.importInFlight || current.exportInFlight) {
       res.status(400).json({ error: "یک انتقالِ دیگر در حال انجام است.", code: "transfer_in_progress" });
       return;
     }
