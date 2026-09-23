@@ -53,8 +53,9 @@ function bad(message: string, code?: string): BotConfigError {
   return new BotConfigError(400, message, code);
 }
 
-/** حداکثر دکمه در یک ردیف — محدودیت عملی تلگرام. */
-const MAX_BUTTONS_PER_ROW = 8;
+/** حداکثر دکمه در یک ردیف — محدودیت عملی تلگرام. Export شده چون
+ * `routes/botForms.ts` هم برای دکمه‌های پیام تشکر عیناً همین را می‌خواهد. */
+export const MAX_BUTTONS_PER_ROW = 8;
 
 // ─── ولیدیشن ────────────────────────────────────────────────────────────────
 
@@ -86,7 +87,11 @@ function validateContent(value: unknown): string {
   return value;
 }
 
-function validateButtons(value: unknown): PanelButton[] {
+/** دکمه‌ها: هم پنل‌ها اینجا استفاده می‌کنند، هم `routes/botForms.ts` برای
+ * دکمه‌های پیام تشکر — دقیقاً همان شکل/همان اعتبارسنجی، پس یک‌جا نگه‌داشته
+ * می‌شود تا اکشنِ جدیدی که اینجا اضافه می‌شود خودکار برای فرم‌ها هم معتبر
+ * باشد. */
+export function validateButtons(value: unknown): PanelButton[] {
   if (!Array.isArray(value)) throw bad("فهرست دکمه‌ها باید آرایه باشد.");
   if (value.length > 100) throw bad("حداکثر ۱۰۰ دکمه برای یک پنل مجاز است.");
 

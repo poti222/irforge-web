@@ -3,6 +3,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
+import type { PanelButton } from "@/lib/panel-buttons";
 
 export const FORM_FIELD_TYPES = [
   "text", "number", "phone", "email", "photo", "location", "select",
@@ -27,6 +28,11 @@ export type BotForm = {
   destination_group: string;
   destination_admin_ids: string[];
   thank_you_message: string;
+  /** اختیاری: مدیا و دکمه‌های پیام تشکر — دقیقاً همان شکل PanelButton، تا
+   * ButtonBuilder.tsx بدون تغییر اینجا هم استفاده شود. */
+  thank_you_media_file_id: string;
+  thank_you_media_type: string; // "" | photo | video | audio | document
+  thank_you_buttons: PanelButton[];
   is_active: boolean;
   notify_admin: boolean;
   allow_edit: boolean;

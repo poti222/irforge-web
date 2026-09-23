@@ -22,10 +22,23 @@ import {
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
 import { useUnsavedGuard } from "@/lib/unsaved-changes";
+import { buttonsToRows, rowsToButtons, type PanelButton } from "@/lib/panel-buttons";
+import { usePanels, usePanelCatalog } from "../panels/api";
+import { MediaList, type MediaMeta } from "../panels/MediaList";
+import { ButtonBuilder } from "../panels/ButtonBuilder";
 import {
-  FORM_FIELD_TYPES, apiErrorMessage, useUpdateForm,
+  FORM_FIELD_TYPES, apiErrorMessage, useForms, useUpdateForm,
   type BotForm, type FormField,
 } from "./api";
+
+/** اولیه‌یِ `mediaMeta` از رویِ خودِ فرمِ ذخیره‌شده — دقیقاً همان دلیلِ
+ * `mediaMetaOf` در PanelEditor.tsx: نوعِ واقعیِ فایل را از سرور می‌دانیم،
+ * نیازی به حدسِ دوباره در مرورگر نیست. */
+function thankYouMediaMetaOf(form: BotForm): Record<string, MediaMeta> {
+  if (!form.thank_you_media_file_id) return {};
+  const kind = (form.thank_you_media_type || "photo") as MediaMeta["kind"];
+  return { [form.thank_you_media_file_id]: { kind, duration: null } };
+}
 
 function emptyField(order: number): FormField {
   return {
@@ -101,6 +114,7 @@ function FieldCard({
           <Input
             id={`f-name-${index}`}
             dir="ltr"
+            placeholder="full_name"
             value={field.name}
             onChange={(e) => onChange({ name: e.target.value })}
             aria-invalid={nameInvalid || duplicate || undefined}
@@ -116,7 +130,12 @@ function FieldCard({
 
         <div className="space-y-1.5">
           <Label htmlFor={`f-label-${index}`}>{t.fieldLabel}</Label>
-          <Input id={`f-label-${index}`} value={field.label} onChange={(e) => onChange({ label: e.target.value })} />
+          <Input
+            id={`f-label-${index}`}
+            placeholder={t.fieldLabelPlaceholder}
+            value={field.label}
+            onChange={(e) => onChange({ label: e.target.value })}
+          />
           <p className="text-xs text-muted-foreground">{t.fieldLabelHint}</p>
         </div>
 
@@ -148,6 +167,7 @@ function FieldCard({
           <Textarea
             id={`f-options-${index}`}
             rows={3}
+            placeholder={t.fieldOptionsPlaceholder}
             value={field.options.join("\n")}
             onChange={(e) => onChange({ options: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
             aria-invalid={selectWithoutOptions || undefined}
@@ -165,6 +185,7 @@ function FieldCard({
             id={`f-regex-${index}`}
             dir="ltr"
             className="font-mono text-sm"
+            placeholder="^\d{10}$"
             value={field.validation_regex}
             onChange={(e) => onChange({ validation_regex: e.target.value })}
             aria-invalid={regexInvalid || undefined}
@@ -177,6 +198,7 @@ function FieldCard({
           <Label htmlFor={`f-error-${index}`}>{t.fieldErrorMessage}</Label>
           <Input
             id={`f-error-${index}`}
+            placeholder={t.fieldErrorMessagePlaceholder}
             value={field.error_message}
             onChange={(e) => onChange({ error_message: e.target.value })}
           />
@@ -201,6 +223,18 @@ export function FormEditor({
   const update = useUpdateForm(botId);
 
   const [draft, setDraft] = useState<BotForm>(form);
+  // شکلِ رویِ سرور تختِ PanelButton[] است؛ ButtonBuilder ردیف‌ها می‌خواهد —
+  // دقیقاً همان الگویِ PanelEditor.tsx: تبدیل فقط لحظه‌ی رندر/ذخیره.
+  const thankYouRows = useMemo(() => buttonsToRows(draft.thank_you_buttons), [draft.thank_you_buttons]);
+  // نوعِ واقعیِ مدیا (عکس/ویدیو/صوت/فایل) — از پاسخِ آپلود یا از خودِ فرمِ
+  // ذخیره‌شده، نه از `draft` (که تا لحظه‌ی ذخیره فقط file_id را نگه می‌دارد؛
+  // همان دلیلِ `mediaMeta`ی PanelEditor.tsx).
+  const [thankYouMediaMeta, setThankYouMediaMeta] = useState<Record<string, MediaMeta>>(() =>
+    thankYouMediaMetaOf(form)
+  );
+  const { data: panelsData } = usePanels(botId);
+  const { data: catalogData } = usePanelCatalog(botId);
+  const { data: formsData } = useForms(botId);
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(form);
   useUnsavedGuard(`form:${form.id}`, dirty);
@@ -242,6 +276,14 @@ export function FormEditor({
       toast({ variant: "destructive", title: t.fixErrorsFirst });
       return;
     }
+    // نوعِ واقعیِ مدیا همین‌جا از rooی مدیایِ فعلی محاسبه می‌شود — دقیقاً
+    // همان الگویِ PanelEditor.tsx برایِ `settings.media_items`.
+    const thankYouMediaType = draft.thank_you_media_file_id
+      ? (() => {
+          const kind = thankYouMediaMeta[draft.thank_you_media_file_id]?.kind;
+          return kind && kind !== "unknown" ? kind : "photo";
+        })()
+      : "";
     update.mutate(
       {
         formId: form.id,
@@ -251,6 +293,9 @@ export function FormEditor({
           destination_group: draft.destination_group,
           destination_admin_ids: draft.destination_admin_ids,
           thank_you_message: draft.thank_you_message,
+          thank_you_media_file_id: draft.thank_you_media_file_id,
+          thank_you_media_type: thankYouMediaType,
+          thank_you_buttons: draft.thank_you_buttons,
           is_active: draft.is_active,
           notify_admin: draft.notify_admin,
           allow_edit: draft.allow_edit,
@@ -284,6 +329,7 @@ export function FormEditor({
             <Input
               id="form-title"
               value={draft.title}
+              placeholder={t.formTitlePlaceholder}
               onChange={(e) => setDraft((p) => ({ ...p, title: e.target.value }))}
               aria-invalid={!draft.title.trim() || undefined}
             />
@@ -297,6 +343,32 @@ export function FormEditor({
               onChange={(e) => setDraft((p) => ({ ...p, thank_you_message: e.target.value }))}
             />
           </div>
+
+          <div className="space-y-1.5">
+            <Label>{t.thankYouMediaLabel}</Label>
+            <p className="text-xs text-muted-foreground">{t.thankYouMediaHint}</p>
+            <MediaList
+              botId={botId}
+              fileIds={draft.thank_you_media_file_id ? [draft.thank_you_media_file_id] : []}
+              multiple={false}
+              onChange={(next) => setDraft((p) => ({ ...p, thank_you_media_file_id: next[0] ?? "" }))}
+              onMetaChange={setThankYouMediaMeta}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>{t.thankYouButtonsLabel}</Label>
+            <p className="text-xs text-muted-foreground">{t.thankYouButtonsHint}</p>
+            <ButtonBuilder
+              botId={botId}
+              rows={thankYouRows}
+              panels={panelsData?.panels ?? []}
+              forms={(formsData?.forms ?? []).map((f) => ({ id: f.id, title: f.title }))}
+              catalog={catalogData}
+              onChange={(rows) => setDraft((p) => ({ ...p, thank_you_buttons: rowsToButtons(rows) }))}
+            />
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="flex items-center justify-between gap-2 rounded-md border p-3">
               <Label htmlFor="form-active">{t.isActive}</Label>
@@ -326,6 +398,7 @@ export function FormEditor({
             <Input
               id="form-dest"
               dir="ltr"
+              placeholder="-1001234567890"
               value={draft.destination_group}
               onChange={(e) => setDraft((p) => ({ ...p, destination_group: e.target.value }))}
             />
@@ -337,6 +410,7 @@ export function FormEditor({
               id="form-admins"
               rows={2}
               dir="ltr"
+              placeholder="120391329"
               value={draft.destination_admin_ids.join("\n")}
               onChange={(e) =>
                 setDraft((p) => ({

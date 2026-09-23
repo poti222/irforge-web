@@ -68,12 +68,56 @@ test("businessPg: wrapForColumn JSON-stringifies only the jsonb columns (buttons
   assert.equal(__testables.wrapForColumn(s, "is_home", true), true);
 });
 
-test("businessPg: isKnownPgEntity is scoped to exactly the registered entities — panels yes, everything else no (conservative-by-design)", async () => {
+test("businessPg: isKnownPgEntity is scoped to exactly the registered entities — panels and forms yes, everything else no (conservative-by-design)", async () => {
   const { isKnownPgEntity } = await import("../src/lib/businessPg.ts");
   assert.equal(isKnownPgEntity("panels"), true);
-  for (const other of ["users", "bot_settings", "custom_commands", "workflows", "events", "forms", "payments", "wallet"]) {
+  assert.equal(isKnownPgEntity("forms"), true);
+  for (const other of ["users", "bot_settings", "custom_commands", "workflows", "events", "payments", "wallet"]) {
     assert.equal(isKnownPgEntity(other), false, `'${other}' must stay on the old Sheets-only path until it's actually registered here`);
   }
+});
+
+// ─── forms (PHASE 17.6 + thank-you media/buttons follow-up) ──────────────────
+
+test("businessPg: forms schema matches bot/migrations/sql/0006_forms.sql + 0038_forms_thank_you_media.sql + business_repository.py's EntitySchema", async () => {
+  const { __testables } = await import("../src/lib/businessPg.ts");
+  const s = __testables.ENTITY_SCHEMAS.forms;
+  assert.ok(s, "forms must be registered");
+  assert.deepEqual(
+    s.columns,
+    [
+      "title", "fields", "destination_group", "destination_admin_ids",
+      "thank_you_message", "thank_you_media_file_id", "thank_you_media_type",
+      "thank_you_buttons", "is_active", "notify_admin", "allow_edit", "created_at",
+    ]
+  );
+  assert.deepEqual(new Set(s.jsonbColumns), new Set(["fields", "destination_admin_ids", "thank_you_buttons"]));
+  assert.equal(s.kvMode, false);
+  assert.equal(s.includeIdInValue, true, "Form.id duplicates the row key — must be echoed back, same as Panel");
+  assert.equal(s.rowUpdatedAtCol, "updated_at", "Form has no own updated_at field, so no collision — unlike Panel");
+});
+
+test("businessPg: rowToValue echoes the row id back into the value for forms (include_id_in_value)", async () => {
+  const { __testables } = await import("../src/lib/businessPg.ts");
+  const s = __testables.ENTITY_SCHEMAS.forms;
+  const row = {
+    id: "f1", title: "فرم تماس", fields: [], destination_group: "", destination_admin_ids: [],
+    thank_you_message: "ممنون", thank_you_media_file_id: "", thank_you_media_type: "",
+    thank_you_buttons: [], is_active: true, notify_admin: true, allow_edit: false, created_at: "x",
+  };
+  const value = __testables.rowToValue(s, row);
+  assert.equal(value.id, "f1");
+  assert.equal(value.title, "فرم تماس");
+});
+
+test("businessPg: wrapForColumn JSON-stringifies fields/destination_admin_ids/thank_you_buttons for forms, leaves scalars alone", async () => {
+  const { __testables } = await import("../src/lib/businessPg.ts");
+  const s = __testables.ENTITY_SCHEMAS.forms;
+  assert.equal(__testables.wrapForColumn(s, "thank_you_buttons", [{ label: "برو", action: "url", value: "https://x" }]),
+    '[{"label":"برو","action":"url","value":"https://x"}]');
+  assert.equal(__testables.wrapForColumn(s, "destination_admin_ids", ["120391329"]), '["120391329"]');
+  assert.equal(__testables.wrapForColumn(s, "thank_you_media_file_id", "AAA111"), "AAA111");
+  assert.equal(__testables.wrapForColumn(s, "is_active", true), true);
 });
 
 // ─── real-Postgres integration tests ────────────────────────────────────────
@@ -120,6 +164,47 @@ test("businessPg: pgSetEntity + pgGetEntity + pgListEntity + pgDeleteEntity roun
     assert.equal(await pgGetEntity(tenantId, "panels", panelId), null);
   } finally {
     await rawPool.query("DELETE FROM panels WHERE tenant_id = $1", [tenantId]);
+    await rawPool.end();
+  }
+});
+
+test("businessPg: pgSetEntity + pgGetEntity + pgListEntity round-trip a form exactly, including thank_you_buttons JSONB — the live bug this closes (forms could not be edited at all for a cut-over tenant before 'forms' was registered here)", { skip }, async () => {
+  const pgModule = await import("pg");
+  const { Pool } = pgModule.default ?? pgModule;
+  const rawPool = new Pool({ connectionString: process.env.BUSINESS_DATABASE_URL });
+  const { pgSetEntity, pgGetEntity, pgListEntity, pgDeleteEntity } = await import("../src/lib/businessPg.ts");
+
+  const tenantId = "biz-pg-form-test-" + Date.now();
+  const formId = "form-1";
+  const form = {
+    title: "فرم تماس", fields: [{ name: "phone", label: "شماره", type: "phone", required: true, options: [], validation_regex: "", error_message: "", order: 0 }],
+    destination_group: "-1001234567890", destination_admin_ids: ["120391329"],
+    thank_you_message: "ممنون از ثبت‌نام شما ✅",
+    thank_you_media_file_id: "AAA222", thank_you_media_type: "photo",
+    thank_you_buttons: [{ label: "برو به سایت", action: "url", value: "https://irforge.ir", row: 0, col: 0, row_start: true, style: "" }],
+    is_active: true, notify_admin: true, allow_edit: false, created_at: "2026-01-01T00:00:00",
+  };
+
+  try {
+    await pgSetEntity(tenantId, "forms", formId, form);
+
+    const got = await pgGetEntity(tenantId, "forms", formId);
+    assert.equal(got.id, formId);
+    assert.equal(got.title, "فرم تماس");
+    assert.equal(got.thank_you_media_file_id, "AAA222");
+    assert.equal(got.thank_you_media_type, "photo");
+    assert.deepEqual(got.thank_you_buttons, form.thank_you_buttons, "thank_you_buttons must survive the JSONB round-trip exactly");
+    assert.deepEqual(got.destination_admin_ids, ["120391329"]);
+
+    const list = await pgListEntity(tenantId, "forms");
+    assert.equal(list.length, 1);
+    assert.equal(list[0].key, formId);
+
+    const deleted = await pgDeleteEntity(tenantId, "forms", formId);
+    assert.equal(deleted, true);
+    assert.equal(await pgGetEntity(tenantId, "forms", formId), null);
+  } finally {
+    await rawPool.query("DELETE FROM forms WHERE tenant_id = $1", [tenantId]);
     await rawPool.end();
   }
 });
@@ -261,7 +346,7 @@ test("botConfig listEntity/getEntity/putEntity/removeEntity route 'panels' to Po
   }
 });
 
-test("botConfig listEntity leaves a NON-panels entity completely on the old Sheets path even when that tenant is cut over for it (only 'panels' is registered in businessPg.ts today)", { skip }, async () => {
+test("botConfig listEntity leaves a NON-registered entity completely on the old Sheets path even when that tenant is cut over for it (custom_commands isn't registered in businessPg.ts — only panels/forms are, today)", { skip }, async () => {
   const pgModule = await import("pg");
   const { Pool } = pgModule.default ?? pgModule;
   const rawPool = new Pool({ connectionString: process.env.BUSINESS_DATABASE_URL });

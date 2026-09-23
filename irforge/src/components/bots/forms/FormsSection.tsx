@@ -252,6 +252,7 @@ export function FormsSection({ bot }: { bot: Bot }) {
               id="new-form-title"
               value={newTitle}
               autoFocus
+              placeholder={t.formTitlePlaceholder}
               onChange={(e) => { setNewTitle(e.target.value); setCreateError(null); }}
               aria-invalid={Boolean(createError) || undefined}
             />
