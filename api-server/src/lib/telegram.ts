@@ -46,15 +46,29 @@ export async function tgApi<T = any>(
  * with a real file, unlike the rest of the JSON-only Bot API — so it can't
  * reuse tgApi() above. Uses Node's built-in FormData/Blob (Node 18+, no new
  * dependency).
+ *
+ * `kind: "animated"` (https://core.telegram.org/bots/api#inputprofilephotoanimated)
+ * sends an MPEG4 video instead of a JPG — Telegram derives the static preview
+ * frame from it (0s by default; this doesn't expose `main_frame_timestamp`,
+ * matching the "no extra picker UI" scope of this feature). Verified against
+ * the exact field/type union aiogram 3.30 ships (InputProfilePhotoStatic vs.
+ * InputProfilePhotoAnimated) since core.telegram.org itself isn't reachable
+ * from this environment's egress proxy.
  */
 export async function tgSetProfilePhoto(
   botToken: string,
-  photoBuffer: Buffer,
-  mimeType: string
+  fileBuffer: Buffer,
+  mimeType: string,
+  kind: "static" | "animated" = "static"
 ): Promise<{ ok: boolean; description?: string }> {
   const form = new FormData();
-  form.set("photo", JSON.stringify({ type: "static", photo: "attach://photo_file" }));
-  form.set("photo_file", new Blob([photoBuffer], { type: mimeType }), "profile.jpg");
+  if (kind === "animated") {
+    form.set("photo", JSON.stringify({ type: "animated", animation: "attach://animation_file" }));
+    form.set("animation_file", new Blob([fileBuffer], { type: mimeType }), "profile.mp4");
+  } else {
+    form.set("photo", JSON.stringify({ type: "static", photo: "attach://photo_file" }));
+    form.set("photo_file", new Blob([fileBuffer], { type: mimeType }), "profile.jpg");
+  }
   const res = await fetch(`https://api.telegram.org/bot${botToken}/setMyProfilePhoto`, {
     method: "POST",
     body: form,

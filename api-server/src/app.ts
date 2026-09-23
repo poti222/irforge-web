@@ -90,11 +90,15 @@ app.use(cookieParser());
 // one route meant to carry real video/voice/music files (base64 inflates
 // ~33%), and widening LARGE_BODY_LIMIT itself for that would also widen the
 // body-size attack surface of every other /api/bots/* route for no reason.
+// `POST /bots/:botId/telegram-profile/photo` joined this tier when it
+// gained animated (MPEG4 video) bot-profile-photo support — the existing
+// static-image path stays well under 10mb either way, so widening its
+// ceiling here changes nothing for it.
 const SMALL_BODY_LIMIT = "256kb";
 const LARGE_BODY_LIMIT = "10mb";
 const MEDIA_BODY_LIMIT = "42mb";
 const LARGE_BODY_PREFIXES = ["/api/bots", "/api/admin/updates"];
-const MEDIA_UPLOAD_PATH = /^\/api\/bots\/[^/]+\/media$/;
+const MEDIA_UPLOAD_PATH = /^\/api\/bots\/[^/]+\/(media|telegram-profile\/photo)$/;
 
 function needsLargeBody(req: Request): boolean {
   return LARGE_BODY_PREFIXES.some((p) => req.path.startsWith(p));
