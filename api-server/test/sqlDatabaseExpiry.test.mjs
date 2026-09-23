@@ -32,6 +32,23 @@ test("sweepSqlDatabaseExpiry: باتی که هنوز خیلی تا انقضای�
   assert.equal(updateCalled, false);
 });
 
+// 2026-09-23 — new purchases write SQL_DATABASE_UNLIMITED_EXPIRY (year 9999)
+// instead of a one-month-out date. No code change was needed in this file
+// for that (the existing `> now` comparison already treats it as "not
+// expired"), but this test locks that fact down explicitly rather than
+// leaving it as an implicit, unverified assumption about a sentinel date.
+test("sweepSqlDatabaseExpiry: باتِ نامحدود (سنتینلِ سالِ ۹۹۹۹) → هیچ update/تمدیدی نمی‌زند", async () => {
+  const { SQL_DATABASE_UNLIMITED_EXPIRY } = await import("../src/lib/botDatabase.ts");
+  db.select = fakeSelect([
+    { id: "b1", userId: "u1", name: "بات نامحدود", sheetId: "s1", databaseSqlExpiresAt: SQL_DATABASE_UNLIMITED_EXPIRY },
+  ]);
+  let updateCalled = false;
+  db.update = () => { updateCalled = true; return { set: () => ({ where: () => ({ returning: async () => [] }) }) }; };
+
+  await mod.sweepSqlDatabaseExpiry();
+  assert.equal(updateCalled, false, "a bot with the unlimited sentinel must never be treated as expired or near-expiry");
+});
+
 test("sweepSqlDatabaseExpiry: آرایه‌ی خالی → بدونِ خطا برمی‌گردد", async () => {
   db.select = fakeSelect([]);
   await assert.doesNotReject(() => mod.sweepSqlDatabaseExpiry());
