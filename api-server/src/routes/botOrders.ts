@@ -286,7 +286,14 @@ router.get("/bots/:botId/orders-config", requireAuth, async (req: any, res) => {
     await requirePluginEnabled(spreadsheetId, "wallet");
     const out: Record<string, unknown> = {};
     for (const key of BUTTON_SETS) {
-      out[key] = (await getEntity<unknown>(spreadsheetId, "bot_settings", key)) ?? [];
+      const stored = (await getEntity<unknown>(spreadsheetId, "bot_settings", key)) ?? [];
+      // UI فقط `text` را می‌شناسد؛ آیتم‌هایی که قبلاً با `label` ذخیره شده‌اند هم
+      // باید دیده شوند (وگرنه دکمه‌ی موجود در UI بی‌متن نشان داده می‌شد).
+      out[key] = Array.isArray(stored)
+        ? stored.map((b: any) =>
+            b && typeof b === "object" ? { ...b, text: String(b.text ?? b.label ?? "") } : b,
+          )
+        : stored;
     }
     res.json({ config: out, keys: BUTTON_SETS });
   } catch (err) {
@@ -308,12 +315,16 @@ router.patch("/bots/:botId/orders-config", requireAuth, async (req: any, res) =>
       if (!(key in body)) continue;
       if (!Array.isArray(body[key])) throw new BotConfigError(400, `«${key}» باید آرایه باشد.`);
       const buttons = body[key].map((raw: any, i: number) => {
-        const label = String(raw?.label ?? "").trim();
+        // UI (`PaymentsSection`) `{text, url}` می‌فرستد؛ سرور قبلاً فقط `label`
+        // می‌خواند، پس ذخیره‌ی هر دکمه‌ای همیشه «متن دکمه خالی است» می‌داد.
+        // هر دو نام پذیرفته می‌شود و هر دو کلید نوشته می‌شود تا بات هرکدام را
+        // بخواند دکمه را ببیند.
+        const label = String(raw?.text ?? raw?.label ?? "").trim();
         if (!label) throw new BotConfigError(400, `متن دکمه‌ی شماره ${i + 1} خالی است.`);
         const url = String(raw?.url ?? "").trim();
         if (url && !/^https:\/\//i.test(url))
           throw new BotConfigError(400, `آدرس دکمه‌ی «${label}» باید با https:// شروع شود.`);
-        return { label, url };
+        return { text: label, label, url };
       });
       // کلیدبه‌کلید روی همان تب تنظیمات (باگ B11) — از طریق putEntity، نه write.
       await putEntity(spreadsheetId, "bot_settings", key, buttons);
