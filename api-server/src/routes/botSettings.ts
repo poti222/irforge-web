@@ -29,7 +29,13 @@ import {
   SETTINGS_TAB,
 } from "../lib/botConfig.js";
 import { cacheBustEnabled } from "../lib/botCacheBust.js";
-import { resolveTelegramChat } from "../lib/telegramResolve.js";
+import { resolveTelegramChat, botTokenOrEmpty } from "../lib/telegramResolve.js";
+import {
+  probeOrderGroup,
+  sendDeliveryTest,
+  type OrderGroupProbe,
+  type DeliveryTarget,
+} from "../lib/orderGroup.js";
 import { logger } from "../lib/logger.js";
 import {
   BOT_LANGUAGES,
@@ -636,10 +642,76 @@ router.put("/bots/:botId/settings/payment", requireAuth, async (req: any, res) =
 
     const current = (await readSettings(spreadsheetId)).payment_cfg;
     const payment_cfg = validatePaymentConfig(req.body, current);
+
+    // «گروه سفارش‌ها» قبل از ذخیره با تلگرام راستی‌آزمایی می‌شود. قبلاً مقدارِ
+    // تایپ‌شده خام ذخیره می‌شد و اگر آی‌دی بدون `-100` بود، بات پشتِ درِ
+    // `chat not found` بود و رسیدها بی‌صدا به گروه نمی‌رسیدند. اگر آی‌دیِ
+    // درست پیدا شد (مثلاً `-100` جا افتاده بود) همان ذخیره می‌شود. ذخیره
+    // **بلاک نمی‌شود** (ادمین ممکن است اول آی‌دی را بگذارد و بعد بات را
+    // اضافه کند) — نتیجه در پاسخ برمی‌گردد تا UI هشدار بدهد.
+    let orderGroupCheck: OrderGroupProbe | null = null;
+    if (payment_cfg.order_group) {
+      const token = await botTokenOrEmpty(req.params.botId);
+      orderGroupCheck = await probeOrderGroup(token, payment_cfg.order_group);
+      if (orderGroupCheck.chatId) payment_cfg.order_group = orderGroupCheck.chatId;
+    }
+
     const updated = await patchSettings(spreadsheetId, { payment_cfg });
-    res.json({ payment_cfg: updated.payment_cfg });
+    res.json({ payment_cfg: updated.payment_cfg, orderGroupCheck });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to save payment settings");
+  }
+});
+
+/**
+ * POST /api/bots/:botId/settings/payment/test-delivery
+ * یک پیام آزمایشی به «گروه سفارش‌ها» و به هر ادمینِ بات می‌فرستد و برای هر
+ * مقصد نتیجه‌ی جدا (با علتِ فارسیِ قابل‌اقدام) برمی‌گرداند. این همان مسیری است
+ * که بات برای رسید/سفارشِ واقعی می‌رود؛ پس اگر اینجا نرسید، آنجا هم نمی‌رسد.
+ */
+router.post("/bots/:botId/settings/payment/test-delivery", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    const token = await botTokenOrEmpty(req.params.botId);
+    if (!token)
+      throw new BotConfigError(409, "توکن این بات روی سرور در دسترس نیست، پس نمی‌توان پیام آزمایشی فرستاد.", "no_token");
+
+    const settings = await readSettings(spreadsheetId);
+    const typed = typeof req.body?.order_group === "string" ? req.body.order_group.trim() : "";
+    const group = typed || settings.payment_cfg.order_group;
+
+    const results: DeliveryTarget[] = [];
+    if (group) {
+      results.push(await sendDeliveryTest(token, "group", group, group));
+    } else {
+      results.push({
+        target: "group",
+        id: "",
+        label: "",
+        ok: false,
+        code: "not_configured",
+        message: "«گروه سفارش‌ها» خالی است؛ رسیدها به هیچ گروهی نمی‌روند.",
+      });
+    }
+
+    const adminRows = await listEntity<{ user_id?: string; username?: string }>(spreadsheetId, "admins");
+    const seen = new Set<string>();
+    for (const row of adminRows.slice(0, 25)) {
+      const value = row.value && typeof row.value === "object" ? row.value : {};
+      const id = String((value as any).user_id ?? row.key ?? "").trim();
+      if (!/^\d+$/.test(id) || seen.has(id)) continue;
+      seen.add(id);
+      const username = String((value as any).username ?? "").trim();
+      results.push(await sendDeliveryTest(token, "admin", id, username ? `@${username}` : id));
+    }
+
+    res.json({
+      results,
+      adminCount: seen.size,
+      allOk: results.every((r) => r.ok),
+    });
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to test order delivery");
   }
 });
 
