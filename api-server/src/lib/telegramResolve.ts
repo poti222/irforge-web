@@ -26,7 +26,7 @@ import { BotConfigError } from "./botConfig.js";
 const USERNAME_RE = /^[A-Za-z][A-Za-z0-9_]{4,31}$/;
 
 /** توکن بات، یا رشته‌ی خالی اگر در دسترس نبود (هرگز throw نمی‌کند). */
-async function botTokenOrEmpty(botId: string): Promise<string> {
+export async function botTokenOrEmpty(botId: string): Promise<string> {
   const [bot] = await db.select({ token: botsTable.token }).from(botsTable).where(eq(botsTable.id, botId)).limit(1);
   try {
     return decryptToken(bot?.token ?? "") || "";
