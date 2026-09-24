@@ -233,6 +233,10 @@ const SECTION_GROUPS: SectionGroup[] = [
       // برگشت و فعال شد. ترتیب سکشن‌های فروش: catalog → wallet → payments →
       // booking. همان گیت پلاگین کیف پول و همان الگوی `showWhenDisabled`.
       { key: "payments", icon: CreditCard, labelKey: "sectionPayments", requiresPlugin: "wallet", showWhenDisabled: true },
+      // IRFORGE_RECEIPT_DEBUG_INVOICES_PROMPT Part 2 — a new view on the
+      // same `payments` data Orders already reads, not a new data source.
+      // 2026-09-23 — از «سایر» به اینجا، زیر پرداخت‌ها، برگشت و فعال شد.
+      { key: "invoices", icon: Receipt, labelKey: "sectionInvoices", requiresPlugin: "wallet", showWhenDisabled: true },
       // IRFORGE_PROMPT_V3 Phase 17 — همان الگوی `showWhenDisabled` تیکت
       // (فاز ۱۶): سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA
       // فعال‌سازی نشان می‌دهد (`BookingSection.tsx`'s plugin_disabled branch).
@@ -285,9 +289,6 @@ const SECTION_GROUPS: SectionGroup[] = [
     labelKey: "groupOther",
     items: [
       { key: "orders", icon: ShoppingCart, labelKey: "sectionOrders", requiresPlugin: "wallet", showWhenDisabled: true, locked: true },
-      // IRFORGE_RECEIPT_DEBUG_INVOICES_PROMPT Part 2 — a new view on the
-      // same `payments` data Orders already reads, not a new data source.
-      { key: "invoices", icon: Receipt, labelKey: "sectionInvoices", requiresPlugin: "wallet", showWhenDisabled: true, locked: true },
       // Deliberately still locked, and the only one left. "Discounts" means two
       // different things here: the platform's own discount codes (routes/
       // discounts.ts, site Postgres) and the bot's `discount` plugin with its
