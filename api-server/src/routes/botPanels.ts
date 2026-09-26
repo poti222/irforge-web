@@ -46,16 +46,18 @@ import {
   PLUGIN_BUTTON_ACTIONS, CATALOG_ORDER_ACTION, ADDRESS_SHOW_ACTION, GAMESERVER_MANAGE_ACTION,
 } from "../lib/pluginButtonActions.js";
 import { PLUGIN_PANEL_TYPES } from "../lib/pluginPanelTypes.js";
+// منتقل شد به lib/buttonValidation.ts (لایوباگ ۲۰۲۶-۰۹-۲۳: lib/addressStore.ts
+// هم به همین تابع نیاز داشت — نمی‌توانست از یک route وارد کند). این فایل هم
+// خودش (پایین) از این‌ها استفاده می‌کند، هم دوباره صادرشان می‌کند تا
+// routes/botForms.ts بدونِ تغییر کار کند.
+import { validateButtons, MAX_BUTTONS_PER_ROW } from "../lib/buttonValidation.js";
+export { validateButtons, MAX_BUTTONS_PER_ROW };
 
 const router = Router();
 
 function bad(message: string, code?: string): BotConfigError {
   return new BotConfigError(400, message, code);
 }
-
-/** حداکثر دکمه در یک ردیف — محدودیت عملی تلگرام. Export شده چون
- * `routes/botForms.ts` هم برای دکمه‌های پیام تشکر عیناً همین را می‌خواهد. */
-export const MAX_BUTTONS_PER_ROW = 8;
 
 // ─── ولیدیشن ────────────────────────────────────────────────────────────────
 
@@ -85,54 +87,6 @@ function validateContent(value: unknown): string {
   if (value.length > TELEGRAM_TEXT_LIMIT)
     throw bad(`محتوای پنل از ${TELEGRAM_TEXT_LIMIT} کاراکتر بیشتر است (سقف تلگرام).`);
   return value;
-}
-
-/** دکمه‌ها: هم پنل‌ها اینجا استفاده می‌کنند، هم `routes/botForms.ts` برای
- * دکمه‌های پیام تشکر — دقیقاً همان شکل/همان اعتبارسنجی، پس یک‌جا نگه‌داشته
- * می‌شود تا اکشنِ جدیدی که اینجا اضافه می‌شود خودکار برای فرم‌ها هم معتبر
- * باشد. */
-export function validateButtons(value: unknown): PanelButton[] {
-  if (!Array.isArray(value)) throw bad("فهرست دکمه‌ها باید آرایه باشد.");
-  if (value.length > 100) throw bad("حداکثر ۱۰۰ دکمه برای یک پنل مجاز است.");
-
-  const buttons = value.map((raw: any, i: number) => {
-    if (!raw || typeof raw !== "object") throw bad(`دکمه‌ی شماره ${i + 1} معتبر نیست.`);
-    const label = String(raw.label ?? "").trim();
-    if (!label) throw bad(`متن دکمه‌ی شماره ${i + 1} خالی است.`);
-    if (label.length > 64) throw bad(`متن دکمه‌ی «${label.slice(0, 20)}…» بیش از ۶۴ کاراکتر است.`);
-
-    const action = String(raw.action ?? "").trim();
-    if (!/^[a-z][a-z0-9_]{0,31}$/.test(action))
-      throw bad(`اکشن دکمه‌ی «${label}» معتبر نیست.`);
-
-    const rawValue = String(raw.value ?? "");
-    if ((action === "url" || action === "mini_app") && rawValue && !/^https:\/\//i.test(rawValue))
-      throw bad(`آدرس دکمه‌ی «${label}» باید با https:// شروع شود.`);
-
-    const style = String(raw.style ?? "");
-    if (style && !(BUTTON_STYLES as readonly string[]).includes(style))
-      throw bad(`استایل دکمه‌ی «${label}» معتبر نیست.`);
-
-    return newButton({
-      label,
-      action,
-      value: rawValue,
-      row: Number(raw.row ?? 0),
-      col: Number(raw.col ?? 0),
-      row_start: raw.row_start === undefined ? undefined : Boolean(raw.row_start),
-      style,
-      ...(raw.icon_custom_emoji_id ? { icon_custom_emoji_id: String(raw.icon_custom_emoji_id) } : {}),
-    });
-  });
-
-  const normalized = normalizeButtonLayout(buttons);
-  const perRow = new Map<number, number>();
-  for (const b of normalized) perRow.set(b.row, (perRow.get(b.row) ?? 0) + 1);
-  for (const [row, count] of perRow) {
-    if (count > MAX_BUTTONS_PER_ROW)
-      throw bad(`ردیف ${row + 1} بیش از ${MAX_BUTTONS_PER_ROW} دکمه دارد؛ تلگرام آن را درست نشان نمی‌دهد.`);
-  }
-  return normalized;
 }
 
 function validateSettings(value: unknown): Record<string, unknown> {
