@@ -110,6 +110,13 @@ export interface CatalogItem {
    */
   notify_admin_ids: string[];
   notify_group: string;
+  /**
+   * PHASE 32 — per-item payment-method restriction: mirrors
+   * `plugins/catalog/domain.py`'s `allowed_payment_methods`. Empty means
+   * unrestricted (every method the shop has enabled) — the default,
+   * unchanged behavior. Known values: "card", "gateway", "wallet_pay".
+   */
+  allowed_payment_methods: string[];
   metadata: Record<string, unknown>;
   created_by?: string;
   created_at?: string;
@@ -310,6 +317,23 @@ function validateNotifyGroup(value: unknown): string {
   return id;
 }
 
+/**
+ * PHASE 32 — which payment methods this item's checkout offers. Empty means
+ * unrestricted. Free-form strings (not a fixed enum) since a plugin can
+ * register its own checkout-button key (handlers/payment.py's
+ * `extensions.get_checkout_buttons()`) — the editor UI only exposes the
+ * known ones ("card"/"gateway"/"wallet_pay") as checkboxes, but this store
+ * doesn't hardcode that list so a future method needs no schema change here.
+ */
+function validateAllowedPaymentMethods(value: unknown): string[] {
+  if (!Array.isArray(value)) throw bad("فهرستِ روش‌های پرداخت باید آرایه باشد.", "bad_payment_methods");
+  return value.map((raw: any, i: number) => {
+    const method = String(raw ?? "").trim();
+    if (!method) throw bad(`روشِ پرداختِ شماره ${i + 1} خالی است.`, "bad_payment_methods");
+    return method;
+  });
+}
+
 /** Best-effort shape coercion — actual type/file_id validation happens in validateItemFields() so the error message is a proper 400, not a thrown TypeError. */
 function parseMediaInput(raw: any): CatalogMedia[] {
   if (!Array.isArray(raw)) return [];
@@ -327,13 +351,16 @@ function parseMediaInput(raw: any): CatalogMedia[] {
  * خواندن اعمال می‌شود تا ادمین چیزِ ازدست‌رفته‌ای نبیند.
  */
 function normalizeItem(item: CatalogItem): CatalogItem {
-  const bodyHtml = item.body_html ?? "";
-  const buttons = item.buttons ?? [];
-  const notifyAdminIds = item.notify_admin_ids ?? [];
-  const notifyGroup = item.notify_group ?? "";
-  if ((item.media?.length ?? 0) > 0) return { ...item, body_html: bodyHtml, buttons, notify_admin_ids: notifyAdminIds, notify_group: notifyGroup };
-  if (!item.image_file_id) return { ...item, media: item.media ?? [], body_html: bodyHtml, buttons, notify_admin_ids: notifyAdminIds, notify_group: notifyGroup };
-  return { ...item, media: [{ type: "photo", file_id: item.image_file_id, caption: "" }], body_html: bodyHtml, buttons, notify_admin_ids: notifyAdminIds, notify_group: notifyGroup };
+  const defaults = {
+    body_html: item.body_html ?? "",
+    buttons: item.buttons ?? [],
+    notify_admin_ids: item.notify_admin_ids ?? [],
+    notify_group: item.notify_group ?? "",
+    allowed_payment_methods: item.allowed_payment_methods ?? [],
+  };
+  if ((item.media?.length ?? 0) > 0) return { ...item, ...defaults };
+  if (!item.image_file_id) return { ...item, ...defaults, media: item.media ?? [] };
+  return { ...item, ...defaults, media: [{ type: "photo", file_id: item.image_file_id, caption: "" }] };
 }
 
 function parseItemInput(body: any, base: Partial<CatalogItem> = {}): Omit<CatalogItem, "id" | "created_at" | "updated_at"> {
@@ -363,6 +390,9 @@ function parseItemInput(body: any, base: Partial<CatalogItem> = {}): Omit<Catalo
     buttons: "buttons" in body ? validateProductButtons(body.buttons) : (base.buttons ?? []),
     notify_admin_ids: "notify_admin_ids" in body ? validateNotifyAdminIds(body.notify_admin_ids) : (base.notify_admin_ids ?? []),
     notify_group: "notify_group" in body ? validateNotifyGroup(body.notify_group) : (base.notify_group ?? ""),
+    allowed_payment_methods: "allowed_payment_methods" in body
+      ? validateAllowedPaymentMethods(body.allowed_payment_methods)
+      : (base.allowed_payment_methods ?? []),
     // fulfillment config لایه‌ی جدا دارد (setFulfillmentConfig) تا یک ویرایشِ
     // فیلدهای اصلیِ کالا metadata.fulfillment را بی‌خبر پاک نکند.
     metadata: base.metadata ?? {},

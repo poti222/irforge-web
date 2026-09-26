@@ -369,6 +369,37 @@ test("getItem/listItems default a legacy item with no notify fields to empty", a
   const fetched = await store.getItem(SID, "item_legacy");
   assert.deepEqual(fetched.notify_admin_ids, []);
   assert.equal(fetched.notify_group, "");
+  assert.deepEqual(fetched.allowed_payment_methods, []);
+});
+
+// ── per-item payment-method restriction (PHASE 32) ──────────────────────────
+
+test("createItem defaults allowed_payment_methods to empty (unrestricted)", async () => {
+  installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  assert.deepEqual(item.allowed_payment_methods, []);
+});
+
+test("createItem stores allowed_payment_methods", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, allowed_payment_methods: ["card", "wallet_pay"] }, UID);
+  assert.deepEqual(item.allowed_payment_methods, ["card", "wallet_pay"]);
+});
+
+test("createItem rejects a non-array or an empty-string entry in allowed_payment_methods", async () => {
+  installSheet();
+  await assert.rejects(() => store.createItem(SID, { ...VALID_ITEM, allowed_payment_methods: "card" }, UID));
+  await assert.rejects(() => store.createItem(SID, { ...VALID_ITEM, allowed_payment_methods: [""] }, UID));
+});
+
+test("updateItem keeps allowed_payment_methods untouched when omitted, replaces when sent", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, allowed_payment_methods: ["card"] }, UID);
+  const untouched = await store.updateItem(SID, item.id, { price: 5000 });
+  assert.deepEqual(untouched.allowed_payment_methods, ["card"]);
+
+  const replaced = await store.updateItem(SID, item.id, { allowed_payment_methods: [] });
+  assert.deepEqual(replaced.allowed_payment_methods, []);
 });
 
 test("getItem/listItems default a legacy item with no buttons key to an empty array", async () => {

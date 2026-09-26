@@ -36,6 +36,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -66,6 +67,8 @@ type CatalogItem = {
   /** PHASE 31 — per-item order-notification targets, additive to the shop's global order group/admin fan-out. */
   notify_admin_ids: string[];
   notify_group: string;
+  /** PHASE 32 — which payment methods this item's checkout offers; empty = unrestricted. */
+  allowed_payment_methods: string[];
 };
 
 /**
@@ -103,6 +106,15 @@ type ItemOption = {
  */
 const FULFILLMENT_TYPES = ["manual", "template", "file", "api", "webhook", "wallet_credit", "pool"] as const;
 const STATUSES = ["active", "draft", "archived"] as const;
+
+/**
+ * PHASE 32 — the payment methods the editor offers as checkboxes. Free-form
+ * on the server (a plugin can register its own checkout button), but these
+ * three are the ones Core/wallet actually expose today — "card"/"gateway"
+ * mirror handlers/payment.py's own method keys, "wallet_pay" is wallet's
+ * registered checkout-button key (plugins/wallet/plugin.py).
+ */
+const PAYMENT_METHOD_OPTIONS = ["card", "gateway", "wallet_pay"] as const;
 
 function errMessage(err: any, fallback: string): string {
   return err?.data?.error ?? err?.message ?? fallback;
@@ -999,6 +1011,7 @@ function ItemEditor({
   const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows(base?.buttons ?? []));
   const [notifyGroup, setNotifyGroup] = useState(base?.notify_group ?? "");
   const [notifyAdminIds, setNotifyAdminIds] = useState((base?.notify_admin_ids ?? []).join("\n"));
+  const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<string[]>(base?.allowed_payment_methods ?? []);
   const [tab, setTab] = useState<ItemEditorTab>("basic");
 
   const { data: panelsData } = usePanels(botId);
@@ -1018,6 +1031,7 @@ function ItemEditor({
         buttons: rowsToButtons(buttonRows),
         notify_group: notifyGroup.trim(),
         notify_admin_ids: notifyAdminIds.split("\n").map((s) => s.trim()).filter(Boolean),
+        allowed_payment_methods: allowedPaymentMethods,
       };
       return current
         ? customFetch<{ item: CatalogItem }>(`/api/bots/${botId}/catalog/items/${current.id}`, { method: "PATCH", body: JSON.stringify(body) })
@@ -1139,6 +1153,27 @@ function ItemEditor({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-1.5 rounded-md border p-2">
+                <Label className="text-sm">{t.fieldAllowedPaymentMethods}</Label>
+                <p className="text-xs text-muted-foreground">{t.allowedPaymentMethodsHint}</p>
+                {PAYMENT_METHOD_OPTIONS.map((m) => (
+                  <div key={m} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`item-pay-method-${m}`}
+                      checked={allowedPaymentMethods.includes(m)}
+                      onCheckedChange={(v) =>
+                        setAllowedPaymentMethods((prev) =>
+                          Boolean(v) ? [...prev, m] : prev.filter((x) => x !== m)
+                        )
+                      }
+                    />
+                    <Label htmlFor={`item-pay-method-${m}`} className="text-sm font-normal">
+                      {(t as Record<string, string>)[`paymentMethod_${m}`] ?? m}
+                    </Label>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
