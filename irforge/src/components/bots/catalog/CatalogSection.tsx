@@ -25,7 +25,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
 import {
-  Store, Loader2, Plus, Trash2, Pencil, Archive, ArchiveRestore, PackageOpen, FolderTree, AlertTriangle, ArrowRight,
+  Store, Loader2, Plus, Trash2, Pencil, Archive, ArchiveRestore, PackageOpen, FolderTree, AlertTriangle, ArrowRight, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -62,6 +63,9 @@ type CatalogItem = {
   media: CatalogMedia[]; body_html: string;
   /** IRFORGE_FULFILLMENT_FORMS_BUTTONS_PROMPT Phase B4 — same `PanelButton` shape panels use. */
   buttons: PanelButton[];
+  /** PHASE 31 — per-item order-notification targets, additive to the shop's global order group/admin fan-out. */
+  notify_admin_ids: string[];
+  notify_group: string;
 };
 
 /**
@@ -957,7 +961,7 @@ function FulfillmentConfigEditor({
 
 // ─── ویرایشگر کالا/سرویس ─────────────────────────────────────────────────────
 
-type ItemEditorTab = "basic" | "content" | "options" | "fulfillment";
+type ItemEditorTab = "basic" | "content" | "notify" | "options" | "fulfillment";
 
 /**
  * صفحه‌ی کاملِ ویرایشِ یک کالا/سرویس — قبلِ این همه‌چیز (اطلاعاتِ پایه، محتوا،
@@ -993,6 +997,8 @@ function ItemEditor({
   const [mediaFileIds, setMediaFileIds] = useState<string[]>(base?.media?.map((m) => m.file_id) ?? []);
   const [bodyHtml, setBodyHtml] = useState(base?.body_html ?? "");
   const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows(base?.buttons ?? []));
+  const [notifyGroup, setNotifyGroup] = useState(base?.notify_group ?? "");
+  const [notifyAdminIds, setNotifyAdminIds] = useState((base?.notify_admin_ids ?? []).join("\n"));
   const [tab, setTab] = useState<ItemEditorTab>("basic");
 
   const { data: panelsData } = usePanels(botId);
@@ -1010,6 +1016,8 @@ function ItemEditor({
         media: mediaFileIds.map((fileId) => ({ type: "photo", file_id: fileId, caption: "" })),
         body_html: bodyHtml,
         buttons: rowsToButtons(buttonRows),
+        notify_group: notifyGroup.trim(),
+        notify_admin_ids: notifyAdminIds.split("\n").map((s) => s.trim()).filter(Boolean),
       };
       return current
         ? customFetch<{ item: CatalogItem }>(`/api/bots/${botId}/catalog/items/${current.id}`, { method: "PATCH", body: JSON.stringify(body) })
@@ -1041,6 +1049,7 @@ function ItemEditor({
           <TabsList className="w-max">
             <TabsTrigger value="basic">{t.tabBasicInfo}</TabsTrigger>
             <TabsTrigger value="content">{t.tabContent}</TabsTrigger>
+            <TabsTrigger value="notify">{t.tabNotify}</TabsTrigger>
             <TabsTrigger value="options" disabled={!current}>{t.tabOptions}</TabsTrigger>
             <TabsTrigger value="fulfillment" disabled={!current}>{t.tabFulfillment}</TabsTrigger>
           </TabsList>
@@ -1166,6 +1175,52 @@ function ItemEditor({
                   onChange={setButtonRows}
                 />
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="notify" className="mt-4">
+          <Card className="max-w-2xl">
+            <CardContent className="space-y-4 pt-6">
+              <div>
+                <p className="text-sm font-medium">{t.notifySectionTitle}</p>
+                <p className="text-xs text-muted-foreground">{t.notifySectionDesc}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="item-notify-group">{t.notifyGroupLabel}</Label>
+                <Input
+                  id="item-notify-group"
+                  dir="ltr"
+                  placeholder="-1001234567890"
+                  value={notifyGroup}
+                  onChange={(e) => setNotifyGroup(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">{t.notifyGroupHint}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="item-notify-admins">{t.notifyAdminsLabel}</Label>
+                <Textarea
+                  id="item-notify-admins"
+                  rows={3}
+                  dir="ltr"
+                  placeholder="120391329"
+                  value={notifyAdminIds}
+                  onChange={(e) => setNotifyAdminIds(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">{t.notifyAdminsHint}</p>
+              </div>
+
+              <Alert>
+                <Info className="size-4" />
+                <AlertTitle>{t.notifyTutorialTitle}</AlertTitle>
+                <AlertDescription>
+                  <ol className="list-decimal space-y-1.5 pe-4 pt-1">
+                    <li>{t.notifyTutorialStep1}</li>
+                    <li>{t.notifyTutorialStep2}</li>
+                    <li>{t.notifyTutorialStep3}</li>
+                  </ol>
+                </AlertDescription>
+              </Alert>
             </CardContent>
           </Card>
         </TabsContent>
