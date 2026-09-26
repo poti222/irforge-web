@@ -171,14 +171,50 @@ export function useSaveAntiFlood(botId: string) {
 
 // ─── پرداخت ─────────────────────────────────────────────────────────────────
 
+/** آینه‌ی `api-server/src/lib/orderGroup.ts::OrderGroupProbe` — نتیجه‌ی
+ * راستی‌آزمایی «گروه سفارش‌ها» با تلگرام، بعد از ذخیره‌ی تنظیماتِ پرداخت. */
+export type OrderGroupCheck = {
+  status: "ok" | "problem" | "unknown";
+  chatId: string | null;
+  title: string;
+  type: string;
+  message: string;
+  code?: string;
+};
+
+/** آینه‌ی `api-server/src/lib/orderGroup.ts::DeliveryTarget` — نتیجه‌ی پیامِ
+ * آزمایشی برایِ یک مقصد (گروهِ سفارش‌ها یا یک ادمین). */
+export type DeliveryResult = {
+  target: "group" | "admin";
+  id: string;
+  label: string;
+  ok: boolean;
+  code?: string;
+  message?: string;
+  suggestedChatId?: string;
+};
+
 export function useSavePaymentConfig(botId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (paymentConfig: PaymentConfig) =>
-      customFetch<{ payment_cfg: PaymentConfig }>(`/api/bots/${botId}/settings/payment`, {
-        method: "PUT",
-        body: JSON.stringify(paymentConfig),
-      }),
+      customFetch<{ payment_cfg: PaymentConfig; orderGroupCheck: OrderGroupCheck | null }>(
+        `/api/bots/${botId}/settings/payment`,
+        { method: "PUT", body: JSON.stringify(paymentConfig) }
+      ),
     onSuccess: () => qc.invalidateQueries({ queryKey: botSettingsKey(botId) }),
+  });
+}
+
+/** `POST /settings/payment/test-delivery` — یک پیامِ آزمایشی به «گروهِ
+ * سفارش‌ها» و به هر ادمینِ بات می‌فرستد؛ همان مسیری که رسید/سفارشِ واقعی
+ * می‌رود، پس نتیجه نشان می‌دهد رسیدها واقعاً می‌رسند یا نه. */
+export function useTestOrderDelivery(botId: string) {
+  return useMutation({
+    mutationFn: (orderGroup: string) =>
+      customFetch<{ results: DeliveryResult[]; adminCount: number; allOk: boolean }>(
+        `/api/bots/${botId}/settings/payment/test-delivery`,
+        { method: "POST", body: JSON.stringify({ order_group: orderGroup }) }
+      ),
   });
 }
