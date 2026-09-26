@@ -57,6 +57,7 @@ type Category = {
   id: string; name: string; name_fa: string; parent_id: string; sort_order: number; is_active: boolean;
 };
 type CatalogMedia = { type: string; file_id: string; caption: string };
+type BulkPriceTier = { min_qty: number; unit_price: number };
 type CatalogItem = {
   id: string; name: string; name_fa: string; description: string; category_id: string;
   price: number; currency: string; compare_at_price: number | null; item_type: string;
@@ -69,6 +70,8 @@ type CatalogItem = {
   notify_group: string;
   /** PHASE 32 — which payment methods this item's checkout offers; empty = unrestricted. */
   allowed_payment_methods: string[];
+  /** PHASE 33 — quantity-discount tiers on the item's own base price; empty = flat pricing. */
+  bulk_price_tiers: BulkPriceTier[];
 };
 
 /**
@@ -1012,6 +1015,7 @@ function ItemEditor({
   const [notifyGroup, setNotifyGroup] = useState(base?.notify_group ?? "");
   const [notifyAdminIds, setNotifyAdminIds] = useState((base?.notify_admin_ids ?? []).join("\n"));
   const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<string[]>(base?.allowed_payment_methods ?? []);
+  const [bulkPriceTiers, setBulkPriceTiers] = useState<BulkPriceTier[]>(base?.bulk_price_tiers ?? []);
   const [tab, setTab] = useState<ItemEditorTab>("basic");
 
   const { data: panelsData } = usePanels(botId);
@@ -1032,6 +1036,9 @@ function ItemEditor({
         notify_group: notifyGroup.trim(),
         notify_admin_ids: notifyAdminIds.split("\n").map((s) => s.trim()).filter(Boolean),
         allowed_payment_methods: allowedPaymentMethods,
+        bulk_price_tiers: bulkPriceTiers
+          .map((t) => ({ min_qty: Number(t.min_qty) || 0, unit_price: Number(t.unit_price) || 0 }))
+          .filter((t) => t.min_qty >= 2),
       };
       return current
         ? customFetch<{ item: CatalogItem }>(`/api/bots/${botId}/catalog/items/${current.id}`, { method: "PATCH", body: JSON.stringify(body) })
@@ -1112,6 +1119,47 @@ function ItemEditor({
                   <Label>{t.fieldCompareAtPrice}</Label>
                   <AmountInput value={compareAtPrice} onChange={(e) => setCompareAtPrice(e.target.value)} />
                 </div>
+              </div>
+
+              <div className="space-y-2 rounded-md border p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-sm">{t.fieldBulkPriceTiers}</Label>
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    onClick={() => setBulkPriceTiers((prev) => [...prev, { min_qty: 2, unit_price: 0 }])}
+                  >
+                    <Plus className="me-1 size-3.5" /> {t.addTier}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">{t.bulkPriceTiersHint}</p>
+                {bulkPriceTiers.map((tier, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs text-muted-foreground">{t.tierMinQty}</Label>
+                      <Input
+                        type="number" dir="ltr" min={2} value={tier.min_qty}
+                        onChange={(e) =>
+                          setBulkPriceTiers((prev) => prev.map((t2, i2) => (i2 === i ? { ...t2, min_qty: Number(e.target.value) || 0 } : t2)))
+                        }
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs text-muted-foreground">{t.tierUnitPrice}</Label>
+                      <AmountInput
+                        value={String(tier.unit_price)}
+                        onChange={(e) =>
+                          setBulkPriceTiers((prev) => prev.map((t2, i2) => (i2 === i ? { ...t2, unit_price: Number(e.target.value) || 0 } : t2)))
+                        }
+                      />
+                    </div>
+                    <Button
+                      type="button" variant="ghost" size="icon" className="mt-5"
+                      onClick={() => setBulkPriceTiers((prev) => prev.filter((_, i2) => i2 !== i))}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                ))}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">

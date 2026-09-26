@@ -370,6 +370,7 @@ test("getItem/listItems default a legacy item with no notify fields to empty", a
   assert.deepEqual(fetched.notify_admin_ids, []);
   assert.equal(fetched.notify_group, "");
   assert.deepEqual(fetched.allowed_payment_methods, []);
+  assert.deepEqual(fetched.bulk_price_tiers, []);
 });
 
 // ── per-item payment-method restriction (PHASE 32) ──────────────────────────
@@ -400,6 +401,48 @@ test("updateItem keeps allowed_payment_methods untouched when omitted, replaces 
 
   const replaced = await store.updateItem(SID, item.id, { allowed_payment_methods: [] });
   assert.deepEqual(replaced.allowed_payment_methods, []);
+});
+
+// ── quantity-discount pricing tiers (PHASE 33) ──────────────────────────────
+
+test("createItem defaults bulk_price_tiers to empty", async () => {
+  installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  assert.deepEqual(item.bulk_price_tiers, []);
+});
+
+test("createItem stores well-formed bulk_price_tiers", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    bulk_price_tiers: [{ min_qty: 10, unit_price: 800 }, { min_qty: 50, unit_price: 600 }],
+  }, UID);
+  assert.deepEqual(item.bulk_price_tiers, [{ min_qty: 10, unit_price: 800 }, { min_qty: 50, unit_price: 600 }]);
+});
+
+test("createItem rejects a tier with min_qty below 2 or a negative unit_price", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, bulk_price_tiers: [{ min_qty: 1, unit_price: 800 }] }, UID),
+  );
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, bulk_price_tiers: [{ min_qty: 10, unit_price: -1 }] }, UID),
+  );
+});
+
+test("createItem rejects bulk_price_tiers that isn't an array", async () => {
+  installSheet();
+  await assert.rejects(() => store.createItem(SID, { ...VALID_ITEM, bulk_price_tiers: "nope" }, UID));
+});
+
+test("updateItem keeps bulk_price_tiers untouched when omitted, replaces when sent", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, bulk_price_tiers: [{ min_qty: 5, unit_price: 900 }] }, UID);
+  const untouched = await store.updateItem(SID, item.id, { price: 5000 });
+  assert.deepEqual(untouched.bulk_price_tiers, [{ min_qty: 5, unit_price: 900 }]);
+
+  const replaced = await store.updateItem(SID, item.id, { bulk_price_tiers: [] });
+  assert.deepEqual(replaced.bulk_price_tiers, []);
 });
 
 test("getItem/listItems default a legacy item with no buttons key to an empty array", async () => {

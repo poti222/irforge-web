@@ -117,10 +117,22 @@ export interface CatalogItem {
    * unchanged behavior. Known values: "card", "gateway", "wallet_pay".
    */
   allowed_payment_methods: string[];
+  /**
+   * PHASE 33 — quantity-discount pricing on the item's own base price (not
+   * its options/plans, which keep their own independent price): mirrors
+   * `plugins/catalog/domain.py`'s `bulk_price_tiers`. Empty means flat
+   * pricing regardless of quantity — the default, unchanged behavior.
+   */
+  bulk_price_tiers: BulkPriceTier[];
   metadata: Record<string, unknown>;
   created_by?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface BulkPriceTier {
+  min_qty: number;
+  unit_price: number;
 }
 
 export interface ItemOption {
@@ -334,6 +346,23 @@ function validateAllowedPaymentMethods(value: unknown): string[] {
   });
 }
 
+/** PHASE 33 — mirrors `plugins/catalog/domain.py::validate_item_data`'s own
+ * bulk_price_tiers checks: min_qty >= 2 (qty 1 is just the base price) and
+ * a non-negative unit_price. */
+function validateBulkPriceTiers(value: unknown): BulkPriceTier[] {
+  if (!Array.isArray(value)) throw bad("پله‌های قیمتِ عمده باید یک لیست باشند.", "bad_bulk_price_tiers");
+  if (value.length > 20) throw bad("حداکثر ۲۰ پله برای یک محصول مجاز است.", "bad_bulk_price_tiers");
+  return value.map((raw: any, i: number) => {
+    const minQty = Number(raw?.min_qty);
+    const unitPrice = Number(raw?.unit_price);
+    if (!Number.isInteger(minQty) || minQty < 2)
+      throw bad(`حداقل‌تعدادِ پله‌ی ${i + 1} باید عددی صحیح و حداقل ۲ باشد.`, "bad_bulk_price_tiers");
+    if (!Number.isFinite(unitPrice) || unitPrice < 0)
+      throw bad(`قیمتِ واحدِ پله‌ی ${i + 1} باید عددی صفر یا بزرگ‌تر باشد.`, "bad_bulk_price_tiers");
+    return { min_qty: minQty, unit_price: unitPrice };
+  });
+}
+
 /** Best-effort shape coercion — actual type/file_id validation happens in validateItemFields() so the error message is a proper 400, not a thrown TypeError. */
 function parseMediaInput(raw: any): CatalogMedia[] {
   if (!Array.isArray(raw)) return [];
@@ -357,6 +386,7 @@ function normalizeItem(item: CatalogItem): CatalogItem {
     notify_admin_ids: item.notify_admin_ids ?? [],
     notify_group: item.notify_group ?? "",
     allowed_payment_methods: item.allowed_payment_methods ?? [],
+    bulk_price_tiers: item.bulk_price_tiers ?? [],
   };
   if ((item.media?.length ?? 0) > 0) return { ...item, ...defaults };
   if (!item.image_file_id) return { ...item, ...defaults, media: item.media ?? [] };
@@ -393,6 +423,9 @@ function parseItemInput(body: any, base: Partial<CatalogItem> = {}): Omit<Catalo
     allowed_payment_methods: "allowed_payment_methods" in body
       ? validateAllowedPaymentMethods(body.allowed_payment_methods)
       : (base.allowed_payment_methods ?? []),
+    bulk_price_tiers: "bulk_price_tiers" in body
+      ? validateBulkPriceTiers(body.bulk_price_tiers)
+      : (base.bulk_price_tiers ?? []),
     // fulfillment config لایه‌ی جدا دارد (setFulfillmentConfig) تا یک ویرایشِ
     // فیلدهای اصلیِ کالا metadata.fulfillment را بی‌خبر پاک نکند.
     metadata: base.metadata ?? {},
