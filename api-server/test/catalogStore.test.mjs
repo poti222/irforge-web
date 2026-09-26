@@ -245,6 +245,14 @@ test("createItem accepts fulfillment_type 'pool'", async () => {
   assert.equal(item.fulfillment_type, "pool");
 });
 
+test("createItem accepts fulfillment_type 'physical_ship' and 'physical_pickup'", async () => {
+  installSheet();
+  const shipped = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "physical_ship" }, UID);
+  assert.equal(shipped.fulfillment_type, "physical_ship");
+  const pickup = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "physical_pickup" }, UID);
+  assert.equal(pickup.fulfillment_type, "physical_pickup");
+});
+
 // ── buttons (IRFORGE_FULFILLMENT_FORMS_BUTTONS_PROMPT Phase B4) ────────────
 //
 // Same PanelButton shape/normalization panels already use, but restricted to

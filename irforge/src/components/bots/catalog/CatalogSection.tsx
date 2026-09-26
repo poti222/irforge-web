@@ -517,6 +517,72 @@ function TemplateFulfillmentForm({ botId, itemId, config, disabled }: Fulfillmen
   );
 }
 
+function PhysicalShipFulfillmentForm({ botId, itemId, config, disabled }: FulfillmentFormProps) {
+  const t = useT("botCatalog");
+  const save = useSaveFulfillmentConfig(botId, itemId);
+  const [shippedMessage, setShippedMessage] = useState(String(config.shipped_message ?? ""));
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">{t.fulfillmentPhysicalShipHelp}</p>
+      <div className="space-y-1.5">
+        <Label>{t.fulfillmentShippedMessage}</Label>
+        <Textarea
+          dir="rtl" rows={3} maxLength={2048} value={shippedMessage}
+          placeholder={t.fulfillmentShippedMessagePlaceholder}
+          onChange={(e) => setShippedMessage(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">{t.fulfillmentShippedMessageHint}</p>
+      </div>
+      <Button size="sm" onClick={() => save.mutate({ ...config, shipped_message: shippedMessage })} disabled={disabled || save.isPending}>
+        {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+        {t.saveFulfillmentConfig}
+      </Button>
+    </div>
+  );
+}
+
+function PhysicalPickupFulfillmentForm({ botId, itemId, config, disabled }: FulfillmentFormProps) {
+  const t = useT("botCatalog");
+  const save = useSaveFulfillmentConfig(botId, itemId);
+  const [pickupEta, setPickupEta] = useState(String(config.pickup_eta ?? ""));
+  const [pickupAddress, setPickupAddress] = useState(String(config.pickup_address ?? ""));
+  const [readyMessage, setReadyMessage] = useState(String(config.pickup_ready_message ?? ""));
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">{t.fulfillmentPhysicalPickupHelp}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label>{t.fulfillmentPickupEta}</Label>
+          <Input value={pickupEta} maxLength={100} placeholder={t.fulfillmentPickupEtaPlaceholder} onChange={(e) => setPickupEta(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>{t.fulfillmentPickupAddress}</Label>
+          <Input value={pickupAddress} maxLength={300} onChange={(e) => setPickupAddress(e.target.value)} />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label>{t.fulfillmentPickupReadyMessage}</Label>
+        <Textarea
+          dir="rtl" rows={3} maxLength={2048} value={readyMessage}
+          placeholder={t.fulfillmentPickupReadyMessagePlaceholder}
+          onChange={(e) => setReadyMessage(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">{t.fulfillmentPickupReadyMessageHint}</p>
+      </div>
+      <Button
+        size="sm"
+        onClick={() => save.mutate({ ...config, pickup_eta: pickupEta, pickup_address: pickupAddress, pickup_ready_message: readyMessage })}
+        disabled={disabled || save.isPending}
+      >
+        {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+        {t.saveFulfillmentConfig}
+      </Button>
+    </div>
+  );
+}
+
 const FILE_KINDS = ["document", "photo", "video", "audio"] as const;
 
 function FileFulfillmentForm({ botId, itemId, config, disabled }: FulfillmentFormProps) {
@@ -955,6 +1021,8 @@ function FulfillmentConfigEditor({
       case "api": return <ApiFulfillmentForm {...formProps} />;
       case "webhook": return <WebhookFulfillmentForm {...formProps} />;
       case "wallet_credit": return <WalletCreditFulfillmentForm {...formProps} />;
+      case "physical_ship": return <PhysicalShipFulfillmentForm {...formProps} />;
+      case "physical_pickup": return <PhysicalPickupFulfillmentForm {...formProps} />;
       case "pool": return (
         <div className="space-y-4">
           <PoolInventoryManager botId={botId} itemId={itemId} />

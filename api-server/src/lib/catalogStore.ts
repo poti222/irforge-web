@@ -39,7 +39,14 @@ export const STATUS_DRAFT = "draft";
 export const STATUS_ARCHIVED = "archived";
 export const VALID_STATUSES = [STATUS_ACTIVE, STATUS_DRAFT, STATUS_ARCHIVED] as const;
 
-export const FULFILLMENT_TYPES = ["manual", "template", "file", "api", "webhook", "wallet_credit", "pool"] as const;
+export const FULFILLMENT_TYPES = [
+  "manual", "template", "file", "api", "webhook", "wallet_credit", "pool",
+  // PHASE 35 — physical products: shipped (resolved later with a real
+  // tracking code, plugins/catalog/handlers.py's queue) or picked up in
+  // person (auto-resolves immediately with a pickup_eta/pickup_address
+  // message — see plugins/catalog/fulfillment.py's two new executors).
+  "physical_ship", "physical_pickup",
+] as const;
 
 /**
  * IRFORGE_CATALOG_RICH_EDITOR_PROMPT Part B — mirrors
