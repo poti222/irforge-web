@@ -15,6 +15,19 @@
 import {
   getEntity, putEntity, listEntity, removeEntity, assertSheetsAuthoritative, BotConfigError,
 } from "./botConfig.js";
+import type { PanelButton, PanelMediaItem } from "./botTypes.js";
+import { validateButtons } from "./buttonValidation.js";
+// لایوباگ ۲۰۲۶-۰۹-۲۳: «ویرایشی که توی سایت می‌کنم توی بات اصلاح نمی‌شه» —
+// createAddress/updateAddress/deleteAddress هر سه بی‌قیدوشرط
+// assertSheetsAuthoritative(ADDRESSES_TAB) صدا می‌زدند، که به محضِ
+// روشن‌شدنِ پرچمِ cutoverِ «addresses» یک تننت با ۴۰۹ رد می‌شد — چون
+// lib/businessPg.ts هنوز «addresses» را نمی‌شناخت. حالا که می‌شناسد،
+// listEntity/putEntity/removeEntity خودشان برای تننتِ cutover‌شده به
+// Postgres می‌روند و دیگر نیازی به این قفل نیست — دقیقاً همان اصلاحی که
+// «forms»/«panels» قبلاً گرفتند (`routes/botForms.ts`ی همین حس را ببین).
+// `setAddressConfig` جدا مانده: آن روی تبِ «bot_settings» می‌نویسد که هنوز
+// در businessPg.ts ثبت نشده (دامنه‌ی این باگ فقط addresses بود، نه هر چیزی
+// که آن تب را می‌نویسد)، پس قفلش عمداً دست‌نخورده ماند.
 import { nowIso } from "./botTypes.js";
 import { newRecordId } from "./pluginCollections.js";
 
@@ -43,15 +56,25 @@ export interface Address {
   latitude?: number | null;
   longitude?: number | null;
   photo_file_id?: string;
-  /** چند عکس (آلبوم در تلگرام اگه بیش از یکی بود). `photo_file_id` تکی فقط
-   * برای رکوردهای قدیمی نگه داشته شده -- نوشتن‌های جدید فقط این را پر می‌کنند. */
+  /** میراث — فقط عکس، فقط برای رکوردهای قدیمی نگه داشته شده. نوشتن‌هایِ تازه
+   * `media_items` را پر می‌کنند (لایوباگ ۲۰۲۶-۰۹-۲۳: «نمی‌شه چند تا عکس یا
+   * ویدیو یا ... اضافه کرد»)؛ خواندن هنوز اینجا هم پشتیبانی می‌شود
+   * (`withPhotoFallback` پایین). */
   photo_file_ids?: string[];
+  /** عکس/ویدیو/صوت/فایل — دقیقاً همان شکلِ `Panel.settings.media_items`
+   * (`PanelMediaItem`، `botTypes.ts`)، تا سایت و بات یک منبعِ حقیقتِ واحد
+   * برایِ نوعِ مدیا داشته باشند. */
+  media_items?: PanelMediaItem[];
   phone?: string;
   plus_code?: string;
   map_url?: string;
   hours_note?: string;
   is_default?: boolean;
   is_active?: boolean;
+  /** دقیقاً همان شکلِ `Panel.buttons` — `ButtonBuilder.tsx`ی سایت بدونِ هیچ
+   * تغییری اینجا هم استفاده می‌شود (لایوباگ ۲۰۲۶-۰۹-۲۳: «قابلیتِ دکمه‌زدن
+   * مثلِ پنل‌ها رو نداره»). */
+  buttons?: PanelButton[];
   contact_entries?: ContactEntry[];
   created_at?: string;
   updated_at?: string;
@@ -104,6 +127,8 @@ export function parseAddressInput(body: any, { partial }: { partial: boolean }):
     out.photo_file_ids = body.photo_file_ids.map((v: unknown) => String(v || "").slice(0, 200)).filter(Boolean);
   }
   if (body.photo_file_id !== undefined) out.photo_file_id = String(body.photo_file_id || "").slice(0, 200);
+  if (body.media_items !== undefined) out.media_items = parseMediaItems(body.media_items);
+  if (body.buttons !== undefined) out.buttons = validateButtons(body.buttons);
   if (body.phone !== undefined) out.phone = String(body.phone || "").slice(0, 32);
   if (body.plus_code !== undefined) out.plus_code = String(body.plus_code || "").slice(0, 32);
   if (body.map_url !== undefined) out.map_url = String(body.map_url || "").slice(0, 500);
@@ -113,6 +138,22 @@ export function parseAddressInput(body: any, { partial }: { partial: boolean }):
   if (body.contact_entries !== undefined) out.contact_entries = parseContactEntries(body.contact_entries);
 
   return out;
+}
+
+/** آینه‌ی دقیقِ `routes/botPanels.ts`ی اعتبارسنجیِ `settings.media_items` —
+ * همان محدودیتِ ۱۰تاییِ MAX_PHOTOسِ قدیمی هم برایِ اینجا نگه داشته شد. */
+function parseMediaItems(value: unknown): PanelMediaItem[] {
+  if (!Array.isArray(value)) throw bad("فهرستِ مدیا باید آرایه باشد.", "bad_media");
+  if (value.length > MAX_PHOTOS) throw bad(`حداکثر ${MAX_PHOTOS} آیتمِ مدیا مجاز است.`, "bad_media");
+  return value.map((raw: any, i: number) => {
+    if (!raw || typeof raw !== "object") throw bad(`آیتمِ مدیایِ شماره ${i + 1} معتبر نیست.`, "bad_media");
+    const itemType = String(raw.type ?? "");
+    if (!["photo", "video", "audio", "document"].includes(itemType))
+      throw bad(`نوعِ آیتمِ مدیایِ شماره ${i + 1} معتبر نیست.`, "bad_media");
+    const fileId = String(raw.file_id ?? "").trim();
+    if (!fileId) throw bad(`آیتمِ مدیایِ شماره ${i + 1} file_id ندارد.`, "bad_media");
+    return { type: itemType as PanelMediaItem["type"], file_id: fileId };
+  });
 }
 
 const MAX_CONTACT_ENTRIES = 20;
@@ -139,23 +180,34 @@ function parseContactEntries(value: unknown): ContactEntry[] {
   });
 }
 
-/** رکوردهای قبل از پشتیبانیِ چند-عکسه فقط `photo_file_id` تکی داشتند. */
-function withPhotoFallback(addr: Address): Address {
-  if (addr.photo_file_ids && addr.photo_file_ids.length > 0) return addr;
-  return addr.photo_file_id ? { ...addr, photo_file_ids: [addr.photo_file_id] } : addr;
+/**
+ * رکوردهای قدیمی هنوز `media_items` ندارند — یا فقط `photo_file_ids`ی
+ * چندعکسیِ قبلی دارند، یا حتی قدیمی‌تر فقط `photo_file_id` تکی. هر دو حالت
+ * به همان شکلی که `plugins/address/domain.py::media_items_of` سمتِ بات
+ * می‌خواند بازسازی می‌شوند — همان منبعِ حقیقتِ واحد، همان اولویت
+ * (media_items > photo_file_ids > photo_file_id) — بدونِ نیازِ مهاجرتِ دیتا.
+ */
+function withMediaFallback(addr: Address): Address {
+  const withPhotos = addr.photo_file_ids && addr.photo_file_ids.length > 0
+    ? addr
+    : addr.photo_file_id ? { ...addr, photo_file_ids: [addr.photo_file_id] } : addr;
+  if (withPhotos.media_items && withPhotos.media_items.length > 0) return withPhotos;
+  const legacyIds = withPhotos.photo_file_ids ?? [];
+  if (legacyIds.length === 0) return withPhotos;
+  return { ...withPhotos, media_items: legacyIds.map((file_id) => ({ type: "photo" as const, file_id })) };
 }
 
 export async function listAddresses(spreadsheetId: string): Promise<Address[]> {
   const rows = await listEntity<Address>(spreadsheetId, ADDRESSES_TAB);
   return rows
     .filter((r) => r.value && typeof r.value === "object")
-    .map((r) => withPhotoFallback({ ...(r.value as Address), id: r.key }))
+    .map((r) => withMediaFallback({ ...(r.value as Address), id: r.key }))
     .sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")));
 }
 
 export async function getAddress(spreadsheetId: string, id: string): Promise<Address | null> {
   const value = await getEntity<Address>(spreadsheetId, ADDRESSES_TAB, id);
-  return value ? withPhotoFallback({ ...value, id }) : null;
+  return value ? withMediaFallback({ ...value, id }) : null;
 }
 
 /** یک آدرسِ پیش‌فرض بیشتر معنا ندارد — ست‌کردن یکی، بقیه را خودکار خاموش می‌کند. */
@@ -169,7 +221,6 @@ async function clearOtherDefaults(spreadsheetId: string, exceptId: string): Prom
 }
 
 export async function createAddress(spreadsheetId: string, body: any): Promise<Address> {
-  await assertSheetsAuthoritative(ADDRESSES_TAB);
   const parsed = parseAddressInput(body, { partial: false });
   const id = newRecordId("addr");
   const record: Address = {
@@ -180,6 +231,8 @@ export async function createAddress(spreadsheetId: string, body: any): Promise<A
     longitude: parsed.longitude ?? null,
     photo_file_id: parsed.photo_file_id ?? "",
     photo_file_ids: parsed.photo_file_ids ?? [],
+    media_items: parsed.media_items ?? [],
+    buttons: parsed.buttons ?? [],
     phone: parsed.phone ?? "",
     plus_code: parsed.plus_code ?? "",
     map_url: parsed.map_url ?? "",
@@ -196,7 +249,6 @@ export async function createAddress(spreadsheetId: string, body: any): Promise<A
 }
 
 export async function updateAddress(spreadsheetId: string, id: string, body: any): Promise<Address> {
-  await assertSheetsAuthoritative(ADDRESSES_TAB);
   const existing = await getAddress(spreadsheetId, id);
   if (!existing) throw new BotConfigError(404, "این آدرس پیدا نشد.", "address_not_found");
 
@@ -208,7 +260,6 @@ export async function updateAddress(spreadsheetId: string, id: string, body: any
 }
 
 export async function deleteAddress(spreadsheetId: string, id: string): Promise<boolean> {
-  await assertSheetsAuthoritative(ADDRESSES_TAB);
   return removeEntity(spreadsheetId, ADDRESSES_TAB, id);
 }
 

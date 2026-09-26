@@ -9,11 +9,12 @@
  * unauthenticated traffic once it's not a one-off; CARTO's tiles are
  * explicitly free for this.
  *
- * Photo upload reuses the existing `POST /api/bots/:botId/media` endpoint
- * (already used elsewhere for panel/broadcast media): the browser sends a
- * data-URL, the server relays it to Telegram via sendPhoto and hands back
- * the resulting file_id, which is what the bot actually needs to resend
- * the photo later — there is no local image hosting involved.
+ * Media upload/preview is delegated to `MediaList` (`../panels/MediaList`) —
+ * the exact same multi-type (photo/video/audio/document) picker panels use,
+ * reused as-is instead of the old photo-only uploader this section used to
+ * build by hand (live report, 2026-09-23: "can't add multiple photos or
+ * videos or ..."). It talks to the same `POST /api/bots/:botId/media`
+ * upload endpoint and the same authed media proxy for previews.
  */
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,7 +22,7 @@ import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { MapPin, Loader2, Plus, Star, Trash2, Pencil, Phone, X } from "lucide-react";
+import { MapPin, Loader2, Plus, Star, Trash2, Pencil, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,13 +38,36 @@ import {
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
-import { useAuthedBlobUrl } from "@/hooks/use-authed-media";
+import { MediaList, type MediaMeta } from "../panels/MediaList";
+import { ButtonBuilder } from "../panels/ButtonBuilder";
+import { usePanels, usePanelCatalog } from "../panels/api";
+import { buttonsToRows, rowsToButtons, type PanelButton } from "@/lib/panel-buttons";
 
 type ContactEntryKind = "phone" | "address" | "email" | "link" | "text";
 type ContactEntry = { id: string; kind: ContactEntryKind; label: string; value: string };
 const CONTACT_ENTRY_KINDS: ContactEntryKind[] = ["phone", "address", "email", "link", "text"];
 const MAX_CONTACT_ENTRIES = 20;
-const MAX_PHOTOS = 10;
+
+type AddressMediaItem = { type: "photo" | "video" | "audio" | "document"; file_id: string };
+
+/** فرم‌ها برایِ انتخابگرِ دکمه‌ی «form» — آینه‌ی `PanelEditor.tsx::useFormOptions`،
+ * عمداً با همان queryKey تا کش بینِ دو ویرایشگر مشترک شود. */
+function useFormOptions(botId: string) {
+  return useQuery({
+    queryKey: ["bot-form-options", botId],
+    queryFn: async () => {
+      try {
+        const res = await customFetch<{ forms: Array<{ id: string; title: string }> }>(
+          `/api/bots/${botId}/forms`
+        );
+        return res.forms ?? [];
+      } catch {
+        return [] as Array<{ id: string; title: string }>;
+      }
+    },
+    staleTime: 60_000,
+  });
+}
 
 type Address = {
   id: string;
@@ -52,12 +76,20 @@ type Address = {
   latitude: number | null;
   longitude: number | null;
   photo_file_ids?: string[];
+  /** عکس/ویدیو/صوت/فایل — همان شکلِ `Panel.settings.media_items`. سرور برایِ
+   * رکوردهایِ قدیمی این را از `photo_file_ids` بازمی‌سازد، پس اینجا همیشه
+   * منبعِ حقیقت است (نگاه کن `addressStore.ts::withMediaFallback`). */
+  media_items?: AddressMediaItem[];
   phone?: string;
   plus_code?: string;
   map_url?: string;
   hours_note?: string;
   is_default?: boolean;
   is_active?: boolean;
+  /** دقیقاً همان شکلِ `Panel.buttons` — `ButtonBuilder.tsx` بدونِ هیچ تغییری
+   * اینجا هم استفاده می‌شود (لایوباگ ۲۰۲۶-۰۹-۲۳: «قابلیتِ دکمه‌زدن مثلِ
+   * پنل‌ها رو نداره»). */
+  buttons?: PanelButton[];
   /** IRFORGE_BOOKING_FORM_CONTACT_REFERRAL_PROMPT پیگیری — لیستِ آزادِ
    *  شماره‌هایِ اضافی/ایمیل/لینک/یادداشت، ادغام‌شده از نوعِ پنلِ رایگانِ
    *  contact_info به داخلِ همینِ پلاگین. */
@@ -94,17 +126,24 @@ const DEFAULT_ICON = L.icon({
   shadowSize: [41, 41],
 });
 
-/** یک نقشه‌ی لیفلت + یک مارکرِ قابل‌کشیدن/کلیک؛ مختصات فقط از این طریق تغییر می‌کند. */
+/** یک نقشه‌ی لیفلت + یک مارکرِ قابل‌کشیدن/کلیک؛ مختصات فقط از این طریق تغییر می‌کند.
+ * `focusToken`: یک شمارنده که فقط برایِ جهش‌هایِ برنامه‌ای (مثلاً دکمه‌ی «موقعیت
+ * من») افزایش می‌یابد — کلیک/کشیدنِ دستی عمداً نقشه را دوباره پن/زوم نمی‌کند
+ * (وسطِ تعاملِ کاربر، پرش‌ناگهانیِ نما گیج‌کننده است). */
 function MapPicker({
-  lat, lng, onChange,
-}: { lat: number; lng: number; onChange: (lat: number, lng: number) => void }) {
+  lat, lng, onChange, focusToken,
+}: { lat: number; lng: number; onChange: (lat: number, lng: number) => void; focusToken?: number }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current).setView([lat || DEFAULT_CENTER[0], lng || DEFAULT_CENTER[1]], 14);
+    // زومِ ۱۴ (سطحِ محله) برایِ گذاشتنِ دقیقِ پین خیلی درشت بود — لایوباگِ
+    // ۲۰۲۶-۰۹-۲۳ («مسیریابی از موقعیتِ خودم نمی‌ره») نشون داد که پینِ ذخیره‌شده
+    // گاهی همون مرکزِ پیش‌فرضِ تهران بوده، چون ادمین اصلاً لمسش نکرده بود؛ زومِ
+    // ۱۶ (سطحِ خیابون) این خطا را برایِ کلیکِ اول هم کمتر محتمل می‌کند.
+    const map = L.map(containerRef.current).setView([lat || DEFAULT_CENTER[0], lng || DEFAULT_CENTER[1]], 16);
     L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
       attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
       subdomains: "abcd",
@@ -134,33 +173,16 @@ function MapPicker({
     if (markerRef.current && lat && lng) markerRef.current.setLatLng([lat, lng]);
   }, [lat, lng]);
 
+  // فقط جهش‌هایِ برنامه‌ای (دکمه‌ی «موقعیت من») نما را هم پن/زوم می‌کنند.
+  useEffect(() => {
+    if (focusToken === undefined || focusToken === 0 || !mapRef.current) return;
+    mapRef.current.flyTo([lat, lng], 17);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusToken]);
+
   return <div ref={containerRef} className="h-72 w-full rounded-md border" />;
 }
 
-/** پیش‌نمایشِ یک عکسِ آدرس — پروکسیِ مدیا احرازهویت می‌خواهد، پس `<img
- * src>` خام نمی‌تواند مستقیم به آن اشاره کند (نگاه کن use-authed-media.ts). */
-function AddressPhotoThumb({ botId, fid, onRemove, t }: { botId: string; fid: string; onRemove: () => void; t: Record<string, string> }) {
-  const { url: blobSrc } = useAuthedBlobUrl(`/api/bots/${botId}/media/${fid}`);
-  return (
-    <div className="relative">
-      {blobSrc ? (
-        <img src={blobSrc} alt="" className="h-16 w-16 rounded-md border object-cover" />
-      ) : (
-        <div className="flex h-16 w-16 items-center justify-center rounded-md border bg-muted/40">
-          <Loader2 className="size-4 animate-spin text-muted-foreground" />
-        </div>
-      )}
-      <button
-        type="button"
-        aria-label={t.photoRemove}
-        onClick={onRemove}
-        className="absolute -end-1.5 -top-1.5 rounded-full bg-destructive p-0.5 text-destructive-foreground"
-      >
-        <X className="size-3" />
-      </button>
-    </div>
-  );
-}
 
 function AddressEditor({
   botId, address, onClose,
@@ -174,37 +196,51 @@ function AddressEditor({
   const [hasLocation, setHasLocation] = useState(address?.latitude != null && address?.longitude != null);
   const [lat, setLat] = useState(address?.latitude ?? DEFAULT_CENTER[0]);
   const [lng, setLng] = useState(address?.longitude ?? DEFAULT_CENTER[1]);
+  // لایوباگ ۲۰۲۶-۰۹-۲۳: بدونِ این، ادمین می‌توانست hasLocation را روشن کند و
+  // بدونِ لمسِ نقشه ذخیره کند — پینِ پیش‌فرض (مرکزِ تهران) بی‌صدا به‌عنوانِ
+  // موقعیتِ واقعی ذخیره می‌شد. یک آدرسِ موجود که از قبل مختصاتِ واقعی داشت
+  // «لمس‌شده» فرض می‌شود؛ آدرسِ تازه یا لوکیشنِ تازه‌روشن‌شده نه.
+  const [locationTouched, setLocationTouched] = useState(address?.latitude != null && address?.longitude != null);
+  const [locatingSelf, setLocatingSelf] = useState(false);
+  const [focusToken, setFocusToken] = useState(0);
   const [phone, setPhone] = useState(address?.phone ?? "");
   const [hoursNote, setHoursNote] = useState(address?.hours_note ?? "");
   const [plusCode, setPlusCode] = useState(address?.plus_code ?? "");
   const [isDefault, setIsDefault] = useState(address?.is_default ?? false);
-  const [photoFileIds, setPhotoFileIds] = useState<string[]>(address?.photo_file_ids ?? []);
-  const [uploading, setUploading] = useState(false);
+  const [media, setMedia] = useState<string[]>((address?.media_items ?? []).map((it) => it.file_id));
+  const [mediaMeta, setMediaMeta] = useState<Record<string, MediaMeta>>(() => {
+    const out: Record<string, MediaMeta> = {};
+    for (const it of address?.media_items ?? []) out[it.file_id] = { kind: it.type, duration: null };
+    return out;
+  });
   const [contactEntries, setContactEntries] = useState<ContactEntry[]>(address?.contact_entries ?? []);
+  const [rows, setRows] = useState<PanelButton[][]>(() => buttonsToRows(address?.buttons ?? []));
+  const { data: panelsData } = usePanels(botId);
+  const panels = panelsData?.panels ?? [];
+  const { data: formsData } = useFormOptions(botId);
+  const forms = formsData ?? [];
+  const { data: catalog } = usePanelCatalog(botId);
 
-  async function handlePhotos(files: FileList) {
-    const remaining = MAX_PHOTOS - photoFileIds.length;
-    if (remaining <= 0) return;
-    setUploading(true);
-    try {
-      for (const file of Array.from(files).slice(0, remaining)) {
-        const dataUrl: string = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result));
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        const result = await customFetch<{ fileId: string }>(`/api/bots/${botId}/media`, {
-          method: "POST",
-          body: JSON.stringify({ dataUrl, filename: file.name }),
-        });
-        setPhotoFileIds((prev) => [...prev, result.fileId]);
-      }
-    } catch (err: any) {
-      toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) });
-    } finally {
-      setUploading(false);
+  function useMyLocation() {
+    if (!navigator.geolocation) {
+      toast({ variant: "destructive", title: t.geolocationUnsupported });
+      return;
     }
+    setLocatingSelf(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(pos.coords.latitude);
+        setLng(pos.coords.longitude);
+        setLocationTouched(true);
+        setFocusToken((x) => x + 1);
+        setLocatingSelf(false);
+      },
+      () => {
+        toast({ variant: "destructive", title: t.geolocationFailed });
+        setLocatingSelf(false);
+      },
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
   }
 
   const save = useMutation({
@@ -214,7 +250,12 @@ function AddressEditor({
         latitude: hasLocation ? lat : null,
         longitude: hasLocation ? lng : null,
         phone, hours_note: hoursNote, plus_code: plusCode, is_default: isDefault,
-        photo_file_ids: photoFileIds, contact_entries: contactEntries,
+        media_items: media.map((fileId) => ({
+          type: mediaMeta[fileId]?.kind && mediaMeta[fileId].kind !== "unknown" ? mediaMeta[fileId].kind : "photo",
+          file_id: fileId,
+        })),
+        contact_entries: contactEntries,
+        buttons: rowsToButtons(rows),
       };
       return address
         ? customFetch(`/api/bots/${botId}/addresses/${address.id}`, { method: "PATCH", body: JSON.stringify(body) })
@@ -252,9 +293,25 @@ function AddressEditor({
             </div>
             {hasLocation && (
               <div className="space-y-1 pt-2">
-                <p className="text-xs text-muted-foreground">{t.mapHelp}</p>
-                <MapPicker lat={lat} lng={lng} onChange={(a, b) => { setLat(a); setLng(b); }} />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">{t.mapHelp}</p>
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    disabled={locatingSelf}
+                    onClick={useMyLocation}
+                  >
+                    {locatingSelf ? <Loader2 className="me-1.5 size-3.5 animate-spin" /> : null}
+                    {locatingSelf ? t.locatingSelf : t.useMyLocationCta}
+                  </Button>
+                </div>
+                <MapPicker
+                  lat={lat} lng={lng} focusToken={focusToken}
+                  onChange={(a, b) => { setLat(a); setLng(b); setLocationTouched(true); }}
+                />
                 <p dir="ltr" className="text-xs text-muted-foreground">{lat.toFixed(5)}, {lng.toFixed(5)}</p>
+                {!locationTouched && (
+                  <p className="text-xs text-destructive">{t.locationNotPlacedWarning}</p>
+                )}
               </div>
             )}
           </div>
@@ -335,31 +392,15 @@ function AddressEditor({
             )}
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <Label>{t.fieldPhoto}</Label>
-            <div className="flex flex-wrap items-center gap-3">
-              {photoFileIds.map((fid) => (
-                <AddressPhotoThumb
-                  key={fid}
-                  botId={botId}
-                  fid={fid}
-                  onRemove={() => setPhotoFileIds((prev) => prev.filter((x) => x !== fid))}
-                  t={t as unknown as Record<string, string>}
-                />
-              ))}
-              {photoFileIds.length < MAX_PHOTOS && (
-                <Input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  disabled={uploading}
-                  className="w-auto"
-                  onChange={(e) => { if (e.target.files?.length) handlePhotos(e.target.files); e.target.value = ""; }}
-                />
-              )}
-              {uploading && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
-            </div>
-            {photoFileIds.length >= MAX_PHOTOS && <p className="text-xs text-muted-foreground">{t.photoMaxReached}</p>}
+            <MediaList botId={botId} fileIds={media} multiple onChange={setMedia} onMetaChange={setMediaMeta} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>{t.fieldButtons}</Label>
+            <p className="text-xs text-muted-foreground">{t.fieldButtonsHint}</p>
+            <ButtonBuilder botId={botId} rows={rows} panels={panels} forms={forms} catalog={catalog} onChange={setRows} />
           </div>
 
           <div className="flex items-center gap-3">
@@ -370,7 +411,7 @@ function AddressEditor({
         <DialogFooter>
           <Button
             onClick={() => save.mutate()}
-            disabled={save.isPending || !title.trim() || uploading}
+            disabled={save.isPending || !title.trim() || (hasLocation && !locationTouched)}
           >
             {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
             {t.save}

@@ -271,3 +271,129 @@ test("listAddresses/getAddress fall back to the legacy single photo_file_id for 
   const listed = await store.listAddresses(SID);
   assert.deepEqual(listed.find((a) => a.id === created.id).photo_file_ids, ["legacy_fid"]);
 });
+
+// ── مدیایِ چندنوعی (`media_items` — لایوباگ ۲۰۲۶-۰۹-۲۳) ─────────────────────
+// «نمی‌شه چند تا عکس یا ویدیو یا ... اضافه کرد» — media_items جایگزینِ
+// عکس-محورِ photo_file_ids است، دقیقاً همان شکلِ Panel.settings.media_items.
+
+test("createAddress persists mixed-type media_items", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, {
+    title: "داخلی",
+    media_items: [{ type: "video", file_id: "v1" }, { type: "audio", file_id: "a1" }],
+  });
+  assert.deepEqual(created.media_items, [{ type: "video", file_id: "v1" }, { type: "audio", file_id: "a1" }]);
+});
+
+test("media_items rejects an unknown type", async () => {
+  installSheet();
+  await assert.rejects(() => store.createAddress(SID, {
+    title: "داخلی", media_items: [{ type: "sticker", file_id: "s1" }],
+  }));
+});
+
+test("media_items rejects an item with no file_id", async () => {
+  installSheet();
+  await assert.rejects(() => store.createAddress(SID, {
+    title: "داخلی", media_items: [{ type: "photo", file_id: "" }],
+  }));
+});
+
+test("media_items rejects more than 10 items", async () => {
+  installSheet();
+  const many = Array.from({ length: 11 }, (_, i) => ({ type: "photo", file_id: `f${i}` }));
+  await assert.rejects(() => store.createAddress(SID, { title: "داخلی", media_items: many }));
+});
+
+test("updateAddress replaces media_items", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, {
+    title: "داخلی", media_items: [{ type: "photo", file_id: "p1" }],
+  });
+  const updated = await store.updateAddress(SID, created.id, {
+    media_items: [{ type: "document", file_id: "d1" }],
+  });
+  assert.deepEqual(updated.media_items, [{ type: "document", file_id: "d1" }]);
+});
+
+test("listAddresses/getAddress rebuild media_items from legacy photo_file_ids for old rows", async () => {
+  const tabs = installSheet();
+  const created = await store.createAddress(SID, { title: "داخلی", photo_file_ids: ["f1", "f2"] });
+  // شبیه‌سازیِ یک ردیفِ قدیمی که هنوز media_items ندارد.
+  const row = tabs.get("addresses").get(created.id);
+  tabs.get("addresses").set(created.id, { ...row, media_items: [] });
+
+  const fetched = await store.getAddress(SID, created.id);
+  assert.deepEqual(fetched.media_items, [{ type: "photo", file_id: "f1" }, { type: "photo", file_id: "f2" }]);
+  const listed = await store.listAddresses(SID);
+  assert.deepEqual(
+    listed.find((a) => a.id === created.id).media_items,
+    [{ type: "photo", file_id: "f1" }, { type: "photo", file_id: "f2" }],
+  );
+});
+
+test("media_items takes priority over legacy photo_file_ids when both are present", async () => {
+  const tabs = installSheet();
+  const created = await store.createAddress(SID, { title: "داخلی", photo_file_ids: ["legacy"] });
+  const row = tabs.get("addresses").get(created.id);
+  tabs.get("addresses").set(created.id, { ...row, media_items: [{ type: "video", file_id: "new1" }] });
+
+  const fetched = await store.getAddress(SID, created.id);
+  assert.deepEqual(fetched.media_items, [{ type: "video", file_id: "new1" }]);
+});
+
+// ── دکمه‌ها (`buttons` — لایوباگ ۲۰۲۶-۰۹-۲۳) ────────────────────────────────
+// «قابلیتِ اضافه‌کردنِ دکمه مثلِ پنل‌ها رو نداره» — buttons از همان
+// validateButtons (lib/buttonValidation.ts) عبور می‌کند که panels/forms
+// استفاده می‌کنند، پس همان قواعد اینجا هم صادق‌اند.
+
+test("createAddress persists validated buttons", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, {
+    title: "داخلی",
+    buttons: [{ label: "منو", action: "url", value: "https://x.com/menu", row: 0 }],
+  });
+  assert.equal(created.buttons.length, 1);
+  assert.equal(created.buttons[0].label, "منو");
+  assert.equal(created.buttons[0].action, "url");
+});
+
+test("buttons rejects an invalid action", async () => {
+  installSheet();
+  await assert.rejects(() => store.createAddress(SID, {
+    title: "داخلی", buttons: [{ label: "X", action: "Not Valid!", value: "" }],
+  }));
+});
+
+test("buttons rejects a url action whose value doesn't start with https://", async () => {
+  installSheet();
+  await assert.rejects(() => store.createAddress(SID, {
+    title: "داخلی", buttons: [{ label: "X", action: "url", value: "http://insecure.com" }],
+  }));
+});
+
+test("buttons rejects an empty label", async () => {
+  installSheet();
+  await assert.rejects(() => store.createAddress(SID, {
+    title: "داخلی", buttons: [{ label: "", action: "url", value: "https://x.com" }],
+  }));
+});
+
+test("updateAddress replaces buttons", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, {
+    title: "داخلی", buttons: [{ label: "اول", action: "url", value: "https://x.com/1", row: 0 }],
+  });
+  const updated = await store.updateAddress(SID, created.id, {
+    buttons: [{ label: "دوم", action: "panel", value: "p1", row: 0 }],
+  });
+  assert.equal(updated.buttons.length, 1);
+  assert.equal(updated.buttons[0].label, "دوم");
+  assert.equal(updated.buttons[0].action, "panel");
+});
+
+test("no buttons field defaults to an empty array", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, { title: "داخلی" });
+  assert.deepEqual(created.buttons, []);
+});

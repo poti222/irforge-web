@@ -68,11 +68,12 @@ test("businessPg: wrapForColumn JSON-stringifies only the jsonb columns (buttons
   assert.equal(__testables.wrapForColumn(s, "is_home", true), true);
 });
 
-test("businessPg: isKnownPgEntity is scoped to exactly the registered entities — panels/forms/custom_commands yes, everything else no (conservative-by-design)", async () => {
+test("businessPg: isKnownPgEntity is scoped to exactly the registered entities — panels/forms/custom_commands/addresses yes, everything else no (conservative-by-design)", async () => {
   const { isKnownPgEntity } = await import("../src/lib/businessPg.ts");
   assert.equal(isKnownPgEntity("panels"), true);
   assert.equal(isKnownPgEntity("forms"), true);
   assert.equal(isKnownPgEntity("custom_commands"), true);
+  assert.equal(isKnownPgEntity("addresses"), true);
   for (const other of ["users", "bot_settings", "workflows", "events", "payments", "wallet"]) {
     assert.equal(isKnownPgEntity(other), false, `'${other}' must stay on the old Sheets-only path until it's actually registered here`);
   }
@@ -141,6 +142,34 @@ test("businessPg: rowToValue for custom_commands does NOT echo an id (includeIdI
   const value = __testables.rowToValue(s, row);
   assert.equal(value.command, "wallet");
   assert.equal(value.id, undefined, "custom_commands' CustomCommand type has no id field — echoing one back would be wrong here, unlike Panel/Form");
+});
+
+// ─── addresses (live "edit doesn't reach the bot" bug, 2026-09-23) ───────────
+// kv_mode — the first kv_mode entry this file has ever needed (panels/forms/
+// custom_commands are all typed-columns). No columns/jsonbColumns list to
+// check against a migration's column set; the whole value is one generic
+// JSONB blob, mirroring bot/utils/business_repository.py's "generic
+// key-value mode" (kv_mode=True) and bot/migrations/sql/0030_phase2_remaining_entities.sql's
+// `addresses (id, tenant_id, value JSONB, created_at, updated_at)`.
+
+test("businessPg: addresses is registered as kv_mode, matching bot/migrations/sql/0030_phase2_remaining_entities.sql + business_repository.py's EntitySchema", async () => {
+  const { __testables } = await import("../src/lib/businessPg.ts");
+  const s = __testables.ENTITY_SCHEMAS.addresses;
+  assert.ok(s, "addresses must be registered");
+  assert.equal(s.table, "addresses");
+  assert.deepEqual(s.columns, [], "kv_mode entities have no typed columns — the whole record lives in one JSONB value");
+  assert.deepEqual(s.jsonbColumns, []);
+  assert.equal(s.kvMode, true);
+  assert.equal(s.includeIdInValue, false, "the Address record already carries its own id field (addressStore.ts spreads {...value, id}) — echoing it again here would be redundant, not wrong, but false matches the kv_mode convention used by tickets/bot_settings etc. on the bot side");
+  assert.equal(s.rowUpdatedAtCol, "updated_at");
+});
+
+test("businessPg: rowToValue for a kv_mode entity (addresses) just returns row.value verbatim, no column reconstruction", async () => {
+  const { __testables } = await import("../src/lib/businessPg.ts");
+  const s = __testables.ENTITY_SCHEMAS.addresses;
+  const value = { title: "شعبه مرکزی", latitude: 35.7, longitude: 51.4, photo_file_ids: ["AAA"] };
+  const row = { id: "addr1", value };
+  assert.deepEqual(__testables.rowToValue(s, row), value);
 });
 
 // ─── real-Postgres integration tests ────────────────────────────────────────
@@ -261,6 +290,44 @@ test("businessPg: pgSetEntity + pgGetEntity + pgListEntity round-trip a custom c
     assert.equal(await pgGetEntity(tenantId, "custom_commands", "wallet"), null);
   } finally {
     await rawPool.query("DELETE FROM custom_commands WHERE tenant_id = $1", [tenantId]);
+    await rawPool.end();
+  }
+});
+
+test("businessPg: pgSetEntity + pgGetEntity + pgListEntity round-trip an address exactly (kv_mode) — the live bug this closes (address edits from the site never reached a cut-over-for-addresses bot)", { skip }, async () => {
+  const pgModule = await import("pg");
+  const { Pool } = pgModule.default ?? pgModule;
+  const rawPool = new Pool({ connectionString: process.env.BUSINESS_DATABASE_URL });
+  const { pgSetEntity, pgGetEntity, pgListEntity, pgDeleteEntity } = await import("../src/lib/businessPg.ts");
+
+  const tenantId = "biz-pg-addr-test-" + Date.now();
+  const addressId = "addr-1";
+  const address = {
+    title: "شعبه مرکزی", text: "خیابان ولیعصر، پلاک ۱", latitude: 35.71954, longitude: 51.40917,
+    photo_file_ids: ["AAA111", "AAA222"], phone: "021-12345678", plus_code: "",
+    hours_note: "۹ تا ۱۸", is_default: true, is_active: true,
+    contact_entries: [{ id: "ce1", kind: "link", label: "واتساپ", value: "https://wa.me/98912" }],
+    created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00",
+  };
+
+  try {
+    await pgSetEntity(tenantId, "addresses", addressId, address);
+
+    const got = await pgGetEntity(tenantId, "addresses", addressId);
+    assert.equal(got.title, "شعبه مرکزی");
+    assert.equal(got.latitude, 35.71954);
+    assert.deepEqual(got.photo_file_ids, ["AAA111", "AAA222"], "the whole value round-trips through JSONB, kv_mode-style — no per-column handling to get wrong");
+    assert.deepEqual(got.contact_entries, address.contact_entries);
+
+    const list = await pgListEntity(tenantId, "addresses");
+    assert.equal(list.length, 1);
+    assert.equal(list[0].key, addressId);
+
+    const deleted = await pgDeleteEntity(tenantId, "addresses", addressId);
+    assert.equal(deleted, true);
+    assert.equal(await pgGetEntity(tenantId, "addresses", addressId), null);
+  } finally {
+    await rawPool.query("DELETE FROM addresses WHERE tenant_id = $1", [tenantId]);
     await rawPool.end();
   }
 });

@@ -121,6 +121,26 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema> = {
     includeIdInValue: false,
     rowUpdatedAtCol: "updated_at",
   },
+  // Live bug, 2026-09-23: reported "an edit doesn't show up in the bot" for
+  // the addresses (business-locations) plugin. Same class as panels/forms/
+  // custom_commands above — bot/utils/business_repository.py registers
+  // "addresses" as a plain kv_mode entity (one generic `value JSONB` column,
+  // bot/migrations/sql/0030_phase2_remaining_entities.sql), but this file
+  // never learned about it, so addressStore.ts's assertSheetsAuthoritative()
+  // 409'd every write the instant a tenant's addresses cutover flag went on
+  // (SQL Database purchase, Sheets Import, or the canary flag), while reads
+  // stayed on stale Sheets data regardless (isKnownPgEntity was always
+  // false). kvMode needs no `columns`/`jsonbColumns` — rowToValue/upsertOne
+  // already branch on it generically; this is the first kv_mode entry this
+  // file has ever needed.
+  addresses: {
+    table: "addresses",
+    columns: [],
+    jsonbColumns: [],
+    kvMode: true,
+    includeIdInValue: false,
+    rowUpdatedAtCol: "updated_at",
+  },
 };
 
 export function isKnownPgEntity(entity: string): boolean {
