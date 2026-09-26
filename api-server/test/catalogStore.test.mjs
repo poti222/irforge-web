@@ -316,6 +316,61 @@ test("updateItem keeps buttons untouched when omitted, replaces them when sent",
   assert.deepEqual(replaced.buttons, []);
 });
 
+// ── per-item order-notification targets (PHASE 31) ──────────────────────────
+
+test("createItem defaults notify_admin_ids/notify_group to empty", async () => {
+  installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  assert.deepEqual(item.notify_admin_ids, []);
+  assert.equal(item.notify_group, "");
+});
+
+test("createItem stores notify_admin_ids and notify_group", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    notify_admin_ids: ["12345", "-6789"],
+    notify_group: "-100999",
+  }, UID);
+  assert.deepEqual(item.notify_admin_ids, ["12345", "-6789"]);
+  assert.equal(item.notify_group, "-100999");
+});
+
+test("createItem rejects a non-numeric notify_admin_ids entry or notify_group", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, notify_admin_ids: ["@ali_dadaa"] }, UID),
+  );
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, notify_group: "not-a-number" }, UID),
+  );
+});
+
+test("createItem rejects notify_admin_ids that isn't an array", async () => {
+  installSheet();
+  await assert.rejects(() => store.createItem(SID, { ...VALID_ITEM, notify_admin_ids: "12345" }, UID));
+});
+
+test("updateItem keeps notify targets untouched when omitted, replaces them when sent", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, notify_admin_ids: ["111"], notify_group: "-100111" }, UID);
+  const untouched = await store.updateItem(SID, item.id, { price: 200000 });
+  assert.deepEqual(untouched.notify_admin_ids, ["111"]);
+  assert.equal(untouched.notify_group, "-100111");
+
+  const replaced = await store.updateItem(SID, item.id, { notify_admin_ids: [], notify_group: "" });
+  assert.deepEqual(replaced.notify_admin_ids, []);
+  assert.equal(replaced.notify_group, "");
+});
+
+test("getItem/listItems default a legacy item with no notify fields to empty", async () => {
+  const tabs = installSheet();
+  tabs.set("catalog_items", new Map([["item_legacy", { name: "Legacy", name_fa: "قدیمی", price: 1000 }]]));
+  const fetched = await store.getItem(SID, "item_legacy");
+  assert.deepEqual(fetched.notify_admin_ids, []);
+  assert.equal(fetched.notify_group, "");
+});
+
 test("getItem/listItems default a legacy item with no buttons key to an empty array", async () => {
   const tabs = installSheet();
   const item = await store.createItem(SID, VALID_ITEM, UID);

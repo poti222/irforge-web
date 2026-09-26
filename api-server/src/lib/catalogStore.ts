@@ -101,6 +101,15 @@ export interface CatalogItem {
    * since a product has no destination for the other core/plugin actions.
    */
   buttons: PanelButton[];
+  /**
+   * PHASE 31 — per-item order-notification targets: mirrors
+   * `plugins/catalog/domain.py`'s `notify_admin_ids`/`notify_group`.
+   * Additive to the shop's global order group / admin-permission fan-out
+   * (handlers/payment.py, plugins/catalog/fulfillment.py) — empty means
+   * "just use the global settings", same as before this field existed.
+   */
+  notify_admin_ids: string[];
+  notify_group: string;
   metadata: Record<string, unknown>;
   created_by?: string;
   created_at?: string;
@@ -278,6 +287,29 @@ function validateProductButtons(value: unknown): PanelButton[] {
   return normalized;
 }
 
+/**
+ * PHASE 31 — numeric Telegram ids only (a group id is negative, an admin id
+ * positive) — mirrors `plugins/catalog/domain.py`'s own send-time check
+ * (`.lstrip("-").isdigit()`), enforced here at write time instead so a typo
+ * is caught immediately rather than silently skipped the next time an order
+ * comes in.
+ */
+function validateNotifyAdminIds(value: unknown): string[] {
+  if (!Array.isArray(value)) throw bad("فهرستِ آیدیِ ادمین‌ها باید آرایه باشد.", "bad_notify_targets");
+  if (value.length > 20) throw bad("حداکثر ۲۰ آیدیِ ادمین برای یک محصول مجاز است.", "bad_notify_targets");
+  return value.map((raw: any, i: number) => {
+    const id = String(raw ?? "").trim();
+    if (!/^-?\d+$/.test(id)) throw bad(`آیدیِ ادمینِ شماره ${i + 1} باید عددی باشد.`, "bad_notify_targets");
+    return id;
+  });
+}
+
+function validateNotifyGroup(value: unknown): string {
+  const id = String(value ?? "").trim();
+  if (id && !/^-?\d+$/.test(id)) throw bad("آیدیِ گروه باید عددی باشد.", "bad_notify_targets");
+  return id;
+}
+
 /** Best-effort shape coercion — actual type/file_id validation happens in validateItemFields() so the error message is a proper 400, not a thrown TypeError. */
 function parseMediaInput(raw: any): CatalogMedia[] {
   if (!Array.isArray(raw)) return [];
@@ -297,9 +329,11 @@ function parseMediaInput(raw: any): CatalogMedia[] {
 function normalizeItem(item: CatalogItem): CatalogItem {
   const bodyHtml = item.body_html ?? "";
   const buttons = item.buttons ?? [];
-  if ((item.media?.length ?? 0) > 0) return { ...item, body_html: bodyHtml, buttons };
-  if (!item.image_file_id) return { ...item, media: item.media ?? [], body_html: bodyHtml, buttons };
-  return { ...item, media: [{ type: "photo", file_id: item.image_file_id, caption: "" }], body_html: bodyHtml, buttons };
+  const notifyAdminIds = item.notify_admin_ids ?? [];
+  const notifyGroup = item.notify_group ?? "";
+  if ((item.media?.length ?? 0) > 0) return { ...item, body_html: bodyHtml, buttons, notify_admin_ids: notifyAdminIds, notify_group: notifyGroup };
+  if (!item.image_file_id) return { ...item, media: item.media ?? [], body_html: bodyHtml, buttons, notify_admin_ids: notifyAdminIds, notify_group: notifyGroup };
+  return { ...item, media: [{ type: "photo", file_id: item.image_file_id, caption: "" }], body_html: bodyHtml, buttons, notify_admin_ids: notifyAdminIds, notify_group: notifyGroup };
 }
 
 function parseItemInput(body: any, base: Partial<CatalogItem> = {}): Omit<CatalogItem, "id" | "created_at" | "updated_at"> {
@@ -327,6 +361,8 @@ function parseItemInput(body: any, base: Partial<CatalogItem> = {}): Omit<Catalo
     // از رسیدن به Sheet.
     body_html: "body_html" in body ? sanitizeTelegramHtml(String(body.body_html ?? "")) : (base.body_html ?? ""),
     buttons: "buttons" in body ? validateProductButtons(body.buttons) : (base.buttons ?? []),
+    notify_admin_ids: "notify_admin_ids" in body ? validateNotifyAdminIds(body.notify_admin_ids) : (base.notify_admin_ids ?? []),
+    notify_group: "notify_group" in body ? validateNotifyGroup(body.notify_group) : (base.notify_group ?? ""),
     // fulfillment config لایه‌ی جدا دارد (setFulfillmentConfig) تا یک ویرایشِ
     // فیلدهای اصلیِ کالا metadata.fulfillment را بی‌خبر پاک نکند.
     metadata: base.metadata ?? {},
