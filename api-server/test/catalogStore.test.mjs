@@ -371,6 +371,7 @@ test("getItem/listItems default a legacy item with no notify fields to empty", a
   assert.equal(fetched.notify_group, "");
   assert.deepEqual(fetched.allowed_payment_methods, []);
   assert.deepEqual(fetched.bulk_price_tiers, []);
+  assert.deepEqual(fetched.required_intake_fields, []);
 });
 
 // ── per-item payment-method restriction (PHASE 32) ──────────────────────────
@@ -443,6 +444,69 @@ test("updateItem keeps bulk_price_tiers untouched when omitted, replaces when se
 
   const replaced = await store.updateItem(SID, item.id, { bulk_price_tiers: [] });
   assert.deepEqual(replaced.bulk_price_tiers, []);
+});
+
+// ── pre-payment intake fields (PHASE 34) ────────────────────────────────────
+
+test("createItem defaults required_intake_fields to empty", async () => {
+  installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  assert.deepEqual(item.required_intake_fields, []);
+});
+
+test("createItem stores well-formed intake fields, defaulting required to true", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    required_intake_fields: [
+      { name: "addr", label: "آدرس", type: "text" },
+      { name: "addons", label: "افزودنی", type: "multi_select", required: false, options: ["الف", "ب"] },
+    ],
+  }, UID);
+  assert.equal(item.required_intake_fields.length, 2);
+  assert.equal(item.required_intake_fields[0].required, true);
+  assert.equal(item.required_intake_fields[1].required, false);
+  assert.deepEqual(item.required_intake_fields[1].options, ["الف", "ب"]);
+});
+
+test("createItem rejects an unknown field type", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, required_intake_fields: [{ name: "a", label: "A", type: "carrier_pigeon" }] }, UID),
+  );
+});
+
+test("createItem rejects duplicate field names", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, {
+      ...VALID_ITEM,
+      required_intake_fields: [
+        { name: "a", label: "A", type: "text" },
+        { name: "a", label: "A again", type: "text" },
+      ],
+    }, UID),
+  );
+});
+
+test("createItem rejects a select/multi_select field with no options", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, required_intake_fields: [{ name: "a", label: "A", type: "select", options: [] }] }, UID),
+  );
+});
+
+test("updateItem keeps required_intake_fields untouched when omitted, replaces when sent", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    required_intake_fields: [{ name: "addr", label: "آدرس", type: "text" }],
+  }, UID);
+  const untouched = await store.updateItem(SID, item.id, { price: 5000 });
+  assert.equal(untouched.required_intake_fields.length, 1);
+
+  const replaced = await store.updateItem(SID, item.id, { required_intake_fields: [] });
+  assert.deepEqual(replaced.required_intake_fields, []);
 });
 
 test("getItem/listItems default a legacy item with no buttons key to an empty array", async () => {

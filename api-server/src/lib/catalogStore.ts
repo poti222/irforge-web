@@ -124,6 +124,14 @@ export interface CatalogItem {
    * pricing regardless of quantity — the default, unchanged behavior.
    */
   bulk_price_tiers: BulkPriceTier[];
+  /**
+   * PHASE 34 — info the buyer must provide before payment starts: mirrors
+   * `plugins/catalog/domain.py`'s `required_intake_fields`, reusing
+   * `models.FormField`'s own shape, plus a new "multi_select" type an
+   * admin-defined multi-choice list the buyer can tick more than one of.
+   * Empty means no extra info needed — the default, unchanged behavior.
+   */
+  required_intake_fields: IntakeField[];
   metadata: Record<string, unknown>;
   created_by?: string;
   created_at?: string;
@@ -133,6 +141,18 @@ export interface CatalogItem {
 export interface BulkPriceTier {
   min_qty: number;
   unit_price: number;
+}
+
+export const INTAKE_FIELD_TYPES = [
+  "text", "number", "phone", "share_phone", "location", "select", "multi_select",
+] as const;
+
+export interface IntakeField {
+  name: string;
+  label: string;
+  type: string;
+  required: boolean;
+  options: string[];
 }
 
 export interface ItemOption {
@@ -363,6 +383,29 @@ function validateBulkPriceTiers(value: unknown): BulkPriceTier[] {
   });
 }
 
+/** PHASE 34 — mirrors `plugins/catalog/domain.py::validate_item_data`'s own
+ * required_intake_fields checks: non-empty unique name+label, a known
+ * type, and at least one option for select/multi_select. */
+function validateRequiredIntakeFields(value: unknown): IntakeField[] {
+  if (!Array.isArray(value)) throw bad("فیلدهای موردنیازِ پیش از پرداخت باید یک لیست باشند.", "bad_intake_fields");
+  if (value.length > 20) throw bad("حداکثر ۲۰ فیلد برای یک محصول مجاز است.", "bad_intake_fields");
+  const seenNames = new Set<string>();
+  return value.map((raw: any, i: number) => {
+    const name = String(raw?.name ?? "").trim();
+    const label = String(raw?.label ?? "").trim();
+    const type = String(raw?.type ?? "").trim();
+    if (!name || !label) throw bad(`فیلدِ شماره ${i + 1} باید نام و برچسب داشته باشد.`, "bad_intake_fields");
+    if (seenNames.has(name)) throw bad(`نامِ فیلدِ «${name}» تکراری است.`, "bad_intake_fields");
+    seenNames.add(name);
+    if (!(INTAKE_FIELD_TYPES as readonly string[]).includes(type))
+      throw bad(`نوعِ فیلدِ «${label}» باید یکی از ${INTAKE_FIELD_TYPES.join("/")} باشد.`, "bad_intake_fields");
+    const options = Array.isArray(raw?.options) ? raw.options.map((o: any) => String(o ?? "").trim()).filter(Boolean) : [];
+    if ((type === "select" || type === "multi_select") && options.length === 0)
+      throw bad(`فیلدِ «${label}» باید حداقل یک گزینه داشته باشد.`, "bad_intake_fields");
+    return { name, label, type, required: raw?.required !== false, options };
+  });
+}
+
 /** Best-effort shape coercion — actual type/file_id validation happens in validateItemFields() so the error message is a proper 400, not a thrown TypeError. */
 function parseMediaInput(raw: any): CatalogMedia[] {
   if (!Array.isArray(raw)) return [];
@@ -387,6 +430,7 @@ function normalizeItem(item: CatalogItem): CatalogItem {
     notify_group: item.notify_group ?? "",
     allowed_payment_methods: item.allowed_payment_methods ?? [],
     bulk_price_tiers: item.bulk_price_tiers ?? [],
+    required_intake_fields: item.required_intake_fields ?? [],
   };
   if ((item.media?.length ?? 0) > 0) return { ...item, ...defaults };
   if (!item.image_file_id) return { ...item, ...defaults, media: item.media ?? [] };
@@ -426,6 +470,9 @@ function parseItemInput(body: any, base: Partial<CatalogItem> = {}): Omit<Catalo
     bulk_price_tiers: "bulk_price_tiers" in body
       ? validateBulkPriceTiers(body.bulk_price_tiers)
       : (base.bulk_price_tiers ?? []),
+    required_intake_fields: "required_intake_fields" in body
+      ? validateRequiredIntakeFields(body.required_intake_fields)
+      : (base.required_intake_fields ?? []),
     // fulfillment config لایه‌ی جدا دارد (setFulfillmentConfig) تا یک ویرایشِ
     // فیلدهای اصلیِ کالا metadata.fulfillment را بی‌خبر پاک نکند.
     metadata: base.metadata ?? {},

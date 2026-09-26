@@ -50,6 +50,7 @@ import { useAuthedBlobUrl } from "@/hooks/use-authed-media";
 import { SendViaBotButton, materializeSession, type CapturedContent, type MaterializedItem } from "@/components/bots/SendViaBotButton";
 import { MediaList, type MediaMeta } from "../panels/MediaList";
 import { ButtonBuilder } from "../panels/ButtonBuilder";
+import { IntakeFieldsEditor, type IntakeField } from "./IntakeFieldsEditor";
 import { usePanels, type PanelCatalog } from "../panels/api";
 import { buttonsToRows, rowsToButtons, type PanelButton } from "@/lib/panel-buttons";
 
@@ -72,6 +73,8 @@ type CatalogItem = {
   allowed_payment_methods: string[];
   /** PHASE 33 — quantity-discount tiers on the item's own base price; empty = flat pricing. */
   bulk_price_tiers: BulkPriceTier[];
+  /** PHASE 34 — info the buyer must provide before payment; empty = no extra info needed. */
+  required_intake_fields: IntakeField[];
 };
 
 /**
@@ -976,7 +979,7 @@ function FulfillmentConfigEditor({
 
 // ─── ویرایشگر کالا/سرویس ─────────────────────────────────────────────────────
 
-type ItemEditorTab = "basic" | "content" | "notify" | "options" | "fulfillment";
+type ItemEditorTab = "basic" | "content" | "notify" | "intake" | "options" | "fulfillment";
 
 /**
  * صفحه‌ی کاملِ ویرایشِ یک کالا/سرویس — قبلِ این همه‌چیز (اطلاعاتِ پایه، محتوا،
@@ -1016,6 +1019,7 @@ function ItemEditor({
   const [notifyAdminIds, setNotifyAdminIds] = useState((base?.notify_admin_ids ?? []).join("\n"));
   const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<string[]>(base?.allowed_payment_methods ?? []);
   const [bulkPriceTiers, setBulkPriceTiers] = useState<BulkPriceTier[]>(base?.bulk_price_tiers ?? []);
+  const [intakeFields, setIntakeFields] = useState<IntakeField[]>(base?.required_intake_fields ?? []);
   const [tab, setTab] = useState<ItemEditorTab>("basic");
 
   const { data: panelsData } = usePanels(botId);
@@ -1039,6 +1043,7 @@ function ItemEditor({
         bulk_price_tiers: bulkPriceTiers
           .map((t) => ({ min_qty: Number(t.min_qty) || 0, unit_price: Number(t.unit_price) || 0 }))
           .filter((t) => t.min_qty >= 2),
+        required_intake_fields: intakeFields,
       };
       return current
         ? customFetch<{ item: CatalogItem }>(`/api/bots/${botId}/catalog/items/${current.id}`, { method: "PATCH", body: JSON.stringify(body) })
@@ -1071,6 +1076,7 @@ function ItemEditor({
             <TabsTrigger value="basic">{t.tabBasicInfo}</TabsTrigger>
             <TabsTrigger value="content">{t.tabContent}</TabsTrigger>
             <TabsTrigger value="notify">{t.tabNotify}</TabsTrigger>
+            <TabsTrigger value="intake">{t.tabIntake}</TabsTrigger>
             <TabsTrigger value="options" disabled={!current}>{t.tabOptions}</TabsTrigger>
             <TabsTrigger value="fulfillment" disabled={!current}>{t.tabFulfillment}</TabsTrigger>
           </TabsList>
@@ -1304,6 +1310,18 @@ function ItemEditor({
                   </ol>
                 </AlertDescription>
               </Alert>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="intake" className="mt-4">
+          <Card className="max-w-2xl">
+            <CardContent className="space-y-3 pt-6">
+              <div>
+                <p className="text-sm font-medium">{t.fieldRequiredIntakeFields}</p>
+                <p className="text-xs text-muted-foreground">{t.requiredIntakeFieldsHint}</p>
+              </div>
+              <IntakeFieldsEditor fields={intakeFields} onChange={setIntakeFields} />
             </CardContent>
           </Card>
         </TabsContent>
