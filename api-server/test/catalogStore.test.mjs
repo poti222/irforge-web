@@ -637,6 +637,62 @@ test("setFulfillmentConfig imposes no shape at all for fulfillment_type=manual o
   await store.setFulfillmentConfig(SID, pool.id, { anything: "goes" });
 });
 
+// ── delivery photo + buttons (live "add a photo and buttons to the delivery
+// section" request, 2026-09-27) — plugins/catalog/fulfillment.py (irforge-app)
+// reads `media_file_id` off every one of these 4 types' config the exact
+// same way, plus a type-specific buttons key (template_buttons/manual_buttons,
+// shipped_buttons/pickup_buttons already existed from PHASE 36). None of
+// these are validated server-side (same passthrough as "manual"/"pool"
+// above) — the contract this locks in is that they round-trip untouched.
+
+test("setFulfillmentConfig round-trips media_file_id + template_buttons for fulfillment_type=template", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "template" }, UID);
+  const buttons = [{ label: "راهنما", action: "url", value: "https://example.com/help", row: 0, col: 0 }];
+  const saved = await store.setFulfillmentConfig(SID, item.id, {
+    template: "متن تحویل", media_file_id: "AgADphoto1", template_buttons: buttons,
+  });
+  assert.deepEqual(store.getFulfillmentConfig(saved), {
+    template: "متن تحویل", media_file_id: "AgADphoto1", template_buttons: buttons,
+  });
+});
+
+test("setFulfillmentConfig round-trips media_file_id + manual_buttons for fulfillment_type=manual", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "manual" }, UID);
+  const buttons = [{ label: "پشتیبانی", action: "url", value: "https://t.me/support", row: 0, col: 0 }];
+  const saved = await store.setFulfillmentConfig(SID, item.id, {
+    media_file_id: "AgADphoto2", manual_buttons: buttons,
+  });
+  assert.deepEqual(store.getFulfillmentConfig(saved), {
+    media_file_id: "AgADphoto2", manual_buttons: buttons,
+  });
+});
+
+test("setFulfillmentConfig round-trips media_file_id alongside the existing shipped_message/shipped_buttons for fulfillment_type=physical_ship", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "physical_ship" }, UID);
+  const buttons = [{ label: "پیگیری", action: "url", value: "https://track.example.com", row: 0, col: 0 }];
+  const saved = await store.setFulfillmentConfig(SID, item.id, {
+    shipped_message: "ارسال شد", media_file_id: "AgADphoto3", shipped_buttons: buttons,
+  });
+  assert.deepEqual(store.getFulfillmentConfig(saved), {
+    shipped_message: "ارسال شد", media_file_id: "AgADphoto3", shipped_buttons: buttons,
+  });
+});
+
+test("setFulfillmentConfig round-trips media_file_id alongside the existing pickup fields for fulfillment_type=physical_pickup", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "physical_pickup" }, UID);
+  const buttons = [{ label: "مسیریابی", action: "url", value: "https://maps.example.com", row: 0, col: 0 }];
+  const saved = await store.setFulfillmentConfig(SID, item.id, {
+    pickup_eta: "۱ روز", pickup_address: "میدان آزادی", media_file_id: "AgADphoto4", pickup_buttons: buttons,
+  });
+  assert.deepEqual(store.getFulfillmentConfig(saved), {
+    pickup_eta: "۱ روز", pickup_address: "میدان آزادی", media_file_id: "AgADphoto4", pickup_buttons: buttons,
+  });
+});
+
 // ── options ──────────────────────────────────────────────────────────────
 
 test("createOption defaults is_active to true and sort_order to 0", async () => {
