@@ -18,6 +18,7 @@ import {
   BarChart3,
   Bot,
   Rocket,
+  Server,
   Check,
   Smartphone,
   ClipboardCheck,
@@ -157,6 +158,7 @@ export default function Landing() {
     },
     { icon: Shield, title: tr.enterpriseSecurity, description: tr.enterpriseSecurityDesc, span: "md:col-span-3" },
     { icon: Bot, title: tr.multiBotManagement, description: tr.multiBotManagementDesc, span: "md:col-span-3" },
+    { icon: Server, title: tr.fullManagement, description: tr.fullManagementDesc, span: "md:col-span-6" },
   ];
 
   const ctaPoints = [tr.ctaPointFree, tr.ctaPointNoCard, tr.ctaPointSupport];
