@@ -68,12 +68,16 @@ test("businessPg: wrapForColumn JSON-stringifies only the jsonb columns (buttons
   assert.equal(__testables.wrapForColumn(s, "is_home", true), true);
 });
 
-test("businessPg: isKnownPgEntity is scoped to exactly the registered entities — panels/forms/custom_commands/addresses yes, everything else no (conservative-by-design)", async () => {
+test("businessPg: isKnownPgEntity is scoped to exactly the registered entities — panels/forms/custom_commands/addresses/catalog_* yes, everything else no (conservative-by-design)", async () => {
   const { isKnownPgEntity } = await import("../src/lib/businessPg.ts");
   assert.equal(isKnownPgEntity("panels"), true);
   assert.equal(isKnownPgEntity("forms"), true);
   assert.equal(isKnownPgEntity("custom_commands"), true);
   assert.equal(isKnownPgEntity("addresses"), true);
+  assert.equal(isKnownPgEntity("catalog_categories"), true);
+  assert.equal(isKnownPgEntity("catalog_items"), true);
+  assert.equal(isKnownPgEntity("catalog_item_options"), true);
+  assert.equal(isKnownPgEntity("catalog_fulfillments"), true);
   for (const other of ["users", "bot_settings", "workflows", "events", "payments", "wallet"]) {
     assert.equal(isKnownPgEntity(other), false, `'${other}' must stay on the old Sheets-only path until it's actually registered here`);
   }
@@ -172,9 +176,80 @@ test("businessPg: rowToValue for a kv_mode entity (addresses) just returns row.v
   assert.deepEqual(__testables.rowToValue(s, row), value);
 });
 
+// ─── catalog_categories/catalog_items/catalog_item_options/catalog_fulfillments
+// (live "catalog edits don't reach the bot" bug, 2026-09-27) ──────────────────
+// Same class as addresses above — utils/business_repository.py's Phase-2 loop
+// registers all 4 as kv_mode (0030_phase2_remaining_entities.sql), but this
+// file never learned about any of them, so catalogStore.ts's
+// assertSheetsAuthoritative() 409'd every write for a cut-over tenant while
+// reads stayed on stale Sheets data regardless. catalog_fulfillments is
+// bot-only order-fulfillment history (catalogStore.ts never reads/writes it —
+// getFulfillmentConfig/setFulfillmentConfig work through catalog_items'
+// metadata.fulfillment instead) — registered anyway for parity with the
+// bot's own schema list and cutoverEntities.ts/botHealth.ts, which already
+// both listed it as "required".
+
+test("businessPg: all 4 catalog entities are registered as kv_mode, matching bot/migrations/sql/0030_phase2_remaining_entities.sql + business_repository.py's EntitySchema", async () => {
+  const { __testables } = await import("../src/lib/businessPg.ts");
+  for (const entity of ["catalog_categories", "catalog_items", "catalog_item_options", "catalog_fulfillments"]) {
+    const s = __testables.ENTITY_SCHEMAS[entity];
+    assert.ok(s, `${entity} must be registered`);
+    assert.equal(s.table, entity);
+    assert.deepEqual(s.columns, [], `${entity} is kv_mode — no typed columns, the whole record lives in one JSONB value`);
+    assert.deepEqual(s.jsonbColumns, []);
+    assert.equal(s.kvMode, true);
+    assert.equal(s.includeIdInValue, false, `${entity}'s own record already carries its own id field (catalogStore.ts spreads {...value, id}) — echoing it again here would be redundant`);
+    assert.equal(s.rowUpdatedAtCol, "updated_at");
+  }
+});
+
+test("businessPg: rowToValue for the catalog kv_mode entities just returns row.value verbatim, no column reconstruction", async () => {
+  const { __testables } = await import("../src/lib/businessPg.ts");
+  const s = __testables.ENTITY_SCHEMAS.catalog_items;
+  const value = { name: "اشتراک VIP", price: 150000, category_id: "cat1", status: "active" };
+  const row = { id: "item1", value };
+  assert.deepEqual(__testables.rowToValue(s, row), value);
+});
+
 // ─── real-Postgres integration tests ────────────────────────────────────────
 
-test("businessPg: pgSetEntity + pgGetEntity + pgListEntity + pgDeleteEntity round-trip a panel exactly, JSONB included", { skip }, async () => {
+test("businessPg: pgSetEntity + pgGetEntity + pgListEntity + pgDeleteEntity round-trip each of the 4 catalog entities exactly (kv_mode) — the live bug this closes (catalog edits from the site never reached a cut-over-for-catalog bot)", { skip }, async () => {
+  const pgModule = await import("pg");
+  const { Pool } = pgModule.default ?? pgModule;
+  const rawPool = new Pool({ connectionString: process.env.BUSINESS_DATABASE_URL });
+  const { pgSetEntity, pgGetEntity, pgListEntity, pgDeleteEntity } = await import("../src/lib/businessPg.ts");
+
+  const tenantId = "biz-pg-catalog-test-" + Date.now();
+  const entities = ["catalog_categories", "catalog_items", "catalog_item_options", "catalog_fulfillments"];
+
+  try {
+    for (const entity of entities) {
+      const recordId = "rec-1";
+      const value = { name: `تست ${entity}`, sort_order: 1, is_active: true, nested: { a: [1, 2, 3] } };
+
+      await pgSetEntity(tenantId, entity, recordId, value);
+
+      const got = await pgGetEntity(tenantId, entity, recordId);
+      assert.equal(got.name, `تست ${entity}`, `${entity}: get after set`);
+      assert.deepEqual(got.nested, { a: [1, 2, 3] }, `${entity}: nested JSONB round-trips`);
+
+      const list = await pgListEntity(tenantId, entity);
+      assert.equal(list.length, 1, `${entity}: list after set`);
+      assert.equal(list[0].key, recordId, `${entity}: list key`);
+
+      const deleted = await pgDeleteEntity(tenantId, entity, recordId);
+      assert.equal(deleted, true, `${entity}: delete`);
+      assert.equal(await pgGetEntity(tenantId, entity, recordId), null, `${entity}: gone after delete`);
+    }
+  } finally {
+    for (const entity of entities) {
+      await rawPool.query(`DELETE FROM ${entity} WHERE tenant_id = $1`, [tenantId]);
+    }
+    await rawPool.end();
+  }
+});
+
+test("businessPg: pgSetEntity + pgGetEntity + pgListEntity round-trip a panel exactly, JSONB included", { skip }, async () => {
   const pgModule = await import("pg");
   const { Pool } = pgModule.default ?? pgModule;
   const rawPool = new Pool({ connectionString: process.env.BUSINESS_DATABASE_URL });
@@ -499,6 +574,83 @@ test("botConfig listEntity leaves a NON-registered entity completely on the old 
     assert.equal(rows[0].key, "wf1");
   } finally {
     await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = 'workflows' AND tenant_id = $1", [tenantId]);
+    invalidateCutoverCache();
+    await rawPool.end();
+  }
+});
+
+// ─── catalog — full dispatch chain, through catalogStore.ts's real exported
+// functions (not businessPg.ts directly) — the exact reported symptom this
+// closes: "edited a catalog item on the website, restarted the bot, the OLD
+// data was still there" for a tenant cut over to Postgres for catalog. ─────
+
+test("catalogStore.createItem/updateItem/deleteItemHard route through botConfig's cutover dispatch to Postgres once cut over for catalog_items, and never touch the fake Sheets layer for that tenant", { skip }, async () => {
+  const pgModule = await import("pg");
+  const { Pool } = pgModule.default ?? pgModule;
+  const rawPool = new Pool({ connectionString: process.env.BUSINESS_DATABASE_URL });
+  const botConfig = await import("../src/lib/botConfig.ts");
+  const { invalidateCutoverCache } = botConfig;
+  const store = await import("../src/lib/catalogStore.ts");
+
+  const cutoverTenant = "biz-catalog-cut-" + Date.now();
+  const plainTenant = "biz-catalog-plain-" + Date.now();
+  const sheetTabs = new Map([["catalog_items", new Map()]]);
+  Object.assign(botConfig.sheetLayer, {
+    async readTabRows(_sid, tab) {
+      const rows = sheetTabs.get(tab);
+      return rows ? [...rows.entries()].map(([key, value]) => ({ key, value, raw: false })) : [];
+    },
+    async upsertRow(_sid, tab, key, value) {
+      if (!sheetTabs.has(tab)) sheetTabs.set(tab, new Map());
+      const rows = sheetTabs.get(tab);
+      const created = !rows.has(key);
+      rows.set(key, JSON.parse(JSON.stringify(value)));
+      return { created };
+    },
+    async deleteRow(_sid, tab, key) {
+      const rows = sheetTabs.get(tab);
+      if (!rows?.has(key)) return false;
+      rows.delete(key);
+      return true;
+    },
+  });
+
+  try {
+    await rawPool.query(
+      "INSERT INTO entity_cutover_flags (entity_name, tenant_id, use_db) VALUES ('catalog_items', $1, true)",
+      [cutoverTenant]
+    );
+    invalidateCutoverCache();
+
+    // تننتِ کاناری‌شده: create/update/delete واقعیِ catalogStore.ts باید
+    // مستقیم روی Postgres برود — دقیقاً همان چیزی که قبلِ این رفع‌باگ با یک
+    // 409 (assertSheetsAuthoritative) شکست می‌خورد.
+    const created = await store.createItem(cutoverTenant, {
+      name: "VIP", name_fa: "وی‌آی‌پی", price: 100000, currency: "IRT",
+    }, "u1");
+    assert.equal(sheetTabs.get("catalog_items").size, 0, "must NOT have touched the fake Sheets layer at all");
+
+    const updated = await store.updateItem(cutoverTenant, created.id, { price: 250000 });
+    assert.equal(updated.price, 250000);
+
+    // خودِ سناریویِ گزارش‌شده: «ادیت کردم، بات را ری‌استارت کردم، هنوز مقدارِ
+    // قبلی بود» یعنی یک خوانشِ تازه (شبیه‌سازیِ ری‌استارتِ بات) باید مقدارِ
+    // به‌روزشده را ببیند، نه مقدارِ ساخته‌شده‌ی اول.
+    const reread = await store.getItem(cutoverTenant, created.id);
+    assert.equal(reread.price, 250000);
+
+    // تننتِ دست‌نخورده: باید همچنان دقیقاً همان شیتِ جعلیِ قدیمی را ببیند.
+    await store.createItem(plainTenant, {
+      name: "Basic", name_fa: "پایه", price: 5000, currency: "IRT",
+    }, "u1");
+    assert.equal(sheetTabs.get("catalog_items").size, 1, "the untouched tenant's write must land on the fake Sheets layer");
+
+    const deleted = await store.deleteItemHard(cutoverTenant, created.id);
+    assert.equal(deleted, true);
+    assert.equal(await store.getItem(cutoverTenant, created.id), null);
+  } finally {
+    await rawPool.query("DELETE FROM entity_cutover_flags WHERE entity_name = 'catalog_items' AND tenant_id = $1", [cutoverTenant]);
+    await rawPool.query("DELETE FROM catalog_items WHERE tenant_id = ANY($1)", [[cutoverTenant, plainTenant]]);
     invalidateCutoverCache();
     await rawPool.end();
   }

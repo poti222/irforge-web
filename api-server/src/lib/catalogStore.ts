@@ -208,7 +208,6 @@ function parseCategoryInput(body: any): Omit<Category, "id" | "created_at" | "up
 }
 
 export async function createCategory(spreadsheetId: string, body: any, createdBy: string): Promise<Category> {
-  await assertSheetsAuthoritative(CATEGORIES_TAB);
   const id = newRecordId("cat");
   const category: Category = { id, ...parseCategoryInput(body), created_by: createdBy, created_at: nowIso(), updated_at: nowIso() };
   await putEntity(spreadsheetId, CATEGORIES_TAB, id, category);
@@ -216,7 +215,6 @@ export async function createCategory(spreadsheetId: string, body: any, createdBy
 }
 
 export async function updateCategory(spreadsheetId: string, id: string, body: any): Promise<Category> {
-  await assertSheetsAuthoritative(CATEGORIES_TAB);
   const existing = await getCategory(spreadsheetId, id);
   if (!existing) throw new BotConfigError(404, "این دسته‌بندی پیدا نشد.", "category_not_found");
   const merged: Category = { ...existing, ...parseCategoryInput({ ...existing, ...body }), id, updated_at: nowIso() };
@@ -226,7 +224,6 @@ export async function updateCategory(spreadsheetId: string, id: string, body: an
 
 /** فقط رکورد دسته حذف می‌شود؛ کالاهایی که به این id اشاره می‌کنند دست‌نخورده می‌مانند (بی‌دسته‌بندی نمایش داده می‌شوند). */
 export async function deleteCategory(spreadsheetId: string, id: string): Promise<boolean> {
-  await assertSheetsAuthoritative(CATEGORIES_TAB);
   return removeEntity(spreadsheetId, CATEGORIES_TAB, id);
 }
 
@@ -512,7 +509,6 @@ export async function getItem(spreadsheetId: string, id: string): Promise<Catalo
 }
 
 export async function createItem(spreadsheetId: string, body: any, createdBy: string): Promise<CatalogItem> {
-  await assertSheetsAuthoritative(ITEMS_TAB);
   if (body?.category_id) {
     const cat = await getCategory(spreadsheetId, String(body.category_id));
     if (!cat) throw bad("دسته‌بندی انتخاب‌شده یافت نشد.", "category_not_found");
@@ -526,7 +522,6 @@ export async function createItem(spreadsheetId: string, body: any, createdBy: st
 }
 
 export async function updateItem(spreadsheetId: string, id: string, body: any): Promise<CatalogItem> {
-  await assertSheetsAuthoritative(ITEMS_TAB);
   const existing = await getItem(spreadsheetId, id);
   if (!existing) throw new BotConfigError(404, "این کالا/سرویس پیدا نشد.", "item_not_found");
   if ("category_id" in body && body.category_id) {
@@ -544,7 +539,6 @@ export async function archiveItem(spreadsheetId: string, id: string): Promise<Ca
 }
 
 export async function deleteItemHard(spreadsheetId: string, id: string): Promise<boolean> {
-  await assertSheetsAuthoritative(ITEMS_TAB);
   return removeEntity(spreadsheetId, ITEMS_TAB, id);
 }
 
@@ -661,7 +655,6 @@ export async function setFulfillmentConfig(
   itemId: string,
   config: unknown,
 ): Promise<CatalogItem> {
-  await assertSheetsAuthoritative(ITEMS_TAB);
   const existing = await getItem(spreadsheetId, itemId);
   if (!existing) throw new BotConfigError(404, "این کالا/سرویس پیدا نشد.", "item_not_found");
   if (config !== null && (typeof config !== "object" || Array.isArray(config)))
@@ -720,7 +713,6 @@ export async function getOption(spreadsheetId: string, id: string): Promise<Item
 }
 
 export async function createOption(spreadsheetId: string, itemId: string, body: any): Promise<ItemOption> {
-  await assertSheetsAuthoritative(OPTIONS_TAB);
   const item = await getItem(spreadsheetId, itemId);
   if (!item) throw new BotConfigError(404, "کالا/سرویس یافت نشد.", "item_not_found");
   const id = newRecordId("opt");
@@ -730,7 +722,6 @@ export async function createOption(spreadsheetId: string, itemId: string, body: 
 }
 
 export async function updateOption(spreadsheetId: string, id: string, body: any): Promise<ItemOption> {
-  await assertSheetsAuthoritative(OPTIONS_TAB);
   const existing = await getOption(spreadsheetId, id);
   if (!existing) throw new BotConfigError(404, "این پلن/گزینه پیدا نشد.", "option_not_found");
   const merged: ItemOption = { ...existing, ...parseOptionInput(body, existing), id, item_id: existing.item_id, updated_at: nowIso() };
@@ -744,7 +735,6 @@ export async function deactivateOption(spreadsheetId: string, id: string): Promi
 }
 
 export async function deleteOptionHard(spreadsheetId: string, id: string): Promise<boolean> {
-  await assertSheetsAuthoritative(OPTIONS_TAB);
   return removeEntity(spreadsheetId, OPTIONS_TAB, id);
 }
 
@@ -914,7 +904,6 @@ export async function deletePoolItem(spreadsheetId: string, itemId: string, pool
 /** `pool.set_pool_settings()` — merge با تنظیماتِ فعلی، نه replace؛ همان
  * رفتاری که بات دارد (مثلاً `low_alerted`ی داخلیِ بات دست‌نخورده می‌ماند). */
 export async function setPoolThreshold(spreadsheetId: string, itemId: string, lowThreshold: number): Promise<CatalogItem> {
-  await assertSheetsAuthoritative(ITEMS_TAB);
   const existing = await getItem(spreadsheetId, itemId);
   if (!existing) throw new BotConfigError(404, "این کالا/سرویس پیدا نشد.", "item_not_found");
   if (!Number.isFinite(lowThreshold) || lowThreshold < 0)

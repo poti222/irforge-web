@@ -141,6 +141,49 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema> = {
     includeIdInValue: false,
     rowUpdatedAtCol: "updated_at",
   },
+  // Live bug, 2026-09-27: reported "catalog edits on the website don't
+  // reach the bot" — same class as addresses above. The bot registers all
+  // 4 catalog entities as kv_mode (utils/business_repository.py's Phase-2
+  // loop, 0030_phase2_remaining_entities.sql), but this file never learned
+  // about them, so catalogStore.ts's assertSheetsAuthoritative() 409'd
+  // every write the instant a tenant's catalog cutover flag went on, while
+  // reads stayed on stale Sheets data regardless (isKnownPgEntity was
+  // always false). catalog_fulfillments is bot-only order-fulfillment
+  // HISTORY (never written by this repo), registered anyway for parity
+  // with the bot's own schema list and cutoverEntities.ts/botHealth.ts,
+  // which already both listed it as "required".
+  catalog_categories: {
+    table: "catalog_categories",
+    columns: [],
+    jsonbColumns: [],
+    kvMode: true,
+    includeIdInValue: false,
+    rowUpdatedAtCol: "updated_at",
+  },
+  catalog_items: {
+    table: "catalog_items",
+    columns: [],
+    jsonbColumns: [],
+    kvMode: true,
+    includeIdInValue: false,
+    rowUpdatedAtCol: "updated_at",
+  },
+  catalog_item_options: {
+    table: "catalog_item_options",
+    columns: [],
+    jsonbColumns: [],
+    kvMode: true,
+    includeIdInValue: false,
+    rowUpdatedAtCol: "updated_at",
+  },
+  catalog_fulfillments: {
+    table: "catalog_fulfillments",
+    columns: [],
+    jsonbColumns: [],
+    kvMode: true,
+    includeIdInValue: false,
+    rowUpdatedAtCol: "updated_at",
+  },
 };
 
 export function isKnownPgEntity(entity: string): boolean {

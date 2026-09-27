@@ -499,6 +499,10 @@ function TemplateFulfillmentForm({ botId, itemId, config, disabled }: Fulfillmen
   const t = useT("botCatalog");
   const save = useSaveFulfillmentConfig(botId, itemId);
   const [template, setTemplate] = useState(String(config.template ?? ""));
+  const initialMediaFileId = String(config.media_file_id ?? "");
+  const [mediaFileIds, setMediaFileIds] = useState<string[]>(initialMediaFileId ? [initialMediaFileId] : []);
+  const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows((config.template_buttons as PanelButton[]) ?? []));
+  const { data: panelsData } = usePanels(botId);
 
   return (
     <div className="space-y-2">
@@ -509,7 +513,68 @@ function TemplateFulfillmentForm({ botId, itemId, config, disabled }: Fulfillmen
         onChange={(e) => setTemplate(e.target.value)}
       />
       <p className="text-xs text-muted-foreground">{t.bodyHtmlHint}</p>
-      <Button size="sm" onClick={() => save.mutate({ ...config, template })} disabled={disabled || save.isPending || !template.trim()}>
+      <div className="space-y-1.5">
+        <Label>{t.fulfillmentFieldDeliveryPhoto}</Label>
+        <MediaList botId={botId} fileIds={mediaFileIds} multiple={false} accept="image/*" onChange={setMediaFileIds} />
+        <p className="text-xs text-muted-foreground">{t.fulfillmentDeliveryPhotoHint}</p>
+      </div>
+      <div className="space-y-1.5">
+        <Label>{t.buttonsTitle}</Label>
+        <ButtonBuilder
+          botId={botId}
+          rows={buttonRows}
+          panels={panelsData?.panels ?? []}
+          forms={[]}
+          catalog={PRODUCT_BUTTON_CATALOG}
+          onChange={setButtonRows}
+        />
+      </div>
+      <Button
+        size="sm"
+        onClick={() => save.mutate({
+          ...config, template, media_file_id: mediaFileIds[0] ?? "", template_buttons: rowsToButtons(buttonRows),
+        })}
+        disabled={disabled || save.isPending || !template.trim()}
+      >
+        {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+        {t.saveFulfillmentConfig}
+      </Button>
+    </div>
+  );
+}
+
+function ManualFulfillmentForm({ botId, itemId, config, disabled }: FulfillmentFormProps) {
+  const t = useT("botCatalog");
+  const save = useSaveFulfillmentConfig(botId, itemId);
+  const initialMediaFileId = String(config.media_file_id ?? "");
+  const [mediaFileIds, setMediaFileIds] = useState<string[]>(initialMediaFileId ? [initialMediaFileId] : []);
+  const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows((config.manual_buttons as PanelButton[]) ?? []));
+  const { data: panelsData } = usePanels(botId);
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">{t.fulfillmentHelpManual}</p>
+      <div className="space-y-1.5">
+        <Label>{t.fulfillmentFieldDeliveryPhoto}</Label>
+        <MediaList botId={botId} fileIds={mediaFileIds} multiple={false} accept="image/*" onChange={setMediaFileIds} />
+        <p className="text-xs text-muted-foreground">{t.fulfillmentDeliveryPhotoHint}</p>
+      </div>
+      <div className="space-y-1.5">
+        <Label>{t.buttonsTitle}</Label>
+        <ButtonBuilder
+          botId={botId}
+          rows={buttonRows}
+          panels={panelsData?.panels ?? []}
+          forms={[]}
+          catalog={PRODUCT_BUTTON_CATALOG}
+          onChange={setButtonRows}
+        />
+      </div>
+      <Button
+        size="sm"
+        onClick={() => save.mutate({ ...config, media_file_id: mediaFileIds[0] ?? "", manual_buttons: rowsToButtons(buttonRows) })}
+        disabled={disabled || save.isPending}
+      >
         {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
         {t.saveFulfillmentConfig}
       </Button>
@@ -521,6 +586,8 @@ function PhysicalShipFulfillmentForm({ botId, itemId, config, disabled }: Fulfil
   const t = useT("botCatalog");
   const save = useSaveFulfillmentConfig(botId, itemId);
   const [shippedMessage, setShippedMessage] = useState(String(config.shipped_message ?? ""));
+  const initialMediaFileId = String(config.media_file_id ?? "");
+  const [mediaFileIds, setMediaFileIds] = useState<string[]>(initialMediaFileId ? [initialMediaFileId] : []);
   const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows((config.shipped_buttons as PanelButton[]) ?? []));
   const { data: panelsData } = usePanels(botId);
 
@@ -537,6 +604,11 @@ function PhysicalShipFulfillmentForm({ botId, itemId, config, disabled }: Fulfil
         <p className="text-xs text-muted-foreground">{t.fulfillmentShippedMessageHint}</p>
       </div>
       <div className="space-y-1.5">
+        <Label>{t.fulfillmentFieldDeliveryPhoto}</Label>
+        <MediaList botId={botId} fileIds={mediaFileIds} multiple={false} accept="image/*" onChange={setMediaFileIds} />
+        <p className="text-xs text-muted-foreground">{t.fulfillmentDeliveryPhotoHint}</p>
+      </div>
+      <div className="space-y-1.5">
         <Label>{t.buttonsTitle}</Label>
         <ButtonBuilder
           botId={botId}
@@ -549,7 +621,9 @@ function PhysicalShipFulfillmentForm({ botId, itemId, config, disabled }: Fulfil
       </div>
       <Button
         size="sm"
-        onClick={() => save.mutate({ ...config, shipped_message: shippedMessage, shipped_buttons: rowsToButtons(buttonRows) })}
+        onClick={() => save.mutate({
+          ...config, shipped_message: shippedMessage, media_file_id: mediaFileIds[0] ?? "", shipped_buttons: rowsToButtons(buttonRows),
+        })}
         disabled={disabled || save.isPending}
       >
         {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
@@ -565,6 +639,8 @@ function PhysicalPickupFulfillmentForm({ botId, itemId, config, disabled }: Fulf
   const [pickupEta, setPickupEta] = useState(String(config.pickup_eta ?? ""));
   const [pickupAddress, setPickupAddress] = useState(String(config.pickup_address ?? ""));
   const [readyMessage, setReadyMessage] = useState(String(config.pickup_ready_message ?? ""));
+  const initialMediaFileId = String(config.media_file_id ?? "");
+  const [mediaFileIds, setMediaFileIds] = useState<string[]>(initialMediaFileId ? [initialMediaFileId] : []);
   const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows((config.pickup_buttons as PanelButton[]) ?? []));
   const { data: panelsData } = usePanels(botId);
 
@@ -591,6 +667,11 @@ function PhysicalPickupFulfillmentForm({ botId, itemId, config, disabled }: Fulf
         <p className="text-xs text-muted-foreground">{t.fulfillmentPickupReadyMessageHint}</p>
       </div>
       <div className="space-y-1.5">
+        <Label>{t.fulfillmentFieldDeliveryPhoto}</Label>
+        <MediaList botId={botId} fileIds={mediaFileIds} multiple={false} accept="image/*" onChange={setMediaFileIds} />
+        <p className="text-xs text-muted-foreground">{t.fulfillmentDeliveryPhotoHint}</p>
+      </div>
+      <div className="space-y-1.5">
         <Label>{t.buttonsTitle}</Label>
         <ButtonBuilder
           botId={botId}
@@ -606,7 +687,7 @@ function PhysicalPickupFulfillmentForm({ botId, itemId, config, disabled }: Fulf
         onClick={() =>
           save.mutate({
             ...config, pickup_eta: pickupEta, pickup_address: pickupAddress,
-            pickup_ready_message: readyMessage, pickup_buttons: rowsToButtons(buttonRows),
+            pickup_ready_message: readyMessage, media_file_id: mediaFileIds[0] ?? "", pickup_buttons: rowsToButtons(buttonRows),
           })
         }
         disabled={disabled || save.isPending}
@@ -1024,8 +1105,11 @@ function PoolSoldList({ botId, itemId }: { botId: string; itemId: string }) {
   );
 }
 
-/** انواعی که اصلاً کانفیگ ندارند — نه فرمی، نه فیلدی برایِ ذخیره. */
-const NO_CONFIG_FULFILLMENT_TYPES = new Set(["manual", "pool"]);
+/** انواعی که اصلاً کانفیگ ندارند — نه فرمی، نه فیلدی برایِ ذخیره. «manual»
+ * دیگر اینجا نیست: از این پس یک فرمِ اختیاریِ عکس+دکمه دارد (پایین‌تر)، پس
+ * هشدارِ «اول نوع را ذخیره کن» باید دقیقاً مثلِ سایرِ انواعِ دارایِ فرم برایش
+ * هم نمایش داده شود. */
+const NO_CONFIG_FULFILLMENT_TYPES = new Set(["pool"]);
 
 function FulfillmentConfigEditor({
   botId, itemId, fulfillmentType, savedFulfillmentType,
@@ -1066,7 +1150,7 @@ function FulfillmentConfigEditor({
       );
       case "manual":
       default:
-        return <p className="text-xs text-muted-foreground">{t.fulfillmentHelpManual}</p>;
+        return <ManualFulfillmentForm {...formProps} />;
     }
   })();
 
@@ -1180,7 +1264,7 @@ function ItemEditor({
             <TabsTrigger value="content">{t.tabContent}</TabsTrigger>
             <TabsTrigger value="notify">{t.tabNotify}</TabsTrigger>
             <TabsTrigger value="intake">{t.tabIntake}</TabsTrigger>
-            <TabsTrigger value="options" disabled={!current}>{t.tabOptions}</TabsTrigger>
+            <TabsTrigger value="options">{t.tabOptions}</TabsTrigger>
             <TabsTrigger value="fulfillment" disabled={!current}>{t.tabFulfillment}</TabsTrigger>
           </TabsList>
         </div>
@@ -1213,62 +1297,6 @@ function ItemEditor({
                     {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name_fa || c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="space-y-1">
-                  <Label>{t.fieldPrice}</Label>
-                  <AmountInput value={price} onChange={(e) => setPrice(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label>{t.fieldCurrency}</Label>
-                  <Input dir="ltr" value={currency} maxLength={10} onChange={(e) => setCurrency(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label>{t.fieldCompareAtPrice}</Label>
-                  <AmountInput value={compareAtPrice} onChange={(e) => setCompareAtPrice(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="space-y-2 rounded-md border p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label className="text-sm">{t.fieldBulkPriceTiers}</Label>
-                  <Button
-                    type="button" variant="outline" size="sm"
-                    onClick={() => setBulkPriceTiers((prev) => [...prev, { min_qty: 2, unit_price: 0 }])}
-                  >
-                    <Plus className="me-1 size-3.5" /> {t.addTier}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">{t.bulkPriceTiersHint}</p>
-                {bulkPriceTiers.map((tier, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-xs text-muted-foreground">{t.tierMinQty}</Label>
-                      <Input
-                        type="number" dir="ltr" min={2} value={tier.min_qty}
-                        onChange={(e) =>
-                          setBulkPriceTiers((prev) => prev.map((t2, i2) => (i2 === i ? { ...t2, min_qty: Number(e.target.value) || 0 } : t2)))
-                        }
-                      />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-xs text-muted-foreground">{t.tierUnitPrice}</Label>
-                      <AmountInput
-                        value={String(tier.unit_price)}
-                        onChange={(e) =>
-                          setBulkPriceTiers((prev) => prev.map((t2, i2) => (i2 === i ? { ...t2, unit_price: Number(e.target.value) || 0 } : t2)))
-                        }
-                      />
-                    </div>
-                    <Button
-                      type="button" variant="ghost" size="icon" className="mt-5"
-                      onClick={() => setBulkPriceTiers((prev) => prev.filter((_, i2) => i2 !== i))}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                ))}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1429,16 +1457,81 @@ function ItemEditor({
           </Card>
         </TabsContent>
 
-        {current && (
-          <TabsContent value="options" className="mt-4">
-            <Card className="max-w-2xl">
-              <CardContent className="pt-6">
-                <p className="mb-2 text-sm font-medium">{t.optionsTitle}</p>
-                <OptionsEditorPanel botId={botId} itemId={current.id} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
+        <TabsContent value="options" className="mt-4">
+          <Card className="max-w-2xl">
+            <CardContent className="space-y-4 pt-6">
+              <div>
+                <p className="text-sm font-medium">{t.pricingSectionTitle}</p>
+                <p className="text-xs text-muted-foreground">{t.pricingSectionDesc}</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label>{t.fieldPrice}</Label>
+                  <AmountInput value={price} onChange={(e) => setPrice(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{t.fieldCurrency}</Label>
+                  <Input dir="ltr" value={currency} maxLength={10} onChange={(e) => setCurrency(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{t.fieldCompareAtPrice}</Label>
+                  <AmountInput value={compareAtPrice} onChange={(e) => setCompareAtPrice(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-md border p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-sm">{t.fieldBulkPriceTiers}</Label>
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    onClick={() => setBulkPriceTiers((prev) => [...prev, { min_qty: 2, unit_price: 0 }])}
+                  >
+                    <Plus className="me-1 size-3.5" /> {t.addTier}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">{t.bulkPriceTiersHint}</p>
+                {bulkPriceTiers.map((tier, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs text-muted-foreground">{t.tierMinQty}</Label>
+                      <Input
+                        type="number" dir="ltr" min={2} value={tier.min_qty}
+                        onChange={(e) =>
+                          setBulkPriceTiers((prev) => prev.map((t2, i2) => (i2 === i ? { ...t2, min_qty: Number(e.target.value) || 0 } : t2)))
+                        }
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs text-muted-foreground">{t.tierUnitPrice}</Label>
+                      <AmountInput
+                        value={String(tier.unit_price)}
+                        onChange={(e) =>
+                          setBulkPriceTiers((prev) => prev.map((t2, i2) => (i2 === i ? { ...t2, unit_price: Number(e.target.value) || 0 } : t2)))
+                        }
+                      />
+                    </div>
+                    <Button
+                      type="button" variant="ghost" size="icon" className="mt-5"
+                      onClick={() => setBulkPriceTiers((prev) => prev.filter((_, i2) => i2 !== i))}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2 border-t pt-4">
+                <p className="text-sm font-medium">{t.optionsTitle}</p>
+                {current ? (
+                  <OptionsEditorPanel botId={botId} itemId={current.id} />
+                ) : (
+                  <p className="text-xs text-muted-foreground">{t.optionsSaveItemFirst}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {current && (
           <TabsContent value="fulfillment" className="mt-4">
