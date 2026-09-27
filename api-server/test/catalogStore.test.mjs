@@ -245,6 +245,14 @@ test("createItem accepts fulfillment_type 'pool'", async () => {
   assert.equal(item.fulfillment_type, "pool");
 });
 
+test("createItem accepts fulfillment_type 'physical_ship' and 'physical_pickup'", async () => {
+  installSheet();
+  const shipped = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "physical_ship" }, UID);
+  assert.equal(shipped.fulfillment_type, "physical_ship");
+  const pickup = await store.createItem(SID, { ...VALID_ITEM, fulfillment_type: "physical_pickup" }, UID);
+  assert.equal(pickup.fulfillment_type, "physical_pickup");
+});
+
 // ── buttons (IRFORGE_FULFILLMENT_FORMS_BUTTONS_PROMPT Phase B4) ────────────
 //
 // Same PanelButton shape/normalization panels already use, but restricted to
@@ -314,6 +322,199 @@ test("updateItem keeps buttons untouched when omitted, replaces them when sent",
 
   const replaced = await store.updateItem(SID, item.id, { buttons: [] });
   assert.deepEqual(replaced.buttons, []);
+});
+
+// ── per-item order-notification targets (PHASE 31) ──────────────────────────
+
+test("createItem defaults notify_admin_ids/notify_group to empty", async () => {
+  installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  assert.deepEqual(item.notify_admin_ids, []);
+  assert.equal(item.notify_group, "");
+});
+
+test("createItem stores notify_admin_ids and notify_group", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    notify_admin_ids: ["12345", "-6789"],
+    notify_group: "-100999",
+  }, UID);
+  assert.deepEqual(item.notify_admin_ids, ["12345", "-6789"]);
+  assert.equal(item.notify_group, "-100999");
+});
+
+test("createItem rejects a non-numeric notify_admin_ids entry or notify_group", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, notify_admin_ids: ["@ali_dadaa"] }, UID),
+  );
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, notify_group: "not-a-number" }, UID),
+  );
+});
+
+test("createItem rejects notify_admin_ids that isn't an array", async () => {
+  installSheet();
+  await assert.rejects(() => store.createItem(SID, { ...VALID_ITEM, notify_admin_ids: "12345" }, UID));
+});
+
+test("updateItem keeps notify targets untouched when omitted, replaces them when sent", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, notify_admin_ids: ["111"], notify_group: "-100111" }, UID);
+  const untouched = await store.updateItem(SID, item.id, { price: 200000 });
+  assert.deepEqual(untouched.notify_admin_ids, ["111"]);
+  assert.equal(untouched.notify_group, "-100111");
+
+  const replaced = await store.updateItem(SID, item.id, { notify_admin_ids: [], notify_group: "" });
+  assert.deepEqual(replaced.notify_admin_ids, []);
+  assert.equal(replaced.notify_group, "");
+});
+
+test("getItem/listItems default a legacy item with no notify fields to empty", async () => {
+  const tabs = installSheet();
+  tabs.set("catalog_items", new Map([["item_legacy", { name: "Legacy", name_fa: "قدیمی", price: 1000 }]]));
+  const fetched = await store.getItem(SID, "item_legacy");
+  assert.deepEqual(fetched.notify_admin_ids, []);
+  assert.equal(fetched.notify_group, "");
+  assert.deepEqual(fetched.allowed_payment_methods, []);
+  assert.deepEqual(fetched.bulk_price_tiers, []);
+  assert.deepEqual(fetched.required_intake_fields, []);
+});
+
+// ── per-item payment-method restriction (PHASE 32) ──────────────────────────
+
+test("createItem defaults allowed_payment_methods to empty (unrestricted)", async () => {
+  installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  assert.deepEqual(item.allowed_payment_methods, []);
+});
+
+test("createItem stores allowed_payment_methods", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, allowed_payment_methods: ["card", "wallet_pay"] }, UID);
+  assert.deepEqual(item.allowed_payment_methods, ["card", "wallet_pay"]);
+});
+
+test("createItem rejects a non-array or an empty-string entry in allowed_payment_methods", async () => {
+  installSheet();
+  await assert.rejects(() => store.createItem(SID, { ...VALID_ITEM, allowed_payment_methods: "card" }, UID));
+  await assert.rejects(() => store.createItem(SID, { ...VALID_ITEM, allowed_payment_methods: [""] }, UID));
+});
+
+test("updateItem keeps allowed_payment_methods untouched when omitted, replaces when sent", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, allowed_payment_methods: ["card"] }, UID);
+  const untouched = await store.updateItem(SID, item.id, { price: 5000 });
+  assert.deepEqual(untouched.allowed_payment_methods, ["card"]);
+
+  const replaced = await store.updateItem(SID, item.id, { allowed_payment_methods: [] });
+  assert.deepEqual(replaced.allowed_payment_methods, []);
+});
+
+// ── quantity-discount pricing tiers (PHASE 33) ──────────────────────────────
+
+test("createItem defaults bulk_price_tiers to empty", async () => {
+  installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  assert.deepEqual(item.bulk_price_tiers, []);
+});
+
+test("createItem stores well-formed bulk_price_tiers", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    bulk_price_tiers: [{ min_qty: 10, unit_price: 800 }, { min_qty: 50, unit_price: 600 }],
+  }, UID);
+  assert.deepEqual(item.bulk_price_tiers, [{ min_qty: 10, unit_price: 800 }, { min_qty: 50, unit_price: 600 }]);
+});
+
+test("createItem rejects a tier with min_qty below 2 or a negative unit_price", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, bulk_price_tiers: [{ min_qty: 1, unit_price: 800 }] }, UID),
+  );
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, bulk_price_tiers: [{ min_qty: 10, unit_price: -1 }] }, UID),
+  );
+});
+
+test("createItem rejects bulk_price_tiers that isn't an array", async () => {
+  installSheet();
+  await assert.rejects(() => store.createItem(SID, { ...VALID_ITEM, bulk_price_tiers: "nope" }, UID));
+});
+
+test("updateItem keeps bulk_price_tiers untouched when omitted, replaces when sent", async () => {
+  installSheet();
+  const item = await store.createItem(SID, { ...VALID_ITEM, bulk_price_tiers: [{ min_qty: 5, unit_price: 900 }] }, UID);
+  const untouched = await store.updateItem(SID, item.id, { price: 5000 });
+  assert.deepEqual(untouched.bulk_price_tiers, [{ min_qty: 5, unit_price: 900 }]);
+
+  const replaced = await store.updateItem(SID, item.id, { bulk_price_tiers: [] });
+  assert.deepEqual(replaced.bulk_price_tiers, []);
+});
+
+// ── pre-payment intake fields (PHASE 34) ────────────────────────────────────
+
+test("createItem defaults required_intake_fields to empty", async () => {
+  installSheet();
+  const item = await store.createItem(SID, VALID_ITEM, UID);
+  assert.deepEqual(item.required_intake_fields, []);
+});
+
+test("createItem stores well-formed intake fields, defaulting required to true", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    required_intake_fields: [
+      { name: "addr", label: "آدرس", type: "text" },
+      { name: "addons", label: "افزودنی", type: "multi_select", required: false, options: ["الف", "ب"] },
+    ],
+  }, UID);
+  assert.equal(item.required_intake_fields.length, 2);
+  assert.equal(item.required_intake_fields[0].required, true);
+  assert.equal(item.required_intake_fields[1].required, false);
+  assert.deepEqual(item.required_intake_fields[1].options, ["الف", "ب"]);
+});
+
+test("createItem rejects an unknown field type", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, required_intake_fields: [{ name: "a", label: "A", type: "carrier_pigeon" }] }, UID),
+  );
+});
+
+test("createItem rejects duplicate field names", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, {
+      ...VALID_ITEM,
+      required_intake_fields: [
+        { name: "a", label: "A", type: "text" },
+        { name: "a", label: "A again", type: "text" },
+      ],
+    }, UID),
+  );
+});
+
+test("createItem rejects a select/multi_select field with no options", async () => {
+  installSheet();
+  await assert.rejects(
+    () => store.createItem(SID, { ...VALID_ITEM, required_intake_fields: [{ name: "a", label: "A", type: "select", options: [] }] }, UID),
+  );
+});
+
+test("updateItem keeps required_intake_fields untouched when omitted, replaces when sent", async () => {
+  installSheet();
+  const item = await store.createItem(SID, {
+    ...VALID_ITEM,
+    required_intake_fields: [{ name: "addr", label: "آدرس", type: "text" }],
+  }, UID);
+  const untouched = await store.updateItem(SID, item.id, { price: 5000 });
+  assert.equal(untouched.required_intake_fields.length, 1);
+
+  const replaced = await store.updateItem(SID, item.id, { required_intake_fields: [] });
+  assert.deepEqual(replaced.required_intake_fields, []);
 });
 
 test("getItem/listItems default a legacy item with no buttons key to an empty array", async () => {

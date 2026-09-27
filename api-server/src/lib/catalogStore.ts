@@ -39,7 +39,14 @@ export const STATUS_DRAFT = "draft";
 export const STATUS_ARCHIVED = "archived";
 export const VALID_STATUSES = [STATUS_ACTIVE, STATUS_DRAFT, STATUS_ARCHIVED] as const;
 
-export const FULFILLMENT_TYPES = ["manual", "template", "file", "api", "webhook", "wallet_credit", "pool"] as const;
+export const FULFILLMENT_TYPES = [
+  "manual", "template", "file", "api", "webhook", "wallet_credit", "pool",
+  // PHASE 35 — physical products: shipped (resolved later with a real
+  // tracking code, plugins/catalog/handlers.py's queue) or picked up in
+  // person (auto-resolves immediately with a pickup_eta/pickup_address
+  // message — see plugins/catalog/fulfillment.py's two new executors).
+  "physical_ship", "physical_pickup",
+] as const;
 
 /**
  * IRFORGE_CATALOG_RICH_EDITOR_PROMPT Part B — mirrors
@@ -101,10 +108,58 @@ export interface CatalogItem {
    * since a product has no destination for the other core/plugin actions.
    */
   buttons: PanelButton[];
+  /**
+   * PHASE 31 — per-item order-notification targets: mirrors
+   * `plugins/catalog/domain.py`'s `notify_admin_ids`/`notify_group`.
+   * Additive to the shop's global order group / admin-permission fan-out
+   * (handlers/payment.py, plugins/catalog/fulfillment.py) — empty means
+   * "just use the global settings", same as before this field existed.
+   */
+  notify_admin_ids: string[];
+  notify_group: string;
+  /**
+   * PHASE 32 — per-item payment-method restriction: mirrors
+   * `plugins/catalog/domain.py`'s `allowed_payment_methods`. Empty means
+   * unrestricted (every method the shop has enabled) — the default,
+   * unchanged behavior. Known values: "card", "gateway", "wallet_pay".
+   */
+  allowed_payment_methods: string[];
+  /**
+   * PHASE 33 — quantity-discount pricing on the item's own base price (not
+   * its options/plans, which keep their own independent price): mirrors
+   * `plugins/catalog/domain.py`'s `bulk_price_tiers`. Empty means flat
+   * pricing regardless of quantity — the default, unchanged behavior.
+   */
+  bulk_price_tiers: BulkPriceTier[];
+  /**
+   * PHASE 34 — info the buyer must provide before payment starts: mirrors
+   * `plugins/catalog/domain.py`'s `required_intake_fields`, reusing
+   * `models.FormField`'s own shape, plus a new "multi_select" type an
+   * admin-defined multi-choice list the buyer can tick more than one of.
+   * Empty means no extra info needed — the default, unchanged behavior.
+   */
+  required_intake_fields: IntakeField[];
   metadata: Record<string, unknown>;
   created_by?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface BulkPriceTier {
+  min_qty: number;
+  unit_price: number;
+}
+
+export const INTAKE_FIELD_TYPES = [
+  "text", "number", "phone", "share_phone", "location", "select", "multi_select",
+] as const;
+
+export interface IntakeField {
+  name: string;
+  label: string;
+  type: string;
+  required: boolean;
+  options: string[];
 }
 
 export interface ItemOption {
@@ -278,6 +333,86 @@ function validateProductButtons(value: unknown): PanelButton[] {
   return normalized;
 }
 
+/**
+ * PHASE 31 — numeric Telegram ids only (a group id is negative, an admin id
+ * positive) — mirrors `plugins/catalog/domain.py`'s own send-time check
+ * (`.lstrip("-").isdigit()`), enforced here at write time instead so a typo
+ * is caught immediately rather than silently skipped the next time an order
+ * comes in.
+ */
+function validateNotifyAdminIds(value: unknown): string[] {
+  if (!Array.isArray(value)) throw bad("فهرستِ آیدیِ ادمین‌ها باید آرایه باشد.", "bad_notify_targets");
+  if (value.length > 20) throw bad("حداکثر ۲۰ آیدیِ ادمین برای یک محصول مجاز است.", "bad_notify_targets");
+  return value.map((raw: any, i: number) => {
+    const id = String(raw ?? "").trim();
+    if (!/^-?\d+$/.test(id)) throw bad(`آیدیِ ادمینِ شماره ${i + 1} باید عددی باشد.`, "bad_notify_targets");
+    return id;
+  });
+}
+
+function validateNotifyGroup(value: unknown): string {
+  const id = String(value ?? "").trim();
+  if (id && !/^-?\d+$/.test(id)) throw bad("آیدیِ گروه باید عددی باشد.", "bad_notify_targets");
+  return id;
+}
+
+/**
+ * PHASE 32 — which payment methods this item's checkout offers. Empty means
+ * unrestricted. Free-form strings (not a fixed enum) since a plugin can
+ * register its own checkout-button key (handlers/payment.py's
+ * `extensions.get_checkout_buttons()`) — the editor UI only exposes the
+ * known ones ("card"/"gateway"/"wallet_pay") as checkboxes, but this store
+ * doesn't hardcode that list so a future method needs no schema change here.
+ */
+function validateAllowedPaymentMethods(value: unknown): string[] {
+  if (!Array.isArray(value)) throw bad("فهرستِ روش‌های پرداخت باید آرایه باشد.", "bad_payment_methods");
+  return value.map((raw: any, i: number) => {
+    const method = String(raw ?? "").trim();
+    if (!method) throw bad(`روشِ پرداختِ شماره ${i + 1} خالی است.`, "bad_payment_methods");
+    return method;
+  });
+}
+
+/** PHASE 33 — mirrors `plugins/catalog/domain.py::validate_item_data`'s own
+ * bulk_price_tiers checks: min_qty >= 2 (qty 1 is just the base price) and
+ * a non-negative unit_price. */
+function validateBulkPriceTiers(value: unknown): BulkPriceTier[] {
+  if (!Array.isArray(value)) throw bad("پله‌های قیمتِ عمده باید یک لیست باشند.", "bad_bulk_price_tiers");
+  if (value.length > 20) throw bad("حداکثر ۲۰ پله برای یک محصول مجاز است.", "bad_bulk_price_tiers");
+  return value.map((raw: any, i: number) => {
+    const minQty = Number(raw?.min_qty);
+    const unitPrice = Number(raw?.unit_price);
+    if (!Number.isInteger(minQty) || minQty < 2)
+      throw bad(`حداقل‌تعدادِ پله‌ی ${i + 1} باید عددی صحیح و حداقل ۲ باشد.`, "bad_bulk_price_tiers");
+    if (!Number.isFinite(unitPrice) || unitPrice < 0)
+      throw bad(`قیمتِ واحدِ پله‌ی ${i + 1} باید عددی صفر یا بزرگ‌تر باشد.`, "bad_bulk_price_tiers");
+    return { min_qty: minQty, unit_price: unitPrice };
+  });
+}
+
+/** PHASE 34 — mirrors `plugins/catalog/domain.py::validate_item_data`'s own
+ * required_intake_fields checks: non-empty unique name+label, a known
+ * type, and at least one option for select/multi_select. */
+function validateRequiredIntakeFields(value: unknown): IntakeField[] {
+  if (!Array.isArray(value)) throw bad("فیلدهای موردنیازِ پیش از پرداخت باید یک لیست باشند.", "bad_intake_fields");
+  if (value.length > 20) throw bad("حداکثر ۲۰ فیلد برای یک محصول مجاز است.", "bad_intake_fields");
+  const seenNames = new Set<string>();
+  return value.map((raw: any, i: number) => {
+    const name = String(raw?.name ?? "").trim();
+    const label = String(raw?.label ?? "").trim();
+    const type = String(raw?.type ?? "").trim();
+    if (!name || !label) throw bad(`فیلدِ شماره ${i + 1} باید نام و برچسب داشته باشد.`, "bad_intake_fields");
+    if (seenNames.has(name)) throw bad(`نامِ فیلدِ «${name}» تکراری است.`, "bad_intake_fields");
+    seenNames.add(name);
+    if (!(INTAKE_FIELD_TYPES as readonly string[]).includes(type))
+      throw bad(`نوعِ فیلدِ «${label}» باید یکی از ${INTAKE_FIELD_TYPES.join("/")} باشد.`, "bad_intake_fields");
+    const options = Array.isArray(raw?.options) ? raw.options.map((o: any) => String(o ?? "").trim()).filter(Boolean) : [];
+    if ((type === "select" || type === "multi_select") && options.length === 0)
+      throw bad(`فیلدِ «${label}» باید حداقل یک گزینه داشته باشد.`, "bad_intake_fields");
+    return { name, label, type, required: raw?.required !== false, options };
+  });
+}
+
 /** Best-effort shape coercion — actual type/file_id validation happens in validateItemFields() so the error message is a proper 400, not a thrown TypeError. */
 function parseMediaInput(raw: any): CatalogMedia[] {
   if (!Array.isArray(raw)) return [];
@@ -295,11 +430,18 @@ function parseMediaInput(raw: any): CatalogMedia[] {
  * خواندن اعمال می‌شود تا ادمین چیزِ ازدست‌رفته‌ای نبیند.
  */
 function normalizeItem(item: CatalogItem): CatalogItem {
-  const bodyHtml = item.body_html ?? "";
-  const buttons = item.buttons ?? [];
-  if ((item.media?.length ?? 0) > 0) return { ...item, body_html: bodyHtml, buttons };
-  if (!item.image_file_id) return { ...item, media: item.media ?? [], body_html: bodyHtml, buttons };
-  return { ...item, media: [{ type: "photo", file_id: item.image_file_id, caption: "" }], body_html: bodyHtml, buttons };
+  const defaults = {
+    body_html: item.body_html ?? "",
+    buttons: item.buttons ?? [],
+    notify_admin_ids: item.notify_admin_ids ?? [],
+    notify_group: item.notify_group ?? "",
+    allowed_payment_methods: item.allowed_payment_methods ?? [],
+    bulk_price_tiers: item.bulk_price_tiers ?? [],
+    required_intake_fields: item.required_intake_fields ?? [],
+  };
+  if ((item.media?.length ?? 0) > 0) return { ...item, ...defaults };
+  if (!item.image_file_id) return { ...item, ...defaults, media: item.media ?? [] };
+  return { ...item, ...defaults, media: [{ type: "photo", file_id: item.image_file_id, caption: "" }] };
 }
 
 function parseItemInput(body: any, base: Partial<CatalogItem> = {}): Omit<CatalogItem, "id" | "created_at" | "updated_at"> {
@@ -327,6 +469,17 @@ function parseItemInput(body: any, base: Partial<CatalogItem> = {}): Omit<Catalo
     // از رسیدن به Sheet.
     body_html: "body_html" in body ? sanitizeTelegramHtml(String(body.body_html ?? "")) : (base.body_html ?? ""),
     buttons: "buttons" in body ? validateProductButtons(body.buttons) : (base.buttons ?? []),
+    notify_admin_ids: "notify_admin_ids" in body ? validateNotifyAdminIds(body.notify_admin_ids) : (base.notify_admin_ids ?? []),
+    notify_group: "notify_group" in body ? validateNotifyGroup(body.notify_group) : (base.notify_group ?? ""),
+    allowed_payment_methods: "allowed_payment_methods" in body
+      ? validateAllowedPaymentMethods(body.allowed_payment_methods)
+      : (base.allowed_payment_methods ?? []),
+    bulk_price_tiers: "bulk_price_tiers" in body
+      ? validateBulkPriceTiers(body.bulk_price_tiers)
+      : (base.bulk_price_tiers ?? []),
+    required_intake_fields: "required_intake_fields" in body
+      ? validateRequiredIntakeFields(body.required_intake_fields)
+      : (base.required_intake_fields ?? []),
     // fulfillment config لایه‌ی جدا دارد (setFulfillmentConfig) تا یک ویرایشِ
     // فیلدهای اصلیِ کالا metadata.fulfillment را بی‌خبر پاک نکند.
     metadata: base.metadata ?? {},

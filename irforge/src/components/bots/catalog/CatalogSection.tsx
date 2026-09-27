@@ -25,7 +25,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
 import {
-  Store, Loader2, Plus, Trash2, Pencil, Archive, ArchiveRestore, PackageOpen, FolderTree, AlertTriangle, ArrowRight,
+  Store, Loader2, Plus, Trash2, Pencil, Archive, ArchiveRestore, PackageOpen, FolderTree, AlertTriangle, ArrowRight, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -48,6 +50,7 @@ import { useAuthedBlobUrl } from "@/hooks/use-authed-media";
 import { SendViaBotButton, materializeSession, type CapturedContent, type MaterializedItem } from "@/components/bots/SendViaBotButton";
 import { MediaList, type MediaMeta } from "../panels/MediaList";
 import { ButtonBuilder } from "../panels/ButtonBuilder";
+import { IntakeFieldsEditor, type IntakeField } from "./IntakeFieldsEditor";
 import { usePanels, type PanelCatalog } from "../panels/api";
 import { buttonsToRows, rowsToButtons, type PanelButton } from "@/lib/panel-buttons";
 
@@ -55,6 +58,7 @@ type Category = {
   id: string; name: string; name_fa: string; parent_id: string; sort_order: number; is_active: boolean;
 };
 type CatalogMedia = { type: string; file_id: string; caption: string };
+type BulkPriceTier = { min_qty: number; unit_price: number };
 type CatalogItem = {
   id: string; name: string; name_fa: string; description: string; category_id: string;
   price: number; currency: string; compare_at_price: number | null; item_type: string;
@@ -62,6 +66,15 @@ type CatalogItem = {
   media: CatalogMedia[]; body_html: string;
   /** IRFORGE_FULFILLMENT_FORMS_BUTTONS_PROMPT Phase B4 — same `PanelButton` shape panels use. */
   buttons: PanelButton[];
+  /** PHASE 31 — per-item order-notification targets, additive to the shop's global order group/admin fan-out. */
+  notify_admin_ids: string[];
+  notify_group: string;
+  /** PHASE 32 — which payment methods this item's checkout offers; empty = unrestricted. */
+  allowed_payment_methods: string[];
+  /** PHASE 33 — quantity-discount tiers on the item's own base price; empty = flat pricing. */
+  bulk_price_tiers: BulkPriceTier[];
+  /** PHASE 34 — info the buyer must provide before payment; empty = no extra info needed. */
+  required_intake_fields: IntakeField[];
 };
 
 /**
@@ -99,6 +112,15 @@ type ItemOption = {
  */
 const FULFILLMENT_TYPES = ["manual", "template", "file", "api", "webhook", "wallet_credit", "pool"] as const;
 const STATUSES = ["active", "draft", "archived"] as const;
+
+/**
+ * PHASE 32 — the payment methods the editor offers as checkboxes. Free-form
+ * on the server (a plugin can register its own checkout button), but these
+ * three are the ones Core/wallet actually expose today — "card"/"gateway"
+ * mirror handlers/payment.py's own method keys, "wallet_pay" is wallet's
+ * registered checkout-button key (plugins/wallet/plugin.py).
+ */
+const PAYMENT_METHOD_OPTIONS = ["card", "gateway", "wallet_pay"] as const;
 
 function errMessage(err: any, fallback: string): string {
   return err?.data?.error ?? err?.message ?? fallback;
@@ -488,6 +510,107 @@ function TemplateFulfillmentForm({ botId, itemId, config, disabled }: Fulfillmen
       />
       <p className="text-xs text-muted-foreground">{t.bodyHtmlHint}</p>
       <Button size="sm" onClick={() => save.mutate({ ...config, template })} disabled={disabled || save.isPending || !template.trim()}>
+        {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+        {t.saveFulfillmentConfig}
+      </Button>
+    </div>
+  );
+}
+
+function PhysicalShipFulfillmentForm({ botId, itemId, config, disabled }: FulfillmentFormProps) {
+  const t = useT("botCatalog");
+  const save = useSaveFulfillmentConfig(botId, itemId);
+  const [shippedMessage, setShippedMessage] = useState(String(config.shipped_message ?? ""));
+  const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows((config.shipped_buttons as PanelButton[]) ?? []));
+  const { data: panelsData } = usePanels(botId);
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">{t.fulfillmentPhysicalShipHelp}</p>
+      <div className="space-y-1.5">
+        <Label>{t.fulfillmentShippedMessage}</Label>
+        <Textarea
+          dir="rtl" rows={3} maxLength={2048} value={shippedMessage}
+          placeholder={t.fulfillmentShippedMessagePlaceholder}
+          onChange={(e) => setShippedMessage(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">{t.fulfillmentShippedMessageHint}</p>
+      </div>
+      <div className="space-y-1.5">
+        <Label>{t.buttonsTitle}</Label>
+        <ButtonBuilder
+          botId={botId}
+          rows={buttonRows}
+          panels={panelsData?.panels ?? []}
+          forms={[]}
+          catalog={PRODUCT_BUTTON_CATALOG}
+          onChange={setButtonRows}
+        />
+      </div>
+      <Button
+        size="sm"
+        onClick={() => save.mutate({ ...config, shipped_message: shippedMessage, shipped_buttons: rowsToButtons(buttonRows) })}
+        disabled={disabled || save.isPending}
+      >
+        {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
+        {t.saveFulfillmentConfig}
+      </Button>
+    </div>
+  );
+}
+
+function PhysicalPickupFulfillmentForm({ botId, itemId, config, disabled }: FulfillmentFormProps) {
+  const t = useT("botCatalog");
+  const save = useSaveFulfillmentConfig(botId, itemId);
+  const [pickupEta, setPickupEta] = useState(String(config.pickup_eta ?? ""));
+  const [pickupAddress, setPickupAddress] = useState(String(config.pickup_address ?? ""));
+  const [readyMessage, setReadyMessage] = useState(String(config.pickup_ready_message ?? ""));
+  const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows((config.pickup_buttons as PanelButton[]) ?? []));
+  const { data: panelsData } = usePanels(botId);
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">{t.fulfillmentPhysicalPickupHelp}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label>{t.fulfillmentPickupEta}</Label>
+          <Input value={pickupEta} maxLength={100} placeholder={t.fulfillmentPickupEtaPlaceholder} onChange={(e) => setPickupEta(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>{t.fulfillmentPickupAddress}</Label>
+          <Input value={pickupAddress} maxLength={300} onChange={(e) => setPickupAddress(e.target.value)} />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label>{t.fulfillmentPickupReadyMessage}</Label>
+        <Textarea
+          dir="rtl" rows={3} maxLength={2048} value={readyMessage}
+          placeholder={t.fulfillmentPickupReadyMessagePlaceholder}
+          onChange={(e) => setReadyMessage(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">{t.fulfillmentPickupReadyMessageHint}</p>
+      </div>
+      <div className="space-y-1.5">
+        <Label>{t.buttonsTitle}</Label>
+        <ButtonBuilder
+          botId={botId}
+          rows={buttonRows}
+          panels={panelsData?.panels ?? []}
+          forms={[]}
+          catalog={PRODUCT_BUTTON_CATALOG}
+          onChange={setButtonRows}
+        />
+      </div>
+      <Button
+        size="sm"
+        onClick={() =>
+          save.mutate({
+            ...config, pickup_eta: pickupEta, pickup_address: pickupAddress,
+            pickup_ready_message: readyMessage, pickup_buttons: rowsToButtons(buttonRows),
+          })
+        }
+        disabled={disabled || save.isPending}
+      >
         {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
         {t.saveFulfillmentConfig}
       </Button>
@@ -933,6 +1056,8 @@ function FulfillmentConfigEditor({
       case "api": return <ApiFulfillmentForm {...formProps} />;
       case "webhook": return <WebhookFulfillmentForm {...formProps} />;
       case "wallet_credit": return <WalletCreditFulfillmentForm {...formProps} />;
+      case "physical_ship": return <PhysicalShipFulfillmentForm {...formProps} />;
+      case "physical_pickup": return <PhysicalPickupFulfillmentForm {...formProps} />;
       case "pool": return (
         <div className="space-y-4">
           <PoolInventoryManager botId={botId} itemId={itemId} />
@@ -957,7 +1082,7 @@ function FulfillmentConfigEditor({
 
 // ─── ویرایشگر کالا/سرویس ─────────────────────────────────────────────────────
 
-type ItemEditorTab = "basic" | "content" | "options" | "fulfillment";
+type ItemEditorTab = "basic" | "content" | "notify" | "intake" | "options" | "fulfillment";
 
 /**
  * صفحه‌ی کاملِ ویرایشِ یک کالا/سرویس — قبلِ این همه‌چیز (اطلاعاتِ پایه، محتوا،
@@ -993,6 +1118,11 @@ function ItemEditor({
   const [mediaFileIds, setMediaFileIds] = useState<string[]>(base?.media?.map((m) => m.file_id) ?? []);
   const [bodyHtml, setBodyHtml] = useState(base?.body_html ?? "");
   const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows(base?.buttons ?? []));
+  const [notifyGroup, setNotifyGroup] = useState(base?.notify_group ?? "");
+  const [notifyAdminIds, setNotifyAdminIds] = useState((base?.notify_admin_ids ?? []).join("\n"));
+  const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<string[]>(base?.allowed_payment_methods ?? []);
+  const [bulkPriceTiers, setBulkPriceTiers] = useState<BulkPriceTier[]>(base?.bulk_price_tiers ?? []);
+  const [intakeFields, setIntakeFields] = useState<IntakeField[]>(base?.required_intake_fields ?? []);
   const [tab, setTab] = useState<ItemEditorTab>("basic");
 
   const { data: panelsData } = usePanels(botId);
@@ -1010,6 +1140,13 @@ function ItemEditor({
         media: mediaFileIds.map((fileId) => ({ type: "photo", file_id: fileId, caption: "" })),
         body_html: bodyHtml,
         buttons: rowsToButtons(buttonRows),
+        notify_group: notifyGroup.trim(),
+        notify_admin_ids: notifyAdminIds.split("\n").map((s) => s.trim()).filter(Boolean),
+        allowed_payment_methods: allowedPaymentMethods,
+        bulk_price_tiers: bulkPriceTiers
+          .map((t) => ({ min_qty: Number(t.min_qty) || 0, unit_price: Number(t.unit_price) || 0 }))
+          .filter((t) => t.min_qty >= 2),
+        required_intake_fields: intakeFields,
       };
       return current
         ? customFetch<{ item: CatalogItem }>(`/api/bots/${botId}/catalog/items/${current.id}`, { method: "PATCH", body: JSON.stringify(body) })
@@ -1041,6 +1178,8 @@ function ItemEditor({
           <TabsList className="w-max">
             <TabsTrigger value="basic">{t.tabBasicInfo}</TabsTrigger>
             <TabsTrigger value="content">{t.tabContent}</TabsTrigger>
+            <TabsTrigger value="notify">{t.tabNotify}</TabsTrigger>
+            <TabsTrigger value="intake">{t.tabIntake}</TabsTrigger>
             <TabsTrigger value="options" disabled={!current}>{t.tabOptions}</TabsTrigger>
             <TabsTrigger value="fulfillment" disabled={!current}>{t.tabFulfillment}</TabsTrigger>
           </TabsList>
@@ -1091,6 +1230,47 @@ function ItemEditor({
                 </div>
               </div>
 
+              <div className="space-y-2 rounded-md border p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-sm">{t.fieldBulkPriceTiers}</Label>
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    onClick={() => setBulkPriceTiers((prev) => [...prev, { min_qty: 2, unit_price: 0 }])}
+                  >
+                    <Plus className="me-1 size-3.5" /> {t.addTier}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">{t.bulkPriceTiersHint}</p>
+                {bulkPriceTiers.map((tier, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs text-muted-foreground">{t.tierMinQty}</Label>
+                      <Input
+                        type="number" dir="ltr" min={2} value={tier.min_qty}
+                        onChange={(e) =>
+                          setBulkPriceTiers((prev) => prev.map((t2, i2) => (i2 === i ? { ...t2, min_qty: Number(e.target.value) || 0 } : t2)))
+                        }
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs text-muted-foreground">{t.tierUnitPrice}</Label>
+                      <AmountInput
+                        value={String(tier.unit_price)}
+                        onChange={(e) =>
+                          setBulkPriceTiers((prev) => prev.map((t2, i2) => (i2 === i ? { ...t2, unit_price: Number(e.target.value) || 0 } : t2)))
+                        }
+                      />
+                    </div>
+                    <Button
+                      type="button" variant="ghost" size="icon" className="mt-5"
+                      onClick={() => setBulkPriceTiers((prev) => prev.filter((_, i2) => i2 !== i))}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label>{t.fieldItemType}</Label>
@@ -1131,6 +1311,27 @@ function ItemEditor({
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-1.5 rounded-md border p-2">
+                <Label className="text-sm">{t.fieldAllowedPaymentMethods}</Label>
+                <p className="text-xs text-muted-foreground">{t.allowedPaymentMethodsHint}</p>
+                {PAYMENT_METHOD_OPTIONS.map((m) => (
+                  <div key={m} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`item-pay-method-${m}`}
+                      checked={allowedPaymentMethods.includes(m)}
+                      onCheckedChange={(v) =>
+                        setAllowedPaymentMethods((prev) =>
+                          Boolean(v) ? [...prev, m] : prev.filter((x) => x !== m)
+                        )
+                      }
+                    />
+                    <Label htmlFor={`item-pay-method-${m}`} className="text-sm font-normal">
+                      {(t as Record<string, string>)[`paymentMethod_${m}`] ?? m}
+                    </Label>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1166,6 +1367,64 @@ function ItemEditor({
                   onChange={setButtonRows}
                 />
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="notify" className="mt-4">
+          <Card className="max-w-2xl">
+            <CardContent className="space-y-4 pt-6">
+              <div>
+                <p className="text-sm font-medium">{t.notifySectionTitle}</p>
+                <p className="text-xs text-muted-foreground">{t.notifySectionDesc}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="item-notify-group">{t.notifyGroupLabel}</Label>
+                <Input
+                  id="item-notify-group"
+                  dir="ltr"
+                  placeholder="-1001234567890"
+                  value={notifyGroup}
+                  onChange={(e) => setNotifyGroup(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">{t.notifyGroupHint}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="item-notify-admins">{t.notifyAdminsLabel}</Label>
+                <Textarea
+                  id="item-notify-admins"
+                  rows={3}
+                  dir="ltr"
+                  placeholder="120391329"
+                  value={notifyAdminIds}
+                  onChange={(e) => setNotifyAdminIds(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">{t.notifyAdminsHint}</p>
+              </div>
+
+              <Alert>
+                <Info className="size-4" />
+                <AlertTitle>{t.notifyTutorialTitle}</AlertTitle>
+                <AlertDescription>
+                  <ol className="list-decimal space-y-1.5 pe-4 pt-1">
+                    <li>{t.notifyTutorialStep1}</li>
+                    <li>{t.notifyTutorialStep2}</li>
+                    <li>{t.notifyTutorialStep3}</li>
+                  </ol>
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="intake" className="mt-4">
+          <Card className="max-w-2xl">
+            <CardContent className="space-y-3 pt-6">
+              <div>
+                <p className="text-sm font-medium">{t.fieldRequiredIntakeFields}</p>
+                <p className="text-xs text-muted-foreground">{t.requiredIntakeFieldsHint}</p>
+              </div>
+              <IntakeFieldsEditor fields={intakeFields} onChange={setIntakeFields} />
             </CardContent>
           </Card>
         </TabsContent>
