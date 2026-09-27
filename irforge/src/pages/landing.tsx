@@ -158,7 +158,10 @@ export default function Landing() {
     },
     { icon: Shield, title: tr.enterpriseSecurity, description: tr.enterpriseSecurityDesc, span: "md:col-span-3" },
     { icon: Bot, title: tr.multiBotManagement, description: tr.multiBotManagementDesc, span: "md:col-span-3" },
-    { icon: Server, title: tr.fullManagement, description: tr.fullManagementDesc, span: "md:col-span-6" },
+    // Farsi-only: no translation exists in the other four locales by design.
+    ...(lang === "fa"
+      ? [{ icon: Server, title: tr.fullManagement, description: tr.fullManagementDesc, span: "md:col-span-6" }]
+      : []),
   ];
 
   const ctaPoints = [tr.ctaPointFree, tr.ctaPointNoCard, tr.ctaPointSupport];
