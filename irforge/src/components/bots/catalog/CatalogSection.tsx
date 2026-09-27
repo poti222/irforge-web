@@ -521,6 +521,8 @@ function PhysicalShipFulfillmentForm({ botId, itemId, config, disabled }: Fulfil
   const t = useT("botCatalog");
   const save = useSaveFulfillmentConfig(botId, itemId);
   const [shippedMessage, setShippedMessage] = useState(String(config.shipped_message ?? ""));
+  const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows((config.shipped_buttons as PanelButton[]) ?? []));
+  const { data: panelsData } = usePanels(botId);
 
   return (
     <div className="space-y-2">
@@ -534,7 +536,22 @@ function PhysicalShipFulfillmentForm({ botId, itemId, config, disabled }: Fulfil
         />
         <p className="text-xs text-muted-foreground">{t.fulfillmentShippedMessageHint}</p>
       </div>
-      <Button size="sm" onClick={() => save.mutate({ ...config, shipped_message: shippedMessage })} disabled={disabled || save.isPending}>
+      <div className="space-y-1.5">
+        <Label>{t.buttonsTitle}</Label>
+        <ButtonBuilder
+          botId={botId}
+          rows={buttonRows}
+          panels={panelsData?.panels ?? []}
+          forms={[]}
+          catalog={PRODUCT_BUTTON_CATALOG}
+          onChange={setButtonRows}
+        />
+      </div>
+      <Button
+        size="sm"
+        onClick={() => save.mutate({ ...config, shipped_message: shippedMessage, shipped_buttons: rowsToButtons(buttonRows) })}
+        disabled={disabled || save.isPending}
+      >
         {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
         {t.saveFulfillmentConfig}
       </Button>
@@ -548,6 +565,8 @@ function PhysicalPickupFulfillmentForm({ botId, itemId, config, disabled }: Fulf
   const [pickupEta, setPickupEta] = useState(String(config.pickup_eta ?? ""));
   const [pickupAddress, setPickupAddress] = useState(String(config.pickup_address ?? ""));
   const [readyMessage, setReadyMessage] = useState(String(config.pickup_ready_message ?? ""));
+  const [buttonRows, setButtonRows] = useState<PanelButton[][]>(() => buttonsToRows((config.pickup_buttons as PanelButton[]) ?? []));
+  const { data: panelsData } = usePanels(botId);
 
   return (
     <div className="space-y-2">
@@ -571,9 +590,25 @@ function PhysicalPickupFulfillmentForm({ botId, itemId, config, disabled }: Fulf
         />
         <p className="text-xs text-muted-foreground">{t.fulfillmentPickupReadyMessageHint}</p>
       </div>
+      <div className="space-y-1.5">
+        <Label>{t.buttonsTitle}</Label>
+        <ButtonBuilder
+          botId={botId}
+          rows={buttonRows}
+          panels={panelsData?.panels ?? []}
+          forms={[]}
+          catalog={PRODUCT_BUTTON_CATALOG}
+          onChange={setButtonRows}
+        />
+      </div>
       <Button
         size="sm"
-        onClick={() => save.mutate({ ...config, pickup_eta: pickupEta, pickup_address: pickupAddress, pickup_ready_message: readyMessage })}
+        onClick={() =>
+          save.mutate({
+            ...config, pickup_eta: pickupEta, pickup_address: pickupAddress,
+            pickup_ready_message: readyMessage, pickup_buttons: rowsToButtons(buttonRows),
+          })
+        }
         disabled={disabled || save.isPending}
       >
         {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
