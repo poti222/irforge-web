@@ -1,0 +1,64 @@
+import type { ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
+import { SchoolSidebar } from "@/components/schools/school-sidebar";
+import { InviteCodeWidget } from "@/components/schools/InviteCodeWidget";
+import { HeaderControls } from "@/components/layout/header-controls";
+import ErrorBoundary from "@/components/error-boundary";
+import { Spinner } from "@/components/ui/spinner";
+import { getSchoolMe } from "@/lib/schools-api";
+import { Redirect } from "wouter";
+
+/**
+ * SchoolShell.tsx — معادلِ DashboardShell برایِ بخشِ "/schools"، اما با
+ * سایدبارِ نقش‌محور (SchoolSidebar) به‌جایِ AppSidebar، و ویجتِ کدِ معرف کنارِ
+ * سایدبار (طبقِ خواستِ کاربر: «توی یک بخش جدا کنار سایدبار»، جدا از همان
+ * فیلد داخلِ فرمِ اولیه).
+ *
+ * این شل فرض می‌کند پروفایلِ مدرسه‌ای کامل است — SchoolsEntry
+ * (pages/schools/index.tsx) قبل از رسیدن به این‌جا آن‌را چک کرده. اگر به هر
+ * دلیل (مثلاً بازکردنِ مستقیمِ لینکِ یک زیرصفحه) کامل نبود، دوباره کاربر را
+ * به /schools برمی‌گرداند تا آنجا آنبوردینگ انجام شود.
+ */
+export default function SchoolShell({ children }: { children: ReactNode }) {
+  const { data: me, isLoading } = useQuery({
+    queryKey: ["schools", "me"],
+    queryFn: getSchoolMe,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!me || !me.profileComplete) {
+    return <Redirect to="/schools" />;
+  }
+
+  return (
+    <SidebarProvider>
+      <SchoolSidebar role={me.role} schoolName={me.school?.name} />
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger />
+          <HeaderControls />
+        </header>
+        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+          <div className="mx-auto flex max-w-6xl flex-col gap-4 lg:flex-row lg:items-start">
+            <div className="min-w-0 flex-1">
+              <ErrorBoundary inline>{children}</ErrorBoundary>
+            </div>
+            {/* ویجتِ مستقلِ «پیدا کردن/پیوستن به مدرسه» کنارِ سایدبار — روی
+                موبایل زیرِ محتوا می‌افتد، روی دسکتاپ یک ستونِ کناری باریک. */}
+            <div className="w-full shrink-0 lg:w-72">
+              <InviteCodeWidget compact />
+            </div>
+          </div>
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}

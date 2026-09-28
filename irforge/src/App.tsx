@@ -67,6 +67,16 @@ const Plans = lazy(() => import("@/pages/plans"));
 const Profile = lazy(() => import("@/pages/profile"));
 const Admin = lazy(() => import("@/pages/admin"));
 
+// بخش "/schools" فاز ۱
+const SchoolsEntry = lazy(() => import("@/pages/schools/index"));
+const SchoolsAdminHome = lazy(() => import("@/pages/schools/admin/index"));
+const SchoolsStudentHome = lazy(() => import("@/pages/schools/student/index"));
+const SchoolsRoleHome = lazy(() => import("@/pages/schools/role-home"));
+const SchoolContentList = lazy(() => import("@/pages/schools/content-list"));
+const SchoolContentDetail = lazy(() => import("@/pages/schools/content-detail"));
+const SchoolsStub = lazy(() => import("@/pages/schools/stub"));
+const SchoolShell = lazy(() => import("@/components/layout/SchoolShell"));
+
 const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
 const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
 const AdminCutoverFlags = lazy(() => import("@/pages/admin-cutover-flags"));
@@ -140,6 +150,43 @@ function ProtectedRoute({ component: Component, adminOnly = false, superAdminOnl
       <DashboardShell routeKey={location}>
         <Component {...rest} />
       </DashboardShell>
+    </Suspense>
+  );
+}
+
+/**
+ * SchoolProtectedRoute — دقیقاً معادلِ `ProtectedRoute`، اما به‌جایِ
+ * `DashboardShell` از `SchoolShell` استفاده می‌کند (سایدبارِ نقش‌محورِ بخشِ
+ * "/schools"). دروازه‌ی هویتِ سراسری (لاگین + ویزاردِ تکمیلِ پروفایل) اینجا
+ * هم دست‌نخورده اعمال می‌شود — SchoolShell فقط *بعد* از آن، دروازه‌ی جداگانه‌ی
+ * «پروفایلِ مدرسه‌ای کامل است؟» را اضافه می‌کند (خودِ SchoolShell این را چک
+ * می‌کند و در صورتِ ناقص‌بودن به /schools ریدایرکت می‌کند).
+ */
+function SchoolProtectedRoute({ component: Component, ...rest }: { component: any; role?: string }) {
+  const { user, isLoading } = useAuth();
+  const [location] = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Redirect to="/login" />;
+  }
+
+  if (!user.profileComplete) {
+    return <Redirect to="/complete-profile" />;
+  }
+
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <SchoolShell key={location}>
+        <Component {...rest} />
+      </SchoolShell>
     </Suspense>
   );
 }
@@ -283,7 +330,21 @@ function Router() {
       <Route path="/updates/:id"><ProtectedRoute component={UpdateDetail} /></Route>
       <Route path="/database"><ProtectedRoute component={DatabasePage} /></Route>
       <Route path="/profile"><ProtectedRoute component={Profile} /></Route>
-      
+
+      {/* بخش "/schools" فاز ۱ — نقطه‌ی ورود (آنبوردینگ یا ریدایرکت به نقش)
+          هنوز نقشی معلوم نیست، پس هنوز از SchoolShell استفاده نمی‌کند. */}
+      <Route path="/schools"><ProtectedRoute component={SchoolsEntry} /></Route>
+      <Route path="/schools/admin"><SchoolProtectedRoute component={SchoolsAdminHome} /></Route>
+      <Route path="/schools/student"><SchoolProtectedRoute component={SchoolsStudentHome} /></Route>
+      <Route path="/schools/teacher"><SchoolProtectedRoute component={SchoolsRoleHome} role="teacher" /></Route>
+      <Route path="/schools/counselor"><SchoolProtectedRoute component={SchoolsRoleHome} role="counselor" /></Route>
+      <Route path="/schools/deputy"><SchoolProtectedRoute component={SchoolsRoleHome} role="deputy" /></Route>
+      <Route path="/schools/deputy-discipline"><SchoolProtectedRoute component={SchoolsRoleHome} role="deputy-discipline" /></Route>
+      <Route path="/schools/parent"><SchoolProtectedRoute component={SchoolsRoleHome} role="parent" /></Route>
+      <Route path="/schools/content/:type"><SchoolProtectedRoute component={SchoolContentList} /></Route>
+      <Route path="/schools/content/:type/:id"><SchoolProtectedRoute component={SchoolContentDetail} /></Route>
+      <Route path="/schools/stub/:key"><SchoolProtectedRoute component={SchoolsStub} /></Route>
+
       <Route path="/admin"><ProtectedRoute component={Admin} adminOnly /></Route>
       {/* super_admin only — این صفحه می‌تواند نقش عوض کند، و ادمینی که بتواند
           به خودش super_admin بدهد عملاً super_admin است. */}
