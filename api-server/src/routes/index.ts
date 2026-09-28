@@ -88,6 +88,10 @@ import postboxRouter from "./postbox.js";
 import walletTopupRouter from "./walletTopup.js";
 import walletTopupSmsWebhookRouter from "./walletTopupSmsWebhook.js";
 import guidedFlowRouter from "./guidedFlow.js";
+// بخش "/schools" فاز ۱ — پروفایلِ مدرسه‌ای، کدهای معرف، مدیریتِ مدرسه
+import schoolsRouter from "./schools.js";
+// بخش "/schools" فاز ۱ — لغت‌نامه/جزوه/کتاب/فرمول
+import schoolContentRouter from "./schoolContent.js";
 
 const router: IRouter = Router();
 
@@ -166,5 +170,7 @@ router.use(botWalletRouter);
 router.use(translatePostRouter);
 router.use(postboxRouter);
 router.use(guidedFlowRouter);
+router.use(schoolsRouter);
+router.use(schoolContentRouter);
 
 export default router;

@@ -33,3 +33,7 @@ export * from "./botManagers";
 export * from "./exchangeRates";
 // محصولاتِ سطحِ پلتفرم (بات، اکانت مجازی، کارت مجازی، API، حسابیار، مدرسه)
 export * from "./products";
+// بخش "/schools" فاز ۱ — مدرسه‌ها، کدهای معرف، پروفایلِ مدرسه‌ایِ کاربر
+export * from "./schools";
+// بخش "/schools" فاز ۱ — لغت‌نامه/جزوه/کتاب/فرمول
+export * from "./schoolContent";

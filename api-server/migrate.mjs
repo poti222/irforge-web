@@ -1018,6 +1018,68 @@ CREATE INDEX IF NOT EXISTS product_purchases_product_id_idx ON product_purchases
 -- that repo's migrations/sql/0037_sheets_export_requests.sql, not here.)
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS database_sql_expires_at TIMESTAMPTZ;
 
+-- ─── SCHOOLS (بخش "/schools" فاز ۱) ────────────────────────────────────────
+-- مدرسه‌ها، کدهای معرف، پروفایلِ مدرسه‌ایِ کاربر — مایگریشنِ ۰۰۲۹ در
+-- lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+CREATE TABLE IF NOT EXISTS schools (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT,
+  address TEXT,
+  photo_url TEXT,
+  city TEXT,
+  license_info TEXT,
+  created_by_user_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS schools_slug_unique_idx ON schools(slug) WHERE slug IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS school_invite_codes (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  code TEXT NOT NULL,
+  role TEXT,
+  created_by_user_id TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_invite_codes_code_unique_idx ON school_invite_codes(code);
+CREATE INDEX IF NOT EXISTS idx_school_invite_codes_school ON school_invite_codes(school_id);
+
+CREATE TABLE IF NOT EXISTS school_members (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  school_id TEXT REFERENCES schools(id),
+  role TEXT,
+  grade TEXT,
+  national_id TEXT,
+  birth_date TIMESTAMPTZ,
+  city TEXT,
+  school_name_free_text TEXT,
+  profile_complete BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_members_user_id_unique_idx ON school_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_school_members_school ON school_members(school_id);
+
+-- ─── SCHOOL CONTENT (لغت‌نامه/جزوه/کتاب/فرمول) ─────────────────────────────
+-- مایگریشنِ ۰۰۳۰ در lib/db/migrations همین بلوک را تکرار می‌کند.
+CREATE TABLE IF NOT EXISTS school_content_items (
+  id TEXT PRIMARY KEY,
+  school_id TEXT REFERENCES schools(id),
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  language TEXT,
+  created_by_user_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_content_items_school ON school_content_items(school_id);
+CREATE INDEX IF NOT EXISTS idx_school_content_items_type ON school_content_items(type);
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT
