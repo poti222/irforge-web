@@ -45,6 +45,8 @@ import { FORMS_TAB } from "./botForms.js";
 import { nowIso, type CustomCommand, type Form } from "../lib/botTypes.js";
 import { isPluginEnabled } from "../lib/pluginGate.js";
 import { PLUGIN_COMMAND_TARGETS } from "../lib/pluginCommandTargets.js";
+import { CORE_COMMANDS, NEVER_DISABLE_COMMANDS } from "../lib/coreCommandsCatalog.js";
+import { getPluginCatalog } from "../lib/pluginCatalog.js";
 
 const router = Router();
 
@@ -217,12 +219,90 @@ function sortCommands(commands: CustomCommand[]): CustomCommand[] {
   return [...commands].sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
 }
 
+/**
+ * لایوباگ ۲۰۲۶-۰۹-۲۸ — «کامند ساپورت بدون نصب پلاگین ساپورت یا تیکت هست و
+ * ساخته می‌شه ... تمامی کامند ها باید نمایش داده بشه». تا امروز این جدول
+ * فقط ردیف‌هایی را داشت که ادمین صریحاً از همین سکشن ساخته بود — هر کامندِ
+ * Core (`utils/bot_manager.py::_CORE_HANDLER_MODULES`، همیشه و بدونِ
+ * قیدوشرط لود می‌شود) و هر کامندِ خودِ یک پلاگینِ فعال، کاملاً نامرئی بود.
+ *
+ * برایِ هر کدام که هنوز ردیفی ندارد، یک ردیفِ واقعی می‌سازد (`source`
+ * می‌گوید از کجا آمده) — از این به بعد دقیقاً مثلِ هر کامندِ سفارشیِ دیگر
+ * قابلِ‌دیدن/ویرایش/جابه‌جایی/غیرفعال‌سازی است، از همان endpointهای موجود،
+ * بدونِ کدِ تازه‌ی جدا برایِ هرکدام. ردیفِ یک پلاگینِ الان-خاموش پنهان می‌شود
+ * (نه حذف — روشن‌شدنِ دوباره‌اش همان وضعیتِ قبلی را برمی‌گرداند)، چون رویِ
+ * بات هم همین الان قابلِ‌اجرا نیست.
+ */
+async function materializeBuiltinCommands(
+  spreadsheetId: string,
+  existing: CustomCommand[]
+): Promise<CustomCommand[]> {
+  const have = new Set(existing.map((c) => c.command));
+  let nextOrder = existing.length ? Math.max(...existing.map(effectiveOrder)) + 1 : Date.now();
+  const additions: CustomCommand[] = [];
+
+  for (const entry of CORE_COMMANDS) {
+    if (have.has(entry.command)) continue;
+    const row: CustomCommand = {
+      command: entry.command,
+      target: "",
+      description: entry.description,
+      admin_only: entry.adminOnly,
+      is_active: true,
+      created_at: nowIso(),
+      order: nextOrder++,
+      source: "core",
+    };
+    await putEntity(spreadsheetId, COMMANDS_TAB, entry.command, row);
+    have.add(entry.command);
+    additions.push(row);
+  }
+
+  const { plugins } = await getPluginCatalog();
+  const enabledCache = new Map<string, boolean>();
+  async function pluginEnabled(pluginId: string): Promise<boolean> {
+    if (!enabledCache.has(pluginId)) enabledCache.set(pluginId, await isPluginEnabled(spreadsheetId, pluginId));
+    return enabledCache.get(pluginId)!;
+  }
+
+  for (const plugin of plugins) {
+    if (!plugin.menu_commands?.length) continue;
+    if (!(await pluginEnabled(plugin.id))) continue;
+    for (const mc of plugin.menu_commands) {
+      const name = mc.command.replace(/^\//, "");
+      if (!name || have.has(name)) continue;
+      const row: CustomCommand = {
+        command: name,
+        target: "",
+        description: mc.description_fa || mc.description || "",
+        admin_only: false,
+        is_active: true,
+        created_at: nowIso(),
+        order: nextOrder++,
+        source: `plugin:${plugin.id}`,
+      };
+      await putEntity(spreadsheetId, COMMANDS_TAB, name, row);
+      have.add(name);
+      additions.push(row);
+    }
+  }
+
+  const merged = [...existing, ...additions];
+  const visible: CustomCommand[] = [];
+  for (const c of merged) {
+    if (c.source?.startsWith("plugin:") && !(await pluginEnabled(c.source.slice(7)))) continue;
+    visible.push(c);
+  }
+  return visible;
+}
+
 async function readCommands(spreadsheetId: string): Promise<CustomCommand[]> {
   const rows = await listEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB);
   const commands = rows
     .filter((r) => r.value && typeof r.value === "object")
     .map((r) => ({ ...(r.value as CustomCommand), command: (r.value as CustomCommand).command ?? r.key }));
-  return sortCommands(commands);
+  const merged = await materializeBuiltinCommands(spreadsheetId, commands);
+  return sortCommands(merged);
 }
 
 /** `bots.commandCount` را از روی تب شیت به‌روز می‌کند (نه از روی جدول Postgres). */
@@ -240,8 +320,15 @@ async function syncCommandCount(botId: string, count: number): Promise<void> {
 router.get("/bots/:botId/commands", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    const commands = await readCommands(spreadsheetId);
-    await syncCommandCount(req.params.botId, commands.length);
+    const rawCommands = await readCommands(spreadsheetId);
+    await syncCommandCount(req.params.botId, rawCommands.length);
+
+    // لایوباگ ۲۰۲۶-۰۹-۲۸ — `locked` مشتق‌شده است، هرگز روی شیت ذخیره نمی‌شود:
+    // فقط چند کامندِ Core (start/admin/cancel/emergency_*) که خاموش‌شدنشان
+    // یعنی از دسترس‌افتادنِ کاملِ بات یا ابزارِ اضطراری — UI سایت با همین
+    // فلگ سوییچِ فعال/غیرفعال را برایشان قفل می‌کند؛ خودِ بات هم مستقلاً و
+    // hard-coded همین لیست را اجرا می‌کند (utils/command_gate_middleware.py).
+    const commands = rawCommands.map((c) => ({ ...c, locked: NEVER_DISABLE_COMMANDS.has(c.command) }));
 
     // کدام‌ها روی منوی «/» تلگرام هم هستند. از تنظیمات خوانده می‌شود نه از
     // تلگرام: یک درخواست شبکه به‌ازای هر بار باز کردن این سکشن، به‌خاطر یک
@@ -388,6 +475,7 @@ router.post("/bots/:botId/commands/migrate", requireAuth, async (req: any, res) 
         admin_only: true,
         is_active: Boolean(row.enabled),
         created_at: row.createdAt ? new Date(row.createdAt).toISOString() : nowIso(),
+        source: "custom",
       };
       await putEntity(spreadsheetId, COMMANDS_TAB, name, command);
       existing.add(name);
@@ -408,7 +496,11 @@ router.post("/bots/:botId/commands", requireAuth, async (req: any, res) => {
 
     const body = req.body ?? {};
     const name = validateCommandName(body.command);
-    if (await getEntity(spreadsheetId, COMMANDS_TAB, name))
+    // readCommands() هم مادی‌سازیِ کامندهایِ Core/پلاگین را اجرا می‌کند --
+    // بدونش یک ادمین می‌توانست کامندی به نامِ «support» بسازد که هیچ‌وقت
+    // اجرا نمی‌شد (هندلرِ Core از قبل صاحبِ آن نام است، dispatch_custom_command
+    // اصلاً هیچ‌وقت به آن نمی‌رسد) بدونِ هیچ خطایی که این را بگوید.
+    if ((await readCommands(spreadsheetId)).some((c) => c.command === name))
       throw new BotConfigError(409, `کامند /${name} از قبل وجود دارد.`, "duplicate_command");
 
     const command: CustomCommand = {
@@ -418,6 +510,7 @@ router.post("/bots/:botId/commands", requireAuth, async (req: any, res) => {
       admin_only: Boolean(body.admin_only),
       is_active: body.is_active === undefined ? true : Boolean(body.is_active),
       created_at: nowIso(),
+      source: "custom",
       // تازه‌ترین همیشه ته لیست — Date.now() از effectiveOrder هر کامندِ
       // قبلی (چه صریح، چه برگرفته از created_at) همیشه بزرگ‌تر است.
       order: Date.now(),
@@ -439,16 +532,33 @@ router.patch("/bots/:botId/commands/:command", requireAuth, async (req: any, res
     const current = await getEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB, key);
     if (!current) throw new BotConfigError(404, "این کامند پیدا نشد.", "command_not_found");
 
+    // لایوباگ ۲۰۲۶-۰۹-۲۸ — ردیفِ source!="custom" فقط نمایانگرِ یک کامندِ
+    // از قبل هاردکدشده در کدِ بات است: `target`ش بی‌معناست (رفتارِ واقعی از
+    // کد می‌آید، نه این فیلد) و نامش (کلیدِ سطر) باید عیناً همان چیزی بماند
+    // که `Command("...")` در پایتون منتظرش است، وگرنه ردیفِ غیرفعال‌سازی
+    // دیگر با هیچ کامندِ واقعی مطابق نمی‌شود.
+    const source = current.source ?? "custom";
     const body = req.body ?? {};
     const next: CustomCommand = { ...current, command: current.command ?? key };
-    if ("target" in body) next.target = await validateTarget(spreadsheetId, body.target);
+    if ("target" in body) {
+      if (source !== "custom")
+        throw new BotConfigError(409, "مقصدِ این کامند در کدِ بات ثابت است و از سایت قابل تغییر نیست.", "builtin_command_target_fixed");
+      next.target = await validateTarget(spreadsheetId, body.target);
+    }
     if ("description" in body) next.description = String(body.description ?? "").slice(0, 500);
     if ("admin_only" in body) next.admin_only = Boolean(body.admin_only);
-    if ("is_active" in body) next.is_active = Boolean(body.is_active);
+    if ("is_active" in body) {
+      const nextActive = Boolean(body.is_active);
+      if (!nextActive && NEVER_DISABLE_COMMANDS.has(key))
+        throw new BotConfigError(409, "این کامند برای عملکرد صحیح بات ضروری است و قابل غیرفعال‌سازی نیست.", "command_locked");
+      next.is_active = nextActive;
+    }
 
     // تغییر نام کامند = تغییر **کلید سطر**، پس سطر قدیمی باید برود. اول جدید
     // نوشته می‌شود تا اگر وسط کار چیزی بخورد زمین، کامند اصلاً گم نشود.
     if ("command" in body) {
+      if (source !== "custom")
+        throw new BotConfigError(409, "نامِ این کامند در کدِ بات ثابت است و از سایت قابل تغییر نیست.", "builtin_command_rename_blocked");
       const renamed = validateCommandName(body.command);
       if (renamed !== key) {
         if (await getEntity(spreadsheetId, COMMANDS_TAB, renamed))
@@ -512,11 +622,32 @@ router.post("/bots/:botId/commands/:command/reorder", requireAuth, async (req: a
   }
 });
 
+/**
+ * لایوباگ ۲۰۲۶-۰۹-۲۸ — «حذف»ِ ردیفِ یک کامندِ Core/پلاگین معنایِ واقعیِ
+ * «حذف» ندارد: خودِ هندلرِ آن در کدِ بات هنوز وجود دارد و ثابت است؛ حذفِ
+ * ردیف فقط یعنی سایت دیگر آن را نمی‌بیند تا بار بعد که کسی این سکشن را باز
+ * کند دوباره مادی (و is_active=true) بسازدش — یعنی «حذف» در عمل هیچ اثری
+ * نمی‌گذاشت. به‌جایش برایِ این‌ها همان تغییرِ `is_active=false` را ذخیره
+ * می‌کند (دقیقاً همان چیزی که سوییچِ فعال/غیرفعالِ همین جدول هم می‌کند) --
+ * `utils/command_gate_middleware.py` سمتِ بات همین فیلد را می‌خواند.
+ */
 router.delete("/bots/:botId/commands/:command", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
 
     const key = String(req.params.command).replace(/^\//, "");
+    const current = await getEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB, key);
+    if (!current) throw new BotConfigError(404, "این کامند پیدا نشد.", "command_not_found");
+
+    if ((current.source ?? "custom") !== "custom") {
+      if (NEVER_DISABLE_COMMANDS.has(key))
+        throw new BotConfigError(409, "این کامند برای عملکرد صحیح بات ضروری است و قابل غیرفعال‌سازی نیست.", "command_locked");
+      await putEntity(spreadsheetId, COMMANDS_TAB, key, { ...current, is_active: false });
+      await dropFromMenu(spreadsheetId, req.params.botId, key);
+      res.json({ deleted: key, disabledInstead: true });
+      return;
+    }
+
     const removed = await removeEntity(spreadsheetId, COMMANDS_TAB, key);
     if (!removed) throw new BotConfigError(404, "این کامند پیدا نشد.", "command_not_found");
     await dropFromMenu(spreadsheetId, req.params.botId, key);
@@ -528,6 +659,8 @@ router.delete("/bots/:botId/commands/:command", requireAuth, async (req: any, re
 });
 
 /** خالص و بدون DB — برای تست مستقیم بدون راه‌انداختن روت/شیت کامل. */
-export const __testables = { effectiveOrder, sortCommands, validateCommandName };
+export const __testables = {
+  effectiveOrder, sortCommands, validateCommandName, materializeBuiltinCommands,
+};
 
 export default router;

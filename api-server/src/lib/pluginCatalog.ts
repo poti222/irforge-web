@@ -60,6 +60,14 @@ export type PluginManifest = {
   events?: string[];
   /** کلید سکشنی در workspace که این پلاگین بازش می‌کند (از خود مانیفست). */
   web_section?: string;
+  /**
+   * کامندهای خودِ این پلاگین (نه targetهایی که یک کامندِ سفارشی می‌تواند به
+   * آن‌ها اشاره کند — آن `pluginCommandTargets.ts` است). لایوباگ ۲۰۲۶-۰۹-۲۸:
+   * بخشِ «کامندها»ی سایت این‌ها را اصلاً نمی‌دید — `routes/botCommands.ts`
+   * از این فیلد برای مادی‌کردنِ یک ردیفِ واقعی به‌ازای هر کامندِ فعالِ یک
+   * پلاگینِ روشن استفاده می‌کند.
+   */
+  menu_commands?: Array<{ command: string; description_fa?: string; description?: string }>;
 };
 
 /**
@@ -128,6 +136,22 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
+function parseMenuCommands(value: unknown): PluginManifest["menu_commands"] {
+  if (!Array.isArray(value)) return undefined;
+  const out: NonNullable<PluginManifest["menu_commands"]> = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const row = entry as Record<string, unknown>;
+    if (typeof row.command !== "string" || !row.command) continue;
+    out.push({
+      command: row.command,
+      description_fa: typeof row.description_fa === "string" ? row.description_fa : undefined,
+      description: typeof row.description === "string" ? row.description : undefined,
+    });
+  }
+  return out.length ? out : undefined;
+}
+
 /**
  * یک ردیف خامِ شیت → مانیفست.
  *
@@ -156,6 +180,8 @@ function parseManifest(key: string, raw: unknown): PluginManifest | null {
   if (isStringArray(row.dependencies)) manifest.dependencies = row.dependencies;
   if (isStringArray(row.events)) manifest.events = row.events;
   if (typeof row.web_section === "string" && row.web_section) manifest.web_section = row.web_section;
+  const menuCommands = parseMenuCommands(row.menu_commands);
+  if (menuCommands) manifest.menu_commands = menuCommands;
   return manifest;
 }
 
