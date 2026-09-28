@@ -164,6 +164,39 @@ test("id تکراری از طریق فیلدِ id (نه کلیدِ ردیف)، �
   assert.equal(plugins.length, 1, "دو ردیف با همان id باید یک پلاگین بشوند");
 });
 
+test("menu_commands منتشرشده از بات به مانیفست منتقل می‌شود", async () => {
+  // لایوباگ ۲۰۲۶-۰۹-۲۸: بخشِ «کامندها»ی سایت این فیلد را برای مادی‌کردنِ
+  // ردیفِ واقعیِ کامندهای خودِ پلاگین لازم دارد (routes/botCommands.ts).
+  process.env.REGISTRY_SPREADSHEET_ID = "sheet-registry";
+  useSheet([
+    ["ticket", {
+      id: "ticket", name: "Ticket", name_fa: "تیکت",
+      menu_commands: [
+        { command: "newticket", description_fa: "ثبت تیکت پشتیبانی جدید", description: "Open a new support ticket" },
+      ],
+    }],
+  ]);
+
+  const manifest = await catalogMod.getPluginManifest("ticket");
+  assert.deepEqual(manifest.menu_commands, [
+    { command: "newticket", description_fa: "ثبت تیکت پشتیبانی جدید", description: "Open a new support ticket" },
+  ]);
+});
+
+test("menu_commands نامعتبر یا خالی، فیلد را کاملاً حذف می‌کند نه یک آرایه‌ی خالی", async () => {
+  process.env.REGISTRY_SPREADSHEET_ID = "sheet-registry";
+  useSheet([
+    ["a", { id: "a", menu_commands: "این یک رشته است" }],
+    ["b", { id: "b", menu_commands: [{ description: "بدون فیلد command" }] }],
+    ["c", { id: "c" }],
+  ]);
+
+  const { plugins } = await catalogMod.getPluginCatalog();
+  for (const p of plugins) {
+    assert.equal(p.menu_commands, undefined, `${p.id} نباید menu_commands داشته باشد`);
+  }
+});
+
 test("مانیفست ناقص، پیش‌فرض بی‌خطر می‌گیرد", async () => {
   process.env.REGISTRY_SPREADSHEET_ID = "sheet-registry";
   useSheet([["bare", { id: "bare" }]]);

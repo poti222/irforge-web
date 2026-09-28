@@ -34,6 +34,14 @@ type BotCommand = {
   admin_only: boolean;
   is_active: boolean;
   created_at: string;
+  /** لایوباگ ۲۰۲۶-۰۹-۲۸ — "custom" (یا نبودش، برای ردیف‌های قدیمی‌تر) یعنی
+   * ادمین‌ساخته با یک target اجراشدنی؛ "core"/"plugin:<id>" یعنی این ردیف
+   * فقط نمایانگرِ یک کامندِ از قبل هاردکدشده در کدِ بات است. */
+  source?: string;
+  /** true فقط برای چند کامندِ Core (start/admin/cancel/emergency_*) که
+   * خاموش‌کردنشان یعنی از دسترس‌افتادنِ کاملِ بات یا ابزارِ اضطراری —
+   * سرور همیشه این را از routes/botCommands.ts محاسبه می‌کند. */
+  locked?: boolean;
 };
 
 type Targets = {
@@ -316,6 +324,16 @@ export function CommandsEditor({ botId }: { botId: string }) {
     return targets?.builtin.find((b) => b.value === target)?.label ?? target;
   }
 
+  function sourceLabel(source: string | undefined): string {
+    if (!source || source === "custom") return t.sourceCustom;
+    if (source === "core") return t.sourceCore;
+    return t.sourcePlugin;
+  }
+
+  function isCustom(cmd: BotCommand): boolean {
+    return !cmd.source || cmd.source === "custom";
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -339,6 +357,7 @@ export function CommandsEditor({ botId }: { botId: string }) {
             <thead className="bg-muted/50">
               <tr>
                 <th className="p-2 text-start font-medium">{t.colCommand}</th>
+                <th className="p-2 text-start font-medium">{t.colSource}</th>
                 <th className="p-2 text-start font-medium">{t.colTarget}</th>
                 <th className="p-2 text-start font-medium">{t.colDescription}</th>
                 <th className="p-2 text-start font-medium">{t.colAdminOnly}</th>
@@ -356,8 +375,15 @@ export function CommandsEditor({ botId }: { botId: string }) {
                     </code>
                   </td>
                   <td className="p-2">
+                    <Badge variant={isCustom(cmd) ? "outline" : "secondary"}>{sourceLabel(cmd.source)}</Badge>
+                  </td>
+                  <td className="p-2">
                     <div className="min-w-0 max-w-48 truncate">
-                      <Badge variant="outline">{targetLabel(cmd.target)}</Badge>
+                      {isCustom(cmd) ? (
+                        <Badge variant="outline">{targetLabel(cmd.target)}</Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{t.targetBuiltinHandler}</span>
+                      )}
                     </div>
                   </td>
                   <td className="p-2">
@@ -370,6 +396,8 @@ export function CommandsEditor({ botId }: { botId: string }) {
                     <Switch
                       checked={cmd.is_active}
                       aria-label={t.colActive}
+                      disabled={cmd.locked}
+                      title={cmd.locked ? t.lockedHint : undefined}
                       onCheckedChange={(v) =>
                         update.mutate(
                           { command: cmd.command, patch: { is_active: v } },
@@ -405,17 +433,19 @@ export function CommandsEditor({ botId }: { botId: string }) {
                       >
                         <ArrowDown className="size-4" />
                       </Button>
-                      <Button
-                        variant="ghost" size="icon" aria-label={t.deleteCta}
-                        onClick={() =>
-                          remove.mutate(cmd.command, {
-                            onSuccess: () => toast({ title: t.commandDeleted }),
-                            onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
-                          })
-                        }
-                      >
-                        <Trash2 className="size-4 text-destructive" />
-                      </Button>
+                      {isCustom(cmd) && (
+                        <Button
+                          variant="ghost" size="icon" aria-label={t.deleteCta}
+                          onClick={() =>
+                            remove.mutate(cmd.command, {
+                              onSuccess: () => toast({ title: t.commandDeleted }),
+                              onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
+                            })
+                          }
+                        >
+                          <Trash2 className="size-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
