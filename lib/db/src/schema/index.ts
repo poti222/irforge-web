@@ -33,3 +33,5 @@ export * from "./botManagers";
 export * from "./exchangeRates";
 // محصولاتِ سطحِ پلتفرم (بات، اکانت مجازی، کارت مجازی، API، حسابیار، مدرسه)
 export * from "./products";
+// کارت‌به‌کارت با تأیید خودکار از روی پیامک بانک (platform + bot) — فاز ۱
+export * from "./paymentChannels";

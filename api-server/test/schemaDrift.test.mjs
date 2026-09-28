@@ -107,6 +107,10 @@ const COVERED = [
   // صریح می‌زند، یعنی Drizzle نام **همه‌ی** ستون‌های اعلام‌شده را می‌آورد و یک
   // ستونِ جاافتاده در migrate.mjs کل ورود را ۵۰۰ می‌کند.
   { file: "auth.ts", table: "telegram_login_requests", constName: "telegramLoginRequestsTable" },
+  // کارت‌به‌کارت با تأیید خودکار (فاز ۱): ستونِ جاافتاده یعنی INSERT/SELECT در پروداکشن ۵۰۰.
+  { file: "paymentChannels.ts", table: "payment_channels", constName: "paymentChannelsTable" },
+  { file: "paymentChannels.ts", table: "payment_requests", constName: "paymentRequestsTable" },
+  { file: "paymentChannels.ts", table: "sms_inbox", constName: "smsInboxTable" },
 ];
 
 for (const { file, table, constName } of COVERED) {
