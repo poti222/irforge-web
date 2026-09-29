@@ -85,6 +85,8 @@ async function withEnv(fn, { hitFn = okHit } = {}) {
   await admin.query(`CREATE SCHEMA ${schema}`);
   const pool = new Pool({ connectionString: PG_URL, max: 40, options: `-c search_path=${schema}` });
   await pool.query(ddl);
+  await pool.query("CREATE TABLE bots (id text PRIMARY KEY, sheet_id text)");
+  await pool.query("INSERT INTO bots (id, sheet_id) VALUES ('bot_A', 'sheet_A_12345'), ('bot_B', 'sheet_B_12345')");
   const app = express();
   app.use(express.json({ limit: "256kb" }));
   app.use("/api", createInternalBotPaymentsRouter({ pool, hitFn, resolveBot }));
@@ -409,4 +411,37 @@ test("شماره‌کارتِ plaintext در DB هرگز نمایش داده ن�
     assert.equal(r.status, 500);
     assert.equal(r.json.code, "card_unavailable");
     assert.doesNotMatch(JSON.stringify(r.json), /6037/);
+  }));
+
+test("work: همه‌ی کارهای بازِ همه‌ی بات‌ها با spreadsheetId؛ فقط با secret؛ بدونِ شماره‌کارت؛ فقط فعال‌ها و تأییدشده‌ی claim‌نشده", live, () =>
+  withEnv(async ({ pool, call }) => {
+    const chA = await channel(pool, { botId: "bot_A" });
+    await channel(pool, { botId: "bot_B" });
+    const a1 = (await create(call, { userId: "1001" })).json.payment;
+    const a2 = (await create(call, { userId: "1002" })).json.payment;
+    const b1 = (await call("/requests/create", { spreadsheetId: B, userId: "2001", purpose: "wallet_topup", baseAmountRial: 1_500_000 })).json.payment;
+    // a2: فیش → awaiting_review؛ a1: تأیید با پیامک (claim‌نشده)
+    await call("/requests/receipt", { spreadsheetId: A, userId: "1002", requestId: a2.id, receiptFileId: "AgAC" });
+    const sms = await ingestSms(pool, chA, { text: bluText(a1.finalAmountRial), sender: "Blubank", time: new Date().toISOString() });
+    assert.equal((await matchSms(pool, sms.id)).outcome, "confirmed");
+
+    assert.equal((await call("/work", {}, { secret: null })).status, 403);
+    assert.equal((await call("/work", {}, { secret: "bad" })).status, 403);
+    const w = await call("/work", {});
+    assert.equal(w.status, 200);
+    const byId = Object.fromEntries(w.json.items.map((i) => [i.payment.id, i]));
+    assert.deepEqual(Object.keys(byId).sort(), [a1.id, a2.id, b1.id].sort());
+    assert.equal(byId[a1.id].spreadsheetId, A);
+    assert.equal(byId[a2.id].spreadsheetId, A);
+    assert.equal(byId[b1.id].spreadsheetId, B);
+    assert.equal(byId[a1.id].payment.status, "confirmed");
+    assert.equal(byId[a2.id].payment.status, "awaiting_review");
+    assert.doesNotMatch(JSON.stringify(w.json), /6037997000000001|cardNumber":"\d/, "شماره‌کارت نباید در work بیاید");
+    assert.ok(w.json.items.every((i) => i.payment.channel.cardNumber === null && i.payment.channel.paymentUrl === null));
+
+    // بعد از claim، a1 از work حذف می‌شود؛ لغو/انقضا هم
+    await call("/requests/claim", { spreadsheetId: A, requestId: a1.id });
+    await call("/requests/cancel", { spreadsheetId: B, userId: "2001", requestId: b1.id });
+    const w2 = await call("/work", {});
+    assert.deepEqual(w2.json.items.map((i) => i.payment.id), [a2.id]);
   }));

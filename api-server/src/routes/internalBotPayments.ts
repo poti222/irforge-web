@@ -25,7 +25,7 @@ import { clientIp, hit, send429, type HitFn } from "../middleware/rateLimit";
 import { resolveBotBySpreadsheetId } from "../lib/botConfig";
 import {
   cancelBotPayment, claimBotEffect, createBotPayment, getActiveBotChannel, getBotPayment,
-  listActiveBotPayments, listUnclaimedConfirmed, markBotEffectDone, submitBotReceipt,
+  listActiveBotPayments, listBotWork, listUnclaimedConfirmed, markBotEffectDone, submitBotReceipt,
   PaymentRequestError, type PaymentPurpose,
 } from "../lib/paymentBotApi";
 import type { PoolLike } from "../lib/paymentRequests";
@@ -125,6 +125,24 @@ export function createInternalBotPaymentsRouter(deps: InternalBotPaymentsDeps = 
       }
     });
   };
+
+  // بدونِ tenant: همه‌ی کارهای بازِ همه‌ی بات‌ها (فقط secret). بات هر tenant را با spreadsheetId می‌شناسد.
+  router.post("/internal/payments/work", async (req: Request, res: Response) => {
+    const ip = clientIp(req);
+    try {
+      if (!secretOk(req)) {
+        const v = await hitFn(`pay-int-fail:${ip}`, FAIL_LIMIT, 0, FAIL_WINDOW_MS);
+        logger.warn({ ip, path: "/internal/payments/work" }, "internal bot payments: bad or missing secret");
+        if (!v.allowed) { send429(res, v.retryAfterSeconds); return; }
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+      res.json({ ok: true, items: await listBotWork(pool) });
+    } catch (err) {
+      logger.error({ err }, "internal bot payments work error");
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
 
   route("/internal/payments/channel", async ({ botId }) => ({ channel: await getActiveBotChannel(pool, botId) }));
 

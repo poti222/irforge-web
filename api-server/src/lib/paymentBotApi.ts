@@ -139,9 +139,9 @@ function decryptCard(enc: string | null): string | null {
   }
 }
 
-async function buildView(pool: PoolLike, row: any): Promise<BotPaymentView> {
+async function buildView(pool: PoolLike, row: any, opts: { includePayTarget?: boolean } = {}): Promise<BotPaymentView> {
   const r = mapRow(row);
-  const showPay = r.status === "pending" || r.status === "awaiting_review";
+  const showPay = (opts.includePayTarget ?? true) && (r.status === "pending" || r.status === "awaiting_review");
   const ch = await withClient(pool, async (c) => {
     const { rows } = await c.query("SELECT * FROM payment_channels WHERE id = $1", [r.channelId]);
     return rows[0];
@@ -346,6 +346,34 @@ export async function listUnclaimedConfirmed(pool: PoolLike, botId: string, limi
     return rows;
   });
   return Promise.all(rows.map((r) => buildView(pool, r)));
+}
+
+/**
+ * «کارِ باز» برایِ همه‌ی بات‌ها با یک query (مین‌بات هر چند ثانیه یک‌بار poll می‌کند):
+ * درخواست‌های فعال (queued/pending/awaiting_review) + تأییدشده‌هایی که اثرشان هنوز
+ * claim نشده. هر مورد با `spreadsheetId` ی بات برمی‌گردد (کلیدِ tenant سمتِ بات). شماره‌کارت
+ * برنمی‌گردد — بات هنگامِ نمایش با `get` آن را می‌گیرد.
+ */
+export interface BotWorkItem { spreadsheetId: string; payment: BotPaymentView }
+
+export async function listBotWork(pool: PoolLike, limit = 300): Promise<BotWorkItem[]> {
+  await expireDueRequests(pool).catch(() => undefined);
+  const rows = await withClient(pool, async (c) => {
+    const { rows } = await c.query(
+      `SELECT r.*, b.sheet_id AS work_sheet_id
+         FROM payment_requests r JOIN bots b ON b.id = r.bot_id
+        WHERE r.scope = 'bot' AND b.sheet_id IS NOT NULL
+          AND (r.status = ANY($1::text[]) OR (r.status = 'confirmed' AND r.effect_claimed_at IS NULL))
+        ORDER BY r.created_at, r.id LIMIT $2`,
+      [ACTIVE_STATUSES, Math.min(limit, 1000)]);
+    return rows;
+  });
+  const out: BotWorkItem[] = [];
+  for (const r of rows) {
+    const payment = await buildView(pool, r, { includePayTarget: false });
+    out.push({ spreadsheetId: r.work_sheet_id, payment });
+  }
+  return out;
 }
 
 /**
