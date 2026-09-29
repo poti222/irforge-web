@@ -17,7 +17,9 @@ import http from "node:http";
 import express from "express";
 
 const ingest = await import("../src/lib/smsIngest.ts");
-const { canonSender, senderAllowed, parseSmsTime, smsContentHash, IGNORED_TEXT_PLACEHOLDER, HASH_BUCKET_MS } = ingest;
+const { canonSender, senderAllowed, parseSmsTime, smsContentHash, hasEmbeddedTimestamp, ingestSms, IGNORED_TEXT_PLACEHOLDER, HASH_BUCKET_MS } = ingest;
+const { createPaymentRequest } = await import("../src/lib/paymentRequests.ts");
+const effects = await import("../src/lib/paymentEffects.ts");
 const { createPaymentSmsRouter, SMS_IP_LIMIT_PER_MIN } = await import("../src/routes/paymentSmsWebhook.ts");
 const { generateSmsSecret, hashSmsSecret } = await import("../src/lib/smsChannelSecret.ts");
 
@@ -69,6 +71,27 @@ test("smsContentHash: کانال/فرستنده/متن/زمان هرکدام د�
   const c = smsContentHash("ch1", "متن", "bank", null, new Date(bucketStart + HASH_BUCKET_MS + 1000));
   assert.equal(a, b);
   assert.notEqual(a, c);
+});
+
+test("hasEmbeddedTimestamp: فقط وقتی هم ساعت هم تاریخ در متن باشد (بلوبانک آری؛ متنِ ساده نه)", () => {
+  assert.equal(hasEmbeddedTimestamp("واریز 100 ریال\n21:11\n1405.06.08"), true);
+  assert.equal(hasEmbeddedTimestamp("واریز 100 ریال 21:11 1405/06/08"), true);
+  assert.equal(hasEmbeddedTimestamp("واریز 100 ریال 21:11"), false, "فقط ساعت");
+  assert.equal(hasEmbeddedTimestamp("واریز 100 ریال 1405.06.08"), false, "فقط تاریخ");
+  assert.equal(hasEmbeddedTimestamp("واریز 1,000,000 ریال موجودی 2,500,000 ریال"), false, "مبلغ‌ها تاریخ نیستند");
+  assert.equal(hasEmbeddedTimestamp(""), false);
+});
+
+test("smsContentHash: متنِ دارای ساعت+تاریخ و بدونِ زمانِ forwarder → مستقل از زمانِ ورود؛ متنِ ساده هنوز سطل‌دار", () => {
+  const withTs = "واریز 100 ریال\n21:11\n1405.06.08";
+  const a = smsContentHash("c", withTs, "b", null, NOW);
+  const b = smsContentHash("c", withTs, "b", null, new Date(NOW.getTime() + 3 * 3600_000));
+  assert.equal(a, b);
+  const plain = "واریز 100 ریال";
+  assert.notEqual(smsContentHash("c", plain, "b", null, NOW), smsContentHash("c", plain, "b", null, new Date(NOW.getTime() + 3 * 3600_000)));
+  // زمانِ ارائه‌شده‌ی forwarder همچنان اولویت دارد
+  const t1 = new Date(NOW.getTime() - 60_000), t2 = new Date(NOW.getTime() - 120_000);
+  assert.notEqual(smsContentHash("c", withTs, "b", t1, NOW), smsContentHash("c", withTs, "b", t2, NOW));
 });
 
 test("مسیرِ قدیمیِ /internal/wallet-topup/sms-webhook دست‌نخورده و مسیرِ جدید ثبت شده است", () => {
@@ -380,4 +403,97 @@ test("ورودی‌های بدشکل: شناسه‌ی کانالِ عجیب → 
     assert.equal(r.status, 201);
     const row = (await inbox(pool))[0];
     assert.ok(row.raw_text.length <= 2000);
+  }));
+
+test("retryِ دیرهنگامِ همان پیامکِ بلوبانک بدونِ زمانِ forwarder → تکراری (نه ردیفِ تازه)؛ متنِ بی‌ساعت → ردیفِ تازه", live, () =>
+  withEnv(async ({ pool }) => {
+    const { id } = await channel(pool);
+    const ch = { id, scope: "platform", botId: null, active: true, senderAllowlist: [], bankParser: "blubank" };
+    const t1 = new Date();
+    const t2 = new Date(t1.getTime() + 3 * 3600_000);
+    const first = await ingestSms(pool, ch, { text: DEPOSIT }, t1);
+    const retry = await ingestSms(pool, ch, { text: DEPOSIT }, t2);
+    assert.equal(first.inserted, true);
+    assert.equal(retry.inserted, false);
+    const plain = "واریز 1,000,000 ریال";
+    assert.equal((await ingestSms(pool, ch, { text: plain }, t1)).inserted, true);
+    assert.equal((await ingestSms(pool, ch, { text: plain }, t2)).inserted, true);
+    assert.equal((await inbox(pool)).length, 3);
+  }));
+
+test("وبهوک ← موتورِ تطبیق: واریزِ هم‌مبلغ → matched:true و درخواست confirmed؛ ارسالِ تکراری بی‌اثر", live, () =>
+  withEnv(async ({ pool, base }) => {
+    const calls = [];
+    effects.clearPaymentEffects();
+    effects.registerPaymentEffect("platform", "wallet_topup", async (_c, req) => { calls.push(req.id); });
+    try {
+      const { id, secret } = await channel(pool);
+      const { request } = await createPaymentRequest(pool, {
+        channelId: id, channelScope: { scope: "platform" }, userId: "u1", purpose: "wallet_topup", baseAmountRial: 2_000_000,
+      });
+      const text = DEPOSIT.replace("2,768,654", request.finalAmountRial.toLocaleString("en-US"));
+      const time = new Date().toISOString();
+      const r1 = await post(base, id, { text, sender: "Blubank", time }, { secret });
+      assert.equal(r1.status, 201);
+      assert.equal(r1.json.matched, true);
+      const req = (await pool.query("SELECT status, confirmed_by, matched_sms_id FROM payment_requests WHERE id=$1", [request.id])).rows[0];
+      assert.deepEqual([req.status, req.confirmed_by], ["confirmed", "sms"]);
+      assert.ok(req.matched_sms_id);
+      const r2 = await post(base, id, { text, sender: "Blubank", time }, { secret });
+      assert.equal(r2.status, 200);
+      assert.equal(r2.json.matched, false);
+      assert.deepEqual(calls, [request.id], "effect دقیقاً یک‌بار");
+      // پیامکِ بی‌ربط (مبلغِ دیگر) matched:false و چیزی تأیید نمی‌شود
+      const other = await post(base, id, { text: DEPOSIT, sender: "Blubank", time: new Date(Date.now() - 1000).toISOString() }, { secret });
+      assert.equal(other.status, 201);
+      assert.equal(other.json.matched, false);
+      assert.equal(calls.length, 1);
+    } finally {
+      effects.clearPaymentEffects();
+    }
+  }));
+
+test("خطای موتورِ تطبیق پاسخِ وبهوک را خراب نمی‌کند: ۲۰۱ با matched:false و پیامک unmatched می‌ماند", live, () =>
+  withEnv(async ({ pool, base }) => {
+    const { id, secret } = await channel(pool);
+    // روتِ جداگانه با matcherِ خراب
+    const app = express();
+    app.use(express.json());
+    app.use("/api", createPaymentSmsRouter({ pool, hitFn: async () => ({ allowed: true, retryAfterSeconds: 0 }), matcher: async () => { throw new Error("db down"); } }));
+    const server = http.createServer(app);
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    try {
+      const url = `http://127.0.0.1:${server.address().port}/api/payments/sms/${id}`;
+      const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json", "x-sms-secret": secret }, body: JSON.stringify({ text: DEPOSIT }) });
+      assert.equal(res.status, 201);
+      assert.equal((await res.json()).matched, false);
+      const rows = await inbox(pool);
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].status, "unmatched");
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+  }));
+
+test("وبهوک: برداشت/ignored هرگز به موتورِ تطبیق نمی‌رسد", live, () =>
+  withEnv(async ({ pool }) => {
+    const { id, secret } = await channel(pool, { allowlist: ["Blubank"] });
+    const seen = [];
+    const app = express();
+    app.use(express.json());
+    app.use("/api", createPaymentSmsRouter({ pool, hitFn: async () => ({ allowed: true, retryAfterSeconds: 0 }), matcher: async (_p, smsId) => { seen.push(smsId); return { outcome: "no_candidate" }; } }));
+    const server = http.createServer(app);
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    try {
+      const url = `http://127.0.0.1:${server.address().port}/api/payments/sms/${id}`;
+      const send = (body) => fetch(url, { method: "POST", headers: { "content-type": "application/json", "x-sms-secret": secret }, body: JSON.stringify(body) });
+      await send({ text: WITHDRAW, sender: "Blubank" });
+      await send({ text: DEPOSIT, sender: "+989121234567" });
+      await send({ text: "کد ورود 1234", sender: "Blubank" });
+      assert.deepEqual(seen, []);
+      await send({ text: DEPOSIT, sender: "Blubank" });
+      assert.equal(seen.length, 1);
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
   }));

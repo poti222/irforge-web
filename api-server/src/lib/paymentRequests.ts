@@ -72,9 +72,13 @@ export interface PaymentRequestRow {
   expiresAt: Date | null;
   queuePosition: number | null;
   createdAt: Date;
+  /** sms | admin — فقط وقتی status=confirmed. */
+  confirmedBy: "sms" | "admin" | null;
+  confirmedAt: Date | null;
+  matchedSmsId: string | null;
 }
 
-function mapRow(r: any): PaymentRequestRow {
+export function mapRow(r: any): PaymentRequestRow {
   return {
     id: r.id,
     channelId: r.channel_id,
@@ -92,6 +96,9 @@ function mapRow(r: any): PaymentRequestRow {
     expiresAt: r.expires_at,
     queuePosition: r.queue_position,
     createdAt: r.created_at,
+    confirmedBy: r.confirmed_by ?? null,
+    confirmedAt: r.confirmed_at ?? null,
+    matchedSmsId: r.matched_sms_id ?? null,
   };
 }
 
@@ -112,7 +119,7 @@ export function pickRandom<T>(items: readonly T[], randomInt: (n: number) => num
 
 // ─── تراکنش و قفل ───────────────────────────────────────────────────────────
 
-async function inTransaction<T>(pool: PoolLike, fn: (c: ClientLike) => Promise<T>): Promise<T> {
+export async function inTransaction<T>(pool: PoolLike, fn: (c: ClientLike) => Promise<T>): Promise<T> {
   const c = await pool.connect();
   try {
     await c.query("BEGIN");

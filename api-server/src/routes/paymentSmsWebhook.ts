@@ -18,13 +18,21 @@
  *   فرستنده:  sender | from | address | number
  *   زمان:     time | timestamp | received_at | date   (ISO یا epoch ثانیه/میلی‌ثانیه)
  *
+ * پس از ذخیره‌ی یک واریزِ قابل‌فهم، موتورِ تطبیق (`lib/paymentMatcher.ts`، فاز ۴) صدا زده
+ * می‌شود؛ پاسخ `matched:true` است اگر یک درخواست خودکار تأیید شد. خطای تطبیق هرگز پاسخ را
+ * خراب نمی‌کند (پیامک unmatched می‌ماند).
+ *
  * پاسخ: 201 ذخیره شد، 200 تکراری (idempotent — forwarder می‌تواند امن retry کند)،
  * 400 بدونِ متن، 401 احراز ناموفق، 403 کانالِ غیرفعال، 429 rate limit.
  */
 import express, { Router } from "express";
 import type { Request, Response } from "express";
-import { pool as defaultPool } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { pool as defaultPool, db, botsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { createNotification, notifySuperAdmins } from "../lib/notify";
+import { createPaymentAlerts, type AlertMessage, type MatchAlerts } from "../lib/paymentAlerts";
+import { matchSms, type MatchOutcome } from "../lib/paymentMatcher";
 import { clientIp, hit, send429, type HitFn } from "../middleware/rateLimit";
 import { authenticateChannel, ingestSms, SmsIngestError } from "../lib/smsIngest";
 import type { PoolLike } from "../lib/paymentRequests";
@@ -49,9 +57,28 @@ function extractSecret(req: Request): string {
   return /^Bearer\s+/i.test(auth) ? auth.replace(/^Bearer\s+/i, "").trim() : "";
 }
 
-export function createPaymentSmsRouter(deps: { pool?: PoolLike; hitFn?: HitFn } = {}): Router {
+/** اعلان‌ها: super_adminها (همیشه) و صاحبِ بات (برایِ scope=bot). هرگز throw نمی‌کند. */
+function defaultAlerts(): MatchAlerts {
+  const toInput = (m: AlertMessage) => ({
+    type: m.type, severity: m.severity, title: m.title, message: m.message,
+    botId: m.botId, dedupeKey: m.dedupeKey, refId: m.refId ?? null,
+  });
+  return createPaymentAlerts({
+    notifyAdmins: (m) => notifySuperAdmins(toInput(m)),
+    notifyBotOwner: async (botId, m) => {
+      const [bot] = await db.select({ userId: botsTable.userId }).from(botsTable).where(eq(botsTable.id, botId)).limit(1);
+      if (bot) await createNotification({ ...toInput(m), userId: bot.userId });
+    },
+  });
+}
+
+export function createPaymentSmsRouter(
+  deps: { pool?: PoolLike; hitFn?: HitFn; matcher?: (pool: PoolLike, smsId: string) => Promise<MatchOutcome> } = {},
+): Router {
   const pool = deps.pool ?? (defaultPool as unknown as PoolLike);
   const hitFn = deps.hitFn ?? hit;
+  const alerts = deps.matcher ? undefined : defaultAlerts();
+  const matcher = deps.matcher ?? ((p: PoolLike, id: string) => matchSms(p, id, { alerts }));
   const router = Router();
 
   router.post(
@@ -89,12 +116,24 @@ export function createPaymentSmsRouter(deps: { pool?: PoolLike; hitFn?: HitFn } 
             direction: result.direction, parsedOk: result.parsedOk },
           "payment SMS ingested",
         );
+
+        // تطبیق فقط برایِ واریزِ تازه‌ی قابل‌فهم؛ خطایش هرگز پاسخِ وبهوک را خراب نمی‌کند
+        // (پیامک ذخیره شده و unmatched می‌ماند تا retest/sweeper).
+        let matched = false;
+        if (result.inserted && result.status === "unmatched" && result.parsedOk && result.direction === "deposit") {
+          try {
+            matched = (await matcher(pool, result.id)).outcome === "confirmed";
+          } catch (err) {
+            logger.error({ err, channelId: channel.id, smsId: result.id }, "payment SMS matching failed (SMS kept unmatched)");
+          }
+        }
         res.status(result.inserted ? 201 : 200).json({
           ok: true,
           duplicate: !result.inserted,
           status: result.status,
           direction: result.direction,
           parsed: result.parsedOk,
+          matched,
         });
       } catch (err) {
         if (err instanceof SmsIngestError) { res.status(400).json({ error: err.message, code: err.code }); return; }

@@ -14,7 +14,8 @@
  *    ردیفِ تازه نمی‌سازد. هش شاملِ زمانِ پیامک (اگر فرستاده شده) یا یک سطلِ
  *    ۵دقیقه‌ایِ زمانِ ورود است — تا دو واریزِ واقعاً جدا با متنِ یکسان (بدونِ
  *    زمان/موجودی در متن) هرگز به‌عنوانِ تکراری گم نشوند؛ بدترین حالتِ سطل، یک
- *    ردیفِ اضافه است، نه یک پولِ گم‌شده.
+ *    ردیفِ اضافه است، نه یک پولِ گم‌شده. اگر خودِ متن ساعت و تاریخ دارد (بلوبانک)
+ *    و زمانِ forwarder نیامده، هش فقط از متن است → retryِ دیرهنگام هم تکراری شناخته می‌شود.
  *
  * هیچ‌وقت متنِ پیامک یا secret در لاگ نمی‌آید (فقط شناسه‌ها/نتیجه).
  */
@@ -87,8 +88,22 @@ export function parseSmsTime(input: unknown, now: Date): Date | null {
   return new Date(ms);
 }
 
+const EMBEDDED_CLOCK_RE = /\b\d{1,2}:\d{2}\b/;
+const EMBEDDED_DATE_RE = /\b(?:\d{4}[./-]\d{1,2}[./-]\d{1,2}|\d{1,2}[./-]\d{1,2}[./-]\d{2,4})\b/;
+
+/** متنِ پیامک خودش ساعت **و** تاریخ دارد (مثلاً قالبِ بلوبانک) → متن به‌تنهایی یکتاست. */
+export function hasEmbeddedTimestamp(normalizedText: string): boolean {
+  return EMBEDDED_CLOCK_RE.test(normalizedText) && EMBEDDED_DATE_RE.test(normalizedText);
+}
+
 export function smsContentHash(channelId: string, normalizedText: string, sender: unknown, provided: Date | null, now: Date): string {
-  const timeKey = provided ? `t:${provided.toISOString()}` : `b:${Math.floor(now.getTime() / HASH_BUCKET_MS)}`;
+  // اولویت: زمانِ ارائه‌شده‌ی forwarder؛ وگرنه ساعت/تاریخِ داخلِ خودِ متن (retryِ دیرهنگام
+  // هم همان هش را می‌گیرد)؛ وگرنه سطلِ ۵دقیقه‌ایِ زمانِ ورود.
+  const timeKey = provided
+    ? `t:${provided.toISOString()}`
+    : hasEmbeddedTimestamp(normalizedText)
+      ? "e"
+      : `b:${Math.floor(now.getTime() / HASH_BUCKET_MS)}`;
   return crypto.createHash("sha256")
     .update([channelId, normalizedText, canonSender(sender), timeKey].join("\n"), "utf8")
     .digest("hex");
