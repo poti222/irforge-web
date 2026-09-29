@@ -19,6 +19,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, getSchoolMember } from "../lib/schoolAuth";
+import { notifySchoolUsers } from "../lib/schoolNotify";
 
 const router = Router();
 
@@ -95,6 +96,30 @@ router.post("/api/schools/:schoolId/admin-messages/:studentMemberId", requireAut
       senderUserId: req.userId,
       body: body.trim(),
     }).returning();
+
+    // فازِ ۷ (بخشِ C): این رشته مشترک است (همه‌یِ مدیرهایِ مدرسه + دانش‌آموز
+    // + والدینش) — گیرنده‌یِ اعلان یعنی «همه‌یِ اعضایِ رشته به‌جز فرستنده».
+    const admins = await db.select({ userId: schoolMembersTable.userId }).from(schoolMembersTable)
+      .where(and(eq(schoolMembersTable.schoolId, req.params.schoolId), eq(schoolMembersTable.role, "admin")));
+    const [studentMember] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.id, req.params.studentMemberId)).limit(1);
+    const guardians = await db.select().from(schoolGuardianshipsTable).where(eq(schoolGuardianshipsTable.studentMemberId, req.params.studentMemberId));
+    const threadUserIds = [
+      ...admins.map((a: typeof admins[number]) => a.userId),
+      ...(studentMember ? [studentMember.userId] : []),
+      ...guardians.map((g: typeof guardians[number]) => g.parentUserId),
+    ];
+    const recipients = [...new Set(threadUserIds)].filter((id) => id !== req.userId);
+    if (recipients.length > 0) {
+      await notifySchoolUsers({
+        userIds: recipients,
+        schoolId: req.params.schoolId,
+        kind: "school_admin_message",
+        severity: "info",
+        title: "پیامِ تازه از ارتباط با مدیر",
+        body: row.body,
+      });
+    }
+
     res.status(201).json(formatMessage(row));
   } catch (err) {
     logger.error({ err }, "Send admin message error");

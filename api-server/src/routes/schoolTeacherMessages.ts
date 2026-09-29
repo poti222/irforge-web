@@ -14,6 +14,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, getSchoolMember } from "../lib/schoolAuth";
+import { notifySchoolUsers } from "../lib/schoolNotify";
 
 const router = Router();
 
@@ -182,6 +183,21 @@ router.post("/api/schools/:schoolId/teacher-messages", requireAuth, async (req: 
       senderUserId: req.userId,
       body: body.trim(),
     }).returning();
+
+    // فازِ ۷ (بخشِ C): گیرنده = طرفِ دیگرِ رشته‌ی ۱:۱ (معلم یا دانش‌آموز).
+    const [studentMember] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.id, studentMemberId)).limit(1);
+    const otherUserId = req.userId === teacherUserId ? studentMember?.userId : teacherUserId;
+    if (otherUserId) {
+      await notifySchoolUsers({
+        userIds: [otherUserId],
+        schoolId: req.params.schoolId,
+        kind: "school_teacher_message",
+        severity: "info",
+        title: "پیامِ تازه از ارتباط با معلم",
+        body: row.body,
+      });
+    }
+
     res.status(201).json(formatMessage(row));
   } catch (err) {
     logger.error({ err }, "Send teacher message error");

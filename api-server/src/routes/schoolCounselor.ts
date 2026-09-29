@@ -16,6 +16,7 @@ import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, getSchoolMember } from "../lib/schoolAuth";
+import { notifySchoolUsers } from "../lib/schoolNotify";
 
 const router = Router();
 
@@ -262,6 +263,21 @@ router.post("/api/schools/:schoolId/counselor/messages", requireAuth, async (req
       senderUserId: req.userId,
       body: body.trim(),
     }).returning();
+
+    // فازِ ۷ (بخشِ C): گیرنده = طرفِ دیگرِ رشته‌ی ۱:۱ (مشاور یا دانش‌آموز).
+    const [studentMember] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.id, studentMemberId)).limit(1);
+    const otherUserId = req.userId === counselorUserId ? studentMember?.userId : counselorUserId;
+    if (otherUserId) {
+      await notifySchoolUsers({
+        userIds: [otherUserId],
+        schoolId: req.params.schoolId,
+        kind: "school_counselor_message",
+        severity: "info",
+        title: "پیامِ تازه از مشاور",
+        body: row.body,
+      });
+    }
+
     res.status(201).json(formatMessage(row));
   } catch (err) {
     logger.error({ err }, "Send counselor message error");

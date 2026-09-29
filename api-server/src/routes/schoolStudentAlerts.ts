@@ -11,6 +11,7 @@ import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool } from "../lib/schoolAuth";
+import { notifySchoolUsers } from "../lib/schoolNotify";
 
 const router = Router();
 
@@ -63,6 +64,27 @@ router.post("/api/schools/:schoolId/alerts", requireAuth, async (req: any, res) 
       title: title.trim(),
       body: body.trim(),
     }).returning();
+
+    // فازِ ۷ (بخشِ C): خودِ دانش‌آموز + والدینِ او — درخواستِ صریحِ کاربر
+    // («اخطار/هشدارِ فرزند»). severity مدرسه به severity اعلانِ سایت هم
+    // نگاشت می‌شود (notice→info، warning→warning، serious→critical).
+    const [studentMember] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.id, row.studentMemberId)).limit(1);
+    const guardianRows = await db.select().from(schoolGuardianshipsTable).where(eq(schoolGuardianshipsTable.studentMemberId, row.studentMemberId));
+    const recipientUserIds = [
+      ...(studentMember ? [studentMember.userId] : []),
+      ...guardianRows.map((g: typeof guardianRows[number]) => g.parentUserId),
+    ];
+    if (recipientUserIds.length > 0) {
+      await notifySchoolUsers({
+        userIds: [...new Set(recipientUserIds)],
+        schoolId: req.params.schoolId,
+        kind: "school_student_alert",
+        severity: row.severity === "serious" ? "critical" : row.severity === "warning" ? "warning" : "info",
+        title: row.title,
+        body: row.body,
+      });
+    }
+
     res.status(201).json(formatAlert(row));
   } catch (err) {
     logger.error({ err }, "Create student alert error");

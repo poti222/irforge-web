@@ -6,11 +6,12 @@
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, schoolAnnouncementsTable, schoolClassMembersTable, SCHOOL_ANNOUNCEMENT_KINDS, SCHOOL_MEMBER_ROLES } from "@workspace/db";
+import { db, schoolAnnouncementsTable, schoolClassMembersTable, schoolMembersTable, SCHOOL_ANNOUNCEMENT_KINDS, SCHOOL_MEMBER_ROLES } from "@workspace/db";
 import { canAccessSchool, SCHOOL_ADMIN_DEPUTY } from "../lib/schoolAuth";
-import { eq, and, or, isNull } from "drizzle-orm";
+import { eq, and, or, isNull, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
+import { notifySchoolUsers } from "../lib/schoolNotify";
 
 const router = Router();
 
@@ -95,6 +96,31 @@ router.post("/api/schools/:schoolId/announcements", requireAuth, async (req: any
       title: title.trim(),
       body: body ?? "",
     }).returning();
+
+    // فازِ ۷ (بخشِ C): kind="class" فقط اعضایِ همان کلاس، broadcast/closure کلِ اعضایِ مدرسه.
+    let recipientUserIds: string[] = [];
+    if (kind === "class") {
+      const roster = await db.select().from(schoolClassMembersTable).where(eq(schoolClassMembersTable.classId, classId));
+      const memberIds = roster.map((r: typeof roster[number]) => r.schoolMemberId);
+      const members = memberIds.length ? await db.select().from(schoolMembersTable).where(inArray(schoolMembersTable.id, memberIds)) : [];
+      recipientUserIds = members.map((m: typeof members[number]) => m.userId);
+    } else {
+      const members = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.schoolId, req.params.schoolId));
+      recipientUserIds = members.map((m: typeof members[number]) => m.userId);
+    }
+    // فرستنده خودش دوباره اعلان نگیرد.
+    recipientUserIds = [...new Set(recipientUserIds)].filter((id) => id !== req.userId);
+    if (recipientUserIds.length > 0) {
+      await notifySchoolUsers({
+        userIds: recipientUserIds,
+        schoolId: req.params.schoolId,
+        kind: kind === "closure" ? "school_announcement_closure" : "school_announcement",
+        severity: kind === "closure" ? "warning" : "info",
+        title: row.title,
+        body: row.body,
+      });
+    }
+
     res.status(201).json(formatAnnouncement(row));
   } catch (err) {
     logger.error({ err }, "Create school announcement error");

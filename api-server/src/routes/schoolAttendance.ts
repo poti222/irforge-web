@@ -10,12 +10,13 @@
 import { logger } from "../lib/logger";
 import { Router } from "express";
 import {
-  db, schoolAttendanceTable, schoolClassMembersTable, schoolMembersTable, schoolGuardianshipsTable,
+  db, schoolAttendanceTable, schoolClassMembersTable, schoolMembersTable, schoolGuardianshipsTable, usersTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, SCHOOL_ADMIN_ONLY } from "../lib/schoolAuth";
+import { notifySchoolUsers } from "../lib/schoolNotify";
 
 const router = Router();
 
@@ -98,6 +99,45 @@ router.post("/api/schools/:schoolId/attendance", requireAuth, async (req: any, r
       }
       results.push(row);
     }
+
+    // فازِ ۷ (بخشِ C): «فرزندتان امروز غایب بود» — فقط برایِ غایب/دیرآمده،
+    // فقط به والدینِ همان دانش‌آموز (school_guardianships). عمداً «فرزندتان»
+    // خنثی است نه پسر/دختر: این سیستم جنسیتِ دانش‌آموز را برای هر خانواده‌ای
+    // مطمئن نمی‌داند، پس حدسِ اشتباه بهتر است اصلاً زده نشود.
+    const toNotify = results.filter((r) => r.status === "absent" || r.status === "late");
+    if (toNotify.length > 0) {
+      const studentIds = [...new Set(toNotify.map((r) => r.studentMemberId))];
+      const [students, links] = await Promise.all([
+        db.select().from(schoolMembersTable).where(inArray(schoolMembersTable.id, studentIds)),
+        db.select().from(schoolGuardianshipsTable).where(inArray(schoolGuardianshipsTable.studentMemberId, studentIds)),
+      ]);
+      const studentUserIds = students.map((s: typeof students[number]) => s.userId);
+      const studentUsers = studentUserIds.length ? await db.select().from(usersTable).where(inArray(usersTable.id, studentUserIds)) : [];
+      const nameByMemberId = new Map(students.map((s: typeof students[number]) => {
+        const u = studentUsers.find((x: typeof studentUsers[number]) => x.id === s.userId);
+        return [s.id, u?.name ?? "دانش‌آموز"];
+      }));
+      const guardiansByStudent = new Map<string, string[]>();
+      for (const l of links as typeof links) {
+        const arr = guardiansByStudent.get(l.studentMemberId) ?? [];
+        arr.push(l.parentUserId);
+        guardiansByStudent.set(l.studentMemberId, arr);
+      }
+      for (const row of toNotify) {
+        const parentIds = guardiansByStudent.get(row.studentMemberId);
+        if (!parentIds || parentIds.length === 0) continue;
+        const statusFa = row.status === "absent" ? "غایب" : "دیر حاضر";
+        await notifySchoolUsers({
+          userIds: parentIds,
+          schoolId: req.params.schoolId,
+          kind: "school_attendance_absent",
+          severity: row.status === "absent" ? "warning" : "info",
+          title: `${statusFa}یِ امروزِ فرزندتان`,
+          body: `فرزندتان (${nameByMemberId.get(row.studentMemberId)}) امروز (${row.date}) ${statusFa} بود.`,
+        });
+      }
+    }
+
     res.status(200).json(results.map(formatAttendance));
   } catch (err) {
     logger.error({ err }, "Mark attendance error");

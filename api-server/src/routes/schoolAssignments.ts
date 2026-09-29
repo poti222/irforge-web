@@ -12,10 +12,11 @@ import {
   db, schoolAssignmentsTable, schoolAssignmentSubmissionsTable,
   schoolClassMembersTable, schoolMembersTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, SCHOOL_ADMIN_ONLY } from "../lib/schoolAuth";
+import { notifySchoolUsers } from "../lib/schoolNotify";
 
 const router = Router();
 
@@ -103,6 +104,25 @@ router.post("/api/schools/:schoolId/assignments", requireAuth, async (req: any, 
       description: description ?? null,
       dueDate: dueDate ? new Date(dueDate) : null,
     }).returning();
+
+    // فازِ ۷ (بخشِ C): «تکلیف داری» به همه‌یِ دانش‌آموزانِ روسترِ همین کلاس.
+    const roster = await db.select().from(schoolClassMembersTable)
+      .where(and(eq(schoolClassMembersTable.classId, classId), eq(schoolClassMembersTable.roleInClass, "student")));
+    const memberIds = roster.map((r: typeof roster[number]) => r.schoolMemberId);
+    if (memberIds.length > 0) {
+      const students = await db.select().from(schoolMembersTable).where(inArray(schoolMembersTable.id, memberIds));
+      const studentUserIds = students.map((s: typeof students[number]) => s.userId);
+      const due = row.dueDate ? new Date(row.dueDate).toLocaleDateString("fa-IR") : null;
+      await notifySchoolUsers({
+        userIds: studentUserIds,
+        schoolId: req.params.schoolId,
+        kind: "school_assignment",
+        severity: "info",
+        title: "تکلیف داری",
+        body: due ? `تکلیفِ «${row.title}» تا ${due} مهلت دارد.` : `تکلیفِ «${row.title}» برایِ کلاسِ شما ثبت شد.`,
+      });
+    }
+
     res.status(201).json(formatAssignment(row));
   } catch (err) {
     logger.error({ err }, "Create school assignment error");
