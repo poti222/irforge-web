@@ -104,6 +104,9 @@ import schoolAssignmentsRouter from "./schoolAssignments.js";
 import schoolCounselorReportsRouter from "./schoolCounselorReports.js";
 import schoolQuestionsRouter from "./schoolQuestions.js";
 import schoolExamsRouter from "./schoolExams.js";
+// بخش "/schools" فاز ۵ — ارتباط با مدیر/معلم
+import schoolAdminMessagesRouter from "./schoolAdminMessages.js";
+import schoolTeacherMessagesRouter from "./schoolTeacherMessages.js";
 
 const router: IRouter = Router();
 
@@ -193,5 +196,7 @@ router.use(schoolAssignmentsRouter);
 router.use(schoolCounselorReportsRouter);
 router.use(schoolQuestionsRouter);
 router.use(schoolExamsRouter);
+router.use(schoolAdminMessagesRouter);
+router.use(schoolTeacherMessagesRouter);
 
 export default router;

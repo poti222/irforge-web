@@ -6,8 +6,8 @@
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, schoolCounselorReportsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { db, schoolCounselorReportsTable, schoolGuardianshipsTable, schoolMembersTable } from "@workspace/db";
+import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool } from "../lib/schoolAuth";
@@ -26,19 +26,46 @@ function formatReport(r: typeof schoolCounselorReportsTable.$inferSelect) {
   };
 }
 
+/**
+ * والدِ studentMemberIdهایِ فرزندانِ این کاربر در همین مدرسه — فازِ ۵ (بندِ ۲):
+ * مرزِ حریمِ خصوصیِ والد. جدا از `canAccessSchool` است چون پیوندِ
+ * والد↔دانش‌آموز در `school_guardianships` است نه `school_members`؛ حتی اگر
+ * والد اصلاً عضوِ این مدرسه نباشد (فرزندش در یک مدرسه است، خودش شاید هیچ‌جا
+ * ثبت‌نام نکرده)، همین پیوند کافی‌ست. هرگز studentMemberIdِ بیرون از این
+ * مجموعه را برنمی‌گرداند.
+ */
+async function myChildrenMemberIdsInSchool(parentUserId: string, schoolId: string) {
+  const links = await db.select().from(schoolGuardianshipsTable).where(eq(schoolGuardianshipsTable.parentUserId, parentUserId));
+  if (links.length === 0) return [];
+  const memberIds = links.map((l: typeof links[number]) => l.studentMemberId);
+  const members = await db.select().from(schoolMembersTable).where(inArray(schoolMembersTable.id, memberIds));
+  return members.filter((m: typeof members[number]) => m.schoolId === schoolId).map((m: typeof members[number]) => m.id);
+}
+
 // GET /api/schools/:schoolId/counselor/reports — مشاور: فقط خودش. مدیر/معاون: همه.
+// والد (فازِ ۵ بندِ ۲): فقط‌خواندنی، فقط گزارش‌هایِ خطاب‌به‌studentMemberIdِ
+// فرزندِ خودش — هرگز گزارشِ عمومی/گزارشِ دانش‌آموزِ دیگر.
 router.get("/api/schools/:schoolId/counselor/reports", requireAuth, async (req: any, res) => {
   try {
     const { ok, member } = await canAccessSchool(req.userId, req.params.schoolId, ["counselor", "admin", "deputy"]);
-    if (!ok) {
+    if (ok) {
+      const isCounselorOnly = member?.role === "counselor";
+      const rows = isCounselorOnly
+        ? await db.select().from(schoolCounselorReportsTable)
+            .where(and(eq(schoolCounselorReportsTable.schoolId, req.params.schoolId), eq(schoolCounselorReportsTable.counselorUserId, req.userId)))
+        : await db.select().from(schoolCounselorReportsTable).where(eq(schoolCounselorReportsTable.schoolId, req.params.schoolId));
+      rows.sort((a: typeof rows[number], b: typeof rows[number]) => b.createdAt.getTime() - a.createdAt.getTime());
+      res.json(rows.map(formatReport));
+      return;
+    }
+
+    const childIds = await myChildrenMemberIdsInSchool(req.userId, req.params.schoolId);
+    if (childIds.length === 0) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const isCounselorOnly = member?.role === "counselor";
-    const rows = isCounselorOnly
-      ? await db.select().from(schoolCounselorReportsTable)
-          .where(and(eq(schoolCounselorReportsTable.schoolId, req.params.schoolId), eq(schoolCounselorReportsTable.counselorUserId, req.userId)))
-      : await db.select().from(schoolCounselorReportsTable).where(eq(schoolCounselorReportsTable.schoolId, req.params.schoolId));
+    const rows = await db.select().from(schoolCounselorReportsTable)
+      .where(and(eq(schoolCounselorReportsTable.schoolId, req.params.schoolId), inArray(schoolCounselorReportsTable.studentMemberId, childIds)));
     rows.sort((a: typeof rows[number], b: typeof rows[number]) => b.createdAt.getTime() - a.createdAt.getTime());
     res.json(rows.map(formatReport));
   } catch (err) {

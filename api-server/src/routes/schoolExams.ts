@@ -293,6 +293,37 @@ router.post("/api/schools/:schoolId/exams/:id/attempts/submit", requireAuth, asy
   }
 });
 
+// DELETE /api/schools/:schoolId/exams/:id/attempts/:attemptId — فقط معلمِ همان
+// کلاس یا مدیر: «بازنشانیِ تلاش» (فاز ۵ بندِ ۳، از چک‌لیستِ فازِ ۴). چونِ
+// ایندکسِ یکتایِ (examId, studentMemberId) اجازه‌ی دو ردیف نمی‌دهد، «حذفِ
+// همان ردیف» ساده‌ترین راهِ اجازه‌دادنِ به یک تلاشِ تازه است — بعدِ حذف،
+// POST /attempts/start دوباره یک ردیفِ نو می‌سازد.
+router.delete("/api/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, async (req: any, res) => {
+  try {
+    const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
+    if (!exam) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const { ok } = await isClassTeacherOrAdmin(req.userId, req.params.schoolId, exam.classId);
+    if (!ok) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const [row] = await db.delete(schoolExamAttemptsTable)
+      .where(and(eq(schoolExamAttemptsTable.id, req.params.attemptId), eq(schoolExamAttemptsTable.examId, req.params.id)))
+      .returning();
+    if (!row) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.status(204).end();
+  } catch (err) {
+    logger.error({ err }, "Reset exam attempt error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // PATCH /api/schools/:schoolId/exams/:id/attempts/:attemptId — نمره‌ی دستیِ معلم (برایِ سؤالِ تشریحی).
 router.patch("/api/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, async (req: any, res) => {
   try {

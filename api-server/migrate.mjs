@@ -1247,6 +1247,31 @@ CREATE TABLE IF NOT EXISTS school_exam_attempts (
 CREATE UNIQUE INDEX IF NOT EXISTS school_exam_attempts_uniq_idx ON school_exam_attempts(exam_id, student_member_id);
 CREATE INDEX IF NOT EXISTS idx_school_exam_attempts_student ON school_exam_attempts(student_member_id);
 
+-- ─── SCHOOLS فاز ۵ (ارتباط با مدیر/معلم) ─────────────────────────────────────
+-- مایگریشنِ ۰۰۳۴ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+-- school_admin_messages: یک رشته‌ی مشترک به‌ازایِ هر (school, student) — نه
+-- به‌ازایِ هر مدیر؛ ببینید توضیحِ کاملِ تصمیم در schema/schoolAdminMessages.ts.
+CREATE TABLE IF NOT EXISTS school_admin_messages (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  student_member_id TEXT NOT NULL,
+  sender_user_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_admin_messages_student ON school_admin_messages(school_id, student_member_id);
+
+CREATE TABLE IF NOT EXISTS school_teacher_messages (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  teacher_user_id TEXT NOT NULL,
+  student_member_id TEXT NOT NULL,
+  sender_user_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_teacher_messages_pair ON school_teacher_messages(teacher_user_id, student_member_id);
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT

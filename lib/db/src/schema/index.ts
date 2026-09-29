@@ -52,3 +52,6 @@ export * from "./schoolCounselorReports";
 export * from "./schoolCounselorMessages";
 export * from "./schoolQuestions";
 export * from "./schoolExams";
+// بخش "/schools" فاز ۵ — ارتباط با مدیر/معلم (بندِ ۱)
+export * from "./schoolAdminMessages";
+export * from "./schoolTeacherMessages";
