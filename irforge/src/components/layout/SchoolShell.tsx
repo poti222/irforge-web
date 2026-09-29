@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { SchoolSidebar } from "@/components/schools/school-sidebar";
 import { InviteCodeWidget } from "@/components/schools/InviteCodeWidget";
+import { BotConnectWidget } from "@/components/schools/BotConnectWidget";
 import { HeaderControls } from "@/components/layout/header-controls";
 import ErrorBoundary from "@/components/error-boundary";
 import { Spinner } from "@/components/ui/spinner";
@@ -55,7 +56,8 @@ export default function SchoolShell({ children }: { children: ReactNode }) {
               </div>
               {/* ویجتِ مستقلِ «پیدا کردن/پیوستن به مدرسه» کنارِ سایدبار — روی
                   موبایل زیرِ محتوا می‌افتد، روی دسکتاپ یک ستونِ کناری باریک. */}
-              <div className="w-full shrink-0 lg:w-72">
+              <div className="flex w-full shrink-0 flex-col gap-4 lg:w-72">
+                {me.school?.id && <BotConnectWidget schoolId={me.school.id} />}
                 <InviteCodeWidget compact />
               </div>
             </div>
