@@ -76,6 +76,15 @@ const SchoolContentList = lazy(() => import("@/pages/schools/content-list"));
 const SchoolContentDetail = lazy(() => import("@/pages/schools/content-detail"));
 const SchoolsStub = lazy(() => import("@/pages/schools/stub"));
 const SchoolShell = lazy(() => import("@/components/layout/SchoolShell"));
+// بخش "/schools" فاز ۲
+const SchoolMembersPage = lazy(() => import("@/pages/schools/admin/members"));
+const SchoolClassesPage = lazy(() => import("@/pages/schools/admin/classes"));
+const SchoolClassDetailPage = lazy(() => import("@/pages/schools/admin/class-detail"));
+const SchoolProgramsPage = lazy(() => import("@/pages/schools/admin/programs"));
+const SchoolAnnouncementsPage = lazy(() => import("@/pages/schools/announcements"));
+const TeacherClassesPage = lazy(() => import("@/pages/schools/teacher/classes"));
+const CounselorStudentsPage = lazy(() => import("@/pages/schools/counselor/students"));
+const ParentChildrenPage = lazy(() => import("@/pages/schools/parent/children"));
 
 const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
 const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
@@ -343,6 +352,15 @@ function Router() {
       <Route path="/schools/parent"><SchoolProtectedRoute component={SchoolsRoleHome} role="parent" /></Route>
       <Route path="/schools/content/:type"><SchoolProtectedRoute component={SchoolContentList} /></Route>
       <Route path="/schools/content/:type/:id"><SchoolProtectedRoute component={SchoolContentDetail} /></Route>
+      {/* بخش "/schools" فاز ۲ — مدیریتِ اعضا/کلاس‌ها/برنامه‌ها/اعلامیه‌ها + صفحاتِ واقعیِ معلم/مشاور/والد */}
+      <Route path="/schools/admin/members"><SchoolProtectedRoute component={SchoolMembersPage} /></Route>
+      <Route path="/schools/admin/classes"><SchoolProtectedRoute component={SchoolClassesPage} /></Route>
+      <Route path="/schools/admin/classes/:id"><SchoolProtectedRoute component={SchoolClassDetailPage} /></Route>
+      <Route path="/schools/admin/programs"><SchoolProtectedRoute component={SchoolProgramsPage} /></Route>
+      <Route path="/schools/announcements"><SchoolProtectedRoute component={SchoolAnnouncementsPage} /></Route>
+      <Route path="/schools/teacher/classes"><SchoolProtectedRoute component={TeacherClassesPage} /></Route>
+      <Route path="/schools/counselor/students"><SchoolProtectedRoute component={CounselorStudentsPage} /></Route>
+      <Route path="/schools/parent/children"><SchoolProtectedRoute component={ParentChildrenPage} /></Route>
       <Route path="/schools/stub/:key"><SchoolProtectedRoute component={SchoolsStub} /></Route>
 
       <Route path="/admin"><ProtectedRoute component={Admin} adminOnly /></Route>

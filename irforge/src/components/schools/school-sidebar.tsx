@@ -54,11 +54,11 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
     case "admin":
       return [
         { key: "my-schools", href: "/schools/admin", icon: SchoolIcon, label: t.navMySchools },
-        { key: "members", href: "/schools/stub/members", icon: Users, label: t.navMemberManagement },
-        { key: "classes", href: "/schools/stub/classes", icon: LayoutGrid, label: t.navClassManagement },
-        { key: "programs", href: "/schools/stub/programs", icon: CalendarClock, label: t.navProgramManagement },
-        { key: "broadcast", href: "/schools/stub/broadcast", icon: Megaphone, label: t.navBroadcast },
-        { key: "closure", href: "/schools/stub/closure", icon: BellRing, label: t.navClosureAnnouncement },
+        { key: "members", href: "/schools/admin/members", icon: Users, label: t.navMemberManagement },
+        { key: "classes", href: "/schools/admin/classes", icon: LayoutGrid, label: t.navClassManagement },
+        { key: "programs", href: "/schools/admin/programs", icon: CalendarClock, label: t.navProgramManagement },
+        { key: "broadcast", href: "/schools/announcements", icon: Megaphone, label: t.navBroadcast },
+        { key: "closure", href: "/schools/announcements", icon: BellRing, label: t.navClosureAnnouncement },
       ];
     case "student":
       return [
@@ -66,21 +66,22 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
         { key: "notes", href: "/schools/content/note", icon: NotebookPen, label: t.navNotes },
         { key: "books", href: "/schools/content/book", icon: Library, label: t.navBooks },
         { key: "formulas", href: "/schools/content/formula", icon: Sigma, label: t.navFormulas },
+        { key: "announcements", href: "/schools/announcements", icon: Megaphone, label: t.navAnnouncements },
         { key: "contact-counselor", href: "/schools/stub/contact-counselor", icon: MessageCircleQuestion, label: t.navContactCounselor },
         { key: "contact-admin", href: "/schools/stub/contact-admin", icon: ShieldCheck, label: t.navContactAdmin },
         { key: "contact-teacher", href: "/schools/stub/contact-teacher", icon: GraduationCap, label: t.navContactTeacher },
       ];
     case "teacher":
       return [
+        { key: "classrooms", href: "/schools/teacher/classes", icon: Presentation, label: t.navClassrooms },
         { key: "assignments", href: "/schools/stub/assignments", icon: ClipboardList, label: t.navAssignments },
         { key: "exams", href: "/schools/stub/exams", icon: FileQuestion, label: t.navExams },
         { key: "question-bank", href: "/schools/stub/question-bank", icon: Library, label: t.navQuestionBank },
-        { key: "classrooms", href: "/schools/stub/classrooms", icon: Presentation, label: t.navClassrooms },
         { key: "today", href: "/schools/stub/today", icon: CalendarDays, label: t.navToday },
       ];
     case "counselor":
       return [
-        { key: "student-list", href: "/schools/stub/student-list", icon: Users, label: t.navStudentList },
+        { key: "student-list", href: "/schools/counselor/students", icon: Users, label: t.navStudentList },
         { key: "reports", href: "/schools/stub/reports", icon: BarChart3, label: t.navReports },
         { key: "chat", href: "/schools/stub/chat", icon: MessagesSquare, label: t.navChat },
         { key: "schedule", href: "/schools/stub/schedule", icon: CalendarClock, label: t.navSchedule },
@@ -88,14 +89,14 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
     case "deputy":
     case "deputy_discipline":
       return [
-        { key: "members", href: "/schools/stub/members", icon: Users, label: t.navMemberManagement },
+        { key: "members", href: "/schools/admin/members", icon: Users, label: t.navMemberManagement },
         { key: "programs", href: "/schools/stub/programs", icon: CalendarClock, label: t.navProgramManagement },
-        { key: "broadcast", href: "/schools/stub/broadcast", icon: Megaphone, label: t.navBroadcast },
-        { key: "closure", href: "/schools/stub/closure", icon: BellRing, label: t.navClosureAnnouncement },
+        { key: "broadcast", href: "/schools/announcements", icon: Megaphone, label: t.navBroadcast },
+        { key: "closure", href: "/schools/announcements", icon: BellRing, label: t.navClosureAnnouncement },
       ];
     case "parent":
       return [
-        { key: "children", href: "/schools/stub/children", icon: Eye, label: t.navChildrenOverview },
+        { key: "children", href: "/schools/parent/children", icon: Eye, label: t.navChildrenOverview },
         { key: "reports", href: "/schools/stub/reports", icon: BarChart3, label: t.navReports },
         { key: "chat", href: "/schools/stub/chat", icon: MessagesSquare, label: t.navChat },
       ];

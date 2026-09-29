@@ -8,34 +8,35 @@ import { useT } from "@/hooks/use-translation";
  * اسکلتِ ناوبری برایشان می‌سازد (معلم/مشاور/معاون/معاون‌انضباطی/والد). هر
  * آیتم به یک صفحه‌ی «به‌زودی» می‌رود — CRUDِ واقعی فازِ بعدی است.
  */
-const ROLE_ITEMS: Record<string, { key: string; labelKey: string }[]> = {
+/** `href` یعنی صفحه‌ی واقعیِ فاز ۲؛ نبودنش یعنی هنوز «به‌زودی» (/schools/stub/:key). */
+const ROLE_ITEMS: Record<string, { key: string; labelKey: string; href?: string }[]> = {
   teacher: [
+    { key: "classrooms", labelKey: "navClassrooms", href: "/schools/teacher/classes" },
     { key: "assignments", labelKey: "navAssignments" },
     { key: "exams", labelKey: "navExams" },
     { key: "question-bank", labelKey: "navQuestionBank" },
-    { key: "classrooms", labelKey: "navClassrooms" },
     { key: "today", labelKey: "navToday" },
   ],
   counselor: [
-    { key: "student-list", labelKey: "navStudentList" },
+    { key: "student-list", labelKey: "navStudentList", href: "/schools/counselor/students" },
     { key: "reports", labelKey: "navReports" },
     { key: "chat", labelKey: "navChat" },
     { key: "schedule", labelKey: "navSchedule" },
   ],
   deputy: [
-    { key: "members", labelKey: "navMemberManagement" },
+    { key: "members", labelKey: "navMemberManagement", href: "/schools/admin/members" },
+    { key: "broadcast", labelKey: "navBroadcast", href: "/schools/announcements" },
     { key: "programs", labelKey: "navProgramManagement" },
-    { key: "broadcast", labelKey: "navBroadcast" },
-    { key: "closure", labelKey: "navClosureAnnouncement" },
+    { key: "closure", labelKey: "navClosureAnnouncement", href: "/schools/announcements" },
   ],
   "deputy-discipline": [
-    { key: "members", labelKey: "navMemberManagement" },
+    { key: "members", labelKey: "navMemberManagement", href: "/schools/admin/members" },
+    { key: "broadcast", labelKey: "navBroadcast", href: "/schools/announcements" },
     { key: "programs", labelKey: "navProgramManagement" },
-    { key: "broadcast", labelKey: "navBroadcast" },
-    { key: "closure", labelKey: "navClosureAnnouncement" },
+    { key: "closure", labelKey: "navClosureAnnouncement", href: "/schools/announcements" },
   ],
   parent: [
-    { key: "children", labelKey: "navChildrenOverview" },
+    { key: "children", labelKey: "navChildrenOverview", href: "/schools/parent/children" },
     { key: "reports", labelKey: "navReports" },
     { key: "chat", labelKey: "navChat" },
   ],
@@ -60,13 +61,13 @@ export default function SchoolsRoleHome({ role }: { role: string }) {
       <h1 className="text-xl font-bold">{title}</h1>
       <div className="grid gap-3 sm:grid-cols-2">
         {items.map((item) => (
-          <Link key={item.key} href={`/schools/stub/${item.key}`}>
+          <Link key={item.key} href={item.href ?? `/schools/stub/${item.key}`}>
             <Card className="cursor-pointer transition hover:border-primary/50">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">{t[item.labelKey]}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-xs text-muted-foreground">{t.comingSoon}</p>
+                <p className="text-xs text-muted-foreground">{item.href ? t.openButton : t.comingSoon}</p>
               </CardContent>
             </Card>
           </Link>

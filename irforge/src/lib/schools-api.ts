@@ -138,3 +138,215 @@ export function updateSchoolContentItem(id: string, patch: Partial<{ title: stri
 export function deleteSchoolContentItem(id: string) {
   return customFetch<void>(`/api/schools/content/${id}`, { method: "DELETE" });
 }
+
+/**
+ * ─── فاز ۲ ──────────────────────────────────────────────────────────────
+ * مدیریتِ اعضا، کلاس‌ها، برنامه‌ها، اعلامیه‌ها، مشاور، والد، چندمدرسه‌ایِ مدیر.
+ */
+
+export interface InviteCode {
+  id: string;
+  schoolId: string;
+  code: string;
+  role: SchoolMemberRole | null;
+  active: boolean;
+  createdAt: string;
+}
+
+export function listInviteCodes(schoolId: string) {
+  return customFetch<InviteCode[]>(`/api/schools/${schoolId}/invite-codes`);
+}
+
+export function toggleInviteCode(schoolId: string, codeId: string, active: boolean) {
+  return customFetch<InviteCode>(`/api/schools/${schoolId}/invite-codes/${codeId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ active }),
+  });
+}
+
+export interface SchoolMemberWithUser extends Omit<SchoolMemberMe, "school"> {
+  userName: string | null;
+  userEmail: string | null;
+}
+
+export function listSchoolMembers(schoolId: string) {
+  return customFetch<SchoolMemberWithUser[]>(`/api/schools/${schoolId}/members`);
+}
+
+export function updateSchoolMember(schoolId: string, memberId: string, patch: { role?: SchoolMemberRole | null; grade?: string | null }) {
+  return customFetch<SchoolMemberMe>(`/api/schools/${schoolId}/members/${memberId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function removeSchoolMember(schoolId: string, memberId: string) {
+  return customFetch<void>(`/api/schools/${schoolId}/members/${memberId}`, { method: "DELETE" });
+}
+
+export function listMySchools() {
+  return customFetch<SchoolSummary[]>("/api/schools/my-schools");
+}
+
+export function addSchoolAdmin(schoolId: string, userId: string) {
+  return customFetch<unknown>(`/api/schools/${schoolId}/admins`, {
+    method: "POST",
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export interface SchoolClass {
+  id: string;
+  schoolId: string;
+  name: string;
+  grade: string | null;
+  academicYear: string | null;
+  createdAt: string;
+}
+
+export interface SchoolClassMember {
+  id: string;
+  classId: string;
+  schoolMemberId: string;
+  roleInClass: "student" | "teacher";
+  addedAt: string;
+}
+
+export function listSchoolClasses(schoolId: string, mine?: boolean) {
+  return customFetch<SchoolClass[]>(`/api/schools/${schoolId}/classes${mine ? "?mine=true" : ""}`);
+}
+
+export function createSchoolClass(schoolId: string, input: { name: string; grade?: string | null; academicYear?: string | null }) {
+  return customFetch<SchoolClass>(`/api/schools/${schoolId}/classes`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateSchoolClass(schoolId: string, classId: string, patch: Partial<{ name: string; grade: string | null; academicYear: string | null }>) {
+  return customFetch<SchoolClass>(`/api/schools/${schoolId}/classes/${classId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deleteSchoolClass(schoolId: string, classId: string) {
+  return customFetch<void>(`/api/schools/${schoolId}/classes/${classId}`, { method: "DELETE" });
+}
+
+export function listClassMembers(schoolId: string, classId: string) {
+  return customFetch<SchoolClassMember[]>(`/api/schools/${schoolId}/classes/${classId}/members`);
+}
+
+export function addClassMember(schoolId: string, classId: string, input: { schoolMemberId: string; roleInClass?: "student" | "teacher" }) {
+  return customFetch<SchoolClassMember>(`/api/schools/${schoolId}/classes/${classId}/members`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function removeClassMember(schoolId: string, classId: string, memberId: string) {
+  return customFetch<void>(`/api/schools/${schoolId}/classes/${classId}/members/${memberId}`, { method: "DELETE" });
+}
+
+export interface SchoolProgram {
+  id: string;
+  schoolId: string;
+  classId: string | null;
+  title: string;
+  description: string | null;
+  dayOfWeek: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  createdByUserId: string;
+  createdAt: string;
+}
+
+export function listSchoolPrograms(schoolId: string) {
+  return customFetch<SchoolProgram[]>(`/api/schools/${schoolId}/programs`);
+}
+
+export function createSchoolProgram(schoolId: string, input: { title: string; description?: string | null; classId?: string | null; dayOfWeek?: string | null; startTime?: string | null; endTime?: string | null }) {
+  return customFetch<SchoolProgram>(`/api/schools/${schoolId}/programs`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteSchoolProgram(schoolId: string, programId: string) {
+  return customFetch<void>(`/api/schools/${schoolId}/programs/${programId}`, { method: "DELETE" });
+}
+
+export const SCHOOL_ANNOUNCEMENT_KINDS = ["broadcast", "closure", "class"] as const;
+export type SchoolAnnouncementKind = (typeof SCHOOL_ANNOUNCEMENT_KINDS)[number];
+
+export interface SchoolAnnouncement {
+  id: string;
+  schoolId: string;
+  classId: string | null;
+  authorUserId: string;
+  kind: SchoolAnnouncementKind;
+  title: string;
+  body: string;
+  createdAt: string;
+}
+
+export function listSchoolAnnouncements(schoolId: string, classId?: string) {
+  const params = classId ? `?classId=${encodeURIComponent(classId)}` : "";
+  return customFetch<SchoolAnnouncement[]>(`/api/schools/${schoolId}/announcements${params}`);
+}
+
+export function createSchoolAnnouncement(schoolId: string, input: { kind: SchoolAnnouncementKind; title: string; body?: string; classId?: string }) {
+  return customFetch<SchoolAnnouncement>(`/api/schools/${schoolId}/announcements`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export interface CounselorStudent {
+  id: string;
+  userId: string;
+  grade: string | null;
+  city: string | null;
+}
+
+export interface CounselorNote {
+  id: string;
+  counselorUserId: string;
+  studentMemberId: string;
+  note: string;
+  createdAt: string;
+}
+
+export function listCounselorStudents(schoolId: string) {
+  return customFetch<CounselorStudent[]>(`/api/schools/${schoolId}/counselor/students`);
+}
+
+export function listCounselorNotes(schoolId: string, studentMemberId: string) {
+  return customFetch<CounselorNote[]>(`/api/schools/${schoolId}/counselor/students/${studentMemberId}/notes`);
+}
+
+export function createCounselorNote(schoolId: string, studentMemberId: string, note: string) {
+  return customFetch<CounselorNote>(`/api/schools/${schoolId}/counselor/students/${studentMemberId}/notes`, {
+    method: "POST",
+    body: JSON.stringify({ note }),
+  });
+}
+
+export function createGuardianship(schoolId: string, input: { parentUserId: string; studentMemberId: string }) {
+  return customFetch<unknown>(`/api/schools/${schoolId}/guardianships`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export interface MyChild {
+  id: string;
+  grade: string | null;
+  city: string | null;
+  school: { id: string; name: string } | null;
+}
+
+export function listMyChildren() {
+  return customFetch<MyChild[]>("/api/schools/my-children");
+}
