@@ -61,6 +61,10 @@ export function AppSidebar() {
   const { isDark, toggleTheme } = useThemeSweep();
   const { lang } = useLanguage();
   const nav = useT("common");
+  // "schools" فقط برای fa/en پر است (ar/ru/tr هنوز Partial)؛ فقط همین یک
+  // برچسب از آن‌جا می‌آید چون jsonِ "common" باید در همه‌ی زبان‌ها کامل باشد
+  // (typecheck این را اجباری می‌کند) و دستِ ar/ru/tr نباید زده شود.
+  const schoolsT = useT("schools") as Partial<Record<"schoolBotPoolNavLabel", string>>;
   const { isMobile, setOpenMobile } = useSidebar();
   // همان کوئری‌ای که زنگوله‌ی هدر استفاده می‌کند (react-query کش مشترک دارد،
   // پس این یک درخواست اضافه نیست). روی موبایل که هدر اسکرول می‌شود و از دید
@@ -230,6 +234,14 @@ export function AppSidebar() {
                     <Link href="/admin/sheet-pool" data-testid="nav-sheet-pool" onClick={closeMobileMenu}>
                       <Database />
                       <span>{nav.sheetPool}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location === "/admin/school-bot-pool"} tooltip={schoolsT.schoolBotPoolNavLabel ?? "School Bot Pool"}>
+                    <Link href="/admin/school-bot-pool" data-testid="nav-school-bot-pool" onClick={closeMobileMenu}>
+                      <Bot />
+                      <span>{schoolsT.schoolBotPoolNavLabel ?? "School Bot Pool"}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

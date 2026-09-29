@@ -112,6 +112,7 @@ const SchoolAlertsPage = lazy(() => import("@/pages/schools/admin/alerts"));
 
 const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
 const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
+const AdminSchoolBotPool = lazy(() => import("@/pages/admin-school-bot-pool"));
 const AdminCutoverFlags = lazy(() => import("@/pages/admin-cutover-flags"));
 const AdminSheetsImport = lazy(() => import("@/pages/admin-sheets-import"));
 const Support = lazy(() => import("@/pages/support"));
@@ -418,6 +419,7 @@ function Router() {
       <Route path="/admin/users/:id"><ProtectedRoute component={AdminUserDetail} superAdminOnly /></Route>
       <Route path="/admin/pending-payments"><ProtectedRoute component={AdminPendingPayments} superAdminOnly /></Route>
       <Route path="/admin/sheet-pool"><ProtectedRoute component={AdminSheetPool} superAdminOnly /></Route>
+      <Route path="/admin/school-bot-pool"><ProtectedRoute component={AdminSchoolBotPool} superAdminOnly /></Route>
       <Route path="/admin/cutover-flags"><ProtectedRoute component={AdminCutoverFlags} superAdminOnly /></Route>
       <Route path="/admin/sheets-import"><ProtectedRoute component={AdminSheetsImport} superAdminOnly /></Route>
 

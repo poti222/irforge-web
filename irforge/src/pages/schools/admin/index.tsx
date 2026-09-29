@@ -17,6 +17,7 @@ import { useViewedSchool } from "@/hooks/use-viewed-school";
 import {
   createSchool, getSchoolMe, updateSchool, listMySchools, listInviteCodes, createInviteCode, toggleInviteCode,
   listSchoolMembers, listSchoolClasses, addSchoolAdmin, SCHOOL_MEMBER_ROLES, listCounselorReports,
+  getSchoolBotStatus, purchaseSchoolBot, getSchoolAbsenceSummary, checkUnmarkedAttendance,
 } from "@/lib/schools-api";
 
 /**
@@ -190,6 +191,8 @@ export default function SchoolsAdminHome() {
           </Card>
 
           <AcademicStatusCard schoolId={school.id} />
+          <SchoolBotCard schoolId={school.id} />
+          <AbsenceOverviewCard schoolId={school.id} />
           <CounselorReportsCard schoolId={school.id} />
           <InviteCodesCard schoolId={school.id} />
           <GrantAdminCard schoolId={school.id} />
@@ -421,6 +424,109 @@ function InviteCodesCard({ schoolId }: { schoolId: string }) {
             ))}
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * SchoolBotCard — فاز ۷ (بخشِ A): وضعیتِ باتِ اطلاع‌رسانیِ همین مدرسه + دکمه‌ی
+ * خرید (از کیف‌پول، همان مکانیزمِ موجود). بعد از خرید @username واقعی نشان
+ * داده می‌شود.
+ */
+function SchoolBotCard({ schoolId }: { schoolId: string }) {
+  const t = useT("schools") as any;
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [purchasing, setPurchasing] = useState(false);
+  const { data: bot } = useQuery({ queryKey: ["schools", "bot", schoolId], queryFn: () => getSchoolBotStatus(schoolId) });
+
+  async function handlePurchase() {
+    setPurchasing(true);
+    try {
+      await purchaseSchoolBot(schoolId);
+      await queryClient.invalidateQueries({ queryKey: ["schools", "bot", schoolId] });
+      toast({ title: t.botPurchased });
+    } catch (err: any) {
+      const code = err?.data?.code;
+      const description =
+        code === "pool_empty" ? t.botPurchaseErrorPoolEmpty :
+        code === "insufficient" ? t.botPurchaseErrorInsufficientBalance :
+        err?.data?.error;
+      toast({ variant: "destructive", title: t.botPurchaseError, description });
+    } finally {
+      setPurchasing(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><SchoolIcon className="size-5" /> {t.botCardTitle}</CardTitle>
+        <CardDescription>{t.botCardDescription}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex items-center justify-between gap-3">
+        {bot?.purchased ? (
+          <div className="flex items-center gap-2">
+            <Badge className="gap-1 bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-400">{t.botActive}</Badge>
+            {bot.telegramUsername && <span className="font-mono text-sm text-muted-foreground" dir="ltr">@{bot.telegramUsername}</span>}
+          </div>
+        ) : (
+          <>
+            <Badge variant="outline">{t.botNotPurchased}</Badge>
+            <Button onClick={handlePurchase} disabled={purchasing}>
+              {purchasing ? <Loader2 className="me-2 size-4 animate-spin" /> : <UserPlus className="me-2 size-4" />}
+              {purchasing ? t.botPurchasing : t.botPurchaseButton}
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * AbsenceOverviewCard — فاز ۷ (بخشِ C): «امروز اینقدر غایب داریم» (شمارشِ
+ * ساده، نه پوش — چون این ریپو cron ندارد، نگاه کن schoolNotificationTriggers.ts)
+ * + دکمه‌ی درخواستیِ «بررسیِ حضور و غیابِ ثبت‌نشده».
+ */
+function AbsenceOverviewCard({ schoolId }: { schoolId: string }) {
+  const t = useT("schools") as any;
+  const { toast } = useToast();
+  const [checking, setChecking] = useState(false);
+  const { data: summary } = useQuery({ queryKey: ["schools", "absence-summary", schoolId], queryFn: () => getSchoolAbsenceSummary(schoolId) });
+
+  async function handleCheck() {
+    setChecking(true);
+    try {
+      const result = await checkUnmarkedAttendance(schoolId);
+      if (result.unmarkedClasses.length === 0) {
+        toast({ title: t.checkUnmarkedAttendanceAllMarked });
+      } else {
+        toast({ title: t.checkUnmarkedAttendanceFound, description: result.unmarkedClasses.map((c) => c.name).join("، ") });
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: t.schoolSaveError, description: err?.data?.error });
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><BarChart3 className="size-5" /> {t.absenceSummaryTitle}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-4 text-sm">
+          <span>{t.absenceSummaryAbsent}: <b className="text-amber-500">{summary?.absent ?? 0}</b></span>
+          <span>{t.absenceSummaryLate}: <b className="text-amber-500">{summary?.late ?? 0}</b></span>
+          <span className="text-muted-foreground">{t.absenceSummaryClasses}: {summary?.classesTotal ?? 0}</span>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleCheck} disabled={checking}>
+          {checking && <Loader2 className="me-2 size-4 animate-spin" />}
+          {checking ? t.checkUnmarkedAttendanceRunning : t.checkUnmarkedAttendanceButton}
+        </Button>
       </CardContent>
     </Card>
   );

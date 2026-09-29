@@ -1302,6 +1302,63 @@ CREATE INDEX IF NOT EXISTS idx_school_student_alerts_school ON school_student_al
 
 ALTER TABLE school_exam_attempts ADD COLUMN IF NOT EXISTS late_submission BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- ─── SCHOOLS فاز ۷ (استخرِ توکنِ بات، باتِ اطلاع‌رسانیِ مدرسه، اتصالِ تلگرام) ──
+-- مایگریشنِ ۰۰۳۶ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+CREATE TABLE IF NOT EXISTS school_bot_token_pool (
+  id TEXT PRIMARY KEY,
+  bot_token TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'available',
+  assigned_school_id TEXT REFERENCES schools(id),
+  added_by_user_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS school_bots (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL UNIQUE REFERENCES schools(id),
+  bot_token_pool_id TEXT NOT NULL REFERENCES school_bot_token_pool(id),
+  telegram_bot_id TEXT,
+  telegram_username TEXT,
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS school_bot_subscribers (
+  id TEXT PRIMARY KEY,
+  school_bot_id TEXT NOT NULL REFERENCES school_bots(id),
+  user_id TEXT NOT NULL,
+  telegram_chat_id TEXT NOT NULL,
+  linked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_bot_subscribers_uniq_idx ON school_bot_subscribers(school_bot_id, user_id);
+
+CREATE TABLE IF NOT EXISTS school_bot_link_tokens (
+  token TEXT PRIMARY KEY,
+  school_bot_id TEXT NOT NULL REFERENCES school_bots(id),
+  user_id TEXT NOT NULL,
+  used BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS school_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_notifications_school ON notifications(school_id);
+
+-- سیدِ محصولِ «بات اطلاع‌رسانیِ مدرسه» — دسته‌ی "school" از فازِ محصولات از
+-- قبل وجود داشت ولی هیچ محصولِ واقعی‌ای زیرش نبود. قیمت (۹۹۰٬۰۰۰ تومان) یک
+-- تصمیمِ تجاریِ آزاد است، از پنلِ ادمینِ محصولات (بدون دیپلوی) قابلِ ویرایش،
+-- دقیقاً مثلِ استاندارد/پرو/فروشگاه‌ساز بالاتر.
+INSERT INTO products (id, category_id, name, name_fa, description, description_fa, price, icon, metadata, sort_order)
+VALUES
+  ('school_bot_addon', 'school', 'School Notification Bot', 'بات اطلاع‌رسانیِ مدرسه',
+   'A dedicated Telegram bot, renamed to your school, that delivers attendance/exam/assignment/alert notifications to students, parents and staff.',
+   'یک بات تلگرامیِ اختصاصی با نامِ مدرسه‌ی شما که اعلان‌هایِ حضور و غیاب/آزمون/تکلیف/اخطار را به دانش‌آموز، والدین و کادر می‌رساند.',
+   9900000, 'Bot',
+   '{}',
+   0)
+ON CONFLICT (id) DO NOTHING;
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT

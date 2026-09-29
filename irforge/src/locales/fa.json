@@ -3708,6 +3708,33 @@
     "alertSaved": "اخطار ثبت شد",
     "alertSaveError": "ثبتِ اخطار ناموفق بود",
     "alertsListTitle": "اخطارها",
-    "alertsEmpty": "اخطاری ثبت نشده است."
+    "alertsEmpty": "اخطاری ثبت نشده است.",
+
+    "schoolBotPoolNavLabel": "استخر بات مدرسه",
+    "botCardTitle": "بات اطلاع‌رسانی",
+    "botCardDescription": "یک بات تلگرامی با نامِ مدرسه که اعلانِ آزمون/تکلیف/غیبت/اخطار را مستقیم برایِ اعضا می‌فرستد.",
+    "botNotPurchased": "هنوز خریداری نشده",
+    "botActive": "فعال",
+    "botPurchaseButton": "خرید بات اطلاع‌رسانی",
+    "botPurchasing": "در حالِ خرید...",
+    "botPurchased": "بات با موفقیت خریداری و فعال شد",
+    "botPurchaseError": "خرید ناموفق بود",
+    "botPurchaseErrorPoolEmpty": "در حالِ حاضر ظرفیتِ بات موجود نیست. کمی بعد دوباره تلاش کنید.",
+    "botPurchaseErrorInsufficientBalance": "موجودیِ کیف‌پول کافی نیست.",
+    "botConnectTitle": "اتصال به بات اطلاع‌رسانی",
+    "botConnectDescription": "با اتصال، اعلان‌های مدرسه (آزمون/تکلیف/غیبت/اخطار) در تلگرام هم برایِ شما ارسال می‌شود.",
+    "botConnectButton": "اتصال با تلگرام",
+    "botConnected": "متصل",
+    "botConnectNotAvailable": "این مدرسه هنوز بات اطلاع‌رسانی ندارد.",
+
+    "absenceSummaryTitle": "خلاصه‌ی غیبتِ امروز",
+    "absenceSummaryAbsent": "غایب",
+    "absenceSummaryLate": "تأخیر",
+    "absenceSummaryClasses": "کلاس",
+
+    "checkUnmarkedAttendanceButton": "بررسیِ حضور و غیابِ ثبت‌نشده",
+    "checkUnmarkedAttendanceRunning": "در حالِ بررسی...",
+    "checkUnmarkedAttendanceAllMarked": "همه‌ی کلاس‌ها امروز حضور و غیاب ثبت کرده‌اند.",
+    "checkUnmarkedAttendanceFound": "کلاس‌های زیر امروز حضور و غیاب ثبت نکرده‌اند و به مدیریت اطلاع داده شد:"
   }
 }

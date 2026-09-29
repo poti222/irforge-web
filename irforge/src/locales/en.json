@@ -3708,6 +3708,33 @@
     "alertSaved": "Alert saved",
     "alertSaveError": "Failed to save alert",
     "alertsListTitle": "Alerts",
-    "alertsEmpty": "No alerts yet."
+    "alertsEmpty": "No alerts yet.",
+
+    "schoolBotPoolNavLabel": "School Bot Pool",
+    "botCardTitle": "Notification Bot",
+    "botCardDescription": "A Telegram bot renamed to your school that sends exam/assignment/attendance/alert notifications straight to members.",
+    "botNotPurchased": "Not purchased yet",
+    "botActive": "Active",
+    "botPurchaseButton": "Buy notification bot",
+    "botPurchasing": "Purchasing...",
+    "botPurchased": "Bot purchased and activated successfully",
+    "botPurchaseError": "Purchase failed",
+    "botPurchaseErrorPoolEmpty": "No bot capacity is available right now. Please try again later.",
+    "botPurchaseErrorInsufficientBalance": "Insufficient wallet balance.",
+    "botConnectTitle": "Connect to the notification bot",
+    "botConnectDescription": "Once connected, school notifications (exams/assignments/attendance/alerts) are also sent to you on Telegram.",
+    "botConnectButton": "Connect with Telegram",
+    "botConnected": "Connected",
+    "botConnectNotAvailable": "This school doesn't have a notification bot yet.",
+
+    "absenceSummaryTitle": "Today's Absence Summary",
+    "absenceSummaryAbsent": "Absent",
+    "absenceSummaryLate": "Late",
+    "absenceSummaryClasses": "Classes",
+
+    "checkUnmarkedAttendanceButton": "Check unmarked attendance",
+    "checkUnmarkedAttendanceRunning": "Checking...",
+    "checkUnmarkedAttendanceAllMarked": "All classes have recorded attendance today.",
+    "checkUnmarkedAttendanceFound": "The following classes haven't recorded attendance today, and staff were notified:"
   }
 }

@@ -788,3 +788,72 @@ export function listMyAlerts(schoolId: string) {
 export function listChildAlerts(schoolId: string, studentMemberId: string) {
   return customFetch<StudentAlert[]>(`/api/schools/${schoolId}/alerts/child/${studentMemberId}`);
 }
+
+/**
+ * ─── فاز ۷ ──────────────────────────────────────────────────────────────
+ * باتِ اطلاع‌رسانیِ مدرسه (خرید از کیف‌پول + رمزینه‌ی اختصاصی) و اتصالِ
+ * تلگرام هر عضو به همان بات، بعلاوه‌ی دو تریگرِ درخواستیِ داشبوردِ مدیر.
+ */
+
+export interface SchoolBotStatus {
+  purchased: boolean;
+  telegramUsername: string | null;
+  botId: string | null;
+}
+
+export function getSchoolBotStatus(schoolId: string) {
+  return customFetch<SchoolBotStatus>(`/api/schools/${schoolId}/bot`);
+}
+
+export function purchaseSchoolBot(schoolId: string) {
+  return customFetch<SchoolBotStatus>(`/api/schools/${schoolId}/bot/purchase`, { method: "POST" });
+}
+
+export function createSchoolBotLinkToken(schoolId: string) {
+  return customFetch<{ token: string; deepLink: string }>(`/api/schools/${schoolId}/bot/link-token`, { method: "POST" });
+}
+
+export function getSchoolBotSubscribed(schoolId: string) {
+  return customFetch<{ subscribed: boolean }>(`/api/schools/${schoolId}/bot/subscribed`);
+}
+
+export interface SchoolAbsenceSummary {
+  date: string;
+  absent: number;
+  late: number;
+  classesTotal: number;
+}
+
+export function getSchoolAbsenceSummary(schoolId: string) {
+  return customFetch<SchoolAbsenceSummary>(`/api/schools/${schoolId}/admin/absence-summary`);
+}
+
+export function checkUnmarkedAttendance(schoolId: string) {
+  return customFetch<{ date: string; unmarkedClasses: { id: string; name: string }[] }>(
+    `/api/schools/${schoolId}/admin/check-unmarked-attendance`,
+    { method: "POST" },
+  );
+}
+
+// ─── استخرِ توکنِ بات (سوپرادمینِ پلتفرم، نه پنلِ مدیرِ مدرسه) ─────────────
+
+export interface SchoolBotPoolEntry {
+  id: string;
+  status: string;
+  fingerprint: string | null;
+  assignedSchoolId: string | null;
+  assignedSchoolName: string | null;
+  createdAt: string;
+}
+
+export function listSchoolBotPool() {
+  return customFetch<SchoolBotPoolEntry[]>("/api/school-bot-pool");
+}
+
+export function addSchoolBotPoolToken(botToken: string) {
+  return customFetch<SchoolBotPoolEntry>("/api/school-bot-pool", { method: "POST", body: JSON.stringify({ botToken }) });
+}
+
+export function deleteSchoolBotPoolToken(id: string) {
+  return customFetch<void>(`/api/school-bot-pool/${id}`, { method: "DELETE" });
+}

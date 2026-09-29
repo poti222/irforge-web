@@ -58,3 +58,5 @@ export * from "./schoolTeacherMessages";
 // بخش "/schools" فاز ۶ — حضور و غیاب، اخطار/هشدارِ دانش‌آموز
 export * from "./schoolAttendance";
 export * from "./schoolStudentAlerts";
+// بخش "/schools" فاز ۷ — استخرِ توکنِ بات + باتِ اطلاع‌رسانیِ هر مدرسه
+export * from "./schoolBots";

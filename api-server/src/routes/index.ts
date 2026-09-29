@@ -111,6 +111,11 @@ import schoolTeacherMessagesRouter from "./schoolTeacherMessages.js";
 import schoolAttendanceRouter from "./schoolAttendance.js";
 import schoolGradebookRouter from "./schoolGradebook.js";
 import schoolStudentAlertsRouter from "./schoolStudentAlerts.js";
+// بخش "/schools" فاز ۷ — استخرِ توکنِ بات (سوپرادمین) + خریدِ باتِ اطلاع‌رسانیِ مدرسه + اتصالِ تلگرام
+import schoolBotPoolRouter from "./schoolBotPool.js";
+import schoolBotsRouter from "./schoolBots.js";
+import schoolBotWebhookRouter from "./schoolBotWebhook.js";
+import schoolNotificationsRouter from "./schoolNotificationTriggers.js";
 
 const router: IRouter = Router();
 
@@ -205,5 +210,9 @@ router.use(schoolTeacherMessagesRouter);
 router.use(schoolAttendanceRouter);
 router.use(schoolGradebookRouter);
 router.use(schoolStudentAlertsRouter);
+router.use(schoolBotPoolRouter);
+router.use(schoolBotsRouter);
+router.use(schoolBotWebhookRouter);
+router.use(schoolNotificationsRouter);
 
 export default router;
