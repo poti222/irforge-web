@@ -9,8 +9,9 @@
  * محلیِ دیالوگ است و با بستنش پاک می‌شود — نه در cacheِ query و نه در localStorage.
  */
 import { useState } from "react";
+import { Link } from "wouter";
 import {
-  AlertTriangle, Check, CheckCircle2, Copy, GraduationCap, KeyRound, Loader2, Pencil, Plus, RefreshCcw, Send,
+  AlertTriangle, BookOpen, Check, CheckCircle2, Copy, GraduationCap, KeyRound, Loader2, Pencil, Plus, RefreshCcw, Send,
   Smartphone, Trash2, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,7 @@ function useCopy() {
 
 function GuideCallout() {
   const t = useT("botSettings");
+  const tTutorial = useT("tutorial");
   const { user } = useAuth();
   const isSuperAdmin = user?.role === "super_admin";
   const guide = useCardGuide();
@@ -117,6 +119,13 @@ function GuideCallout() {
               {/* متنِ ساده: هر خط یک بند. هرگز به‌صورت HTML نمایش داده نمی‌شود. */}
               <div className="space-y-1 whitespace-pre-line text-xs leading-6">{g.text}</div>
               <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href="/tutorials/cardpay"
+                  className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-background/60 px-2.5 py-1 text-xs font-medium hover:bg-background"
+                  data-testid="card-guide-full-tutorial"
+                >
+                  <BookOpen className="size-3" aria-hidden="true" /> {tTutorial.fullPageCta}
+                </Link>
                 {g.tutorialUrl && (
                   <a
                     href={g.tutorialUrl} target="_blank" rel="noopener noreferrer"
@@ -526,7 +535,11 @@ function ChannelCard({
 
 // ─── بخشِ اصلی ──────────────────────────────────────────────────────────────
 
-export function CardAutoConfirmSection({ botId }: { botId: string }) {
+export { GuideCallout };
+
+export function CardAutoConfirmSection(
+  { botId, title, description, showGuide = true }: { botId: string; title?: string; description?: string; showGuide?: boolean },
+) {
   const t = useT("botSettings");
   const channels = useCardChannels(botId);
   const create = useCreateCardChannel(botId);
@@ -539,11 +552,11 @@ export function CardAutoConfirmSection({ botId }: { botId: string }) {
   return (
     <Card data-testid="card-auto-section">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Smartphone className="size-4" /> {t.cardAutoTitle}</CardTitle>
-        <CardDescription>{t.cardAutoDesc}</CardDescription>
+        <CardTitle className="flex items-center gap-2"><Smartphone className="size-4" /> {title ?? t.cardAutoTitle}</CardTitle>
+        <CardDescription>{description ?? t.cardAutoDesc}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <GuideCallout />
+        {showGuide && <GuideCallout />}
 
         {channels.isError && <p className="text-xs text-destructive">{t.cardAutoLoadError}</p>}
         {channels.isLoading && <Loader2 className="size-4 animate-spin" />}

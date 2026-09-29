@@ -33,7 +33,7 @@ export type AuditAction =
   // Mandatory Profile Completion & Identity System — Phase 4/7.
   | "flag_cleared"
   | "user_deleted"
-  // Wallet top-up (BluBank SMS webhook) — routes/walletTopupSmsWebhook.ts.
+  // Wallet top-up (card auto-confirm module, platform scope) — lib/paymentAlerts.ts / routes/adminCardAutoConfirm.ts.
   | "wallet_topup_confirmed"
   // IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فاز ۱ — سوییچِ سراسریِ
   // Sheets/Postgres برایِ یک entity، از routes/cutoverFlags.ts.
@@ -46,7 +46,13 @@ export type AuditAction =
   | "payment_channel_created"
   | "payment_channel_updated"
   | "payment_channel_secret_rotated"
-  | "payment_channel_deleted";
+  | "payment_channel_deleted"
+  // فاز ۸/۹ — مدیریتِ سوپرادمین (routes/adminCardAutoConfirm.ts)
+  | "card_autoconfirm_decision"
+  | "card_autoconfirm_channel_active"
+  | "card_autoconfirm_sms_assigned"
+  | "card_autoconfirm_sweep"
+  | "card_autoconfirm_migration";
 
 export async function writeAudit(input: {
   actorUserId: string;

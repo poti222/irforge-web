@@ -15,7 +15,7 @@
  * bot_id عمداً FOREIGN KEY ندارد: purgeBotFully ردیفِ بات را حذف می‌کند و
  * سابقه‌ی مالی نباید با آن پاک شود.
  */
-import { pgTable, text, timestamp, integer, bigint, boolean, index, uniqueIndex, check } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, bigint, boolean, index, uniqueIndex, check, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const paymentChannelsTable = pgTable(
@@ -96,6 +96,8 @@ export const paymentRequestsTable = pgTable(
     rejectedByAdminId: text("rejected_by_admin_id"),
     rejectReason: text("reject_reason"),
     rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+    /** ردیفِ مهاجرت‌شده از جدولِ قدیمی («wallet_topups:<id>») — یکتا؛ مهاجرت را idempotent می‌کند (فاز ۸). */
+    legacyRef: text("legacy_ref"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -105,6 +107,7 @@ export const paymentRequestsTable = pgTable(
     uniqueIndex("payment_requests_fixed_pending_uk")
       .on(t.channelId, t.baseAmountRial)
       .where(sql`${t.status} = 'pending' AND ${t.channelKind} = 'fixed_link'`),
+    uniqueIndex("payment_requests_legacy_ref_uk").on(t.legacyRef).where(sql`${t.legacyRef} IS NOT NULL`),
     index("idx_payment_requests_channel_status").on(t.channelId, t.status),
     index("idx_payment_requests_owner").on(t.scope, t.botId, t.userId),
     index("idx_payment_requests_order").on(t.orderId).where(sql`${t.orderId} IS NOT NULL`),
@@ -139,7 +142,7 @@ export const paymentRequestsTable = pgTable(
     ),
     check(
       "payment_requests_suffix_chk",
-      sql`${t.suffixRial} = 0 OR (${t.channelKind} <> 'fixed_link' AND ${t.suffixRial} % 10 = 0 AND ${t.suffixRial} <= 9990)`,
+      sql`${t.suffixRial} = 0 OR ${t.legacyRef} IS NOT NULL OR (${t.channelKind} <> 'fixed_link' AND ${t.suffixRial} % 10 = 0 AND ${t.suffixRial} <= 9990)`,
     ),
     check("payment_requests_expiry_chk", sql`${t.status} <> 'pending' OR ${t.expiresAt} IS NOT NULL`),
     check("payment_requests_queue_chk", sql`(${t.status} = 'queued') = (${t.queuePosition} IS NOT NULL)`),
@@ -175,8 +178,11 @@ export const smsInboxTable = pgTable(
     matchedRequestId: text("matched_request_id").references((): any => paymentRequestsTable.id),
     /** unmatched | matched | ambiguous | ignored */
     status: text("status").notNull().default("unmatched"),
+    /** ردیفِ مهاجرت‌شده از `sms_logs` («sms_logs:<id>») — فاز ۸. */
+    legacyRef: text("legacy_ref"),
   },
   (t) => [
+    uniqueIndex("sms_inbox_legacy_ref_uk").on(t.legacyRef).where(sql`${t.legacyRef} IS NOT NULL`),
     uniqueIndex("sms_inbox_channel_hash_uk").on(t.channelId, t.contentHash),
     uniqueIndex("sms_inbox_matched_request_uk").on(t.matchedRequestId).where(sql`${t.matchedRequestId} IS NOT NULL`),
     index("idx_sms_inbox_channel_status").on(t.channelId, t.status, t.receivedAt),
@@ -195,6 +201,38 @@ export const smsInboxTable = pgTable(
   ],
 );
 
+/**
+ * لاگِ تفصیلیِ سوپرادمین (فاز ۹): ورودِ پیامک، نتیجه‌ی parse، match/ابهام، تأیید (خودکار/دستی)، خطا،
+ * sweeper، مهاجرت. **هرگز** متنِ خامِ پیامک یا شماره‌کارتِ کامل در این جدول نمی‌آید (کارت فقط ماسک).
+ */
+export const paymentEventsTable = pgTable(
+  "payment_events",
+  {
+    id: text("id").primaryKey(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    /** info | warn | error */
+    level: text("level").notNull().default("info"),
+    kind: text("kind").notNull(),
+    scope: text("scope"),
+    botId: text("bot_id"),
+    channelId: text("channel_id"),
+    requestId: text("request_id"),
+    smsId: text("sms_id"),
+    /** system | sms | admin:<id> | user:<id> */
+    actor: text("actor"),
+    message: text("message").notNull().default(""),
+    data: jsonb("data").notNull().default(sql`'{}'::jsonb`),
+  },
+  (t) => [
+    index("idx_payment_events_at").on(t.at),
+    index("idx_payment_events_request").on(t.requestId).where(sql`${t.requestId} IS NOT NULL`),
+    index("idx_payment_events_channel").on(t.channelId, t.at),
+    index("idx_payment_events_problems").on(t.at).where(sql`${t.level} <> 'info'`),
+    check("payment_events_level_chk", sql`${t.level} IN ('info', 'warn', 'error')`),
+  ],
+);
+
 export type PaymentChannel = typeof paymentChannelsTable.$inferSelect;
 export type PaymentRequest = typeof paymentRequestsTable.$inferSelect;
 export type SmsInboxRow = typeof smsInboxTable.$inferSelect;
+export type PaymentEvent = typeof paymentEventsTable.$inferSelect;

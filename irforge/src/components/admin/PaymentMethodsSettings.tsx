@@ -194,35 +194,18 @@ export function PaymentMethodsSettings() {
           </div>
         </section>
 
-        {/* ─── شارژ خودکار (بلوبانک) ─── */}
-        <section className="space-y-3 border-t pt-5">
-          <div className="flex flex-wrap items-center gap-2">
+        {/* ─── شارژ خودکار: از فاز ۸ به تبِ «کارت‌به‌کارت خودکار» منتقل شده ─── */}
+        <section className="space-y-2 border-t pt-5">
+          <div className="flex items-center gap-2">
             <Zap className="size-4 text-muted-foreground" />
-            <h4 className="text-sm font-semibold">{fa ? "شارژ خودکار (بلوبانک)" : "Automatic top-up (BluBank)"}</h4>
-            <div className="ms-auto flex items-center gap-2">
-              <Label htmlFor="blubank-enabled" className="text-xs text-muted-foreground">{fa ? "فعال" : "Enabled"}</Label>
-              <Switch id="blubank-enabled" checked={draft.blubank.enabled} onCheckedChange={(v) => patchBlubank({ enabled: v })} />
-            </div>
+            <h4 className="text-sm font-semibold">{fa ? "شارژ خودکار (کارت‌به‌کارت با تأیید پیامکی)" : "Automatic top-up (card-to-card, SMS-confirmed)"}</h4>
           </div>
           <p className="text-xs text-muted-foreground">
             {fa
-              ? "یک لینکِ پرداختِ مبلغ‌بازِ بلوبانک — کاربر مبلغِ نهایی (مبلغ + پسوندِ یکتا) را خودش در آن تایپ می‌کند. تأیید با تشخیصِ خودکارِ پیامکِ بانکی انجام می‌شود."
-              : "A single open-amount BluBank link — the user types the exact final amount (requested + unique suffix) into it themselves. Confirmation happens automatically via bank SMS detection."}
+              ? "این بخش به تبِ «کارت‌به‌کارت خودکار» در همین پنل منتقل شد: آنجا کارت/لینکِ پرداخت، کلیدِ وبهوکِ گوشی، پیامکِ آزمایشی، درخواست‌ها و لاگ را مدیریت می‌کنید. لینکِ بلوبانکِ قبلی هنگامِ مهاجرت به یک کانال تبدیل شد."
+              : "This moved to the “Auto card payments” tab: manage the card/payment link, phone webhook key, test SMS, requests and log there. The old BluBank link was converted into a channel during migration."}
           </p>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="blubank-link">{fa ? "لینکِ پرداختِ مبلغ‌باز" : "Open-amount payment link"}</Label>
-            <Input
-              id="blubank-link" dir="ltr" className="font-mono text-xs"
-              placeholder="https://blubiz.sb24.ir/s/xxxxxxxx"
-              value={draft.blubank.link}
-              onChange={(e) => patchBlubank({ link: e.target.value })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="blubank-note">{fa ? "توضیح" : "Note"}</Label>
-            <Input id="blubank-note" value={draft.blubank.note} onChange={(e) => patchBlubank({ note: e.target.value })} />
-          </div>
+          <Button size="sm" variant="outline" asChild><a href="?tab=cardpay">{fa ? "رفتن به کارت‌به‌کارت خودکار" : "Open Auto card payments"}</a></Button>
         </section>
 
         <Button onClick={save} disabled={saving || !dirty}>

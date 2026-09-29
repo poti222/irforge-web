@@ -71,7 +71,7 @@ export function createBotPaymentChannelsRouter(deps: BotPaymentChannelsDeps = {}
   router.get("/bots/:botId/payment-channels", auth, async (req: any, res) => {
     try {
       const { botId } = await resolveBot(req.userId, req.params.botId);
-      const [channels, limits] = await Promise.all([listChannels(pool, botId), getPaymentChannelLimits(botId)]);
+      const [channels, limits] = await Promise.all([listChannels(pool, { scope: "bot", botId }), getPaymentChannelLimits(botId)]);
       res.json({
         channels,
         limits,
@@ -88,7 +88,7 @@ export function createBotPaymentChannelsRouter(deps: BotPaymentChannelsDeps = {}
       const { botId } = await resolveBot(req.userId, req.params.botId);
       const fields = validateNewChannel(req.body ?? {});
       const limits = await getPaymentChannelLimits(botId);
-      const { channel, smsSecret } = await createChannel(pool, { botId, fields, maxChannels: limits.maxChannels });
+      const { channel, smsSecret } = await createChannel(pool, { owner: { scope: "bot", botId }, fields, maxChannels: limits.maxChannels });
       await audit({
         actorUserId: req.userId, action: "payment_channel_created",
         metadata: { botId, channelId: channel.id, kind: channel.kind },
@@ -103,7 +103,7 @@ export function createBotPaymentChannelsRouter(deps: BotPaymentChannelsDeps = {}
   router.patch("/bots/:botId/payment-channels/:channelId", auth, blockWhileImpersonating, writeLimit, async (req: any, res) => {
     try {
       const { botId } = await resolveBot(req.userId, req.params.botId);
-      const channel = await updateChannel(pool, { botId, channelId: String(req.params.channelId), patch: req.body ?? {} });
+      const channel = await updateChannel(pool, { owner: { scope: "bot", botId }, channelId: String(req.params.channelId), patch: req.body ?? {} });
       await audit({
         actorUserId: req.userId, action: "payment_channel_updated",
         metadata: { botId, channelId: channel.id, fields: Object.keys(req.body ?? {}).slice(0, 12) },
@@ -118,10 +118,10 @@ export function createBotPaymentChannelsRouter(deps: BotPaymentChannelsDeps = {}
     try {
       const { botId } = await resolveBot(req.userId, req.params.botId);
       const channelId = String(req.params.channelId);
-      const { smsSecret } = await rotateSecret(pool, { botId, channelId });
+      const { smsSecret } = await rotateSecret(pool, { owner: { scope: "bot", botId }, channelId });
       await audit({ actorUserId: req.userId, action: "payment_channel_secret_rotated", metadata: { botId, channelId } });
       logger.info({ botId, channelId }, "payment channel secret rotated");
-      res.json({ smsSecret, channel: await getChannel(pool, botId, channelId) });
+      res.json({ smsSecret, channel: await getChannel(pool, { scope: "bot", botId }, channelId) });
     } catch (err) {
       fail(res, err, "Failed to rotate secret");
     }
@@ -131,7 +131,7 @@ export function createBotPaymentChannelsRouter(deps: BotPaymentChannelsDeps = {}
     try {
       const { botId } = await resolveBot(req.userId, req.params.botId);
       const channelId = String(req.params.channelId);
-      await deleteChannel(pool, { botId, channelId });
+      await deleteChannel(pool, { owner: { scope: "bot", botId }, channelId });
       await audit({ actorUserId: req.userId, action: "payment_channel_deleted", metadata: { botId, channelId } });
       res.json({ ok: true });
     } catch (err) {
@@ -142,7 +142,7 @@ export function createBotPaymentChannelsRouter(deps: BotPaymentChannelsDeps = {}
   router.post("/bots/:botId/payment-channels/:channelId/test-sms", auth, blockWhileImpersonating, writeLimit, async (req: any, res) => {
     try {
       const { botId } = await resolveBot(req.userId, req.params.botId);
-      const result = await runTestSms(pool, { botId, channelId: String(req.params.channelId) });
+      const result = await runTestSms(pool, { owner: { scope: "bot", botId }, channelId: String(req.params.channelId) });
       res.json({ result });
     } catch (err) {
       fail(res, err, "Failed to run the SMS test");
@@ -154,9 +154,9 @@ export function createBotPaymentChannelsRouter(deps: BotPaymentChannelsDeps = {}
       const { botId } = await resolveBot(req.userId, req.params.botId);
       const limit = Number(req.query.limit);
       const entries = await listSmsLog(pool, {
-        botId, channelId: String(req.params.channelId), limit: Number.isInteger(limit) && limit > 0 ? limit : 20,
+        owner: { scope: "bot", botId }, channelId: String(req.params.channelId), limit: Number.isInteger(limit) && limit > 0 ? limit : 20,
       });
-      const channel = await getChannel(pool, botId, String(req.params.channelId));
+      const channel = await getChannel(pool, { scope: "bot", botId }, String(req.params.channelId));
       res.json({ entries, health: channel.health, staleHours: SMS_STALE_HOURS });
     } catch (err) {
       fail(res, err, "Failed to read the SMS log");

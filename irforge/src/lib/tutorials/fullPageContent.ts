@@ -13,6 +13,8 @@
  * زبان فقط فارسی (دلیلش دقیقاً همانِ چیزی‌ست که در content.ts آمده).
  */
 
+import { CARDPAY_TUTORIAL, CARDPAY_TUTORIAL_INTRO, CARDPAY_TUTORIAL_TITLE } from "./cardpayTutorial";
+
 export type TutorialPageStep = {
   title: string;
   image: string;
@@ -24,7 +26,19 @@ export type TutorialPageSection = {
   steps: TutorialPageStep[];
 };
 
-export const FULL_PAGE_TUTORIALS: Partial<Record<"panels" | "forms", TutorialPageSection[]>> = {
+/** شناسه‌ی بخش‌هایی که صفحه‌ی تمام‌صفحه‌ی خودشان را دارند (`/tutorials/:section`). */
+export type FullPageSectionId = "panels" | "forms" | "cardpay";
+
+/**
+ * عنوان و مقدمه‌ی اختیاریِ یک بخش. اگر نباشد، صفحه‌ی آموزش عنوان را از نامِ سکشنِ فضایِ کاریِ بات می‌سازد
+ * (برایِ «پنل‌ها» و «فرم‌ها»)؛ «کارت‌به‌کارت» سکشنِ بات نیست پس عنوانِ خودش را دارد.
+ */
+export const FULL_PAGE_META: Partial<Record<FullPageSectionId, { title: string; intro: string }>> = {
+  cardpay: { title: CARDPAY_TUTORIAL_TITLE, intro: CARDPAY_TUTORIAL_INTRO },
+};
+
+export const FULL_PAGE_TUTORIALS: Partial<Record<FullPageSectionId, TutorialPageSection[]>> = {
+  cardpay: CARDPAY_TUTORIAL,
   panels: [
     {
       heading: "۱. لیست پنل‌ها",

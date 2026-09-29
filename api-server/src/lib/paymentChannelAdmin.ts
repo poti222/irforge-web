@@ -32,6 +32,15 @@ export const MAX_ALLOWLIST = 10;
 export const SMS_STALE_HOURS = 12;
 export const SMS_LOG_LIMIT = 50;
 
+/** مالکِ کانال: یک بات (فروشنده) یا خودِ پلتفرم (سوپرادمین، فاز ۸). فقط route آن را از احرازِ هویت می‌سازد، نه از ورودی. */
+export type ChannelOwner = { scope: "platform" } | { scope: "bot"; botId: string };
+export const PLATFORM_OWNER: ChannelOwner = { scope: "platform" };
+/** سقفِ کانال برایِ پلتفرم (برایِ هر بات از `paymentProGate`). */
+export const PLATFORM_MAX_CHANNELS = 5;
+
+const ownerBot = (o: ChannelOwner): string | null => (o.scope === "bot" ? o.botId : null);
+const ownerKey = (o: ChannelOwner): string => (o.scope === "bot" ? o.botId : "platform");
+
 export class ChannelAdminError extends Error {
   constructor(message: string, readonly code: string, readonly status = 400) {
     super(message);
@@ -215,37 +224,39 @@ async function activeCount(c: ClientLike, channelId: string): Promise<number> {
   return rows[0].n;
 }
 
-async function loadOwned(c: ClientLike, botId: string, channelId: string): Promise<any> {
+async function loadOwned(c: ClientLike, owner: ChannelOwner, channelId: string): Promise<any> {
   const { rows } = await c.query(
-    "SELECT * FROM payment_channels WHERE id = $1 AND scope = 'bot' AND bot_id = $2", [channelId, botId]);
+    "SELECT * FROM payment_channels WHERE id = $1 AND scope = $2 AND bot_id IS NOT DISTINCT FROM $3::text",
+    [channelId, owner.scope, ownerBot(owner)]);
   if (!rows[0]) throw new ChannelAdminError("کانال پیدا نشد.", "not_found", 404);
   return rows[0];
 }
 
 // ─── عملیات ─────────────────────────────────────────────────────────────────
 
-export async function listChannels(pool: PoolLike, botId: string, now = new Date()): Promise<ChannelView[]> {
+export async function listChannels(pool: PoolLike, owner: ChannelOwner, now = new Date()): Promise<ChannelView[]> {
   return withClient(pool, async (c) => {
     const { rows } = await c.query(
-      "SELECT * FROM payment_channels WHERE scope = 'bot' AND bot_id = $1 ORDER BY created_at, id", [botId]);
+      "SELECT * FROM payment_channels WHERE scope = $1 AND bot_id IS NOT DISTINCT FROM $2::text ORDER BY created_at, id",
+      [owner.scope, ownerBot(owner)]);
     const out: ChannelView[] = [];
     for (const r of rows) out.push(toView(r, await activeCount(c, r.id), now));
     return out;
   });
 }
 
-export async function getChannel(pool: PoolLike, botId: string, channelId: string, now = new Date()): Promise<ChannelView> {
+export async function getChannel(pool: PoolLike, owner: ChannelOwner, channelId: string, now = new Date()): Promise<ChannelView> {
   return withClient(pool, async (c) => {
-    const r = await loadOwned(c, botId, channelId);
+    const r = await loadOwned(c, owner, channelId);
     return toView(r, await activeCount(c, r.id), now);
   });
 }
 
 /** ساختِ کانال. secret **فقط همین‌جا** برگردانده می‌شود. */
 export async function createChannel(
-  pool: PoolLike, input: { botId: string; fields: ChannelFields; maxChannels: number; now?: Date },
+  pool: PoolLike, input: { owner: ChannelOwner; fields: ChannelFields; maxChannels: number; now?: Date },
 ): Promise<{ channel: ChannelView; smsSecret: string }> {
-  const { botId, fields } = input;
+  const { owner, fields } = input;
   const now = input.now ?? new Date();
   const id = `pch_${crypto.randomBytes(9).toString("hex")}`;
   const secret = generateSmsSecret();
@@ -253,21 +264,23 @@ export async function createChannel(
     // شمارشِ ظرفیت و درج زیرِ یک قفلِ per-bot تا دو ساختِ هم‌زمان از سقف رد نشوند.
     await c.query("BEGIN");
     try {
-      await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [`paychan:${botId}`]);
+      await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [`paychan:${ownerKey(owner)}`]);
       const { rows: cnt } = await c.query(
-        "SELECT COUNT(*)::int AS n FROM payment_channels WHERE scope = 'bot' AND bot_id = $1", [botId]);
+        "SELECT COUNT(*)::int AS n FROM payment_channels WHERE scope = $1 AND bot_id IS NOT DISTINCT FROM $2::text",
+        [owner.scope, ownerBot(owner)]);
       if (cnt[0].n >= input.maxChannels) {
-        throw new ChannelAdminError(`حداکثر ${input.maxChannels} کانال برایِ هر بات مجاز است.`, "channel_limit", 409);
+        throw new ChannelAdminError(
+          `حداکثر ${input.maxChannels} کانال ${owner.scope === "bot" ? "برایِ هر بات" : "برایِ پلتفرم"} مجاز است.`, "channel_limit", 409);
       }
       const { rows } = await c.query(
         `INSERT INTO payment_channels
            (id, scope, bot_id, kind, card_number_enc, holder_name, bank_name, payment_url, sms_secret_hash,
             sender_allowlist, bank_parser, min_amount_rial, active, created_at)
-         VALUES ($1,'bot',$2,$3,$4,$5,$6,$7,$8,$9::text[],$10,$11::bigint,$12,$13)
+         VALUES ($1,$14,$2,$3,$4,$5,$6,$7,$8,$9::text[],$10,$11::bigint,$12,$13)
          RETURNING *`,
-        [id, botId, fields.kind, fields.cardNumber ? encryptToken(fields.cardNumber) : null, fields.holderName,
+        [id, ownerBot(owner), fields.kind, fields.cardNumber ? encryptToken(fields.cardNumber) : null, fields.holderName,
           fields.bankName, fields.paymentUrl, hashSmsSecret(secret), fields.senderAllowlist, fields.bankParser,
-          fields.minAmountRial, fields.active, now]);
+          fields.minAmountRial, fields.active, now, owner.scope]);
       await c.query("COMMIT");
       return { channel: toView(rows[0], 0, now), smsSecret: secret };
     } catch (err) {
@@ -279,19 +292,21 @@ export async function createChannel(
 
 /** ویرایشِ جزئی. فیلدِ نیامده دست‌نخورده می‌ماند؛ `cardNumber` خالی/نیامده = همان کارتِ قبلی. */
 export async function updateChannel(
-  pool: PoolLike, input: { botId: string; channelId: string; patch: ChannelInput; now?: Date },
+  pool: PoolLike, input: { owner: ChannelOwner; channelId: string; patch: ChannelInput; now?: Date },
 ): Promise<ChannelView> {
   const now = input.now ?? new Date();
-  const { botId, channelId, patch } = input;
-  await withClient(pool, (c) => loadOwned(c, botId, channelId));   // ۴۰۴ زودهنگام؛ تصمیم زیرِ قفل گرفته می‌شود
+  const { owner, channelId, patch } = input;
+  await withClient(pool, (c) => loadOwned(c, owner, channelId));   // ۴۰۴ زودهنگام؛ تصمیم زیرِ قفل گرفته می‌شود
 
   return withChannelLock(pool, channelId, async (c) => {
-    const cur = (await c.query("SELECT * FROM payment_channels WHERE id = $1 AND bot_id = $2 FOR UPDATE", [channelId, botId])).rows[0];
+    const cur = (await c.query(
+      "SELECT * FROM payment_channels WHERE id = $1 AND scope = $2 AND bot_id IS NOT DISTINCT FROM $3::text FOR UPDATE",
+      [channelId, owner.scope, ownerBot(owner)])).rows[0];
     if (!cur) throw new ChannelAdminError("کانال پیدا نشد.", "not_found", 404);
     const active = await activeCount(c, channelId);
 
     const sets: string[] = [];
-    const params: unknown[] = [channelId, botId];
+    const params: unknown[] = [channelId, ownerBot(owner), owner.scope];
     const set = (col: string, val: unknown, cast = "") => { params.push(val); sets.push(`${col} = $${params.length}${cast}`); };
 
     const destinationTouched =
@@ -341,26 +356,26 @@ export async function updateChannel(
 
     if (!sets.length) return toView(cur, active, now);
     const { rows } = await c.query(
-      `UPDATE payment_channels SET ${sets.join(", ")} WHERE id = $1 AND bot_id = $2 AND scope = 'bot' RETURNING *`, params);
+      `UPDATE payment_channels SET ${sets.join(", ")} WHERE id = $1 AND bot_id IS NOT DISTINCT FROM $2::text AND scope = $3 RETURNING *`, params);
     return toView(rows[0], active, now);
   });
 }
 
 /** چرخشِ secret: هشِ جدید، secretِ قدیمی همان لحظه نامعتبر؛ بقیه‌ی تنظیمات دست‌نخورده. */
-export async function rotateSecret(pool: PoolLike, input: { botId: string; channelId: string }): Promise<{ smsSecret: string }> {
+export async function rotateSecret(pool: PoolLike, input: { owner: ChannelOwner; channelId: string }): Promise<{ smsSecret: string }> {
   const secret = generateSmsSecret();
   return withClient(pool, async (c) => {
     const { rows } = await c.query(
-      "UPDATE payment_channels SET sms_secret_hash = $3 WHERE id = $1 AND bot_id = $2 AND scope = 'bot' RETURNING id",
-      [input.channelId, input.botId, hashSmsSecret(secret)]);
+      "UPDATE payment_channels SET sms_secret_hash = $4 WHERE id = $1 AND bot_id IS NOT DISTINCT FROM $2::text AND scope = $3 RETURNING id",
+      [input.channelId, ownerBot(input.owner), input.owner.scope, hashSmsSecret(secret)]);
     if (!rows[0]) throw new ChannelAdminError("کانال پیدا نشد.", "not_found", 404);
     return { smsSecret: secret };
   });
 }
 
 /** حذف فقط اگر هیچ درخواست/پیامکی ندارد (خطای اولیه)؛ وگرنه غیرفعال‌کردن پیشنهاد می‌شود. */
-export async function deleteChannel(pool: PoolLike, input: { botId: string; channelId: string }): Promise<void> {
-  await withClient(pool, (c) => loadOwned(c, input.botId, input.channelId));
+export async function deleteChannel(pool: PoolLike, input: { owner: ChannelOwner; channelId: string }): Promise<void> {
+  await withClient(pool, (c) => loadOwned(c, input.owner, input.channelId));
   await withChannelLock(pool, input.channelId, async (c) => {
     const { rows } = await c.query(
       `SELECT (SELECT COUNT(*) FROM payment_requests WHERE channel_id = $1)::int AS r,
@@ -370,7 +385,9 @@ export async function deleteChannel(pool: PoolLike, input: { botId: string; chan
       throw new ChannelAdminError("این کانال سابقه‌ی پرداخت دارد و حذف نمی‌شود؛ به‌جایِ آن غیرفعالش کنید.", "channel_has_history", 409);
     }
     await c.query("DELETE FROM sms_inbox WHERE channel_id = $1", [input.channelId]);
-    await c.query("DELETE FROM payment_channels WHERE id = $1 AND bot_id = $2 AND scope = 'bot'", [input.channelId, input.botId]);
+    await c.query(
+      "DELETE FROM payment_channels WHERE id = $1 AND scope = $2 AND bot_id IS NOT DISTINCT FROM $3::text",
+      [input.channelId, input.owner.scope, ownerBot(input.owner)]);
   });
 }
 
@@ -395,9 +412,9 @@ export interface TestSmsResult {
 }
 
 /** مسیرِ سروریِ پیامک را می‌آزماید (پارسر + ذخیره)، بدونِ اینکه هرگز قابلِ match باشد. */
-export async function runTestSms(pool: PoolLike, input: { botId: string; channelId: string; now?: Date }): Promise<TestSmsResult> {
+export async function runTestSms(pool: PoolLike, input: { owner: ChannelOwner; channelId: string; now?: Date }): Promise<TestSmsResult> {
   const now = input.now ?? new Date();
-  const ch = await withClient(pool, (c) => loadOwned(c, input.botId, input.channelId));
+  const ch = await withClient(pool, (c) => loadOwned(c, input.owner, input.channelId));
   const text = sampleDepositText(ch.bank_parser);
   const parsed = getSmsParser(ch.bank_parser)(text);
   const id = `sms_${crypto.randomBytes(9).toString("hex")}`;
@@ -430,10 +447,10 @@ export interface SmsLogEntry {
 }
 
 export async function listSmsLog(
-  pool: PoolLike, input: { botId: string; channelId: string; limit?: number },
+  pool: PoolLike, input: { owner: ChannelOwner; channelId: string; limit?: number },
 ): Promise<SmsLogEntry[]> {
   return withClient(pool, async (c) => {
-    await loadOwned(c, input.botId, input.channelId);
+    await loadOwned(c, input.owner, input.channelId);
     const { rows } = await c.query(
       `SELECT id, received_at, sender, direction, amount_rial, parsed_ok, status, raw_text
          FROM sms_inbox WHERE channel_id = $1 ORDER BY received_at DESC, id LIMIT $2`,

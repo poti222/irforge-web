@@ -2,7 +2,10 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { registerTelegramWebhookIfConfigured } from "./lib/telegram";
 import { refreshExchangeRateFromApi } from "./lib/exchangeRate";
-import { expireStaleTopups } from "./lib/walletTopupService";
+import { startPaymentSweeper } from "./lib/paymentSweeper";
+import { migrateLegacyWalletTopups } from "./lib/walletTopupMigration";
+import { defaultPaymentNotifiers } from "./routes/paymentSmsWebhook";
+import { pool as dbPool } from "@workspace/db";
 import { runStartupCryptoSelfCheck } from "./lib/tokenCrypto.js";
 import { sweepTierExpiry } from "./lib/tierExpiry.js";
 import { sweepSqlDatabaseExpiry } from "./lib/sqlDatabaseExpiry.js";
@@ -39,12 +42,17 @@ void registerTelegramWebhookIfConfigured();
 void refreshExchangeRateFromApi();
 setInterval(() => { void refreshExchangeRateFromApi(); }, 60 * 60 * 1000);
 
-// شارژِ کیف‌پول با بلوبانک: سفارش‌های pending بعد از ۲۰ دقیقه باید expired
-// شوند تا finalAmount شان آزاد شود (ایندکسِ یکتا فقط روی pending است) —
-// دوباره همان الگو، بدون هیچ زیرساختِ cron جدید.
-setInterval(() => {
-  void expireStaleTopups().catch((err) => logger.error({ err }, "expireStaleTopups failed"));
-}, 60 * 1000);
+// ماژولِ کارت‌به‌کارتِ خودکار (فاز ۹): هر دقیقه — انقضایِ pending/queued، ارتقایِ صف، پاک‌سازیِ پیامک‌های ignoredِ
+// قدیمی و رویدادهای لاگ، و هشدارِ گوشیِ ساکت/فیشِ بی‌جواب/اثرِ گیرکرده. (جایگزینِ expireStaleTopups قدیمی؛ همان
+// الگوی setInterval، بدون زیرساختِ cron جدید. چندنمونه‌ای امن است: advisory lock.)
+startPaymentSweeper(dbPool as any, defaultPaymentNotifiers(dbPool as any));
+
+// فاز ۸: ردیف‌های قدیمیِ wallet_topups / sms_logs را (idempotent، زیرِ advisory lock، یک تراکنش) به ماژولِ جدید می‌آورد
+// تا بعد از استقرار هیچ درخواستِ در حالِ پرداخت یا سابقه‌ای یتیم نماند. بدونِ ردیفِ جدید، چیزی نمی‌نویسد.
+// (migrate.mjs پیش از بوت جدول‌ها را ساخته است.) نتیجه در لاگ و در «پنل ادمین ← کارت‌به‌کارت خودکار ← لاگ» می‌آید.
+void migrateLegacyWalletTopups(dbPool as any)
+  .then((r) => { if (!r.ok && !r.skipped) logger.error({ attention: r.attention, orphans: r.orphans }, "legacy wallet top-up migration incomplete"); })
+  .catch((err) => logger.error({ err }, "legacy wallet top-up migration failed"));
 
 // IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — استاندارد/پرو ماهانه‌اند: باید تمدید یا
 // خاموش شوند دقیقاً همان لحظه‌ای که تاریخ می‌رسد، نه فقط یک‌بار در روز. همان

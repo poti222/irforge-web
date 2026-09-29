@@ -37,6 +37,15 @@ test("مایگریشنِ پروداکشن دقیقاً همان DDLِ آینه�
   assert.ok(migrate.indexOf(ddl30.trimEnd()) > migrate.indexOf(ddl.trimEnd()), "0030 باید بعد از 0029 اجرا شود");
 });
 
+const mirror32 = fs.readFileSync(new URL("../../lib/db/migrations/0032_card_autoconfirm_p8_p9.sql", import.meta.url), "utf8");
+const ddl32 = mirror32.slice(mirror32.indexOf("-- ─── CARD_AUTOCONFIRM_P8_P9"));
+
+test("مایگریشنِ پروداکشن دقیقاً همان DDLِ آینه‌ی 0032 (فاز ۸/۹) را دارد و template-safe است", () => {
+  assert.ok(migrate.includes(ddl32.trimEnd()), "migrate.mjs و 0032_card_autoconfirm_p8_p9.sql از هم جدا شده‌اند");
+  assert.ok(!ddl32.includes("`") && !ddl32.includes("${"));
+  assert.ok(migrate.indexOf(ddl32.trimEnd()) > migrate.indexOf(ddl30.trimEnd()), "0032 باید بعد از 0030/0031 اجرا شود");
+});
+
 test("DDL امن برای template literalِ migrate.mjs است (بدون backtick و ${})", () => {
   assert.ok(!ddl.includes("`"), "backtick داخل SQL، رشته‌ی template literal را می‌بندد");
   assert.ok(!ddl.includes("${"), "${ داخل SQL به‌عنوان interpolation تعبیر می‌شود");
@@ -240,4 +249,46 @@ test("sms_inbox: idempotency، برداشت هرگز match نمی‌شود، ه�
     assert.equal(await code(sms({ status: "matched", req: rq })), UNIQUE, "پیامکِ دوم برای همان درخواست");
     assert.equal(await code(sms({ parsed: true, direction: "unknown" })), CHECK, "parsed_ok با جهتِ unknown");
     assert.equal(await code(sms({ amount: -5 })), CHECK);
+  }));
+
+
+// ─── 0032 (فاز ۸/۹) — زنده ───────────────────────────────────────────────────
+import { DDL_ALL } from "./helpers/cardPayDdl.mjs";
+
+async function withFullSchema(fn) {
+  const pool = new Pool({ connectionString: PG_URL, max: 5 });
+  const schema = `card_p9_${Math.random().toString(36).slice(2, 10)}`;
+  const c = await pool.connect();
+  try {
+    await c.query(`CREATE SCHEMA ${schema}`);
+    await c.query(`SET search_path TO ${schema}`);
+    await c.query(DDL_ALL);
+    await c.query(DDL_ALL); // idempotent (شاملِ بلوکِ DO برایِ قیدِ suffix)
+    await fn((sql, params) => c.query(sql, params));
+  } finally {
+    c.release();
+    await pool.query(`DROP SCHEMA ${schema} CASCADE`);
+    await pool.end();
+  }
+}
+
+test("0032: ردیفِ legacy پسوندِ نامضرب‌ده را می‌پذیرد، ردیفِ عادی نه؛ legacy_ref یکتاست", live, () =>
+  withFullSchema(async (q) => {
+    await q(`INSERT INTO payment_channels (id, scope, kind, payment_url, sms_secret_hash) VALUES ('c','platform','open_link','https://x.y/z','h')`);
+    const ins = (id, suffix, legacy) => q(
+      `INSERT INTO payment_requests (id, channel_id, channel_kind, scope, user_id, purpose, base_amount_rial, suffix_rial,
+         final_amount_rial, status, expires_at, legacy_ref)
+       VALUES ($1,'c','open_link','platform','u','wallet_topup',1000000,$2::bigint,1000000+$2::bigint,'expired',NULL,$3)`, [id, suffix, legacy]);
+    assert.equal(await code(ins("a", 4321, null)), CHECK);            // ردیفِ عادی: پسوندِ نامضرب ممنوع
+    assert.equal(await code(ins("b", 4321, "wallet_topups:1")), null); // legacy: مجاز
+    assert.equal(await code(ins("c2", 5000, "wallet_topups:1")), UNIQUE); // legacy_ref یکتاست
+    assert.equal(await code(ins("d", 20000, null)), CHECK);           // سقفِ ۹۹۹۰ برای غیرِ legacy
+  }));
+
+test("0032: payment_events سطحِ نامعتبر را رد می‌کند و ایندکس‌ها ساخته می‌شوند", live, () =>
+  withFullSchema(async (q) => {
+    await q(`INSERT INTO payment_events (id, kind) VALUES ('e1','sms_received')`);
+    assert.equal(await code(q(`INSERT INTO payment_events (id, kind, level) VALUES ('e2','x','fatal')`)), CHECK);
+    const { rows } = await q(`SELECT indexname FROM pg_indexes WHERE tablename = 'payment_events' AND schemaname = current_schema()`);
+    assert.ok(rows.length >= 4);
   }));

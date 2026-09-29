@@ -74,6 +74,8 @@ export interface PaymentRequestRow {
   createdAt: Date;
   /** sms | admin — فقط وقتی status=confirmed. */
   confirmedBy: "sms" | "admin" | null;
+  /** ادمینِ تأییدکننده — فقط وقتی confirmedBy=admin. */
+  confirmedByAdminId: string | null;
   confirmedAt: Date | null;
   matchedSmsId: string | null;
   /** شناسه‌ی حسابِ (کانالِ) مقصد در لحظه‌ی ساخت — snapshot برایِ سفارش/گزارش. */
@@ -99,6 +101,7 @@ export function mapRow(r: any): PaymentRequestRow {
     queuePosition: r.queue_position,
     createdAt: r.created_at,
     confirmedBy: r.confirmed_by ?? null,
+    confirmedByAdminId: r.confirmed_by_admin_id ?? null,
     confirmedAt: r.confirmed_at ?? null,
     matchedSmsId: r.matched_sms_id ?? null,
     accountIdSnapshot: r.account_id_snapshot ?? null,

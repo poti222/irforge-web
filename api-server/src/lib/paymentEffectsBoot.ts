@@ -8,9 +8,11 @@
  * «فقط تغییرِ وضعیت» است — و صریحاً ثبت می‌شود تا fail-closedِ موتور (`paymentEffects`)
  * برای این دو نوع باز شود، نه برایِ هر چیزِ ثبت‌نشده.
  *
- * scope=platform (کیف‌پولِ خودِ IrForge): فاز ۸ effect را ثبت می‌کند.
+ * scope=platform (کیف‌پولِ خودِ IrForge): فاز ۸ — کیف‌پول **داخلِ همان تراکنشِ تأیید** شارژ می‌شود
+ * (`platformWalletEffect.ts`)؛ برخلافِ bot، اینجا claim/رفت‌وبرگشت نیست.
  */
 import { registerPaymentEffect } from "./paymentEffects";
+import { platformWalletTopupEffect } from "./platformWalletEffect";
 
 const stateOnly = async () => { /* بات از طریقِ claim اثرِ تجاری را اعمال می‌کند */ };
 
@@ -18,4 +20,5 @@ const stateOnly = async () => { /* بات از طریقِ claim اثرِ تجا�
 export function registerDefaultPaymentEffects(): void {
   registerPaymentEffect("bot", "wallet_topup", stateOnly);
   registerPaymentEffect("bot", "order", stateOnly);
+  registerPaymentEffect("platform", "wallet_topup", platformWalletTopupEffect);
 }

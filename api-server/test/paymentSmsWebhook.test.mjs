@@ -94,11 +94,14 @@ test("smsContentHash: متنِ دارای ساعت+تاریخ و بدونِ زم
   assert.notEqual(smsContentHash("c", withTs, "b", t1, NOW), smsContentHash("c", withTs, "b", t2, NOW));
 });
 
-test("مسیرِ قدیمیِ /internal/wallet-topup/sms-webhook دست‌نخورده و مسیرِ جدید ثبت شده است", () => {
+test("آدرسِ قدیمیِ /internal/wallet-topup/sms-webhook فقط aliasِ همان pipelineِ جدید است (منطقِ موازی ندارد)", () => {
   const routes = fs.readFileSync(new URL("../src/routes/index.ts", import.meta.url), "utf8");
   assert.match(routes, /paymentSmsWebhookRouter/);
   const legacy = fs.readFileSync(new URL("../src/routes/walletTopupSmsWebhook.ts", import.meta.url), "utf8");
-  assert.match(legacy, /sms-webhook/);
+  const code = legacy.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");   // فقط کد، نه توضیحات
+  assert.match(code, /sms-webhook/);
+  assert.match(code, /processAuthenticatedSms/);
+  assert.doesNotMatch(code, /wallet_topups|walletTopupsTable|smsLogsTable|creditWallet|parseBlubankDepositSms/);
 });
 
 test("منبعِ وبهوک: متنِ پیامک و secret هرگز وارِدِ لاگ نمی‌شوند", () => {

@@ -11,17 +11,42 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const { FULL_PAGE_TUTORIALS } = await import("../src/lib/tutorials/fullPageContent.ts");
+const { FULL_PAGE_TUTORIALS, FULL_PAGE_META } = await import("../src/lib/tutorials/fullPageContent.ts");
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
 
-test("پنل‌ها و فرم‌ها هر دو در FULL_PAGE_TUTORIALS تعریف شده‌اند", () => {
+test("پنل‌ها، فرم‌ها و کارت‌به‌کارت در FULL_PAGE_TUTORIALS تعریف شده‌اند", () => {
   assert.ok(Array.isArray(FULL_PAGE_TUTORIALS.panels) && FULL_PAGE_TUTORIALS.panels.length > 0);
   assert.ok(Array.isArray(FULL_PAGE_TUTORIALS.forms) && FULL_PAGE_TUTORIALS.forms.length > 0);
+  assert.ok(Array.isArray(FULL_PAGE_TUTORIALS.cardpay) && FULL_PAGE_TUTORIALS.cardpay.length >= 6);
+});
+
+test("کارت‌به‌کارت: عنوان/مقدمه دارد و هر عکسِ پوشه‌یِ tutorials/cardpay در آموزش استفاده شده", () => {
+  const meta = FULL_PAGE_META.cardpay;
+  assert.ok(meta?.title?.trim() && meta?.intro?.trim(), "عنوان و مقدمه‌یِ cardpay خالی است");
+  const used = new Set(
+    FULL_PAGE_TUTORIALS.cardpay.flatMap((sec) => sec.steps.map((st) => st.image.replace(/^\/tutorials\/cardpay\//, ""))),
+  );
+  const onDisk = readdirSync(path.join(PUBLIC_DIR, "tutorials", "cardpay")).filter((f) => f.endsWith(".png"));
+  const unused = onDisk.filter((f) => !used.has(f));
+  assert.deepEqual(unused, [], `عکس‌هایِ استفاده‌نشده: ${unused.join(", ")}`);
+});
+
+test("کارت‌به‌کارت: فصل‌هایِ اصلی هست و «راه‌اندازی برایِ سایتِ خودتان» و «عیب‌یابی» جزوشان است", () => {
+  const headings = FULL_PAGE_TUTORIALS.cardpay.map((s) => s.heading).join(" | ");
+  for (const needle of ["راه‌اندازی برایِ سایتِ خودتان", "وصل کردنِ گوشی", "فروشنده", "مدیریتِ روزمره", "عیب‌یابی"]) {
+    assert.ok(headings.includes(needle), `فصلِ «${needle}» در آموزشِ cardpay نیست: ${headings}`);
+  }
+});
+
+test("کارت‌به‌کارت: در متنِ آموزش هیچ کلیدِ امنیتیِ کامل، شماره‌کارتِ کامل یا CVV/رمز نیست", () => {
+  const blob = JSON.stringify(FULL_PAGE_TUTORIALS.cardpay) + JSON.stringify(FULL_PAGE_META.cardpay);
+  assert.ok(!/irfsms_[A-Za-z0-9_-]{16,}/.test(blob), "کلیدِ امنیتیِ کامل در متن دیده شد");
+  assert.ok(!/\b\d{16}\b/.test(blob.replace(/\d{4}-\*{4}/g, "")), "شماره‌کارتِ ۱۶رقمی در متن دیده شد");
 });
 
 test("هر بخش حداقل یک زیربخش دارد و هر زیربخش حداقل یک قدم", () => {

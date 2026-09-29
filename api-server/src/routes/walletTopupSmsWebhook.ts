@@ -1,40 +1,28 @@
 /**
- * routes/walletTopupSmsWebhook.ts — تشخیصِ خودکارِ واریزِ بلوبانک از رویِ پیامک.
- * ─────────────────────────────────────────────────────────────────────────────
- * صاحبِ سایت مدارکِ رسمیِ کسب‌وکار برای یک درگاهِ واقعی ندارد، پس شارژِ
- * کیف‌پول با یک لینکِ بازِ بلوبانک انجام می‌شود و تأییدش هم به‌جایِ callback
- * درگاه، از رویِ پیامکِ واریزیِ بانک است — یک اپِ SMS-forwarder روی گوشیِ او
- * هر پیامکِ رسیده را با یک POST به اینجا می‌فرستد.
+ * routes/walletTopupSmsWebhook.ts — aliasِ سازگاریِ آدرسِ قدیمیِ پیامکِ شارژِ کیف‌پولِ پلتفرم
+ * (IRFORGE_CARD_AUTOCONFIRM_PROMPT، فاز ۸).
  *
- * همان الگویِ webhookِ داخلیِ `internalTicketNotify.ts` (راز مشترک +
- * timingSafeEqual + rate limit + audit) ولی با رازِ **جدا**
- * (`SMS_WEBHOOK_SECRET`) — لو رفتنِ یک راز نباید قابلیتِ یک endpoint نامرتبط
- * را هم بدهد.
+ * تا پیش از فاز ۸ این فایل خودش پیامکِ بلوبانک را پارس و سفارشِ `wallet_topups` را تأیید می‌کرد. آن منطق **حذف شد**:
+ * حالا همه‌ی پیامک‌ها از یک pipeline می‌گذرند (`paymentSmsWebhook.ts::processAuthenticatedSms` → ذخیره در `sms_inbox`،
+ * تطبیق با `payment_requests`، شارژِ کیف‌پول داخلِ تراکنشِ تأیید).
  *
- * منطقِ تطبیق «همان انتقالِ اتمیکِ شرطی»یِ همیشگیِ این کدبیس است: تغییرِ
- * وضعیت از `pending` به `confirmed` در خودِ WHERE شرط می‌خورد
- * (`lib/wallet.ts`'s `deductWallet` و `routes/wallet.ts`'s تأییدِ واریز هم
- * دقیقاً همین‌طورند) — یعنی همان پیامک را دوبار فرستادن (retry اپِ
- * forwarder) نمی‌تواند دوبار شارژ بزند: بارِ دوم چیزی برای آپدیت پیدا
- * نمی‌کند چون سفارش دیگر `pending` نیست.
- *
- * به کیف‌پول `requestedAmount` واریز می‌شود، نه `finalAmount` — پسوند فقط
- * برایِ تطبیق است، جزوِ پولِ واقعی نیست. (IRFORGE_RIAL_MIGRATION Phase 2:
- * هر دو، مثلِ بقیه‌ی ستون‌هایِ `wallet_topups`، حالا ریال‌اند.)
+ * این aliasِ نازک فقط برایِ **قطعِ نشدنِ گوشیِ فعلیِ صاحبِ سایت** هنگامِ استقرار مانده است: گوشی هنوز به
+ * `POST /internal/wallet-topup/sms-webhook` با هدرِ `X-Sms-Webhook-Secret` (env: `SMS_WEBHOOK_SECRET`) پست می‌کند.
+ * پیامک به «کانالِ فعالِ پلتفرم» (تازه‌ترین) می‌رود و دقیقاً مثلِ آدرسِ جدید پردازش می‌شود. **منسوخ**: بعد از اینکه
+ * در پنلِ ادمین (کارت‌به‌کارت خودکار ← کانال‌های پلتفرم) وبهوکِ جدید و کلیدِ تازه را روی گوشی گذاشتید،
+ * `SMS_WEBHOOK_SECRET` را از env حذف کنید تا این alias خاموش شود (بدونِ آن، همیشه ۴۰۳ می‌دهد).
  */
 import { Router } from "express";
 import crypto from "crypto";
-import { and, eq } from "drizzle-orm";
-import { db, walletTopupsTable, smsLogsTable, type WalletTopup } from "@workspace/db";
+import { pool as defaultPool } from "@workspace/db";
 import { logger } from "../lib/logger";
-import { authRateLimit, clientIp } from "../middleware/rateLimit";
-import { writeAudit } from "../lib/audit";
-import { createNotification, formatTomanFa } from "../lib/notify";
-import { creditWallet } from "../lib/wallet";
-import { parseBlubankDepositSms } from "../lib/walletTopupService";
-import { rialToToman } from "../lib/currency";
-
-const router = Router();
+import { authRateLimit, clientIp, hit, type HitFn } from "../middleware/rateLimit";
+import type { MatchAlerts } from "../lib/paymentAlerts";
+import { matchSms } from "../lib/paymentMatcher";
+import { logPaymentEvent } from "../lib/paymentEvents";
+import { SmsIngestError, type SmsChannelRow } from "../lib/smsIngest";
+import type { PoolLike } from "../lib/paymentRequests";
+import { defaultPaymentAlerts, processAuthenticatedSms } from "./paymentSmsWebhook";
 
 function secretOk(req: any): boolean {
   const provided = req.header("X-Sms-Webhook-Secret") ?? "";
@@ -48,91 +36,70 @@ function secretOk(req: any): boolean {
   );
 }
 
-router.post("/internal/wallet-topup/sms-webhook", authRateLimit("wallet_topup_sms_webhook"), async (req: any, res) => {
-  if (!secretOk(req)) {
-    logger.warn({ ip: clientIp(req) }, "Wallet topup SMS webhook: bad or missing secret");
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-
+/** تازه‌ترین کانالِ فعالِ پلتفرم (همان که صفحه‌ی کیف‌پول پیش‌فرض می‌گیرد) یا null. */
+async function activePlatformChannel(pool: PoolLike): Promise<SmsChannelRow | null> {
+  const c = await pool.connect();
   try {
-    const rawText = String(req.body?.text ?? req.body?.message ?? "").slice(0, 2000).trim();
-    const sender = req.body?.sender ? String(req.body.sender).slice(0, 120) : null;
-    if (!rawText) {
-      res.status(400).json({ error: "text لازم است" });
+    const { rows } = await c.query(
+      `SELECT id, sender_allowlist, bank_parser FROM payment_channels
+        WHERE scope = 'platform' AND bot_id IS NULL AND active ORDER BY created_at DESC, id LIMIT 1`);
+    const r = rows[0];
+    return r ? { id: r.id, scope: "platform", botId: null, active: true, senderAllowlist: r.sender_allowlist ?? [], bankParser: r.bank_parser } : null;
+  } finally {
+    c.release();
+  }
+}
+
+export interface LegacyWalletWebhookDeps {
+  pool?: PoolLike;
+  /** پیش‌فرض: `authRateLimit("wallet_topup_sms_webhook")`. */
+  rateLimit?: (req: any, res: any, next: any) => void;
+  hitFn?: HitFn;
+  alerts?: MatchAlerts;
+}
+
+export function createLegacyWalletWebhookRouter(deps: LegacyWalletWebhookDeps = {}): Router {
+  const router = Router();
+  const pool = deps.pool ?? (defaultPool as unknown as PoolLike);
+  const hitFn = deps.hitFn ?? hit;
+  const rateLimit = deps.rateLimit ?? authRateLimit("wallet_topup_sms_webhook");
+
+  router.post("/internal/wallet-topup/sms-webhook", rateLimit, async (req: any, res) => {
+    if (!secretOk(req)) {
+      logger.warn({ ip: clientIp(req) }, "Wallet topup SMS webhook (legacy alias): bad or missing secret");
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
-
-    const parsed = parseBlubankDepositSms(rawText);
-    const smsLogId = crypto.randomUUID();
-    let matchedTopup: WalletTopup | null = null;
-
-    if (parsed) {
-      // Both sides are now Rial (IRFORGE_RIAL_MIGRATION Phase 2) — an exact
-      // equality match with no lossy Toman rounding on either side, which is
-      // the entire reason this migration exists (see parseBlubankDepositSms()'s
-      // header comment for the real non-round-amount case that used to miss).
-      const [row] = await db.update(walletTopupsTable)
-        .set({ status: "confirmed", confirmedAt: new Date(), matchedSmsId: smsLogId })
-        .where(and(
-          eq(walletTopupsTable.finalAmount, parsed.amountRial),
-          eq(walletTopupsTable.status, "pending"),
-        ))
-        .returning();
-      matchedTopup = row ?? null;
-    }
-
-    // چه match بشود چه نه، هر پیامک برای ممیزی/رسیدگیِ دستی ثبت می‌شود.
-    await db.insert(smsLogsTable).values({
-      id: smsLogId,
-      rawText,
-      sender,
-      parsedAmount: parsed?.amountRial ?? null,
-      matchedPaymentId: matchedTopup?.id ?? null,
-      webhookIp: clientIp(req),
-    });
-
-    if (matchedTopup) {
-      // matchedTopup.requestedAmount is already Rial — creditWallet() is
-      // Rial-native, so this is a direct passthrough with zero conversion.
-      const balanceRial = await creditWallet(
-        matchedTopup.userId,
-        matchedTopup.requestedAmount,
-        `شارژ خودکار کیف‌پول از طریق بلوبانک (سفارش ${matchedTopup.id})`,
-        "deposit_blubank",
+    try {
+      const text = String(req.body?.text ?? req.body?.message ?? "").slice(0, 2000).trim();
+      if (!text) { res.status(400).json({ error: "text لازم است" }); return; }
+      const channel = await activePlatformChannel(pool);
+      if (!channel) {
+        logger.error("Wallet topup SMS webhook (legacy alias): no active platform channel — SMS not stored");
+        res.status(503).json({ error: "No active platform payment channel" });
+        return;
+      }
+      // یادآوریِ «منسوخ» را در لاگِ ادمین بگذار، ولی حداکثر ساعتی یک‌بار.
+      if ((await hitFn("legacy-wallet-webhook-log", 1, 0, 3_600_000)).allowed) {
+        await logPaymentEvent(pool, {
+          level: "warn", kind: "legacy_webhook_used", scope: "platform", channelId: channel.id, actor: "sms",
+          message: "پیامک از آدرسِ قدیمیِ /internal/wallet-topup/sms-webhook رسید؛ وبهوکِ جدیدِ کانال را روی گوشی بگذارید",
+        });
+      }
+      const alerts = deps.alerts ?? defaultPaymentAlerts(pool);
+      const out = await processAuthenticatedSms(
+        pool, channel, { text, sender: req.body?.sender ? String(req.body.sender).slice(0, 120) : null },
+        (p, id) => matchSms(p, id, { alerts }),
       );
-
-      await createNotification({
-        userId: matchedTopup.userId,
-        type: "wallet_topup_confirmed",
-        severity: "info",
-        title: "شارژ کیف پول تأیید شد",
-        message: `واریز ${formatTomanFa(rialToToman(matchedTopup.requestedAmount))} با موفقیت تأیید شد و به کیف پول اضافه شد. موجودی فعلی: ${formatTomanFa(rialToToman(balanceRial))}.`,
-        refId: matchedTopup.id,
-      });
-
-      await writeAudit({
-        actorUserId: "system:sms-webhook",
-        action: "wallet_topup_confirmed",
-        targetUserId: matchedTopup.userId,
-        // Rial, kept raw for audit precision (not display-rounded).
-        metadata: {
-          topupId: matchedTopup.id,
-          requestedAmount: matchedTopup.requestedAmount,
-          finalAmount: matchedTopup.finalAmount,
-          smsLogId,
-          sourceIp: clientIp(req),
-        },
-      });
-    } else {
-      logger.warn({ parsedAmountRial: parsed?.amountRial ?? null, smsLogId }, "Wallet topup SMS: no matching pending order");
+      res.status(out.inserted ? 201 : 200).json({ ok: true, matched: out.body.matched === true });
+    } catch (err) {
+      if (err instanceof SmsIngestError) { res.status(400).json({ error: err.message }); return; }
+      logger.error({ err }, "Wallet topup SMS webhook (legacy alias) error");
+      res.status(500).json({ error: "Internal server error" });
     }
+  });
 
-    res.status(201).json({ ok: true, matched: !!matchedTopup });
-  } catch (err) {
-    logger.error({ err }, "Wallet topup SMS webhook error");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
+  return router;
+}
 
-export default router;
+export default createLegacyWalletWebhookRouter();

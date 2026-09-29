@@ -11,7 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
 import { PaymentMethodsSettings } from "./PaymentMethodsSettings";
-import { WalletTopupMonitor } from "./WalletTopupMonitor";
 
 type WalletDeposit = {
   id: string; type: string; amount: number; status: string;
@@ -64,7 +63,10 @@ export function PaymentApprovals() {
           برای تأیید نمی‌آید (کاربر نمی‌داند پول را کجا بفرستد). */}
       <PaymentMethodsSettings />
 
-      <WalletTopupMonitor />
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+        <span>{fa ? "شارژِ خودکارِ کیف‌پول (تأیید با پیامک) و مدیریتِ کانال‌ها، پیامک‌ها و لاگ در تبِ «کارت‌به‌کارت خودکار» است." : "Automatic wallet top-ups (SMS-confirmed), channels, SMS inbox and log live in the “Auto card payments” tab."}</span>
+        <Button size="sm" variant="outline" asChild><a href="?tab=cardpay">{fa ? "باز کردن" : "Open"}</a></Button>
+      </div>
 
       {/* Wallet deposits */}
       <section className="space-y-3">

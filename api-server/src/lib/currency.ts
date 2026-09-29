@@ -16,7 +16,7 @@
  * `formatTomanFa()` notification string.
  *
  * The one path that must NOT round-trip through Toman is the Blubank SMS
- * pipeline (`walletTopupService.ts`'s `parseBlubankDepositSms()` and the
+ * pipeline (`smsParsers/blubank.ts`'s parser (was `walletTopupService.ts`, removed in card-autoconfirm Phase 8) and the
  * `wallet_topups.finalAmount` it's matched against) — that's the whole point
  * of this migration: the bank sends Rial, so keeping it in Rial end-to-end
  * (instead of the old `Math.round(amountRial / 10)`) is what makes the exact

@@ -12,6 +12,7 @@
  */
 import { logger } from "./logger";
 import type { PaymentRequestRow } from "./paymentRequests";
+import type { PaymentEventInput } from "./paymentEvents";
 
 export interface AlertMessage {
   severity: "info" | "warning" | "critical";
@@ -30,6 +31,10 @@ export interface AlertNotifiers {
   notifyAdmins?(msg: AlertMessage): Promise<void>;
   /** صاحبِ بات — فقط برایِ scope=bot صدا زده می‌شود. */
   notifyBotOwner?(botId: string, msg: AlertMessage): Promise<void>;
+  /** خودِ کاربرِ سایت — فقط برایِ تأییدِ شارژِ کیف‌پولِ پلتفرم (scope=platform). */
+  notifyPlatformUser?(userId: string, msg: AlertMessage): Promise<void>;
+  /** لاگِ تفصیلیِ سوپرادمین (`paymentEvents.ts`)؛ هرگز throw نمی‌کند. */
+  record?(ev: PaymentEventInput): Promise<void>;
 }
 
 export interface ConfirmedEvent {
@@ -64,7 +69,8 @@ export interface MatchAlerts {
 /** شکلِ نمایشیِ مبلغ: ریال با جداکننده‌ی هزارگان. */
 const rial = (n: number) => `${n.toLocaleString("en-US")} ریال`;
 
-async function fanOut(n: AlertNotifiers, botId: string | null, msg: AlertMessage): Promise<void> {
+/** پیام را به super_adminها و (برایِ scope=bot) صاحبِ بات می‌رساند؛ خطای هر مقصد جدا قورت داده می‌شود. */
+export async function fanOut(n: AlertNotifiers, botId: string | null, msg: AlertMessage): Promise<void> {
   const jobs: Promise<void>[] = [];
   if (n.notifyAdmins) jobs.push(n.notifyAdmins(msg));
   if (botId && n.notifyBotOwner) jobs.push(n.notifyBotOwner(botId, msg));
@@ -75,16 +81,50 @@ async function fanOut(n: AlertNotifiers, botId: string | null, msg: AlertMessage
 }
 
 export function createPaymentAlerts(notifiers: AlertNotifiers = {}): Required<MatchAlerts> {
+  const record = async (ev: PaymentEventInput) => {
+    try { await notifiers.record?.(ev); } catch (err) { logger.warn({ err, kind: ev.kind }, "payment event record failed (non-fatal)"); }
+  };
   return {
-    onConfirmed(e) {
+    async onConfirmed(e) {
       logger.info(
         { requestId: e.request.id, channelId: e.request.channelId, scope: e.request.scope, botId: e.request.botId,
           purpose: e.request.purpose, finalAmountRial: e.request.finalAmountRial, smsId: e.smsId,
           by: e.request.confirmedBy, promoted: e.promoted.map((p) => p.id) },
         "payment request confirmed",
       );
+      await record({
+        kind: e.request.confirmedBy === "admin" ? "confirmed_by_admin" : "confirmed_by_sms",
+        scope: e.request.scope, botId: e.request.botId, channelId: e.request.channelId, requestId: e.request.id,
+        smsId: e.smsId, actor: e.request.confirmedBy === "admin" ? `admin:${e.request.confirmedByAdminId ?? "?"}` : "sms",
+        message: `تأیید شد — ${rial(e.request.finalAmountRial)}`,
+        data: { purpose: e.request.purpose, finalAmountRial: e.request.finalAmountRial, baseAmountRial: e.request.baseAmountRial,
+          promoted: e.promoted.map((p) => p.id) },
+      });
+      for (const p of e.promoted) {
+        await record({
+          kind: "queue_promoted", scope: p.scope, botId: p.botId, channelId: p.channelId, requestId: p.id, actor: "system",
+          message: "نوبتِ صف رسید و درخواست pending شد", data: { finalAmountRial: p.finalAmountRial },
+        });
+      }
+      // خودِ کاربرِ سایت: شارژِ کیف‌پول تأیید شد. (مسیرِ خودکار و تأییدِ دستیِ سوپرادمین هر دو از همین‌جا می‌گذرند.)
+      if (e.request.scope === "platform" && e.request.purpose === "wallet_topup" && notifiers.notifyPlatformUser) {
+        try {
+          await notifiers.notifyPlatformUser(e.request.userId, {
+            severity: "info", type: "wallet_topup_confirmed", title: "شارژ کیف پول تأیید شد",
+            message: `واریز ${Math.round(e.request.baseAmountRial / 10).toLocaleString("fa-IR")} تومان تأیید شد و به کیف پول شما اضافه شد.`,
+            scope: "platform", botId: null, dedupeKey: `wallet_topup_confirmed:${e.request.id}`, refId: e.request.id,
+          });
+        } catch (err) {
+          logger.warn({ err, requestId: e.request.id }, "wallet top-up user notification failed (non-fatal)");
+        }
+      }
     },
     async onAmbiguous(e) {
+      await record({
+        level: "warn", kind: "sms_ambiguous", scope: e.scope, botId: e.botId, channelId: e.channelId, smsId: e.smsId,
+        actor: "system", message: `پیامکِ ${rial(e.amountRial)} با ${e.requestIds.length} درخواست هم‌خوان است — خودکار تأیید نشد`,
+        data: { amountRial: e.amountRial, requestIds: e.requestIds },
+      });
       logger.warn(
         { channelId: e.channelId, smsId: e.smsId, amountRial: e.amountRial, requestIds: e.requestIds },
         "payment SMS matched more than one request — left ambiguous for manual review",
@@ -101,6 +141,11 @@ export function createPaymentAlerts(notifiers: AlertNotifiers = {}): Required<Ma
       });
     },
     async onProblem(e) {
+      await record({
+        level: "error", kind: e.kind === "no_effect" ? "confirm_blocked_no_effect" : "confirm_blocked_effect_failed",
+        scope: e.scope, botId: e.botId, channelId: e.channelId, smsId: e.smsId, requestId: e.requestId, actor: "system",
+        message: e.message.slice(0, 200), data: { kind: e.kind },
+      });
       logger.error(
         { kind: e.kind, channelId: e.channelId, smsId: e.smsId, requestId: e.requestId, err: e.message },
         "payment auto-confirm blocked",

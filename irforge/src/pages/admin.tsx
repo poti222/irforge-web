@@ -14,6 +14,7 @@ import { useLanguage } from "@/hooks/use-language";
 import { AdminOverview } from "@/components/admin/AdminOverview";
 import { AllBotsTable, ADMIN_BOTS_KEY } from "@/components/admin/AllBotsTable";
 import { PaymentApprovals, WALLET_KEY } from "@/components/admin/PaymentApprovals";
+import { CardAutoConfirmAdmin, CARD_ADMIN_KEY } from "@/components/admin/CardAutoConfirmAdmin";
 import { UsersTable } from "@/components/admin/UsersTable";
 import { PlansManager, ADMIN_PLANS_KEY } from "@/components/admin/PlansManager";
 import { ProductsManager, ADMIN_PRODUCTS_KEY, ADMIN_PRODUCT_CATEGORIES_KEY } from "@/components/admin/ProductsManager";
@@ -26,7 +27,7 @@ import { SupportLinksSettings, ADMIN_SUPPORT_LINKS_KEY } from "@/components/admi
 import { CurrencyDisplaySettings, ADMIN_CURRENCY_DISPLAY_KEY } from "@/components/admin/CurrencyDisplaySettings";
 import { CaptchaSettings, ADMIN_CAPTCHA_KEY } from "@/components/admin/CaptchaSettings";
 import { PluginReleaseNotesManager, ADMIN_PLUGIN_RELEASE_NOTES_KEY } from "@/components/admin/PluginReleaseNotesManager";
-import { LayoutDashboard, CreditCard, Users, Megaphone, Bot, Package, ShoppingBag, Percent, Sparkles, UserPlus, LifeBuoy, Blocks } from "lucide-react";
+import { LayoutDashboard, CreditCard, Smartphone, Users, Megaphone, Bot, Package, ShoppingBag, Percent, Sparkles, UserPlus, LifeBuoy, Blocks } from "lucide-react";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
 
@@ -38,6 +39,7 @@ const TAB_KEYS: Record<string, QueryKey[]> = {
   bots: [ADMIN_BOTS_KEY],
   users: [getAdminListUsersQueryKey()],
   payments: [WALLET_KEY],
+  cardpay: [[...CARD_ADMIN_KEY]],
   plans: [ADMIN_PLANS_KEY, getListPlansQueryKey()],
   products: [ADMIN_PRODUCTS_KEY, ADMIN_PRODUCT_CATEGORIES_KEY],
   announcements: [getListAnnouncementsQueryKey()],
@@ -94,6 +96,7 @@ export default function Admin() {
           {isSuperAdmin && <TabsTrigger value="bots"><Bot className="me-2 h-4 w-4" /> {fa ? "همه ربات‌ها" : "All Bots"}</TabsTrigger>}
           <TabsTrigger value="users"><Users className="me-2 h-4 w-4" /> {fa ? "کاربران" : "Users"}</TabsTrigger>
           {isSuperAdmin && <TabsTrigger value="payments"><CreditCard className="me-2 h-4 w-4" /> {fa ? "پرداخت‌ها" : "Payments"}</TabsTrigger>}
+          {isSuperAdmin && <TabsTrigger value="cardpay"><Smartphone className="me-2 h-4 w-4" /> {fa ? "کارت‌به‌کارت خودکار" : "Auto card payments"}</TabsTrigger>}
           {isSuperAdmin && <TabsTrigger value="plans"><Package className="me-2 h-4 w-4" /> {fa ? "پلن‌ها" : "Plans"}</TabsTrigger>}
           {isSuperAdmin && <TabsTrigger value="products"><ShoppingBag className="me-2 h-4 w-4" /> {fa ? "محصولات" : "Products"}</TabsTrigger>}
           <TabsTrigger value="announcements"><Megaphone className="me-2 h-4 w-4" /> {fa ? "اعلان‌ها" : "Announcements"}</TabsTrigger>
@@ -108,6 +111,7 @@ export default function Admin() {
         {isSuperAdmin && <TabsContent value="bots"><AllBotsTable /></TabsContent>}
         <TabsContent value="users"><UsersTable /></TabsContent>
         {isSuperAdmin && <TabsContent value="payments"><PaymentApprovals /></TabsContent>}
+        {isSuperAdmin && <TabsContent value="cardpay"><CardAutoConfirmAdmin /></TabsContent>}
         {isSuperAdmin && (
           <TabsContent value="plans" className="space-y-4">
             <ExchangeRateSettings />

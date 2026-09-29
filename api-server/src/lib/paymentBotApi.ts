@@ -98,13 +98,13 @@ function toChannelInfo(r: any): BotChannelInfo {
   };
 }
 
-async function withClient<T>(pool: PoolLike, fn: (c: ClientLike) => Promise<T>): Promise<T> {
+export async function withClient<T>(pool: PoolLike, fn: (c: ClientLike) => Promise<T>): Promise<T> {
   const c = await pool.connect();
   try { return await fn(c); } finally { c.release(); }
 }
 
 /** قفلِ هم‌زمانیِ «یک کاربر در یک کانال» — روی یک اتصالِ جدا نگه داشته می‌شود. */
-async function withUserLock<T>(pool: PoolLike, key: string, fn: () => Promise<T>): Promise<T> {
+export async function withUserLock<T>(pool: PoolLike, key: string, fn: () => Promise<T>): Promise<T> {
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
@@ -164,7 +164,7 @@ function decryptCard(enc: string | null): string | null {
   }
 }
 
-async function buildView(pool: PoolLike, row: any, opts: { includePayTarget?: boolean } = {}): Promise<BotPaymentView> {
+export async function buildView(pool: PoolLike, row: any, opts: { includePayTarget?: boolean } = {}): Promise<BotPaymentView> {
   const r = mapRow(row);
   const showPay = (opts.includePayTarget ?? true) && (r.status === "pending" || r.status === "awaiting_review");
   const ch = await withClient(pool, async (c) => {

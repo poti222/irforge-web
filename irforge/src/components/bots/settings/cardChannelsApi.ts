@@ -80,7 +80,10 @@ export const cardChannelsKey = (botId: string) => ["card-channels", botId] as co
 export const cardSmsLogKey = (botId: string, channelId: string) => ["card-channels", botId, channelId, "sms-log"] as const;
 export const CARD_GUIDE_QUERY_KEY = ["card-autoconfirm-guide"] as const;
 
-const base = (botId: string) => `/api/bots/${botId}/payment-channels`;
+/** «botId»ِ ویژه: کانال‌های خودِ پلتفرم (شارژ کیف‌پولِ سایت) از APIِ سوپرادمین. */
+export const PLATFORM_SCOPE = "__platform__";
+const base = (botId: string) =>
+  botId === PLATFORM_SCOPE ? "/api/admin/card-autoconfirm/platform-channels" : `/api/bots/${botId}/payment-channels`;
 
 export function useCardChannels(botId: string) {
   return useQuery({

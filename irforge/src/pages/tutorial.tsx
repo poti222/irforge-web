@@ -14,7 +14,20 @@ import { Button } from "@/components/ui/button";
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
 import { isRtlLang } from "@/lib/i18n";
-import { FULL_PAGE_TUTORIALS } from "@/lib/tutorials/fullPageContent";
+import { FULL_PAGE_META, FULL_PAGE_TUTORIALS, type FullPageSectionId } from "@/lib/tutorials/fullPageContent";
+
+/** متنِ بینِ بک‌تیک (`...`) را به‌شکلِ کدِ درون‌خطی (LTR) نشان می‌دهد — بقیه‌یِ متن دست‌نخورده. */
+function renderInline(text: string) {
+  return text.split("`").map((part, i) =>
+    i % 2 === 1 ? (
+      <code key={i} dir="ltr" className="inline-block max-w-full break-all rounded bg-muted px-1 py-0.5 align-baseline font-mono text-[0.85em] text-foreground">
+        {part}
+      </code>
+    ) : (
+      part
+    ),
+  );
+}
 
 export default function TutorialPage() {
   const { section } = useParams<{ section: string }>();
@@ -23,7 +36,8 @@ export default function TutorialPage() {
   const tWorkspace = useT("botWorkspace");
   const BackArrow = isRtlLang(lang) ? ArrowRight : ArrowLeft;
 
-  const sections = FULL_PAGE_TUTORIALS[section as "panels" | "forms"];
+  const sections = FULL_PAGE_TUTORIALS[section as FullPageSectionId];
+  const meta = FULL_PAGE_META[section as FullPageSectionId];
 
   if (!sections) {
     return (
@@ -41,7 +55,7 @@ export default function TutorialPage() {
   const sectionLabelKey =
     `section${section[0].toUpperCase()}${section.slice(1)}` as keyof ReturnType<typeof useT<"botWorkspace">>;
   const sectionLabel = String(tWorkspace[sectionLabelKey] ?? "");
-  const pageTitle = t.titleFormat.replace("{section}", sectionLabel);
+  const pageTitle = meta?.title ?? t.titleFormat.replace("{section}", sectionLabel);
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-8 p-4 pb-16 md:p-6">
@@ -53,6 +67,7 @@ export default function TutorialPage() {
 
       <header className="space-y-2 border-b pb-6">
         <h1 className="text-2xl font-bold md:text-3xl">{pageTitle}</h1>
+        {meta?.intro && <p className="text-sm leading-relaxed text-muted-foreground">{meta.intro}</p>}
       </header>
 
       {/* فهرستِ بخش‌ها — روی دسکتاپ می‌چسبد بالای صفحه، روی موبایل معمولی اسکرول می‌شود. */}
@@ -83,7 +98,7 @@ export default function TutorialPage() {
                   </a>
                   <div className="space-y-2">
                     <h3 className="font-medium">{step.title}</h3>
-                    <p className="text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+                    <p className="text-sm leading-relaxed text-muted-foreground">{renderInline(step.body)}</p>
                   </div>
                 </article>
               ))}

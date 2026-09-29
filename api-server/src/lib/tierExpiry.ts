@@ -5,7 +5,7 @@
  * concept existed at all — see `bots.tierExpiresAt`'s own doc comment in
  * schema/bots.ts). Now they're monthly: this sweep runs periodically
  * (wired into `index.ts` via `setInterval`, same no-cron-infra pattern every
- * other periodic job in this codebase already uses — `expireStaleTopups`,
+ * other periodic job in this codebase already uses — `sweepPaymentRequests`,
  * `refreshExchangeRateFromApi`) and, for every bot with a tier and an expiry
  * date:
  *
