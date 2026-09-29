@@ -45,3 +45,5 @@ export * from "./schoolAnnouncements";
 export * from "./schoolCounselorNotes";
 export * from "./schoolGuardianships";
 export * from "./schoolAdmins";
+// بخش "/schools" فاز ۳ — تکالیفِ معلم/ارسالِ دانش‌آموز
+export * from "./schoolAssignments";

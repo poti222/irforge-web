@@ -1,15 +1,17 @@
 /**
- * routes/schoolPrograms.ts — بخش "/schools" فاز ۲: مدیریتِ برنامه‌ها.
- * نوشتن فقط admin/deputy؛ خواندن هر عضوِ همان مدرسه (اعضایِ کلاسِ مربوطه
- * هم چون همگی عضوِ همان مدرسه‌اند، لیستِ کاملِ مدرسه را می‌بینند و روی
- * فرانت بر اساسِ classId فیلتر می‌کنند).
+ * routes/schoolPrograms.ts — بخش "/schools" فاز ۲/۳: مدیریتِ برنامه‌ها.
+ * نوشتن برایِ admin/deputy/deputy_discipline (فاز ۳، بخشِ ۵: معاون‌انضباطی
+ * هم به همین صفحه دسترسیِ نوشتن گرفت)؛ خواندن هر عضوِ همان مدرسه (اعضایِ
+ * کلاسِ مربوطه هم چون همگی عضوِ همان مدرسه‌اند، لیستِ کاملِ مدرسه را می‌بینند و
+ * روی فرانت بر اساسِ classId فیلتر می‌کنند).
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, schoolProgramsTable, schoolMembersTable } from "@workspace/db";
+import { db, schoolProgramsTable, SCHOOL_MEMBER_ROLES } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
+import { canAccessSchool, SCHOOL_ADMIN_DEPUTY_DISCIPLINE } from "../lib/schoolAuth";
 
 const router = Router();
 
@@ -28,15 +30,10 @@ function formatProgram(p: typeof schoolProgramsTable.$inferSelect) {
   };
 }
 
-async function getRequesterMember(userId: string) {
-  const [row] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.userId, userId)).limit(1);
-  return row ?? null;
-}
-
 router.get("/api/schools/:schoolId/programs", requireAuth, async (req: any, res) => {
   try {
-    const requester = await getRequesterMember(req.userId);
-    if (!requester || requester.schoolId !== req.params.schoolId) {
+    const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_MEMBER_ROLES);
+    if (!ok) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
@@ -50,8 +47,8 @@ router.get("/api/schools/:schoolId/programs", requireAuth, async (req: any, res)
 
 router.post("/api/schools/:schoolId/programs", requireAuth, async (req: any, res) => {
   try {
-    const requester = await getRequesterMember(req.userId);
-    if (!requester || requester.schoolId !== req.params.schoolId || !["admin", "deputy"].includes(requester.role ?? "")) {
+    const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_DEPUTY_DISCIPLINE);
+    if (!ok) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
@@ -80,8 +77,8 @@ router.post("/api/schools/:schoolId/programs", requireAuth, async (req: any, res
 
 router.patch("/api/schools/:schoolId/programs/:programId", requireAuth, async (req: any, res) => {
   try {
-    const requester = await getRequesterMember(req.userId);
-    if (!requester || requester.schoolId !== req.params.schoolId || !["admin", "deputy"].includes(requester.role ?? "")) {
+    const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_DEPUTY_DISCIPLINE);
+    if (!ok) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
@@ -109,8 +106,8 @@ router.patch("/api/schools/:schoolId/programs/:programId", requireAuth, async (r
 
 router.delete("/api/schools/:schoolId/programs/:programId", requireAuth, async (req: any, res) => {
   try {
-    const requester = await getRequesterMember(req.userId);
-    if (!requester || requester.schoolId !== req.params.schoolId || !["admin", "deputy"].includes(requester.role ?? "")) {
+    const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_DEPUTY_DISCIPLINE);
+    if (!ok) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }

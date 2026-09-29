@@ -20,6 +20,7 @@ function formatItem(i: typeof schoolContentItemsTable.$inferSelect) {
     title: i.title,
     body: i.body,
     language: i.language,
+    imageUrl: i.imageUrl,
     createdByUserId: i.createdByUserId,
     createdAt: i.createdAt.toISOString(),
     updatedAt: i.updatedAt.toISOString(),
@@ -75,7 +76,7 @@ router.get("/api/schools/content/:id", requireAuth, async (req: any, res) => {
 // POST /api/schools/content — فقط admin/teacher
 router.post("/api/schools/content", requireAuth, async (req: any, res) => {
   try {
-    const { schoolId, type, title, body, language } = req.body ?? {};
+    const { schoolId, type, title, body, language, imageUrl } = req.body ?? {};
     if (!type || !(SCHOOL_CONTENT_TYPES as readonly string[]).includes(type)) {
       res.status(400).json({ error: "Invalid type" });
       return;
@@ -96,6 +97,7 @@ router.post("/api/schools/content", requireAuth, async (req: any, res) => {
       title: title.trim(),
       body: body ?? "",
       language: language ?? null,
+      imageUrl: imageUrl ?? null,
       createdByUserId: req.userId,
     }).returning();
     res.status(201).json(formatItem(item));
@@ -118,11 +120,12 @@ router.patch("/api/schools/content/:id", requireAuth, async (req: any, res) => {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const { title, body, language } = req.body ?? {};
+    const { title, body, language, imageUrl } = req.body ?? {};
     const patch: Record<string, unknown> = {};
     if (title !== undefined) patch.title = title;
     if (body !== undefined) patch.body = body;
     if (language !== undefined) patch.language = language;
+    if (imageUrl !== undefined) patch.imageUrl = imageUrl;
     const [updated] = await db.update(schoolContentItemsTable).set(patch).where(eq(schoolContentItemsTable.id, req.params.id)).returning();
     res.json(formatItem(updated));
   } catch (err) {

@@ -9,14 +9,15 @@ import { db, schoolMembersTable, schoolGuardianshipsTable, schoolsTable } from "
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
+import { canAccessSchool, SCHOOL_ADMIN_ONLY } from "../lib/schoolAuth";
 
 const router = Router();
 
 // POST /api/schools/:schoolId/guardianships — فقط مدیرِ همان مدرسه.
 router.post("/api/schools/:schoolId/guardianships", requireAuth, async (req: any, res) => {
   try {
-    const [requester] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.userId, req.userId)).limit(1);
-    if (!requester || requester.schoolId !== req.params.schoolId || requester.role !== "admin") {
+    const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_ONLY);
+    if (!ok) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }

@@ -6,7 +6,8 @@
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, schoolAnnouncementsTable, schoolMembersTable, schoolClassMembersTable, SCHOOL_ANNOUNCEMENT_KINDS } from "@workspace/db";
+import { db, schoolAnnouncementsTable, schoolClassMembersTable, SCHOOL_ANNOUNCEMENT_KINDS, SCHOOL_MEMBER_ROLES } from "@workspace/db";
+import { canAccessSchool, SCHOOL_ADMIN_DEPUTY } from "../lib/schoolAuth";
 import { eq, and, or, isNull } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
@@ -26,16 +27,11 @@ function formatAnnouncement(a: typeof schoolAnnouncementsTable.$inferSelect) {
   };
 }
 
-async function getRequesterMember(userId: string) {
-  const [row] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.userId, userId)).limit(1);
-  return row ?? null;
-}
-
 // GET /api/schools/:schoolId/announcements — فیدِ کلِ مدرسه (broadcast/closure) + اگر classId داده شود، اعلامیه‌های همان کلاس هم.
 router.get("/api/schools/:schoolId/announcements", requireAuth, async (req: any, res) => {
   try {
-    const requester = await getRequesterMember(req.userId);
-    if (!requester || requester.schoolId !== req.params.schoolId) {
+    const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_MEMBER_ROLES);
+    if (!ok) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
@@ -56,8 +52,8 @@ router.get("/api/schools/:schoolId/announcements", requireAuth, async (req: any,
 // kind="class" فقط اگر فرستنده معلمِ همان کلاس باشد (school_class_members با roleInClass="teacher").
 router.post("/api/schools/:schoolId/announcements", requireAuth, async (req: any, res) => {
   try {
-    const requester = await getRequesterMember(req.userId);
-    if (!requester || requester.schoolId !== req.params.schoolId) {
+    const { ok, member: requester } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_MEMBER_ROLES);
+    if (!ok || !requester) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
@@ -78,14 +74,17 @@ router.post("/api/schools/:schoolId/announcements", requireAuth, async (req: any
       const [membership] = await db.select().from(schoolClassMembersTable)
         .where(and(eq(schoolClassMembersTable.classId, classId), eq(schoolClassMembersTable.schoolMemberId, requester.id), eq(schoolClassMembersTable.roleInClass, "teacher")))
         .limit(1);
-      const isAdmin = requester.role === "admin";
+      const { ok: isAdmin } = await canAccessSchool(req.userId, req.params.schoolId, ["admin"]);
       if (!membership && !isAdmin) {
         res.status(403).json({ error: "Forbidden" });
         return;
       }
-    } else if (!["admin", "deputy"].includes(requester.role ?? "")) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
+    } else {
+      const { ok: canBroadcast } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_DEPUTY);
+      if (!canBroadcast) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
     }
     const [row] = await db.insert(schoolAnnouncementsTable).values({
       id: crypto.randomUUID(),

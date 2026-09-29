@@ -6,10 +6,11 @@
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, schoolClassesTable, schoolClassMembersTable, schoolMembersTable } from "@workspace/db";
+import { db, schoolClassesTable, schoolClassMembersTable, SCHOOL_MEMBER_ROLES } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
+import { canAccessSchool, SCHOOL_ADMIN_DEPUTY } from "../lib/schoolAuth";
 
 const router = Router();
 
@@ -34,14 +35,9 @@ function formatClassMember(m: typeof schoolClassMembersTable.$inferSelect) {
   };
 }
 
-async function getRequesterMember(userId: string) {
-  const [row] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.userId, userId)).limit(1);
-  return row ?? null;
-}
-
 async function requireSchoolWrite(req: any, res: any, schoolId: string): Promise<boolean> {
-  const member = await getRequesterMember(req.userId);
-  if (!member || member.schoolId !== schoolId || !["admin", "deputy"].includes(member.role ?? "")) {
+  const { ok } = await canAccessSchool(req.userId, schoolId, SCHOOL_ADMIN_DEPUTY);
+  if (!ok) {
     res.status(403).json({ error: "Forbidden" });
     return false;
   }
@@ -51,19 +47,22 @@ async function requireSchoolWrite(req: any, res: any, schoolId: string): Promise
 // GET /api/schools/:schoolId/classes — لیستِ کلاس‌های یک مدرسه؛ هر عضوِ همان مدرسه.
 router.get("/api/schools/:schoolId/classes", requireAuth, async (req: any, res) => {
   try {
-    const requester = await getRequesterMember(req.userId);
-    if (!requester || requester.schoolId !== req.params.schoolId) {
+    const { ok, member: requester } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_MEMBER_ROLES);
+    if (!ok) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
     const rows = await db.select().from(schoolClassesTable).where(eq(schoolClassesTable.schoolId, req.params.schoolId));
-    // ?mine=true — فقط کلاس‌هایی که خودِ فرستنده در آن‌ها roleInClass="teacher"
-    // دارد (برایِ صفحه‌ی «کلاس‌های من»ِ معلم).
-    if (req.query.mine === "true") {
+    // ?mine=true — فقط کلاس‌هایی که خودِ فرستنده در آن‌ها روستر دارد: معلم
+    // roleInClass="teacher" (صفحه‌ی «کلاس‌های من»ِ معلم)، دانش‌آموز
+    // roleInClass="student" (فاز ۳: صفحه‌ی «تکالیفِ من»ِ دانش‌آموز، تا فقط
+    // تکالیفِ کلاسِ خودش را ببیند، نه کلِ کلاس‌هایِ مدرسه).
+    if (req.query.mine === "true" && requester) {
+      const wantedRole = requester.role === "teacher" ? "teacher" : "student";
       const memberships = await db.select().from(schoolClassMembersTable)
-        .where(and(eq(schoolClassMembersTable.schoolMemberId, requester.id), eq(schoolClassMembersTable.roleInClass, "teacher")));
-      const teachingClassIds = new Set(memberships.map((m: typeof memberships[number]) => m.classId));
-      res.json(rows.filter((c: typeof rows[number]) => teachingClassIds.has(c.id)).map(formatClass));
+        .where(and(eq(schoolClassMembersTable.schoolMemberId, requester.id), eq(schoolClassMembersTable.roleInClass, wantedRole)));
+      const myClassIds = new Set(memberships.map((m: typeof memberships[number]) => m.classId));
+      res.json(rows.filter((c: typeof rows[number]) => myClassIds.has(c.id)).map(formatClass));
       return;
     }
     res.json(rows.map(formatClass));
@@ -138,8 +137,8 @@ router.delete("/api/schools/:schoolId/classes/:classId", requireAuth, async (req
 // GET /api/schools/:schoolId/classes/:classId/members — روسترِ کلاس
 router.get("/api/schools/:schoolId/classes/:classId/members", requireAuth, async (req: any, res) => {
   try {
-    const requester = await getRequesterMember(req.userId);
-    if (!requester || requester.schoolId !== req.params.schoolId) {
+    const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_MEMBER_ROLES);
+    if (!ok) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }

@@ -1156,6 +1156,34 @@ CREATE TABLE IF NOT EXISTS school_admins (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS school_admins_user_school_unique_idx ON school_admins(user_id, school_id);
 
+-- ─── SCHOOLS فاز ۳ (URLِ عکسِ محتوا، تکالیف) ────────────────────────────────
+-- مایگریشنِ ۰۰۳۲ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+ALTER TABLE school_content_items ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+CREATE TABLE IF NOT EXISTS school_assignments (
+  id TEXT PRIMARY KEY,
+  class_id TEXT NOT NULL REFERENCES school_classes(id),
+  teacher_user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  due_date TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_assignments_class ON school_assignments(class_id);
+
+CREATE TABLE IF NOT EXISTS school_assignment_submissions (
+  id TEXT PRIMARY KEY,
+  assignment_id TEXT NOT NULL REFERENCES school_assignments(id),
+  student_member_id TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  submitted_at TIMESTAMPTZ,
+  grade TEXT,
+  feedback TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_assignment_submissions_uniq_idx ON school_assignment_submissions(assignment_id, student_member_id);
+CREATE INDEX IF NOT EXISTS idx_school_assignment_submissions_student ON school_assignment_submissions(student_member_id);
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT

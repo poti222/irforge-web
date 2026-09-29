@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, ImageOff } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
@@ -28,8 +28,9 @@ const TYPE_LABEL_KEY: Record<SchoolContentType, string> = {
 /**
  * pages/schools/content-list.tsx — لیستِ لغت‌نامه/جزوه/کتاب/فرمول برای یک
  * `type`. ساخت/ویرایش فقط برای مدیر/معلم (بک‌اند هم همین را اجرا می‌کند —
- * این فقط UI را برای همان‌ها نشان می‌دهد). آپلودِ تصویر عمداً غیرفعال است
- * (طبقِ خواستِ کاربر) — یک نشانِ «به‌زودی» به‌جایش.
+ * این فقط UI را برای همان‌ها نشان می‌دهد). فاز ۳: آپلودِ واقعیِ فایل هنوز
+ * خارج از محدوده است (این ریپو زیرساختِ آپلود ندارد)، ولی به‌جایِ استابِ
+ * غیرفعال یک فیلدِ URLِ عکس با پیش‌نمایش اضافه شد.
  */
 export default function SchoolContentList() {
   const { type } = useParams<{ type: SchoolContentType }>();
@@ -53,17 +54,22 @@ export default function SchoolContentList() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [language, setLanguage] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function handleCreate() {
     if (!title.trim()) return;
     setSaving(true);
     try {
-      await createSchoolContentItem({ type, title: title.trim(), body, language: language.trim() || null, schoolId: schoolId ?? null });
+      await createSchoolContentItem({
+        type, title: title.trim(), body, language: language.trim() || null,
+        schoolId: schoolId ?? null, imageUrl: imageUrl.trim() || null,
+      });
       await queryClient.invalidateQueries({ queryKey: ["schools", "content", type] });
       setTitle("");
       setBody("");
       setLanguage("");
+      setImageUrl("");
       setShowForm(false);
       toast({ title: t.contentSaved });
     } catch (err: any) {
@@ -104,9 +110,16 @@ export default function SchoolContentList() {
               </Label>
               <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} dir="auto" />
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <ImageOff className="size-3.5" />
-              {t.imageUploadComingSoon}
+            <div className="flex flex-col gap-1.5">
+              <Label>{t.contentImageUrlField}</Label>
+              <div className="flex items-center gap-3">
+                {imageUrl.trim() && (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
+                    <img src={imageUrl.trim()} alt="" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
+                  </div>
+                )}
+                <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder={t.contentImageUrlPlaceholder} dir="ltr" />
+              </div>
             </div>
             <Button onClick={handleCreate} disabled={saving || !title.trim()} className="w-fit">
               {saving && <Loader2 className="me-2 size-4 animate-spin" />}
@@ -137,7 +150,12 @@ export default function SchoolContentList() {
                     )}
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex items-start gap-3">
+                  {item.imageUrl && (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
+                      <img src={item.imageUrl} alt="" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
+                    </div>
+                  )}
                   <p className="line-clamp-2 text-sm text-muted-foreground">{item.body || "—"}</p>
                 </CardContent>
               </Card>

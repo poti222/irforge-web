@@ -31,6 +31,14 @@ export const schoolContentItemsTable = pgTable("school_content_items", {
   body: text("body").notNull().default(""),
   /** فقط برای لغت‌نامه معنا دارد — "fa" | "en" | ... */
   language: text("language"),
+  /**
+   * فاز ۳ — این ریپو هیچ زیرساختِ آپلودِ فایلِ عمومی ندارد (نه S3، نه چیزِ
+   * مشابه؛ `uploadSessions` یک رله‌یِ چتِ باتِ تلگرام است، نه آپلودِ فایل).
+   * به‌جایِ ساختنِ زیرساختِ ابری که خارج از محدوده‌ی این فاز است، فقط یک
+   * فیلدِ URLِ ساده (مدیر/معلم لینکِ یک عکسِ از‌قبل‌میزبانی‌شده را می‌دهد) —
+   * در فازِ بعد اگر اولویت شد، همین ستون می‌تواند با آپلودِ واقعی جایگزین شود.
+   */
+  imageUrl: text("image_url"),
   createdByUserId: text("created_by_user_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

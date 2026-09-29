@@ -13,6 +13,7 @@ import { Loader2, UserPlus, UserX } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
+import { useViewedSchoolId } from "@/hooks/use-viewed-school";
 import {
   getSchoolMe,
   listSchoolMembers,
@@ -35,7 +36,9 @@ export default function SchoolMembersPage() {
   const queryClient = useQueryClient();
 
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
-  const schoolId = me?.schoolId ?? undefined;
+  // فاز ۳ (بندِ ۱): اگر مدیر از سوییچرِ «مدرسه‌های من» مدرسه‌ی دیگری را دیده،
+  // همین صفحه هم آن مدرسه را نشان می‌دهد، نه فقط عضویتِ اصلیِ خودش.
+  const schoolId = useViewedSchoolId(me?.schoolId);
   const isAdmin = me?.role === "admin";
 
   const { data: members, isLoading } = useQuery({

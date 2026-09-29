@@ -9,6 +9,7 @@ import { Loader2, Plus, Trash2, LayoutGrid } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
+import { useViewedSchoolId } from "@/hooks/use-viewed-school";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -27,7 +28,7 @@ export default function SchoolClassesPage() {
   const queryClient = useQueryClient();
 
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
-  const schoolId = me?.schoolId ?? undefined;
+  const schoolId = useViewedSchoolId(me?.schoolId);
   const canWrite = me?.role === "admin" || me?.role === "deputy";
 
   const { data: classes, isLoading } = useQuery({

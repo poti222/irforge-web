@@ -10,6 +10,7 @@ import { Loader2, Plus, Trash2, CalendarClock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
+import { useViewedSchoolId } from "@/hooks/use-viewed-school";
 import { getSchoolMe, listSchoolClasses, listSchoolPrograms, createSchoolProgram, deleteSchoolProgram } from "@/lib/schools-api";
 
 const DAYS_FA = ["شنبه", "یک‌شنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنج‌شنبه", "جمعه"];
@@ -25,8 +26,10 @@ export default function SchoolProgramsPage() {
   const queryClient = useQueryClient();
 
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
-  const schoolId = me?.schoolId ?? undefined;
-  const canWrite = me?.role === "admin" || me?.role === "deputy";
+  const schoolId = useViewedSchoolId(me?.schoolId);
+  // فاز ۳ (بندِ ۵): معاون/معاون‌انضباطی هم دسترسیِ نوشتن گرفتند (بک‌اند در
+  // schoolPrograms.ts هم همین را اعمال می‌کند).
+  const canWrite = me?.role === "admin" || me?.role === "deputy" || me?.role === "deputy_discipline";
 
   const { data: programs, isLoading } = useQuery({
     queryKey: ["schools", "programs", schoolId],

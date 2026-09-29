@@ -98,6 +98,8 @@ import schoolProgramsRouter from "./schoolPrograms.js";
 import schoolAnnouncementsRouter from "./schoolAnnouncements.js";
 import schoolCounselorRouter from "./schoolCounselor.js";
 import schoolGuardianshipsRouter from "./schoolGuardianships.js";
+// بخش "/schools" فاز ۳ — تکالیفِ معلم/ارسالِ دانش‌آموز
+import schoolAssignmentsRouter from "./schoolAssignments.js";
 
 const router: IRouter = Router();
 
@@ -183,5 +185,6 @@ router.use(schoolProgramsRouter);
 router.use(schoolAnnouncementsRouter);
 router.use(schoolCounselorRouter);
 router.use(schoolGuardianshipsRouter);
+router.use(schoolAssignmentsRouter);
 
 export default router;

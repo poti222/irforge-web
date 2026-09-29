@@ -82,7 +82,7 @@ export function createSchool(input: { name: string; address?: string; city?: str
   });
 }
 
-export function updateSchool(id: string, patch: Partial<{ name: string; address: string; city: string; licenseInfo: string }>) {
+export function updateSchool(id: string, patch: Partial<{ name: string; address: string; city: string; licenseInfo: string; photoUrl: string | null }>) {
   return customFetch<SchoolSummary>(`/api/schools/${id}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
@@ -106,6 +106,8 @@ export interface SchoolContentItem {
   title: string;
   body: string;
   language: string | null;
+  /** فاز ۳ — فیلدِ URLِ عکس (نه آپلودِ واقعی، ببینید توضیحِ imageUrl در schema/schoolContent.ts) */
+  imageUrl: string | null;
   createdByUserId: string;
   createdAt: string;
   updatedAt: string;
@@ -121,14 +123,14 @@ export function getSchoolContentItem(id: string) {
   return customFetch<SchoolContentItem>(`/api/schools/content/${id}`);
 }
 
-export function createSchoolContentItem(input: { type: SchoolContentType; title: string; body: string; language?: string | null; schoolId?: string | null }) {
+export function createSchoolContentItem(input: { type: SchoolContentType; title: string; body: string; language?: string | null; schoolId?: string | null; imageUrl?: string | null }) {
   return customFetch<SchoolContentItem>("/api/schools/content", {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
 
-export function updateSchoolContentItem(id: string, patch: Partial<{ title: string; body: string; language: string | null }>) {
+export function updateSchoolContentItem(id: string, patch: Partial<{ title: string; body: string; language: string | null; imageUrl: string | null }>) {
   return customFetch<SchoolContentItem>(`/api/schools/content/${id}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
@@ -337,6 +339,66 @@ export function createGuardianship(schoolId: string, input: { parentUserId: stri
   return customFetch<unknown>(`/api/schools/${schoolId}/guardianships`, {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+/**
+ * ─── فاز ۳ ──────────────────────────────────────────────────────────────
+ * تکالیفِ معلم + ارسالِ دانش‌آموز.
+ */
+
+export interface SchoolAssignment {
+  id: string;
+  classId: string;
+  teacherUserId: string;
+  title: string;
+  description: string | null;
+  dueDate: string | null;
+  createdAt: string;
+}
+
+export interface SchoolAssignmentSubmission {
+  id: string;
+  assignmentId: string;
+  studentMemberId: string;
+  content: string;
+  submittedAt: string | null;
+  grade: string | null;
+  feedback: string | null;
+  createdAt: string;
+}
+
+export function listSchoolAssignments(schoolId: string, classId?: string) {
+  const params = classId ? `?classId=${encodeURIComponent(classId)}` : "";
+  return customFetch<SchoolAssignment[]>(`/api/schools/${schoolId}/assignments${params}`);
+}
+
+export function createSchoolAssignment(schoolId: string, input: { classId: string; title: string; description?: string | null; dueDate?: string | null }) {
+  return customFetch<SchoolAssignment>(`/api/schools/${schoolId}/assignments`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function listAssignmentSubmissions(schoolId: string, assignmentId: string) {
+  return customFetch<SchoolAssignmentSubmission[]>(`/api/schools/${schoolId}/assignments/${assignmentId}/submissions`);
+}
+
+export function getMyAssignmentSubmission(schoolId: string, assignmentId: string) {
+  return customFetch<SchoolAssignmentSubmission | null>(`/api/schools/${schoolId}/assignments/${assignmentId}/my-submission`);
+}
+
+export function submitAssignment(schoolId: string, assignmentId: string, content: string) {
+  return customFetch<SchoolAssignmentSubmission>(`/api/schools/${schoolId}/assignments/${assignmentId}/submissions`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
+}
+
+export function gradeAssignmentSubmission(schoolId: string, assignmentId: string, submissionId: string, patch: { grade?: string | null; feedback?: string | null }) {
+  return customFetch<SchoolAssignmentSubmission>(`/api/schools/${schoolId}/assignments/${assignmentId}/submissions/${submissionId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
   });
 }
 

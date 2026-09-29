@@ -72,12 +72,14 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
         { key: "contact-teacher", href: "/schools/stub/contact-teacher", icon: GraduationCap, label: t.navContactTeacher },
       ];
     case "teacher":
+      // فاز ۳ (بندِ ۳): «امروز» و «تکالیف» دیگر استاب نیستند؛ آزمون/بانکِ
+      // سؤال طبقِ چک‌لیست عمداً استاب ماندند (فازِ بعد).
       return [
         { key: "classrooms", href: "/schools/teacher/classes", icon: Presentation, label: t.navClassrooms },
-        { key: "assignments", href: "/schools/stub/assignments", icon: ClipboardList, label: t.navAssignments },
+        { key: "assignments", href: "/schools/teacher/assignments", icon: ClipboardList, label: t.navAssignments },
         { key: "exams", href: "/schools/stub/exams", icon: FileQuestion, label: t.navExams },
         { key: "question-bank", href: "/schools/stub/question-bank", icon: Library, label: t.navQuestionBank },
-        { key: "today", href: "/schools/stub/today", icon: CalendarDays, label: t.navToday },
+        { key: "today", href: "/schools/teacher/today", icon: CalendarDays, label: t.navToday },
       ];
     case "counselor":
       return [
@@ -88,9 +90,12 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
       ];
     case "deputy":
     case "deputy_discipline":
+      // فاز ۳ (بندِ ۵): «مدیریتِ برنامه‌ها» دیگر استاب نیست — همان صفحه/API
+      // که مدیر استفاده می‌کند، فقط بک‌اند (schoolPrograms.ts) حالا نوشتن را
+      // هم برایِ این دو نقش می‌پذیرد.
       return [
         { key: "members", href: "/schools/admin/members", icon: Users, label: t.navMemberManagement },
-        { key: "programs", href: "/schools/stub/programs", icon: CalendarClock, label: t.navProgramManagement },
+        { key: "programs", href: "/schools/admin/programs", icon: CalendarClock, label: t.navProgramManagement },
         { key: "broadcast", href: "/schools/announcements", icon: Megaphone, label: t.navBroadcast },
         { key: "closure", href: "/schools/announcements", icon: BellRing, label: t.navClosureAnnouncement },
       ];

@@ -3562,6 +3562,38 @@
     "noNotesYet": "No notes yet",
 
     "parentChildrenDescription": "The children linked to your account.",
-    "noChildrenLinked": "No child is linked to your account yet — ask the school admin to create the link."
+    "noChildrenLinked": "No child is linked to your account yet — ask the school admin to create the link.",
+
+    "fieldSchoolPhotoPlaceholder": "Photo URL",
+    "grantAdminTitle": "Add another admin",
+    "grantAdminDescription": "Give one of this school's members admin access — they'll see this school in their \"My Schools\" switcher too.",
+    "grantAdminSelectLabel": "Member",
+    "grantAdminButton": "Add as admin",
+    "adminGranted": "Admin access granted",
+
+    "contentImageUrlField": "Image URL (optional)",
+    "contentImageUrlPlaceholder": "https://...",
+
+    "teacherTodayDescription": "The latest announcements from your classes.",
+    "teacherTodayEmpty": "No announcements for this class yet.",
+
+    "assignmentsPageDescription": "Create assignments for each class and grade student submissions.",
+    "assignmentsListTitle": "Assignments for this class",
+    "addAssignmentButton": "New assignment",
+    "fieldAssignmentTitle": "Assignment title",
+    "fieldAssignmentDescription": "Description",
+    "fieldAssignmentDueDate": "Due date",
+    "assignmentSaved": "Assignment saved",
+    "assignmentSaveError": "Failed to save the assignment",
+    "assignmentsEmpty": "No assignments for this class yet.",
+    "viewSubmissionsButton": "View submissions",
+    "noSubmissionsYet": "No student has submitted yet.",
+    "gradeSaved": "Grade saved",
+
+    "studentAssignmentsDescription": "Your classes' assignments — submit your work and see your grade.",
+    "assignmentSubmissionPlaceholder": "Write your answer…",
+    "submitAssignmentButton": "Submit",
+    "assignmentSubmitted": "Submission sent",
+    "fieldFeedback": "Feedback"
   }
 }

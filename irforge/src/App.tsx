@@ -85,6 +85,10 @@ const SchoolAnnouncementsPage = lazy(() => import("@/pages/schools/announcements
 const TeacherClassesPage = lazy(() => import("@/pages/schools/teacher/classes"));
 const CounselorStudentsPage = lazy(() => import("@/pages/schools/counselor/students"));
 const ParentChildrenPage = lazy(() => import("@/pages/schools/parent/children"));
+// بخش "/schools" فاز ۳
+const TeacherTodayPage = lazy(() => import("@/pages/schools/teacher/today"));
+const TeacherAssignmentsPage = lazy(() => import("@/pages/schools/teacher/assignments"));
+const StudentAssignmentsPage = lazy(() => import("@/pages/schools/student/assignments"));
 
 const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
 const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
@@ -361,6 +365,10 @@ function Router() {
       <Route path="/schools/teacher/classes"><SchoolProtectedRoute component={TeacherClassesPage} /></Route>
       <Route path="/schools/counselor/students"><SchoolProtectedRoute component={CounselorStudentsPage} /></Route>
       <Route path="/schools/parent/children"><SchoolProtectedRoute component={ParentChildrenPage} /></Route>
+      {/* بخش "/schools" فاز ۳ — امروز/تکالیفِ معلم، تکالیفِ دانش‌آموز */}
+      <Route path="/schools/teacher/today"><SchoolProtectedRoute component={TeacherTodayPage} /></Route>
+      <Route path="/schools/teacher/assignments"><SchoolProtectedRoute component={TeacherAssignmentsPage} /></Route>
+      <Route path="/schools/student/assignments"><SchoolProtectedRoute component={StudentAssignmentsPage} /></Route>
       <Route path="/schools/stub/:key"><SchoolProtectedRoute component={SchoolsStub} /></Route>
 
       <Route path="/admin"><ProtectedRoute component={Admin} adminOnly /></Route>

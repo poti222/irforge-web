@@ -9,12 +9,13 @@ import { db, schoolMembersTable, schoolCounselorNotesTable } from "@workspace/db
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
+import { canAccessSchool } from "../lib/schoolAuth";
 
 const router = Router();
 
 async function requireCounselor(req: any, res: any, schoolId: string) {
-  const [member] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.userId, req.userId)).limit(1);
-  if (!member || member.schoolId !== schoolId || !["counselor", "admin"].includes(member.role ?? "")) {
+  const { ok, member } = await canAccessSchool(req.userId, schoolId, ["counselor", "admin"]);
+  if (!ok) {
     res.status(403).json({ error: "Forbidden" });
     return null;
   }

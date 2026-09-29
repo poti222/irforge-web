@@ -21,6 +21,7 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
+import { canAccessSchool, SCHOOL_ADMIN_ONLY, SCHOOL_MEMBERS_READ_ROLES } from "../lib/schoolAuth";
 
 const router = Router();
 
@@ -61,10 +62,13 @@ async function getMember(userId: string) {
   return row ?? null;
 }
 
-/** مدیر (نقشِ مدرسه‌ایِ "admin") روی مدرسه‌ای که خودش مالکش است — فاز ۱ اجازه‌ی مدیریت را فقط به همین می‌دهد. */
+/**
+ * مدیرِ این مدرسه (فاز ۳: عضویتِ اصلی *یا* چندمدرسه‌ایِ `school_admins` —
+ * ببینید lib/schoolAuth.ts).
+ */
 async function requireSchoolAdmin(req: any, res: any, schoolId: string): Promise<boolean> {
-  const member = await getMember(req.userId);
-  if (!member || member.role !== "admin" || member.schoolId !== schoolId) {
+  const { ok } = await canAccessSchool(req.userId, schoolId, SCHOOL_ADMIN_ONLY);
+  if (!ok) {
     res.status(403).json({ error: "Forbidden" });
     return false;
   }
@@ -335,9 +339,7 @@ router.patch("/api/schools/:id/invite-codes/:codeId", requireAuth, async (req: a
 // فقط مدیر.
 router.get("/api/schools/:id/members", requireAuth, async (req: any, res) => {
   try {
-    const requester = await getMember(req.userId);
-    const canRead = requester && requester.schoolId === req.params.id &&
-      ["admin", "deputy", "deputy_discipline", "counselor"].includes(requester.role ?? "");
+    const { ok: canRead } = await canAccessSchool(req.userId, req.params.id, SCHOOL_MEMBERS_READ_ROLES);
     if (!canRead) {
       res.status(403).json({ error: "Forbidden" });
       return;

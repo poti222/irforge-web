@@ -9,13 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { BarChart3, ImageOff, KeyRound, Loader2, Plus, School as SchoolIcon } from "lucide-react";
+import { BarChart3, ImageIcon, KeyRound, Loader2, Plus, School as SchoolIcon, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
+import { useViewedSchool } from "@/hooks/use-viewed-school";
 import {
   createSchool, getSchoolMe, updateSchool, listMySchools, listInviteCodes, createInviteCode, toggleInviteCode,
-  listSchoolMembers, listSchoolClasses, SCHOOL_MEMBER_ROLES,
+  listSchoolMembers, listSchoolClasses, addSchoolAdmin, SCHOOL_MEMBER_ROLES,
 } from "@/lib/schools-api";
 
 /**
@@ -44,10 +45,14 @@ export default function SchoolsAdminHome() {
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [licenseInfo, setLicenseInfo] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newSchoolName, setNewSchoolName] = useState("");
-  const [viewedSchoolId, setViewedSchoolId] = useState<string | null>(null);
+  // سوییچرِ «مدرسه‌های من» — فاز ۳: این انتخاب حالا سراسری است (ببینید
+  // hooks/use-viewed-school.tsx) تا صفحاتِ دیگرِ مدیریتی (اعضا/کلاس‌ها/
+  // برنامه‌ها/اعلامیه‌ها) هم همین مدرسه را ببینند، نه فقط این صفحه.
+  const { viewedSchoolId, setViewedSchoolId } = useViewedSchool();
 
   const school = (mySchools ?? []).find((s) => s.id === viewedSchoolId) ?? me?.school ?? null;
 
@@ -58,6 +63,7 @@ export default function SchoolsAdminHome() {
     setAddress(school.address ?? "");
     setCity(school.city ?? "");
     setLicenseInfo(school.licenseInfo ?? "");
+    setPhotoUrl(school.photoUrl ?? "");
     setInitializedFor(school.id);
   }
 
@@ -65,7 +71,7 @@ export default function SchoolsAdminHome() {
     if (!school) return;
     setSaving(true);
     try {
-      await updateSchool(school.id, { name, address, city, licenseInfo });
+      await updateSchool(school.id, { name, address, city, licenseInfo, photoUrl: photoUrl.trim() || null });
       await queryClient.invalidateQueries({ queryKey: ["schools", "me"] });
       await queryClient.invalidateQueries({ queryKey: ["schools", "my-schools"] });
       toast({ title: t.schoolSaved });
@@ -156,14 +162,24 @@ export default function SchoolsAdminHome() {
                 <Textarea value={licenseInfo} onChange={(e) => setLicenseInfo(e.target.value)} rows={3} />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label className="flex items-center gap-2">
-                  {t.fieldSchoolPhoto}
-                  <Badge variant="outline" className="text-[10px]">
-                    {t.comingSoon}
-                  </Badge>
-                </Label>
-                <div className="flex h-24 w-24 items-center justify-center rounded-md border border-dashed text-muted-foreground">
-                  <ImageOff className="size-6" />
+                <Label>{t.fieldSchoolPhoto}</Label>
+                {/* آپلودِ واقعی خارج از دامنه‌ی فاز ۳ است (این ریپو زیرساختِ
+                    فایل ندارد) — به‌جایش یک فیلدِ URLِ ساده با پیش‌نمایشِ زنده،
+                    که در فازهای بعد جایگزینِ آپلودِ واقعی می‌شود. */}
+                <div className="flex items-center gap-3">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
+                    {photoUrl.trim() ? (
+                      <img src={photoUrl.trim()} alt="" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
+                    ) : (
+                      <ImageIcon className="size-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <Input
+                    value={photoUrl}
+                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    placeholder={t.fieldSchoolPhotoPlaceholder}
+                    dir="ltr"
+                  />
                 </div>
               </div>
               <Button onClick={handleSave} disabled={saving} className="w-fit">
@@ -175,9 +191,70 @@ export default function SchoolsAdminHome() {
 
           <AcademicStatusCard schoolId={school.id} />
           <InviteCodesCard schoolId={school.id} />
+          <GrantAdminCard schoolId={school.id} />
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * GrantAdminCard — فاز ۳، بخشِ ۶: رابطِ کاربریِ `POST /api/schools/:id/admins`
+ * که از فازِ ۲ بدونِ UI مانده بود. از رویِ لیستِ اعضایِ همین مدرسه انتخاب
+ * می‌شود (نه تایپِ آزادِ userId) — چون این لیست از قبل نام/ایمیل دارد و
+ * ریسکِ اشتباه‌تایپیِ یک شناسه‌ی خام را حذف می‌کند.
+ */
+function GrantAdminCard({ schoolId }: { schoolId: string }) {
+  const t = useT("schools") as any;
+  const { toast } = useToast();
+  const { data: members } = useQuery({ queryKey: ["schools", "members", schoolId], queryFn: () => listSchoolMembers(schoolId) });
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [granting, setGranting] = useState(false);
+
+  const candidates = (members ?? []).filter((m) => m.role !== "admin");
+
+  async function handleGrant() {
+    if (!selectedUserId) return;
+    setGranting(true);
+    try {
+      await addSchoolAdmin(schoolId, selectedUserId);
+      toast({ title: t.adminGranted });
+      setSelectedUserId("");
+    } catch (err: any) {
+      toast({ variant: "destructive", title: t.schoolSaveError, description: err?.data?.error });
+    } finally {
+      setGranting(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <UserPlus className="size-5" /> {t.grantAdminTitle}
+        </CardTitle>
+        <CardDescription>{t.grantAdminDescription}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex items-end gap-2">
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Label>{t.grantAdminSelectLabel}</Label>
+          <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+            <SelectTrigger><SelectValue placeholder={t.selectMemberPlaceholder} /></SelectTrigger>
+            <SelectContent>
+              {candidates.map((m) => (
+                <SelectItem key={m.userId} value={m.userId}>
+                  {m.userName ?? m.userEmail ?? m.userId} — {t[`role_${m.role}`] ?? m.role}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={handleGrant} disabled={granting || !selectedUserId}>
+          {granting ? <Loader2 className="me-2 size-4 animate-spin" /> : <UserPlus className="me-2 size-4" />}
+          {t.grantAdminButton}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

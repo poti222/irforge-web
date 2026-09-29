@@ -3562,6 +3562,38 @@
     "noNotesYet": "هنوز یادداشتی ثبت نشده است",
 
     "parentChildrenDescription": "فرزندانی که به شما پیوند خورده‌اند.",
-    "noChildrenLinked": "هنوز فرزندی به حساب شما پیوند نخورده است — از مدیر مدرسه بخواهید این پیوند را بسازد."
+    "noChildrenLinked": "هنوز فرزندی به حساب شما پیوند نخورده است — از مدیر مدرسه بخواهید این پیوند را بسازد.",
+
+    "fieldSchoolPhotoPlaceholder": "آدرسِ عکس (URL)",
+    "grantAdminTitle": "افزودنِ مدیرِ دیگر",
+    "grantAdminDescription": "به یکی از اعضای این مدرسه دسترسیِ مدیریت بدهید — او این مدرسه را هم در سوییچرِ «مدرسه‌های من» خواهد دید.",
+    "grantAdminSelectLabel": "عضو",
+    "grantAdminButton": "افزودن به‌عنوانِ مدیر",
+    "adminGranted": "دسترسیِ مدیریت داده شد",
+
+    "contentImageUrlField": "آدرسِ عکس (اختیاری)",
+    "contentImageUrlPlaceholder": "https://...",
+
+    "teacherTodayDescription": "آخرین اطلاعیه‌های کلاس‌های شما.",
+    "teacherTodayEmpty": "هنوز اطلاعیه‌ای برای این کلاس ثبت نشده است.",
+
+    "assignmentsPageDescription": "برای هر کلاس تکلیف بسازید و ارسال‌های دانش‌آموزان را نمره‌دهی کنید.",
+    "assignmentsListTitle": "تکالیفِ این کلاس",
+    "addAssignmentButton": "تکلیفِ جدید",
+    "fieldAssignmentTitle": "عنوانِ تکلیف",
+    "fieldAssignmentDescription": "توضیحات",
+    "fieldAssignmentDueDate": "مهلتِ ارسال",
+    "assignmentSaved": "تکلیف ثبت شد",
+    "assignmentSaveError": "ثبتِ تکلیف با خطا مواجه شد",
+    "assignmentsEmpty": "هنوز تکلیفی برای این کلاس ثبت نشده است.",
+    "viewSubmissionsButton": "دیدنِ ارسال‌ها",
+    "noSubmissionsYet": "هنوز دانش‌آموزی ارسال نکرده است.",
+    "gradeSaved": "نمره ثبت شد",
+
+    "studentAssignmentsDescription": "تکالیفِ کلاس‌های شما — ارسال کنید و نمره‌تان را ببینید.",
+    "assignmentSubmissionPlaceholder": "پاسخِ خود را بنویسید…",
+    "submitAssignmentButton": "ارسالِ پاسخ",
+    "assignmentSubmitted": "پاسخ ارسال شد",
+    "fieldFeedback": "بازخورد"
   }
 }
