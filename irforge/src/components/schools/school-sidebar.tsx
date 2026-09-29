@@ -39,6 +39,7 @@ import {
   ClipboardCheck,
   Table2,
   ShieldAlert,
+  History,
 } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
@@ -67,6 +68,8 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
         { key: "messages", href: "/schools/admin/messages", icon: Inbox, label: t.navMessages },
         { key: "broadcast", href: "/schools/announcements", icon: Megaphone, label: t.navBroadcast },
         { key: "closure", href: "/schools/announcements", icon: BellRing, label: t.navClosureAnnouncement },
+        // فازِ ۹ (بندِ ۳): «تاریخچه» — لاگِ فقط‌خواندنیِ رخدادهایِ مدیریتی.
+        { key: "audit-log", href: "/schools/admin/audit-log", icon: History, label: t.navAuditLog },
       ];
     case "student":
       // فاز ۶ (بندِ ۱/۲): «حضور و غیاب» و «نمره‌های من» اضافه شدند.

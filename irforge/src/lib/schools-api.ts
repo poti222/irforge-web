@@ -701,6 +701,21 @@ export function markThreadRead(schoolId: string, threadKey: string) {
   });
 }
 
+/** ─── فاز ۹ (بندِ ۳): لاگِ رخدادهایِ مدیریتی ────────────────────────────── */
+export interface SchoolAuditLogEntry {
+  id: string;
+  schoolId: string;
+  actorUserId: string;
+  actorName: string | null;
+  action: string;
+  targetDescription: string;
+  createdAt: string;
+}
+
+export function listSchoolAuditLog(schoolId: string) {
+  return customFetch<SchoolAuditLogEntry[]>(`/api/schools/${schoolId}/audit-log`);
+}
+
 export interface MyChild {
   id: string;
   grade: string | null;

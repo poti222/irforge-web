@@ -109,6 +109,8 @@ const TeacherGradebookPage = lazy(() => import("@/pages/schools/teacher/gradeboo
 const StudentAttendancePage = lazy(() => import("@/pages/schools/student/attendance"));
 const StudentGradesPage = lazy(() => import("@/pages/schools/student/grades"));
 const SchoolAlertsPage = lazy(() => import("@/pages/schools/admin/alerts"));
+// بخش "/schools" فاز ۹ — تاریخچه‌ی رخدادهایِ مدیریتی
+const SchoolAuditLogPage = lazy(() => import("@/pages/schools/admin/audit-log"));
 
 const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
 const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
@@ -410,6 +412,8 @@ function Router() {
       <Route path="/schools/student/attendance"><SchoolProtectedRoute component={StudentAttendancePage} /></Route>
       <Route path="/schools/student/grades"><SchoolProtectedRoute component={StudentGradesPage} /></Route>
       <Route path="/schools/admin/alerts"><SchoolProtectedRoute component={SchoolAlertsPage} /></Route>
+      {/* بخش "/schools" فاز ۹ — تاریخچه‌ی رخدادهایِ مدیریتی */}
+      <Route path="/schools/admin/audit-log"><SchoolProtectedRoute component={SchoolAuditLogPage} /></Route>
       <Route path="/schools/stub/:key"><SchoolProtectedRoute component={SchoolsStub} /></Route>
 
       <Route path="/admin"><ProtectedRoute component={Admin} adminOnly /></Route>

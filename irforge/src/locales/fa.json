@@ -3739,6 +3739,17 @@
     "checkUnmarkedAttendanceButton": "بررسیِ حضور و غیابِ ثبت‌نشده",
     "checkUnmarkedAttendanceRunning": "در حالِ بررسی...",
     "checkUnmarkedAttendanceAllMarked": "همه‌ی کلاس‌ها امروز حضور و غیاب ثبت کرده‌اند.",
-    "checkUnmarkedAttendanceFound": "کلاس‌های زیر امروز حضور و غیاب ثبت نکرده‌اند و به مدیریت اطلاع داده شد:"
+    "checkUnmarkedAttendanceFound": "کلاس‌های زیر امروز حضور و غیاب ثبت نکرده‌اند و به مدیریت اطلاع داده شد:",
+
+    "navAuditLog": "تاریخچه",
+    "auditLogDescription": "رخدادهایِ مدیریتیِ این مدرسه — تغییرِ نقش/حذفِ عضو/اعطایِ مدیریت/کدِ معرف/اخطار — جدیدترین اول.",
+    "auditLogEmpty": "هنوز رخدادی ثبت نشده است.",
+    "auditLogActor": "انجام‌دهنده",
+    "auditAction_member.role_changed": "تغییرِ نقشِ عضو",
+    "auditAction_member.removed": "حذفِ عضو",
+    "auditAction_admin.granted": "اعطایِ مدیریت",
+    "auditAction_invite_code.created": "ساختِ کدِ معرف",
+    "auditAction_invite_code.toggled": "تغییرِ وضعیتِ کدِ معرف",
+    "auditAction_alert.issued": "صدورِ اخطار"
   }
 }

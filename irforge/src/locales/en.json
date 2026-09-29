@@ -3739,6 +3739,17 @@
     "checkUnmarkedAttendanceButton": "Check unmarked attendance",
     "checkUnmarkedAttendanceRunning": "Checking...",
     "checkUnmarkedAttendanceAllMarked": "All classes have recorded attendance today.",
-    "checkUnmarkedAttendanceFound": "The following classes haven't recorded attendance today, and staff were notified:"
+    "checkUnmarkedAttendanceFound": "The following classes haven't recorded attendance today, and staff were notified:",
+
+    "navAuditLog": "Audit Log",
+    "auditLogDescription": "Administrative events for this school — role changes, member removals, admin grants, invite codes, alerts — newest first.",
+    "auditLogEmpty": "No events yet.",
+    "auditLogActor": "Actor",
+    "auditAction_member.role_changed": "Member role changed",
+    "auditAction_member.removed": "Member removed",
+    "auditAction_admin.granted": "Admin granted",
+    "auditAction_invite_code.created": "Invite code created",
+    "auditAction_invite_code.toggled": "Invite code status changed",
+    "auditAction_alert.issued": "Alert issued"
   }
 }

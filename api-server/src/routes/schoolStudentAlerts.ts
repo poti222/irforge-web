@@ -6,12 +6,13 @@
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, schoolStudentAlertsTable, schoolMembersTable, schoolGuardianshipsTable } from "@workspace/db";
+import { db, schoolStudentAlertsTable, schoolMembersTable, schoolGuardianshipsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool } from "../lib/schoolAuth";
 import { notifySchoolUsers } from "../lib/schoolNotify";
+import { logSchoolAudit } from "../lib/schoolAuditLog";
 
 const router = Router();
 
@@ -69,6 +70,13 @@ router.post("/api/schools/:schoolId/alerts", requireAuth, async (req: any, res) 
     // («اخطار/هشدارِ فرزند»). severity مدرسه به severity اعلانِ سایت هم
     // نگاشت می‌شود (notice→info، warning→warning، serious→critical).
     const [studentMember] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.id, row.studentMemberId)).limit(1);
+
+    // فازِ ۹ (بندِ ۳): لاگِ رخداد.
+    if (studentMember) {
+      const [u] = await db.select().from(usersTable).where(eq(usersTable.id, studentMember.userId)).limit(1);
+      await logSchoolAudit(req.params.schoolId, req.userId, "alert.issued", `${u?.name ?? u?.email ?? studentMember.userId}: ${row.title}`);
+    }
+
     const guardianRows = await db.select().from(schoolGuardianshipsTable).where(eq(schoolGuardianshipsTable.studentMemberId, row.studentMemberId));
     const recipientUserIds = [
       ...(studentMember ? [studentMember.userId] : []),

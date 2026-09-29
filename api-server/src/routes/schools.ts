@@ -22,6 +22,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, SCHOOL_ADMIN_ONLY, SCHOOL_MEMBERS_READ_ROLES } from "../lib/schoolAuth";
+import { logSchoolAudit } from "../lib/schoolAuditLog";
 
 const router = Router();
 
@@ -353,6 +354,7 @@ router.post("/api/schools/:id/invite-codes", requireAuth, async (req: any, res) 
       expiresAt: parsedExpiresAt,
       maxUses: parsedMaxUses,
     }).returning();
+    await logSchoolAudit(req.params.id, req.userId, "invite_code.created", `کدِ «${code}»${role ? ` (نقش: ${role})` : ""}`);
     res.status(201).json(formatInviteCode(invite));
   } catch (err) {
     logger.error({ err }, "Create invite code error");
@@ -390,6 +392,7 @@ router.patch("/api/schools/:id/invite-codes/:codeId", requireAuth, async (req: a
       res.status(404).json({ error: "Not found" });
       return;
     }
+    await logSchoolAudit(req.params.id, req.userId, "invite_code.toggled", `کدِ «${updated.code}» ${active ? "فعال" : "غیرفعال"} شد`);
     res.json(formatInviteCode(updated));
   } catch (err) {
     logger.error({ err }, "Toggle invite code error");
@@ -436,6 +439,8 @@ router.patch("/api/schools/:id/members/:memberId", requireAuth, async (req: any,
       res.status(400).json({ error: "Invalid role" });
       return;
     }
+    const [before] = await db.select().from(schoolMembersTable)
+      .where(and(eq(schoolMembersTable.id, req.params.memberId), eq(schoolMembersTable.schoolId, req.params.id))).limit(1);
     const patch: Record<string, unknown> = {};
     if (role !== undefined) patch.role = role;
     if (grade !== undefined) patch.grade = grade;
@@ -445,6 +450,11 @@ router.patch("/api/schools/:id/members/:memberId", requireAuth, async (req: any,
     if (!updated) {
       res.status(404).json({ error: "Not found" });
       return;
+    }
+    if (role !== undefined && before && before.role !== updated.role) {
+      const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, updated.userId)).limit(1);
+      const who = targetUser?.name ?? targetUser?.email ?? updated.userId;
+      await logSchoolAudit(req.params.id, req.userId, "member.role_changed", `${who}: ${before.role ?? "—"} → ${updated.role ?? "—"}`);
     }
     res.json(formatMember(updated));
   } catch (err) {
@@ -461,6 +471,8 @@ router.delete("/api/schools/:id/members/:memberId", requireAuth, async (req: any
   try {
     const allowed = await requireSchoolAdmin(req, res, req.params.id);
     if (!allowed) return;
+    const [before] = await db.select().from(schoolMembersTable)
+      .where(and(eq(schoolMembersTable.id, req.params.memberId), eq(schoolMembersTable.schoolId, req.params.id))).limit(1);
     const [updated] = await db.update(schoolMembersTable).set({ schoolId: null, role: null, profileComplete: false })
       .where(and(eq(schoolMembersTable.id, req.params.memberId), eq(schoolMembersTable.schoolId, req.params.id)))
       .returning();
@@ -468,6 +480,9 @@ router.delete("/api/schools/:id/members/:memberId", requireAuth, async (req: any
       res.status(404).json({ error: "Not found" });
       return;
     }
+    const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, updated.userId)).limit(1);
+    const who = targetUser?.name ?? targetUser?.email ?? updated.userId;
+    await logSchoolAudit(req.params.id, req.userId, "member.removed", `${who} (نقشِ قبلی: ${before?.role ?? "—"})`);
     res.status(204).end();
   } catch (err) {
     logger.error({ err }, "Remove school member error");
@@ -513,6 +528,11 @@ router.post("/api/schools/:id/admins", requireAuth, async (req: any, res) => {
       userId: userId.trim(),
       schoolId: req.params.id,
     }).onConflictDoNothing().returning();
+    if (row) {
+      const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId.trim())).limit(1);
+      const who = targetUser?.name ?? targetUser?.email ?? userId.trim();
+      await logSchoolAudit(req.params.id, req.userId, "admin.granted", who);
+    }
     res.status(201).json(row ?? { userId: userId.trim(), schoolId: req.params.id, alreadyAdmin: true });
   } catch (err) {
     logger.error({ err }, "Add school admin error");
