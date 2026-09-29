@@ -92,6 +92,12 @@ import guidedFlowRouter from "./guidedFlow.js";
 import schoolsRouter from "./schools.js";
 // بخش "/schools" فاز ۱ — لغت‌نامه/جزوه/کتاب/فرمول
 import schoolContentRouter from "./schoolContent.js";
+// بخش "/schools" فاز ۲ — کلاس‌ها/برنامه‌ها/اعلامیه‌ها/مشاور/والد
+import schoolClassesRouter from "./schoolClasses.js";
+import schoolProgramsRouter from "./schoolPrograms.js";
+import schoolAnnouncementsRouter from "./schoolAnnouncements.js";
+import schoolCounselorRouter from "./schoolCounselor.js";
+import schoolGuardianshipsRouter from "./schoolGuardianships.js";
 
 const router: IRouter = Router();
 
@@ -172,5 +178,10 @@ router.use(postboxRouter);
 router.use(guidedFlowRouter);
 router.use(schoolsRouter);
 router.use(schoolContentRouter);
+router.use(schoolClassesRouter);
+router.use(schoolProgramsRouter);
+router.use(schoolAnnouncementsRouter);
+router.use(schoolCounselorRouter);
+router.use(schoolGuardianshipsRouter);
 
 export default router;

@@ -12,11 +12,13 @@ import {
   schoolsTable,
   schoolInviteCodesTable,
   schoolMembersTable,
+  schoolAdminsTable,
+  usersTable,
   SCHOOL_MEMBER_ROLES,
   computeSchoolProfileComplete,
   type SchoolMemberRole,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 
@@ -272,6 +274,182 @@ router.post("/api/schools/:id/invite-codes", requireAuth, async (req: any, res) 
     });
   } catch (err) {
     logger.error({ err }, "Create invite code error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/schools/:id/invite-codes — لیستِ کدهای معرفِ یک مدرسه؛ فقط مدیرِ همان مدرسه.
+router.get("/api/schools/:id/invite-codes", requireAuth, async (req: any, res) => {
+  try {
+    const allowed = await requireSchoolAdmin(req, res, req.params.id);
+    if (!allowed) return;
+    const rows = await db.select().from(schoolInviteCodesTable).where(eq(schoolInviteCodesTable.schoolId, req.params.id));
+    res.json(rows.map((invite: typeof rows[number]) => ({
+      id: invite.id,
+      schoolId: invite.schoolId,
+      code: invite.code,
+      role: invite.role,
+      active: invite.active,
+      createdAt: invite.createdAt.toISOString(),
+    })));
+  } catch (err) {
+    logger.error({ err }, "List invite codes error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// PATCH /api/schools/:id/invite-codes/:codeId — فعال/غیرفعال‌کردنِ یک کد؛ فقط مدیرِ همان مدرسه.
+router.patch("/api/schools/:id/invite-codes/:codeId", requireAuth, async (req: any, res) => {
+  try {
+    const allowed = await requireSchoolAdmin(req, res, req.params.id);
+    if (!allowed) return;
+    const { active } = req.body ?? {};
+    if (typeof active !== "boolean") {
+      res.status(400).json({ error: "active must be boolean" });
+      return;
+    }
+    const [updated] = await db.update(schoolInviteCodesTable).set({ active })
+      .where(and(eq(schoolInviteCodesTable.id, req.params.codeId), eq(schoolInviteCodesTable.schoolId, req.params.id)))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.json({
+      id: updated.id,
+      schoolId: updated.schoolId,
+      code: updated.code,
+      role: updated.role,
+      active: updated.active,
+      createdAt: updated.createdAt.toISOString(),
+    });
+  } catch (err) {
+    logger.error({ err }, "Toggle invite code error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/schools/:id/members — لیستِ اعضایِ یک مدرسه.
+// مدیر/معاون/معاون‌انضباطی/مشاور می‌توانند بخوانند (طبقِ اسپکِ فاز ۲: معاون/
+// انضباطی حداقل به همین لیست دسترسیِ خواندن دارند)؛ نوشتن (تغییرِ نقش/حذف)
+// فقط مدیر.
+router.get("/api/schools/:id/members", requireAuth, async (req: any, res) => {
+  try {
+    const requester = await getMember(req.userId);
+    const canRead = requester && requester.schoolId === req.params.id &&
+      ["admin", "deputy", "deputy_discipline", "counselor"].includes(requester.role ?? "");
+    if (!canRead) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const rows = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.schoolId, req.params.id));
+    // برایِ نمایشِ نام/ایمیل به‌جایِ userId خام روی UI مدیریتِ اعضا — یک
+    // کوئریِ جدا رویِ users، چون schoolMembers هیچ FKِ سختی به users ندارد
+    // (طبقِ همان قراردادِ فاز ۱، مثلِ products.createdBy).
+    const userIds = rows.map((m: typeof rows[number]) => m.userId);
+    const users = userIds.length ? await db.select().from(usersTable).where(inArray(usersTable.id, userIds)) : [];
+    const userMap = new Map(users.map((u: typeof users[number]) => [u.id, u]));
+    res.json(rows.map((m: typeof rows[number]) => ({
+      ...formatMember(m),
+      userName: userMap.get(m.userId)?.name ?? null,
+      userEmail: userMap.get(m.userId)?.email ?? null,
+    })));
+  } catch (err) {
+    logger.error({ err }, "List school members error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// PATCH /api/schools/:id/members/:memberId — تغییرِ نقشِ یک عضو؛ فقط مدیر.
+router.patch("/api/schools/:id/members/:memberId", requireAuth, async (req: any, res) => {
+  try {
+    const allowed = await requireSchoolAdmin(req, res, req.params.id);
+    if (!allowed) return;
+    const { role, grade } = req.body ?? {};
+    if (role !== undefined && role !== null && !(SCHOOL_MEMBER_ROLES as readonly string[]).includes(role)) {
+      res.status(400).json({ error: "Invalid role" });
+      return;
+    }
+    const patch: Record<string, unknown> = {};
+    if (role !== undefined) patch.role = role;
+    if (grade !== undefined) patch.grade = grade;
+    const [updated] = await db.update(schoolMembersTable).set(patch)
+      .where(and(eq(schoolMembersTable.id, req.params.memberId), eq(schoolMembersTable.schoolId, req.params.id)))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.json(formatMember(updated));
+  } catch (err) {
+    logger.error({ err }, "Update school member error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// DELETE /api/schools/:id/members/:memberId — خارج‌کردنِ یک عضو از مدرسه؛ فقط مدیر.
+// ردیفِ `school_members` حذف نمی‌شود (پروفایلِ سراسریِ کاربر است)، فقط
+// `schoolId`/`role` پاک می‌شوند — دقیقاً همان کاری که خودِ کاربر با «آنبوردینگِ
+// دوباره» می‌توانست انجام دهد.
+router.delete("/api/schools/:id/members/:memberId", requireAuth, async (req: any, res) => {
+  try {
+    const allowed = await requireSchoolAdmin(req, res, req.params.id);
+    if (!allowed) return;
+    const [updated] = await db.update(schoolMembersTable).set({ schoolId: null, role: null, profileComplete: false })
+      .where(and(eq(schoolMembersTable.id, req.params.memberId), eq(schoolMembersTable.schoolId, req.params.id)))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.status(204).end();
+  } catch (err) {
+    logger.error({ err }, "Remove school member error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/schools/my-schools — همه‌یِ مدارسی که کاربرِ جاری مدیرشان است
+// (چندمدرسه‌ایِ فاز ۲: عضویتِ اصلی از `school_members` + مدرسه‌های اضافیِ
+// `school_admins`، یکتا بر اساسِ id).
+router.get("/api/schools/my-schools", requireAuth, async (req: any, res) => {
+  try {
+    const member = await getMember(req.userId);
+    const schoolIds = new Set<string>();
+    if (member?.role === "admin" && member.schoolId) schoolIds.add(member.schoolId);
+    const extra = await db.select().from(schoolAdminsTable).where(eq(schoolAdminsTable.userId, req.userId));
+    for (const row of extra) schoolIds.add(row.schoolId);
+    if (schoolIds.size === 0) {
+      res.json([]);
+      return;
+    }
+    const rows = await db.select().from(schoolsTable);
+    const filtered = rows.filter((s: typeof rows[number]) => schoolIds.has(s.id));
+    res.json(filtered.map(formatSchool));
+  } catch (err) {
+    logger.error({ err }, "List my schools error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/schools/:id/admins — افزودنِ یک مدیرِ دیگر به یک مدرسه (چندمدرسه‌ایِ فاز ۲)؛ فقط مدیرِ همان مدرسه.
+router.post("/api/schools/:id/admins", requireAuth, async (req: any, res) => {
+  try {
+    const allowed = await requireSchoolAdmin(req, res, req.params.id);
+    if (!allowed) return;
+    const { userId } = req.body ?? {};
+    if (!userId?.trim()) {
+      res.status(400).json({ error: "userId is required" });
+      return;
+    }
+    const [row] = await db.insert(schoolAdminsTable).values({
+      id: crypto.randomUUID(),
+      userId: userId.trim(),
+      schoolId: req.params.id,
+    }).onConflictDoNothing().returning();
+    res.status(201).json(row ?? { userId: userId.trim(), schoolId: req.params.id, alreadyAdmin: true });
+  } catch (err) {
+    logger.error({ err }, "Add school admin error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
