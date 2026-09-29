@@ -37,3 +37,11 @@ export * from "./products";
 export * from "./schools";
 // بخش "/schools" فاز ۱ — لغت‌نامه/جزوه/کتاب/فرمول
 export * from "./schoolContent";
+// بخش "/schools" فاز ۲ — کلاس‌ها، برنامه‌ها، اعلامیه‌ها، یادداشتِ مشاور،
+// پیوندِ والد↔دانش‌آموز، چندمدرسه‌ایِ مدیر
+export * from "./schoolClasses";
+export * from "./schoolPrograms";
+export * from "./schoolAnnouncements";
+export * from "./schoolCounselorNotes";
+export * from "./schoolGuardianships";
+export * from "./schoolAdmins";
