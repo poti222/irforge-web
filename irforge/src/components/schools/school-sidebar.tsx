@@ -36,6 +36,9 @@ import {
   MessagesSquare,
   Eye,
   Inbox,
+  ClipboardCheck,
+  Table2,
+  ShieldAlert,
 } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
@@ -60,28 +63,33 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
         { key: "members", href: "/schools/admin/members", icon: Users, label: t.navMemberManagement },
         { key: "classes", href: "/schools/admin/classes", icon: LayoutGrid, label: t.navClassManagement },
         { key: "programs", href: "/schools/admin/programs", icon: CalendarClock, label: t.navProgramManagement },
+        { key: "alerts", href: "/schools/admin/alerts", icon: ShieldAlert, label: t.navAlerts },
         { key: "messages", href: "/schools/admin/messages", icon: Inbox, label: t.navMessages },
         { key: "broadcast", href: "/schools/announcements", icon: Megaphone, label: t.navBroadcast },
         { key: "closure", href: "/schools/announcements", icon: BellRing, label: t.navClosureAnnouncement },
       ];
     case "student":
-      // فاز ۵ (بندِ ۱): «ارتباط با مدیر»/«ارتباط با معلم» دیگر استاب نیستند.
+      // فاز ۶ (بندِ ۱/۲): «حضور و غیاب» و «نمره‌های من» اضافه شدند.
       return [
         { key: "dictionary", href: "/schools/content/dictionary", icon: BookOpenText, label: t.navDictionary },
         { key: "notes", href: "/schools/content/note", icon: NotebookPen, label: t.navNotes },
         { key: "books", href: "/schools/content/book", icon: Library, label: t.navBooks },
         { key: "formulas", href: "/schools/content/formula", icon: Sigma, label: t.navFormulas },
         { key: "announcements", href: "/schools/announcements", icon: Megaphone, label: t.navAnnouncements },
+        { key: "attendance", href: "/schools/student/attendance", icon: ClipboardCheck, label: t.navAttendance },
+        { key: "grades", href: "/schools/student/grades", icon: GraduationCap, label: t.navGrades },
         { key: "exams", href: "/schools/student/exams", icon: FileQuestion, label: t.navExams },
         { key: "contact-counselor", href: "/schools/student/counselor", icon: MessageCircleQuestion, label: t.navContactCounselor },
         { key: "contact-admin", href: "/schools/student/admin-chat", icon: ShieldCheck, label: t.navContactAdmin },
         { key: "contact-teacher", href: "/schools/student/teacher-chat", icon: GraduationCap, label: t.navContactTeacher },
       ];
     case "teacher":
-      // فاز ۵ (بندِ ۱): «پیام‌ها» (صندوقِ ارتباط با معلم) اضافه شد.
+      // فاز ۶ (بندِ ۱/۲): «حضور و غیاب» و «نمره‌نامه» اضافه شدند.
       return [
         { key: "classrooms", href: "/schools/teacher/classes", icon: Presentation, label: t.navClassrooms },
+        { key: "attendance", href: "/schools/teacher/attendance", icon: ClipboardCheck, label: t.navAttendance },
         { key: "assignments", href: "/schools/teacher/assignments", icon: ClipboardList, label: t.navAssignments },
+        { key: "gradebook", href: "/schools/teacher/gradebook", icon: Table2, label: t.navGradebook },
         { key: "exams", href: "/schools/teacher/exams", icon: FileQuestion, label: t.navExams },
         { key: "question-bank", href: "/schools/teacher/questions", icon: Library, label: t.navQuestionBank },
         { key: "messages", href: "/schools/teacher/messages", icon: Inbox, label: t.navMessages },
@@ -96,7 +104,6 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
         { key: "schedule", href: "/schools/counselor/schedule", icon: CalendarClock, label: t.navSchedule },
       ];
     case "deputy":
-    case "deputy_discipline":
       // فاز ۳ (بندِ ۵): «مدیریتِ برنامه‌ها» دیگر استاب نیست — همان صفحه/API
       // که مدیر استفاده می‌کند، فقط بک‌اند (schoolPrograms.ts) حالا نوشتن را
       // هم برایِ این دو نقش می‌پذیرد.
@@ -106,13 +113,26 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
         { key: "broadcast", href: "/schools/announcements", icon: Megaphone, label: t.navBroadcast },
         { key: "closure", href: "/schools/announcements", icon: BellRing, label: t.navClosureAnnouncement },
       ];
+    case "deputy_discipline":
+      // فاز ۶ (بندِ ۴): اولین آیتمِ ناوبریِ واقعاً مجزایِ این نقش — «اخطارها»
+      // (schools/admin/alerts.tsx) — تا این‌جا لیستِ این نقش عیناً همان
+      // deputy بود؛ بقیه‌ی آیتم‌ها را هم نگه می‌داریم چون معاونِ انضباطی هنوز
+      // به مدیریتِ اعضا/برنامه/اطلاعیه هم دسترسیِ نوشتن دارد.
+      return [
+        { key: "alerts", href: "/schools/admin/alerts", icon: ShieldAlert, label: t.navAlerts },
+        { key: "members", href: "/schools/admin/members", icon: Users, label: t.navMemberManagement },
+        { key: "programs", href: "/schools/admin/programs", icon: CalendarClock, label: t.navProgramManagement },
+        { key: "broadcast", href: "/schools/announcements", icon: Megaphone, label: t.navBroadcast },
+        { key: "closure", href: "/schools/announcements", icon: BellRing, label: t.navClosureAnnouncement },
+      ];
     case "parent":
-      // فاز ۵ (بندِ ۲): «گزارش‌ها»/«چت» دیگر استاب نیستند — هر دو به یک
-      // صفحه‌ی ترکیبی می‌روند (parent/reports.tsx)، ببینید توضیحِ آن فایل.
+      // فاز ۶ (بندِ ۴): «گزارش‌ها»/«چت»/«اخطارها»/«نمره‌ها»/«حضور و غیاب» همه در
+      // یک داشبوردِ تب‌دارِ واحد ادغام شدند (parent/reports.tsx) — به‌جایِ
+      // اضافه‌کردنِ سه آیتمِ ناوبریِ جدا-از-هم که تجربه‌ی «پرونده‌ی فرزند» را
+      // تکه‌تکه می‌کرد؛ یک لینکِ ناوبریِ واحد («داشبوردِ فرزند»).
       return [
         { key: "children", href: "/schools/parent/children", icon: Eye, label: t.navChildrenOverview },
-        { key: "reports", href: "/schools/parent/reports", icon: BarChart3, label: t.navReports },
-        { key: "chat", href: "/schools/parent/reports", icon: MessagesSquare, label: t.navChat },
+        { key: "dashboard", href: "/schools/parent/reports", icon: BarChart3, label: t.navParentDashboard },
       ];
     default:
       return [];

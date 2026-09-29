@@ -228,7 +228,10 @@ function ExamAttemptsPanel({ schoolId, examId }: { schoolId: string; examId: str
             <div key={a.id} className="flex flex-col gap-1 rounded-md border p-2 text-sm">
               <div className="flex items-center justify-between">
                 <span className="font-medium">{person?.userName ?? person?.userEmail ?? a.studentMemberId}</span>
-                {a.score && <Badge>{a.score}</Badge>}
+                <span className="flex items-center gap-1.5">
+                  {a.lateSubmission && <Badge variant="destructive">{t.lateSubmissionBadge}</Badge>}
+                  {a.score && <Badge>{a.score}</Badge>}
+                </span>
               </div>
               <span className="text-xs text-muted-foreground">
                 {a.submittedAt ? t.attemptSubmitted : t.attemptInProgress}

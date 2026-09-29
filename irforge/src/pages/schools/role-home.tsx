@@ -12,7 +12,9 @@ import { useT } from "@/hooks/use-translation";
 const ROLE_ITEMS: Record<string, { key: string; labelKey: string; href?: string }[]> = {
   teacher: [
     { key: "classrooms", labelKey: "navClassrooms", href: "/schools/teacher/classes" },
+    { key: "attendance", labelKey: "navAttendance", href: "/schools/teacher/attendance" },
     { key: "assignments", labelKey: "navAssignments" },
+    { key: "gradebook", labelKey: "navGradebook", href: "/schools/teacher/gradebook" },
     { key: "exams", labelKey: "navExams" },
     { key: "question-bank", labelKey: "navQuestionBank" },
     { key: "today", labelKey: "navToday" },
@@ -30,6 +32,8 @@ const ROLE_ITEMS: Record<string, { key: string; labelKey: string; href?: string 
     { key: "closure", labelKey: "navClosureAnnouncement", href: "/schools/announcements" },
   ],
   "deputy-discipline": [
+    // فاز ۶ (بندِ ۴): «اخطارها» — اولین آیتمِ واقعاً مجزایِ این نقش.
+    { key: "alerts", labelKey: "navAlerts", href: "/schools/admin/alerts" },
     { key: "members", labelKey: "navMemberManagement", href: "/schools/admin/members" },
     { key: "broadcast", labelKey: "navBroadcast", href: "/schools/announcements" },
     { key: "programs", labelKey: "navProgramManagement" },
@@ -37,8 +41,7 @@ const ROLE_ITEMS: Record<string, { key: string; labelKey: string; href?: string 
   ],
   parent: [
     { key: "children", labelKey: "navChildrenOverview", href: "/schools/parent/children" },
-    { key: "reports", labelKey: "navReports" },
-    { key: "chat", labelKey: "navChat" },
+    { key: "dashboard", labelKey: "navParentDashboard", href: "/schools/parent/reports" },
   ],
 };
 

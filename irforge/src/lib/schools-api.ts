@@ -537,6 +537,8 @@ export interface ExamAttempt {
   score: string | null;
   startedAt: string;
   submittedAt: string | null;
+  /** فازِ ۶ (بندِ ۳): ارسال بعد از پایانِ durationMinutes بوده؟ */
+  lateSubmission: boolean;
 }
 
 export function listSchoolExams(schoolId: string, classId: string) {
@@ -676,4 +678,113 @@ export interface MyChild {
 
 export function listMyChildren() {
   return customFetch<MyChild[]>("/api/schools/my-children");
+}
+
+/**
+ * ─── فاز ۶ ──────────────────────────────────────────────────────────────
+ * حضور و غیاب، نمره‌نامه‌ی ترکیبی، پنجره‌ی زمانیِ آزمون، اخطار/هشدارِ
+ * دانش‌آموز، و داشبوردِ ترکیبیِ والد.
+ */
+
+export const ATTENDANCE_STATUSES = ["present", "absent", "late", "excused"] as const;
+export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
+
+export interface AttendanceRecord {
+  id: string;
+  classId: string;
+  studentMemberId: string;
+  date: string;
+  status: AttendanceStatus;
+  markedByUserId: string;
+  note: string | null;
+  createdAt: string;
+}
+
+export function markAttendance(schoolId: string, input: { classId: string; date: string; entries: { studentMemberId: string; status: AttendanceStatus; note?: string | null }[] }) {
+  return customFetch<AttendanceRecord[]>(`/api/schools/${schoolId}/attendance`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function listClassAttendance(schoolId: string, classId: string, params?: { date?: string; from?: string; to?: string }) {
+  const qs = new URLSearchParams({ classId, ...(params?.date ? { date: params.date } : {}), ...(params?.from ? { from: params.from } : {}), ...(params?.to ? { to: params.to } : {}) });
+  return customFetch<AttendanceRecord[]>(`/api/schools/${schoolId}/attendance?${qs.toString()}`);
+}
+
+export function listMyAttendance(schoolId: string, params?: { from?: string; to?: string }) {
+  const qs = new URLSearchParams({ ...(params?.from ? { from: params.from } : {}), ...(params?.to ? { to: params.to } : {}) });
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return customFetch<AttendanceRecord[]>(`/api/schools/${schoolId}/attendance/my${suffix}`);
+}
+
+export function listChildAttendance(schoolId: string, studentMemberId: string, params?: { from?: string; to?: string }) {
+  const qs = new URLSearchParams({ ...(params?.from ? { from: params.from } : {}), ...(params?.to ? { to: params.to } : {}) });
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return customFetch<AttendanceRecord[]>(`/api/schools/${schoolId}/attendance/child/${studentMemberId}${suffix}`);
+}
+
+export interface GradeItem {
+  itemType: "assignment" | "exam";
+  itemId: string;
+  itemTitle: string;
+  classId: string;
+  value: string | null;
+}
+
+export interface GradebookResult {
+  items: GradeItem[];
+  average: number | null;
+}
+
+export interface ClassGradebookRow {
+  studentMemberId: string;
+  items: GradeItem[];
+  average: number | null;
+}
+
+export function getClassGradebook(schoolId: string, classId: string) {
+  return customFetch<ClassGradebookRow[]>(`/api/schools/${schoolId}/gradebook/class/${classId}`);
+}
+
+export function getMyGradebook(schoolId: string) {
+  return customFetch<GradebookResult>(`/api/schools/${schoolId}/gradebook/my`);
+}
+
+export function getChildGradebook(schoolId: string, studentMemberId: string) {
+  return customFetch<GradebookResult>(`/api/schools/${schoolId}/gradebook/child/${studentMemberId}`);
+}
+
+export const ALERT_SEVERITIES = ["notice", "warning", "serious"] as const;
+export type AlertSeverity = (typeof ALERT_SEVERITIES)[number];
+
+export interface StudentAlert {
+  id: string;
+  schoolId: string;
+  studentMemberId: string;
+  issuedByUserId: string;
+  severity: AlertSeverity;
+  title: string;
+  body: string;
+  createdAt: string;
+}
+
+export function createStudentAlert(schoolId: string, input: { studentMemberId: string; severity: AlertSeverity; title: string; body: string }) {
+  return customFetch<StudentAlert>(`/api/schools/${schoolId}/alerts`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function listSchoolAlerts(schoolId: string, studentMemberId?: string) {
+  const suffix = studentMemberId ? `?studentMemberId=${encodeURIComponent(studentMemberId)}` : "";
+  return customFetch<StudentAlert[]>(`/api/schools/${schoolId}/alerts${suffix}`);
+}
+
+export function listMyAlerts(schoolId: string) {
+  return customFetch<StudentAlert[]>(`/api/schools/${schoolId}/alerts/my`);
+}
+
+export function listChildAlerts(schoolId: string, studentMemberId: string) {
+  return customFetch<StudentAlert[]>(`/api/schools/${schoolId}/alerts/child/${studentMemberId}`);
 }

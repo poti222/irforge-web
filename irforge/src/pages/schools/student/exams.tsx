@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -121,6 +121,21 @@ function ExamCard({ schoolId, exam }: { schoolId: string; exam: SchoolExam }) {
     }
   }
 
+  // فازِ ۶ (بندِ ۳): شمارشِ معکوسِ سمتِ کلاینت فقط یک نمایشِ کمکی است — نکته‌ی
+  // واقعیِ اجرا (رد نکردنِ ارسال، فقط علامتِ lateSubmission) سمتِ سرور است.
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  useEffect(() => {
+    if (!taking || !myAttempt || !exam.durationMinutes) {
+      setRemainingSeconds(null);
+      return;
+    }
+    const deadline = new Date(myAttempt.startedAt).getTime() + exam.durationMinutes * 60000;
+    const tick = () => setRemainingSeconds(Math.max(0, Math.floor((deadline - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [taking, myAttempt, exam.durationMinutes]);
+
   if (attemptLoading) return <Loader2 className="size-4 animate-spin" />;
 
   const alreadySubmitted = !!myAttempt?.submittedAt;
@@ -130,7 +145,10 @@ function ExamCard({ schoolId, exam }: { schoolId: string; exam: SchoolExam }) {
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between text-base">
           <span className="flex items-center gap-2"><FileQuestion className="size-4" /> {exam.title}</span>
-          {myAttempt?.score && <Badge>{myAttempt.score}</Badge>}
+          <span className="flex items-center gap-2">
+            {myAttempt?.lateSubmission && <Badge variant="destructive">{t.lateSubmissionBadge}</Badge>}
+            {myAttempt?.score && <Badge>{myAttempt.score}</Badge>}
+          </span>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -138,6 +156,11 @@ function ExamCard({ schoolId, exam }: { schoolId: string; exam: SchoolExam }) {
           <p className="text-sm text-muted-foreground">{t.examAlreadySubmitted}</p>
         ) : taking ? (
           <>
+            {remainingSeconds !== null && (
+              <p className="text-sm font-medium" dir="ltr">
+                {t.examTimeRemaining}: {String(Math.floor(remainingSeconds / 60)).padStart(2, "0")}:{String(remainingSeconds % 60).padStart(2, "0")}
+              </p>
+            )}
             {!questions ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (

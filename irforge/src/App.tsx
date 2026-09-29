@@ -103,6 +103,12 @@ const TeacherMessagesPage = lazy(() => import("@/pages/schools/teacher/messages"
 const StudentAdminChatPage = lazy(() => import("@/pages/schools/student/admin-chat"));
 const StudentTeacherChatPage = lazy(() => import("@/pages/schools/student/teacher-chat"));
 const ParentReportsPage = lazy(() => import("@/pages/schools/parent/reports"));
+// بخش "/schools" فاز ۶ — حضور و غیاب، نمره‌نامه، اخطار/هشدارِ دانش‌آموز
+const TeacherAttendancePage = lazy(() => import("@/pages/schools/teacher/attendance"));
+const TeacherGradebookPage = lazy(() => import("@/pages/schools/teacher/gradebook"));
+const StudentAttendancePage = lazy(() => import("@/pages/schools/student/attendance"));
+const StudentGradesPage = lazy(() => import("@/pages/schools/student/grades"));
+const SchoolAlertsPage = lazy(() => import("@/pages/schools/admin/alerts"));
 
 const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
 const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
@@ -397,6 +403,12 @@ function Router() {
       <Route path="/schools/student/admin-chat"><SchoolProtectedRoute component={StudentAdminChatPage} /></Route>
       <Route path="/schools/student/teacher-chat"><SchoolProtectedRoute component={StudentTeacherChatPage} /></Route>
       <Route path="/schools/parent/reports"><SchoolProtectedRoute component={ParentReportsPage} /></Route>
+      {/* بخش "/schools" فاز ۶ — حضور و غیاب، نمره‌نامه، اخطار/هشدارِ دانش‌آموز */}
+      <Route path="/schools/teacher/attendance"><SchoolProtectedRoute component={TeacherAttendancePage} /></Route>
+      <Route path="/schools/teacher/gradebook"><SchoolProtectedRoute component={TeacherGradebookPage} /></Route>
+      <Route path="/schools/student/attendance"><SchoolProtectedRoute component={StudentAttendancePage} /></Route>
+      <Route path="/schools/student/grades"><SchoolProtectedRoute component={StudentGradesPage} /></Route>
+      <Route path="/schools/admin/alerts"><SchoolProtectedRoute component={SchoolAlertsPage} /></Route>
       <Route path="/schools/stub/:key"><SchoolProtectedRoute component={SchoolsStub} /></Route>
 
       <Route path="/admin"><ProtectedRoute component={Admin} adminOnly /></Route>
