@@ -89,6 +89,9 @@ export const paymentRequestsTable = pgTable(
     matchedSmsId: text("matched_sms_id").references((): any => smsInboxTable.id),
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
     accountIdSnapshot: text("account_id_snapshot"),
+    /** scope=bot: بات «claim» می‌کند تا اثرِ تأیید فقط یک‌بار اعمال شود (فاز ۵). */
+    effectClaimedAt: timestamp("effect_claimed_at", { withTimezone: true }),
+    effectDoneAt: timestamp("effect_done_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -102,6 +105,13 @@ export const paymentRequestsTable = pgTable(
     index("idx_payment_requests_owner").on(t.scope, t.botId, t.userId),
     index("idx_payment_requests_order").on(t.orderId).where(sql`${t.orderId} IS NOT NULL`),
     index("idx_payment_requests_pending_expiry").on(t.expiresAt).where(sql`${t.status} = 'pending'`),
+    index("idx_payment_requests_effect_pending")
+      .on(t.botId, t.confirmedAt)
+      .where(sql`${t.status} = 'confirmed' AND ${t.effectClaimedAt} IS NULL`),
+    check(
+      "payment_requests_effect_chk",
+      sql`(${t.effectClaimedAt} IS NULL OR ${t.status} = 'confirmed') AND (${t.effectDoneAt} IS NULL OR ${t.effectClaimedAt} IS NOT NULL)`,
+    ),
     index("idx_payment_requests_queue")
       .on(t.channelId, t.baseAmountRial, t.queuePosition)
       .where(sql`${t.status} = 'queued'`),

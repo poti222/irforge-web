@@ -88,6 +88,7 @@ import postboxRouter from "./postbox.js";
 import walletTopupRouter from "./walletTopup.js";
 import walletTopupSmsWebhookRouter from "./walletTopupSmsWebhook.js";
 import paymentSmsWebhookRouter from "./paymentSmsWebhook.js";
+import internalBotPaymentsRouter from "./internalBotPayments.js";
 import guidedFlowRouter from "./guidedFlow.js";
 
 const router: IRouter = Router();
@@ -109,6 +110,7 @@ router.use(walletRouter);
 router.use(walletTopupRouter);
 router.use(walletTopupSmsWebhookRouter);
 router.use(paymentSmsWebhookRouter);
+router.use(internalBotPaymentsRouter);
 router.use(databaseRouter);
 router.use(cutoverFlagsRouter);
 router.use(sheetsImportRouter);

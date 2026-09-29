@@ -28,6 +28,15 @@ test("مایگریشنِ پروداکشن دقیقاً همان DDLِ آینه�
   assert.ok(migrate.includes(ddl.trimEnd()), "migrate.mjs و 0029_card_autoconfirm.sql از هم جدا شده‌اند");
 });
 
+const mirror30 = fs.readFileSync(new URL("../../lib/db/migrations/0030_card_autoconfirm_effects.sql", import.meta.url), "utf8");
+const ddl30 = mirror30.slice(mirror30.indexOf("-- ─── CARD_AUTOCONFIRM_P5"));
+
+test("مایگریشنِ پروداکشن دقیقاً همان DDLِ آینه‌ی 0030 (فاز ۵) را دارد و template-safe است", () => {
+  assert.ok(migrate.includes(ddl30.trimEnd()), "migrate.mjs و 0030_card_autoconfirm_effects.sql از هم جدا شده‌اند");
+  assert.ok(!ddl30.includes("`") && !ddl30.includes("${"));
+  assert.ok(migrate.indexOf(ddl30.trimEnd()) > migrate.indexOf(ddl.trimEnd()), "0030 باید بعد از 0029 اجرا شود");
+});
+
 test("DDL امن برای template literalِ migrate.mjs است (بدون backtick و ${})", () => {
   assert.ok(!ddl.includes("`"), "backtick داخل SQL، رشته‌ی template literal را می‌بندد");
   assert.ok(!ddl.includes("${"), "${ داخل SQL به‌عنوان interpolation تعبیر می‌شود");

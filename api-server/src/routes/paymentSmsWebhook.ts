@@ -33,6 +33,7 @@ import { logger } from "../lib/logger";
 import { createNotification, notifySuperAdmins } from "../lib/notify";
 import { createPaymentAlerts, type AlertMessage, type MatchAlerts } from "../lib/paymentAlerts";
 import { matchSms, type MatchOutcome } from "../lib/paymentMatcher";
+import { registerDefaultPaymentEffects } from "../lib/paymentEffectsBoot";
 import { clientIp, hit, send429, type HitFn } from "../middleware/rateLimit";
 import { authenticateChannel, ingestSms, SmsIngestError } from "../lib/smsIngest";
 import type { PoolLike } from "../lib/paymentRequests";
@@ -58,7 +59,7 @@ function extractSecret(req: Request): string {
 }
 
 /** اعلان‌ها: super_adminها (همیشه) و صاحبِ بات (برایِ scope=bot). هرگز throw نمی‌کند. */
-function defaultAlerts(): MatchAlerts {
+export function defaultPaymentAlerts(): MatchAlerts {
   const toInput = (m: AlertMessage) => ({
     type: m.type, severity: m.severity, title: m.title, message: m.message,
     botId: m.botId, dedupeKey: m.dedupeKey, refId: m.refId ?? null,
@@ -72,12 +73,14 @@ function defaultAlerts(): MatchAlerts {
   });
 }
 
+registerDefaultPaymentEffects();
+
 export function createPaymentSmsRouter(
   deps: { pool?: PoolLike; hitFn?: HitFn; matcher?: (pool: PoolLike, smsId: string) => Promise<MatchOutcome> } = {},
 ): Router {
   const pool = deps.pool ?? (defaultPool as unknown as PoolLike);
   const hitFn = deps.hitFn ?? hit;
-  const alerts = deps.matcher ? undefined : defaultAlerts();
+  const alerts = deps.matcher ? undefined : defaultPaymentAlerts();
   const matcher = deps.matcher ?? ((p: PoolLike, id: string) => matchSms(p, id, { alerts }));
   const router = Router();
 
