@@ -3,6 +3,11 @@
  * یک ردیفِ سادۀ «برنامه» — یا یک زنگِ هفتگی (روز/ساعتِ شروع-پایان) یا صرفاً
  * یک اعلامیه‌ی برنامه‌ی ترم بدونِ زمان‌بندی. عمداً بدونِ موتورِ کاملِ
  * تایم‌تیبل (تداخلِ زنگ‌ها/درس‌ها و…).
+ *
+ * فاز ۴ (بندِ ۱): `counselorUserId` اضافه شد تا همین جدول «برنامه‌ی هفتگیِ
+ * دردسترس‌بودنِ مشاور» را هم پوشش دهد — یک ردیفِ برنامه با classId=null و
+ * counselorUserId=<کاربرِ مشاور>. جدولِ جداگانه لازم نبود چون شکلِ داده
+ * (روز/ساعتِ شروع-پایان + توضیح) دقیقاً همان چیزیست که این جدول از قبل دارد.
  */
 import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
@@ -20,6 +25,8 @@ export const schoolProgramsTable = pgTable("school_programs", {
   dayOfWeek: text("day_of_week"),
   startTime: text("start_time"),
   endTime: text("end_time"),
+  /** فاز ۴ — نال یعنی برنامه‌ی معمولی؛ پرشده یعنی زنگِ دردسترس‌بودنِ این مشاور */
+  counselorUserId: text("counselor_user_id"),
   createdByUserId: text("created_by_user_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

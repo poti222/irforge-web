@@ -47,3 +47,8 @@ export * from "./schoolGuardianships";
 export * from "./schoolAdmins";
 // بخش "/schools" فاز ۳ — تکالیفِ معلم/ارسالِ دانش‌آموز
 export * from "./schoolAssignments";
+// بخش "/schools" فاز ۴ — گزارش/برنامه/چتِ مشاور، بانکِ سؤال، آزمون
+export * from "./schoolCounselorReports";
+export * from "./schoolCounselorMessages";
+export * from "./schoolQuestions";
+export * from "./schoolExams";

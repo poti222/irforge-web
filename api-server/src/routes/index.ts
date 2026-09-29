@@ -100,6 +100,10 @@ import schoolCounselorRouter from "./schoolCounselor.js";
 import schoolGuardianshipsRouter from "./schoolGuardianships.js";
 // بخش "/schools" فاز ۳ — تکالیفِ معلم/ارسالِ دانش‌آموز
 import schoolAssignmentsRouter from "./schoolAssignments.js";
+// بخش "/schools" فاز ۴ — گزارش/برنامه/چتِ مشاور، بانکِ سؤال، آزمون
+import schoolCounselorReportsRouter from "./schoolCounselorReports.js";
+import schoolQuestionsRouter from "./schoolQuestions.js";
+import schoolExamsRouter from "./schoolExams.js";
 
 const router: IRouter = Router();
 
@@ -186,5 +190,8 @@ router.use(schoolAnnouncementsRouter);
 router.use(schoolCounselorRouter);
 router.use(schoolGuardianshipsRouter);
 router.use(schoolAssignmentsRouter);
+router.use(schoolCounselorReportsRouter);
+router.use(schoolQuestionsRouter);
+router.use(schoolExamsRouter);
 
 export default router;
