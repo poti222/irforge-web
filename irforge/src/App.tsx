@@ -89,6 +89,14 @@ const ParentChildrenPage = lazy(() => import("@/pages/schools/parent/children"))
 const TeacherTodayPage = lazy(() => import("@/pages/schools/teacher/today"));
 const TeacherAssignmentsPage = lazy(() => import("@/pages/schools/teacher/assignments"));
 const StudentAssignmentsPage = lazy(() => import("@/pages/schools/student/assignments"));
+// بخش "/schools" فاز ۴ — گزارش/برنامه/چتِ مشاور، بانکِ سؤال، آزمون
+const CounselorReportsPage = lazy(() => import("@/pages/schools/counselor/reports"));
+const CounselorSchedulePage = lazy(() => import("@/pages/schools/counselor/schedule"));
+const CounselorChatPage = lazy(() => import("@/pages/schools/counselor/chat"));
+const StudentCounselorPage = lazy(() => import("@/pages/schools/student/counselor"));
+const TeacherQuestionsPage = lazy(() => import("@/pages/schools/teacher/questions"));
+const TeacherExamsPage = lazy(() => import("@/pages/schools/teacher/exams"));
+const StudentExamsPage = lazy(() => import("@/pages/schools/student/exams"));
 
 const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
 const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
@@ -369,6 +377,14 @@ function Router() {
       <Route path="/schools/teacher/today"><SchoolProtectedRoute component={TeacherTodayPage} /></Route>
       <Route path="/schools/teacher/assignments"><SchoolProtectedRoute component={TeacherAssignmentsPage} /></Route>
       <Route path="/schools/student/assignments"><SchoolProtectedRoute component={StudentAssignmentsPage} /></Route>
+      {/* بخش "/schools" فاز ۴ — گزارش/برنامه/چتِ مشاور، بانکِ سؤال، آزمون */}
+      <Route path="/schools/counselor/reports"><SchoolProtectedRoute component={CounselorReportsPage} /></Route>
+      <Route path="/schools/counselor/schedule"><SchoolProtectedRoute component={CounselorSchedulePage} /></Route>
+      <Route path="/schools/counselor/chat"><SchoolProtectedRoute component={CounselorChatPage} /></Route>
+      <Route path="/schools/student/counselor"><SchoolProtectedRoute component={StudentCounselorPage} /></Route>
+      <Route path="/schools/teacher/questions"><SchoolProtectedRoute component={TeacherQuestionsPage} /></Route>
+      <Route path="/schools/teacher/exams"><SchoolProtectedRoute component={TeacherExamsPage} /></Route>
+      <Route path="/schools/student/exams"><SchoolProtectedRoute component={StudentExamsPage} /></Route>
       <Route path="/schools/stub/:key"><SchoolProtectedRoute component={SchoolsStub} /></Route>
 
       <Route path="/admin"><ProtectedRoute component={Admin} adminOnly /></Route>

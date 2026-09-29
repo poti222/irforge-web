@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpenText, NotebookPen, Library, Sigma, MessageCircleQuestion, ShieldCheck, GraduationCap, ClipboardList } from "lucide-react";
+import { BookOpenText, NotebookPen, Library, Sigma, MessageCircleQuestion, ShieldCheck, GraduationCap, ClipboardList, FileQuestion } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
@@ -14,7 +14,9 @@ const TILES = [
   // فاز ۳ (بندِ ۳): «تکالیفِ من» — تکِ تایلِ تازه، به‌جایِ یک نوارِ کناریِ
   // مجزا، چون این تایلیِ سادۀ صفحه‌ی خانه‌ی دانش‌آموز الگویِ بقیه هم هست.
   { key: "assignments", href: "/schools/student/assignments", icon: ClipboardList },
-  { key: "contact-counselor", href: "/schools/stub/contact-counselor", icon: MessageCircleQuestion },
+  // فاز ۴ (بندِ ۲/۱): «آزمونِ من» و «ارتباط با مشاور» دیگر استاب نیستند.
+  { key: "exams", href: "/schools/student/exams", icon: FileQuestion },
+  { key: "contact-counselor", href: "/schools/student/counselor", icon: MessageCircleQuestion },
   { key: "contact-admin", href: "/schools/stub/contact-admin", icon: ShieldCheck },
   { key: "contact-teacher", href: "/schools/stub/contact-teacher", icon: GraduationCap },
 ];
@@ -25,6 +27,7 @@ const TILE_LABEL_KEY: Record<string, string> = {
   books: "navBooks",
   formulas: "navFormulas",
   assignments: "navAssignments",
+  exams: "navExams",
   "contact-counselor": "navContactCounselor",
   "contact-admin": "navContactAdmin",
   "contact-teacher": "navContactTeacher",

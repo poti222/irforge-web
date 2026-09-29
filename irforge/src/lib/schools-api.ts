@@ -402,6 +402,184 @@ export function gradeAssignmentSubmission(schoolId: string, assignmentId: string
   });
 }
 
+/**
+ * ─── فاز ۴ ──────────────────────────────────────────────────────────────
+ * گزارش/برنامه/چتِ مشاور + بانکِ سؤال و آزمون.
+ */
+
+export interface CounselorReport {
+  id: string;
+  schoolId: string;
+  counselorUserId: string;
+  studentMemberId: string | null;
+  title: string;
+  body: string;
+  createdAt: string;
+}
+
+export function listCounselorReports(schoolId: string) {
+  return customFetch<CounselorReport[]>(`/api/schools/${schoolId}/counselor/reports`);
+}
+
+export function createCounselorReport(schoolId: string, input: { title: string; body: string; studentMemberId?: string | null }) {
+  return customFetch<CounselorReport>(`/api/schools/${schoolId}/counselor/reports`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export interface CounselorScheduleSlot {
+  id: string;
+  schoolId: string;
+  counselorUserId: string | null;
+  title: string;
+  description: string | null;
+  dayOfWeek: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  createdAt: string;
+}
+
+export function listCounselorSchedule(schoolId: string, counselorUserId?: string) {
+  const params = counselorUserId ? `?counselorUserId=${encodeURIComponent(counselorUserId)}` : "";
+  return customFetch<CounselorScheduleSlot[]>(`/api/schools/${schoolId}/counselor/schedule${params}`);
+}
+
+export function createCounselorScheduleSlot(schoolId: string, input: { dayOfWeek: string; startTime: string; endTime: string; note?: string | null }) {
+  return customFetch<CounselorScheduleSlot>(`/api/schools/${schoolId}/counselor/schedule`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteCounselorScheduleSlot(schoolId: string, id: string) {
+  return customFetch<void>(`/api/schools/${schoolId}/counselor/schedule/${id}`, { method: "DELETE" });
+}
+
+export interface SchoolCounselor {
+  userId: string;
+}
+
+export function listSchoolCounselors(schoolId: string) {
+  return customFetch<SchoolCounselor[]>(`/api/schools/${schoolId}/counselor/list`);
+}
+
+export interface CounselorMessage {
+  id: string;
+  schoolId: string;
+  counselorUserId: string;
+  studentMemberId: string;
+  senderUserId: string;
+  body: string;
+  createdAt: string;
+}
+
+export function listCounselorMessages(schoolId: string, counselorUserId: string, studentMemberId: string) {
+  const params = new URLSearchParams({ counselorUserId, studentMemberId });
+  return customFetch<CounselorMessage[]>(`/api/schools/${schoolId}/counselor/messages?${params.toString()}`);
+}
+
+export function sendCounselorMessage(schoolId: string, input: { counselorUserId: string; studentMemberId: string; body: string }) {
+  return customFetch<CounselorMessage>(`/api/schools/${schoolId}/counselor/messages`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export interface SchoolQuestion {
+  id: string;
+  schoolId: string;
+  teacherUserId: string;
+  questionText: string;
+  choices: string[] | null;
+  correctAnswer: string | null;
+  createdAt: string;
+}
+
+export function listSchoolQuestions(schoolId: string) {
+  return customFetch<SchoolQuestion[]>(`/api/schools/${schoolId}/questions`);
+}
+
+export function createSchoolQuestion(schoolId: string, input: { questionText: string; choices?: string[] | null; correctAnswer?: string | null }) {
+  return customFetch<SchoolQuestion>(`/api/schools/${schoolId}/questions`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteSchoolQuestion(schoolId: string, id: string) {
+  return customFetch<void>(`/api/schools/${schoolId}/questions/${id}`, { method: "DELETE" });
+}
+
+export interface SchoolExam {
+  id: string;
+  classId: string;
+  teacherUserId: string;
+  title: string;
+  questionIds: string[];
+  scheduledAt: string | null;
+  durationMinutes: number | null;
+  createdAt: string;
+}
+
+export interface ExamQuestion {
+  id: string;
+  questionText: string;
+  choices: string[] | null;
+  correctAnswer?: string | null;
+}
+
+export interface ExamAttempt {
+  id: string;
+  examId: string;
+  studentMemberId: string;
+  answers: Record<string, string>;
+  score: string | null;
+  startedAt: string;
+  submittedAt: string | null;
+}
+
+export function listSchoolExams(schoolId: string, classId: string) {
+  return customFetch<SchoolExam[]>(`/api/schools/${schoolId}/exams?classId=${encodeURIComponent(classId)}`);
+}
+
+export function createSchoolExam(schoolId: string, input: { classId: string; title: string; questionIds: string[]; scheduledAt?: string | null; durationMinutes?: number | null }) {
+  return customFetch<SchoolExam>(`/api/schools/${schoolId}/exams`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function listExamQuestions(schoolId: string, examId: string) {
+  return customFetch<ExamQuestion[]>(`/api/schools/${schoolId}/exams/${examId}/questions`);
+}
+
+export function listExamAttempts(schoolId: string, examId: string) {
+  return customFetch<ExamAttempt[]>(`/api/schools/${schoolId}/exams/${examId}/attempts`);
+}
+
+export function getMyExamAttempt(schoolId: string, examId: string) {
+  return customFetch<ExamAttempt | null>(`/api/schools/${schoolId}/exams/${examId}/my-attempt`);
+}
+
+export function startExamAttempt(schoolId: string, examId: string) {
+  return customFetch<ExamAttempt>(`/api/schools/${schoolId}/exams/${examId}/attempts/start`, { method: "POST" });
+}
+
+export function submitExamAttempt(schoolId: string, examId: string, answers: Record<string, string>) {
+  return customFetch<ExamAttempt>(`/api/schools/${schoolId}/exams/${examId}/attempts/submit`, {
+    method: "POST",
+    body: JSON.stringify({ answers }),
+  });
+}
+
+export function gradeExamAttempt(schoolId: string, examId: string, attemptId: string, score: string | null) {
+  return customFetch<ExamAttempt>(`/api/schools/${schoolId}/exams/${examId}/attempts/${attemptId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ score }),
+  });
+}
+
 export interface MyChild {
   id: string;
   grade: string | null;

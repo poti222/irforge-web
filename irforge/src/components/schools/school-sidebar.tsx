@@ -61,32 +61,34 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
         { key: "closure", href: "/schools/announcements", icon: BellRing, label: t.navClosureAnnouncement },
       ];
     case "student":
+      // فاز ۴ (بندِ ۱): «ارتباط با مشاور» دیگر استاب نیست.
       return [
         { key: "dictionary", href: "/schools/content/dictionary", icon: BookOpenText, label: t.navDictionary },
         { key: "notes", href: "/schools/content/note", icon: NotebookPen, label: t.navNotes },
         { key: "books", href: "/schools/content/book", icon: Library, label: t.navBooks },
         { key: "formulas", href: "/schools/content/formula", icon: Sigma, label: t.navFormulas },
         { key: "announcements", href: "/schools/announcements", icon: Megaphone, label: t.navAnnouncements },
-        { key: "contact-counselor", href: "/schools/stub/contact-counselor", icon: MessageCircleQuestion, label: t.navContactCounselor },
+        { key: "exams", href: "/schools/student/exams", icon: FileQuestion, label: t.navExams },
+        { key: "contact-counselor", href: "/schools/student/counselor", icon: MessageCircleQuestion, label: t.navContactCounselor },
         { key: "contact-admin", href: "/schools/stub/contact-admin", icon: ShieldCheck, label: t.navContactAdmin },
         { key: "contact-teacher", href: "/schools/stub/contact-teacher", icon: GraduationCap, label: t.navContactTeacher },
       ];
     case "teacher":
-      // فاز ۳ (بندِ ۳): «امروز» و «تکالیف» دیگر استاب نیستند؛ آزمون/بانکِ
-      // سؤال طبقِ چک‌لیست عمداً استاب ماندند (فازِ بعد).
+      // فاز ۴ (بندِ ۲): «بانکِ سؤال» و «آزمون‌ها» دیگر استاب نیستند.
       return [
         { key: "classrooms", href: "/schools/teacher/classes", icon: Presentation, label: t.navClassrooms },
         { key: "assignments", href: "/schools/teacher/assignments", icon: ClipboardList, label: t.navAssignments },
-        { key: "exams", href: "/schools/stub/exams", icon: FileQuestion, label: t.navExams },
-        { key: "question-bank", href: "/schools/stub/question-bank", icon: Library, label: t.navQuestionBank },
+        { key: "exams", href: "/schools/teacher/exams", icon: FileQuestion, label: t.navExams },
+        { key: "question-bank", href: "/schools/teacher/questions", icon: Library, label: t.navQuestionBank },
         { key: "today", href: "/schools/teacher/today", icon: CalendarDays, label: t.navToday },
       ];
     case "counselor":
+      // فاز ۴ (بندِ ۱): گزارش/چت/برنامه دیگر استاب نیستند.
       return [
         { key: "student-list", href: "/schools/counselor/students", icon: Users, label: t.navStudentList },
-        { key: "reports", href: "/schools/stub/reports", icon: BarChart3, label: t.navReports },
-        { key: "chat", href: "/schools/stub/chat", icon: MessagesSquare, label: t.navChat },
-        { key: "schedule", href: "/schools/stub/schedule", icon: CalendarClock, label: t.navSchedule },
+        { key: "reports", href: "/schools/counselor/reports", icon: BarChart3, label: t.navReports },
+        { key: "chat", href: "/schools/counselor/chat", icon: MessagesSquare, label: t.navChat },
+        { key: "schedule", href: "/schools/counselor/schedule", icon: CalendarClock, label: t.navSchedule },
       ];
     case "deputy":
     case "deputy_discipline":

@@ -16,7 +16,7 @@ import { useT } from "@/hooks/use-translation";
 import { useViewedSchool } from "@/hooks/use-viewed-school";
 import {
   createSchool, getSchoolMe, updateSchool, listMySchools, listInviteCodes, createInviteCode, toggleInviteCode,
-  listSchoolMembers, listSchoolClasses, addSchoolAdmin, SCHOOL_MEMBER_ROLES,
+  listSchoolMembers, listSchoolClasses, addSchoolAdmin, SCHOOL_MEMBER_ROLES, listCounselorReports,
 } from "@/lib/schools-api";
 
 /**
@@ -190,6 +190,7 @@ export default function SchoolsAdminHome() {
           </Card>
 
           <AcademicStatusCard schoolId={school.id} />
+          <CounselorReportsCard schoolId={school.id} />
           <InviteCodesCard schoolId={school.id} />
           <GrantAdminCard schoolId={school.id} />
         </>
@@ -301,6 +302,42 @@ function AcademicStatusCard({ schoolId }: { schoolId: string }) {
               <Bar dataKey="count" fill="var(--primary)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * CounselorReportsCard — فاز ۴، بندِ ۱: نمایِ فقط‌خواندنیِ گزارش‌هایِ مشاور برایِ
+ * مدیر/معاون — برخلافِ یادداشتِ محرمانه (school_counselor_notes که هرگز اینجا
+ * نمی‌آید)، school_counselor_reports عمداً برای این نقش‌ها قابل‌دیدن طراحی شده.
+ * تصمیمِ محل: یک کارتِ کوچکِ اضافه در همین صفحه به‌جایِ تبِ جداگانه — فازِ ۴
+ * می‌خواست «ساده و بدونِ شلوغ‌کردن» را، یک کارتِ کوتاه با ۵ موردِ آخر همین‌را می‌دهد.
+ */
+function CounselorReportsCard({ schoolId }: { schoolId: string }) {
+  const t = useT("schools") as any;
+  const { data: reports } = useQuery({ queryKey: ["schools", "counselor-reports", schoolId], queryFn: () => listCounselorReports(schoolId) });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><BarChart3 className="size-5" /> {t.navReports}</CardTitle>
+        <CardDescription>{t.adminCounselorReportsDescription}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        {!reports || reports.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t.reportsEmpty}</p>
+        ) : (
+          reports.slice(0, 5).map((r) => (
+            <div key={r.id} className="rounded-md border p-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">{r.title}</span>
+                <span className="text-xs text-muted-foreground" dir="ltr">{new Date(r.createdAt).toLocaleDateString()}</span>
+              </div>
+              <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{r.body}</p>
+            </div>
+          ))
         )}
       </CardContent>
     </Card>
