@@ -3545,6 +3545,9 @@
     "inviteCodeAnyRole": "Any role",
     "inviteCodeActive": "Active",
     "inviteCodeInactive": "Inactive",
+    "fieldInviteCodeExpiresAt": "Expires on (optional)",
+    "fieldInviteCodeMaxUses": "Max uses (optional)",
+    "inviteCodeUsesOf": "{used} of {max} used",
 
     "statClassesCount": "Classes",
     "statMembersCount": "Members",

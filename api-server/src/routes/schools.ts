@@ -106,50 +106,79 @@ router.post("/api/schools/onboarding", requireAuth, async (req: any, res) => {
       return;
     }
 
-    let resolvedSchoolId: string | null | undefined = undefined;
-    let resolvedRole: string | undefined = role;
-    if (inviteCode && typeof inviteCode === "string" && inviteCode.trim()) {
-      const [invite] = await db.select().from(schoolInviteCodesTable)
-        .where(and(eq(schoolInviteCodesTable.code, inviteCode.trim()), eq(schoolInviteCodesTable.active, true)))
-        .limit(1);
-      if (!invite) {
-        res.status(400).json({ error: "Invalid invite code", code: "invalid_invite_code" });
-        return;
-      }
-      resolvedSchoolId = invite.schoolId;
-      // کدِ نقش‌دار همیشه نقش را دیکته می‌کند؛ کدِ عمومی نقشِ انتخابیِ خودِ فرم را می‌پذیرد.
-      if (invite.role) resolvedRole = invite.role;
+    const existing = await getMember(req.userId);
+
+    /** ساختِ patch نهایی — بعد از resolvedSchoolId/resolvedRole (شاید از کدِ معرف). */
+    function buildPatch(resolvedSchoolId: string | null | undefined, resolvedRole: string | undefined) {
+      const patch: Record<string, unknown> = {
+        role: resolvedRole ?? existing?.role ?? null,
+        grade: grade ?? existing?.grade ?? null,
+        nationalId: nationalId ?? existing?.nationalId ?? null,
+        birthDate: birthDate ? new Date(birthDate) : (existing?.birthDate ?? null),
+        city: city ?? existing?.city ?? null,
+        schoolNameFreeText: schoolNameFreeText ?? existing?.schoolNameFreeText ?? null,
+      };
+      if (resolvedSchoolId !== undefined) patch.schoolId = resolvedSchoolId;
+      patch.profileComplete = computeSchoolProfileComplete({
+        role: patch.role as SchoolMemberRole | null | undefined,
+        grade: patch.grade as string | null,
+        nationalId: patch.nationalId as string | null,
+        birthDate: patch.birthDate as Date | null,
+        city: patch.city as string | null,
+      });
+      return patch;
     }
 
-    const existing = await getMember(req.userId);
-    const patch: Record<string, unknown> = {
-      role: resolvedRole ?? existing?.role ?? null,
-      grade: grade ?? existing?.grade ?? null,
-      nationalId: nationalId ?? existing?.nationalId ?? null,
-      birthDate: birthDate ? new Date(birthDate) : (existing?.birthDate ?? null),
-      city: city ?? existing?.city ?? null,
-      schoolNameFreeText: schoolNameFreeText ?? existing?.schoolNameFreeText ?? null,
-    };
-    if (resolvedSchoolId !== undefined) patch.schoolId = resolvedSchoolId;
-
-    const complete = computeSchoolProfileComplete({
-      role: patch.role as SchoolMemberRole | null | undefined,
-      grade: patch.grade as string | null,
-      nationalId: patch.nationalId as string | null,
-      birthDate: patch.birthDate as Date | null,
-      city: patch.city as string | null,
-    });
-    patch.profileComplete = complete;
+    async function saveMember(executor: typeof db, patch: Record<string, unknown>) {
+      if (existing) {
+        const [row] = await executor.update(schoolMembersTable).set(patch).where(eq(schoolMembersTable.id, existing.id)).returning();
+        return row;
+      }
+      const [row] = await executor.insert(schoolMembersTable).values({ id: crypto.randomUUID(), userId: req.userId, ...patch }).returning();
+      return row;
+    }
 
     let saved;
-    if (existing) {
-      [saved] = await db.update(schoolMembersTable).set(patch).where(eq(schoolMembersTable.id, existing.id)).returning();
+
+    if (inviteCode && typeof inviteCode === "string" && inviteCode.trim()) {
+      const trimmedCode = inviteCode.trim();
+      // فازِ ۹ (بندِ ۲): مصرفِ کدِ معرف + ذخیره‌ی پروفایل در **یک تراکنش** با
+      // قفلِ ردیفِ کد (FOR UPDATE) — دقیقاً همان دلیلِ claimFreeSchoolBotToken
+      // در schoolBots.ts: دو کاربرِ هم‌زمان نباید آخرین usesِ مجاز را دوبار
+      // مصرف کنند. اگر منقضی/تمام‌شده باشد، کل تراکنش rollback می‌شود —
+      // usesCount هرگز افزایش نمی‌یابد و پروفایل هم ذخیره نمی‌شود.
+      let failure: { status: number; body: Record<string, unknown> } | undefined;
+      await db.transaction(async (tx: any) => {
+        const [invite] = await tx.select().from(schoolInviteCodesTable)
+          .where(and(eq(schoolInviteCodesTable.code, trimmedCode), eq(schoolInviteCodesTable.active, true)))
+          .for("update")
+          .limit(1);
+        if (!invite) {
+          failure = { status: 400, body: { error: "Invalid invite code", code: "invalid_invite_code" } };
+          return;
+        }
+        if (invite.expiresAt && invite.expiresAt.getTime() < Date.now()) {
+          failure = { status: 400, body: { error: "این کد معرف منقضی شده است.", code: "invite_code_expired" } };
+          return;
+        }
+        if (invite.maxUses != null && invite.usesCount >= invite.maxUses) {
+          failure = { status: 400, body: { error: "ظرفیتِ این کد معرف تمام شده است.", code: "invite_code_exhausted" } };
+          return;
+        }
+
+        await tx.update(schoolInviteCodesTable).set({ usesCount: invite.usesCount + 1 }).where(eq(schoolInviteCodesTable.id, invite.id));
+
+        // کدِ نقش‌دار همیشه نقش را دیکته می‌کند؛ کدِ عمومی نقشِ انتخابیِ خودِ فرم را می‌پذیرد.
+        const patch = buildPatch(invite.schoolId, invite.role ?? role);
+        saved = await saveMember(tx, patch);
+      });
+      if (failure) {
+        res.status(failure.status).json(failure.body);
+        return;
+      }
     } else {
-      [saved] = await db.insert(schoolMembersTable).values({
-        id: crypto.randomUUID(),
-        userId: req.userId,
-        ...patch,
-      }).returning();
+      const patch = buildPatch(undefined, role);
+      saved = await saveMember(db, patch);
     }
 
     res.status(existing ? 200 : 201).json(formatMember(saved));
@@ -158,6 +187,21 @@ router.post("/api/schools/onboarding", requireAuth, async (req: any, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+/**
+ * فازِ ۹ (بندِ ۲): آیا این کدِ معرف (که از قبل `active` بودنش چک شده) هنوز
+ * واقعاً قابلِ‌استفاده است؟ منقضی‌شده/تمام‌شده یعنی «نه»، حتی اگر active
+ * هنوز true باشد (مدیر مجبور نیست دستی خاموشش کند).
+ */
+function inviteCodeUsable(invite: typeof schoolInviteCodesTable.$inferSelect): { ok: true } | { ok: false; code: string; error: string } {
+  if (invite.expiresAt && invite.expiresAt.getTime() < Date.now()) {
+    return { ok: false, code: "invite_code_expired", error: "این کد معرف منقضی شده است." };
+  }
+  if (invite.maxUses != null && invite.usesCount >= invite.maxUses) {
+    return { ok: false, code: "invite_code_exhausted", error: "ظرفیتِ این کد معرف تمام شده است." };
+  }
+  return { ok: true };
+}
 
 // GET /api/schools/invite-codes/:code — پیداکردنِ مدرسه از رویِ کدِ معرف
 // (برای ویجتِ «پیدا کردن مدرسه» کنارِ سایدبار و داخلِ فرمِ اولیه).
@@ -173,6 +217,11 @@ router.get("/api/schools/invite-codes/:code", requireAuth, async (req: any, res)
       .limit(1);
     if (!invite) {
       res.status(404).json({ error: "Invite code not found" });
+      return;
+    }
+    const usable = inviteCodeUsable(invite);
+    if (!usable.ok) {
+      res.status(404).json({ error: usable.error, code: usable.code });
       return;
     }
     const [school] = await db.select().from(schoolsTable).where(eq(schoolsTable.id, invite.schoolId)).limit(1);
@@ -250,15 +299,49 @@ router.patch("/api/schools/:id", requireAuth, async (req: any, res) => {
   }
 });
 
+function formatInviteCode(invite: typeof schoolInviteCodesTable.$inferSelect) {
+  return {
+    id: invite.id,
+    schoolId: invite.schoolId,
+    code: invite.code,
+    role: invite.role,
+    active: invite.active,
+    /** فازِ ۹ (بندِ ۲) */
+    expiresAt: invite.expiresAt ? invite.expiresAt.toISOString() : null,
+    maxUses: invite.maxUses,
+    usesCount: invite.usesCount,
+    createdAt: invite.createdAt.toISOString(),
+  };
+}
+
 // POST /api/schools/:id/invite-codes — تولید کدِ معرفِ جدید؛ فقط مدیرِ همان مدرسه.
 router.post("/api/schools/:id/invite-codes", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolAdmin(req, res, req.params.id);
     if (!allowed) return;
-    const { role } = req.body ?? {};
+    const { role, expiresAt, maxUses } = req.body ?? {};
     if (role !== undefined && role !== null && !(SCHOOL_MEMBER_ROLES as readonly string[]).includes(role)) {
       res.status(400).json({ error: "Invalid role" });
       return;
+    }
+    // فازِ ۹ (بندِ ۲): هردو اختیاری — نبودشان یعنی دقیقاً رفتارِ قدیمی (بدونِ سقف/انقضا).
+    let parsedExpiresAt: Date | null = null;
+    if (expiresAt !== undefined && expiresAt !== null && expiresAt !== "") {
+      const d = new Date(expiresAt);
+      if (Number.isNaN(d.getTime())) {
+        res.status(400).json({ error: "Invalid expiresAt" });
+        return;
+      }
+      parsedExpiresAt = d;
+    }
+    let parsedMaxUses: number | null = null;
+    if (maxUses !== undefined && maxUses !== null && maxUses !== "") {
+      const n = Number(maxUses);
+      if (!Number.isInteger(n) || n <= 0) {
+        res.status(400).json({ error: "Invalid maxUses" });
+        return;
+      }
+      parsedMaxUses = n;
     }
     const code = crypto.randomBytes(4).toString("hex").toUpperCase();
     const [invite] = await db.insert(schoolInviteCodesTable).values({
@@ -267,15 +350,10 @@ router.post("/api/schools/:id/invite-codes", requireAuth, async (req: any, res) 
       code,
       role: role ?? null,
       createdByUserId: req.userId,
+      expiresAt: parsedExpiresAt,
+      maxUses: parsedMaxUses,
     }).returning();
-    res.status(201).json({
-      id: invite.id,
-      schoolId: invite.schoolId,
-      code: invite.code,
-      role: invite.role,
-      active: invite.active,
-      createdAt: invite.createdAt.toISOString(),
-    });
+    res.status(201).json(formatInviteCode(invite));
   } catch (err) {
     logger.error({ err }, "Create invite code error");
     res.status(500).json({ error: "Internal server error" });
@@ -288,14 +366,7 @@ router.get("/api/schools/:id/invite-codes", requireAuth, async (req: any, res) =
     const allowed = await requireSchoolAdmin(req, res, req.params.id);
     if (!allowed) return;
     const rows = await db.select().from(schoolInviteCodesTable).where(eq(schoolInviteCodesTable.schoolId, req.params.id));
-    res.json(rows.map((invite: typeof rows[number]) => ({
-      id: invite.id,
-      schoolId: invite.schoolId,
-      code: invite.code,
-      role: invite.role,
-      active: invite.active,
-      createdAt: invite.createdAt.toISOString(),
-    })));
+    res.json(rows.map((invite: typeof rows[number]) => formatInviteCode(invite)));
   } catch (err) {
     logger.error({ err }, "List invite codes error");
     res.status(500).json({ error: "Internal server error" });
@@ -319,14 +390,7 @@ router.patch("/api/schools/:id/invite-codes/:codeId", requireAuth, async (req: a
       res.status(404).json({ error: "Not found" });
       return;
     }
-    res.json({
-      id: updated.id,
-      schoolId: updated.schoolId,
-      code: updated.code,
-      role: updated.role,
-      active: updated.active,
-      createdAt: updated.createdAt.toISOString(),
-    });
+    res.json(formatInviteCode(updated));
   } catch (err) {
     logger.error({ err }, "Toggle invite code error");
     res.status(500).json({ error: "Internal server error" });

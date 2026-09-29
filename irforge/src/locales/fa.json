@@ -3545,6 +3545,9 @@
     "inviteCodeAnyRole": "همه‌ی نقش‌ها",
     "inviteCodeActive": "فعال",
     "inviteCodeInactive": "غیرفعال",
+    "fieldInviteCodeExpiresAt": "تاریخ انقضا (اختیاری)",
+    "fieldInviteCodeMaxUses": "سقف استفاده (اختیاری)",
+    "inviteCodeUsesOf": "{used} از {max} استفاده",
 
     "statClassesCount": "تعداد کلاس‌ها",
     "statMembersCount": "تعداد اعضا",

@@ -89,10 +89,10 @@ export function updateSchool(id: string, patch: Partial<{ name: string; address:
   });
 }
 
-export function createInviteCode(schoolId: string, role?: SchoolMemberRole | null) {
-  return customFetch<{ id: string; schoolId: string; code: string; role: string | null; active: boolean; createdAt: string }>(
+export function createInviteCode(schoolId: string, role?: SchoolMemberRole | null, options?: { expiresAt?: string | null; maxUses?: number | null }) {
+  return customFetch<InviteCode>(
     `/api/schools/${schoolId}/invite-codes`,
-    { method: "POST", body: JSON.stringify({ role: role ?? null }) },
+    { method: "POST", body: JSON.stringify({ role: role ?? null, expiresAt: options?.expiresAt ?? null, maxUses: options?.maxUses ?? null }) },
   );
 }
 
@@ -152,6 +152,10 @@ export interface InviteCode {
   code: string;
   role: SchoolMemberRole | null;
   active: boolean;
+  /** فازِ ۹ (بندِ ۲) */
+  expiresAt: string | null;
+  maxUses: number | null;
+  usesCount: number;
   createdAt: string;
 }
 

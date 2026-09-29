@@ -354,13 +354,21 @@ function InviteCodesCard({ schoolId }: { schoolId: string }) {
   const queryClient = useQueryClient();
   const { data: codes, isLoading } = useQuery({ queryKey: ["schools", "invite-codes", schoolId], queryFn: () => listInviteCodes(schoolId) });
   const [role, setRole] = useState<string>("none");
+  // فازِ ۹ (بندِ ۲): هردو اختیاری — متنِ خالی یعنی «بدونِ سقف/انقضا»، دقیقاً رفتارِ قبلی.
+  const [expiresAt, setExpiresAt] = useState("");
+  const [maxUses, setMaxUses] = useState("");
   const [creating, setCreating] = useState(false);
 
   async function handleGenerate() {
     setCreating(true);
     try {
-      await createInviteCode(schoolId, role === "none" ? null : (role as any));
+      await createInviteCode(schoolId, role === "none" ? null : (role as any), {
+        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+        maxUses: maxUses.trim() ? Number(maxUses.trim()) : null,
+      });
       await queryClient.invalidateQueries({ queryKey: ["schools", "invite-codes", schoolId] });
+      setExpiresAt("");
+      setMaxUses("");
       toast({ title: t.inviteCodeCreated });
     } catch (err: any) {
       toast({ variant: "destructive", title: t.schoolSaveError, description: err?.data?.error });
@@ -387,7 +395,7 @@ function InviteCodesCard({ schoolId }: { schoolId: string }) {
         <CardDescription>{t.inviteCodesDescription}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           <div className="flex flex-1 flex-col gap-1.5">
             <Label>{t.fieldRole}</Label>
             <Select value={role} onValueChange={setRole}>
@@ -397,6 +405,14 @@ function InviteCodesCard({ schoolId }: { schoolId: string }) {
                 {SCHOOL_MEMBER_ROLES.map((r) => <SelectItem key={r} value={r}>{t[`role_${r}`] ?? r}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-1 flex-col gap-1.5">
+            <Label>{t.fieldInviteCodeExpiresAt}</Label>
+            <Input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+          </div>
+          <div className="flex w-28 flex-col gap-1.5">
+            <Label>{t.fieldInviteCodeMaxUses}</Label>
+            <Input type="number" min={1} value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="∞" />
           </div>
           <Button onClick={handleGenerate} disabled={creating}>
             {creating ? <Loader2 className="me-2 size-4 animate-spin" /> : <Plus className="me-2 size-4" />}
@@ -411,10 +427,16 @@ function InviteCodesCard({ schoolId }: { schoolId: string }) {
         ) : (
           <div className="flex flex-col gap-2">
             {codes.map((c) => (
-              <div key={c.id} className="flex items-center justify-between rounded-md border p-2">
-                <div className="flex items-center gap-2">
+              <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <code className="rounded bg-muted px-2 py-1 text-sm" dir="ltr">{c.code}</code>
                   <Badge variant="outline">{c.role ? (t[`role_${c.role}`] ?? c.role) : t.inviteCodeAnyRole}</Badge>
+                  {c.expiresAt && (
+                    <span className="text-xs text-muted-foreground" dir="ltr">{t.fieldInviteCodeExpiresAt}: {new Date(c.expiresAt).toLocaleDateString()}</span>
+                  )}
+                  {c.maxUses != null && (
+                    <span className="text-xs text-muted-foreground">{t.inviteCodeUsesOf.replace("{used}", String(c.usesCount)).replace("{max}", String(c.maxUses))}</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">{c.active ? t.inviteCodeActive : t.inviteCodeInactive}</span>
