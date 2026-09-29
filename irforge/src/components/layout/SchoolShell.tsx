@@ -9,7 +9,7 @@ import ErrorBoundary from "@/components/error-boundary";
 import { Spinner } from "@/components/ui/spinner";
 import { getSchoolMe } from "@/lib/schools-api";
 import { Redirect } from "wouter";
-import { ViewedSchoolProvider } from "@/hooks/use-viewed-school";
+import { ViewedSchoolProvider, useViewedSchoolId } from "@/hooks/use-viewed-school";
 
 /**
  * SchoolShell.tsx — معادلِ DashboardShell برایِ بخشِ "/schools"، اما با
@@ -22,6 +22,21 @@ import { ViewedSchoolProvider } from "@/hooks/use-viewed-school";
  * دلیل (مثلاً بازکردنِ مستقیمِ لینکِ یک زیرصفحه) کامل نبود، دوباره کاربر را
  * به /schools برمی‌گرداند تا آنجا آنبوردینگ انجام شود.
  */
+/**
+ * فازِ ۹ (بندِ ۴، از گزارشِ فازِ ۷): BotConnectWidget قبلاً فقط مدرسه‌ی اصلیِ
+ * عضویتِ کاربر (`me.school.id`) را می‌دید — مدیرِ چندمدرسه‌ای که از سوییچرِ
+ * «مدرسه‌های من» یک مدرسه‌ی دیگر را نگاه می‌کرد، ویجتِ اتصال را برایِ همان
+ * مدرسه‌ی *دیده‌شده* نمی‌دید. useViewedSchoolId باید داخلِ خودِ
+ * ViewedSchoolProvider فراخوانی شود (زیرمجموعه‌ی آن در درختِ رندر)، پس یک
+ * کامپوننتِ کوچکِ جدا لازم است — خودِ SchoolShell که Provider را می‌سازد
+ * نمی‌تواند مستقیماً useViewedSchoolId را صدا بزند.
+ */
+function ScopedBotConnectWidget({ fallbackSchoolId }: { fallbackSchoolId?: string | null }) {
+  const schoolId = useViewedSchoolId(fallbackSchoolId);
+  if (!schoolId) return null;
+  return <BotConnectWidget schoolId={schoolId} />;
+}
+
 export default function SchoolShell({ children }: { children: ReactNode }) {
   const { data: me, isLoading } = useQuery({
     queryKey: ["schools", "me"],
@@ -57,7 +72,7 @@ export default function SchoolShell({ children }: { children: ReactNode }) {
               {/* ویجتِ مستقلِ «پیدا کردن/پیوستن به مدرسه» کنارِ سایدبار — روی
                   موبایل زیرِ محتوا می‌افتد، روی دسکتاپ یک ستونِ کناری باریک. */}
               <div className="flex w-full shrink-0 flex-col gap-4 lg:w-72">
-                {me.school?.id && <BotConnectWidget schoolId={me.school.id} />}
+                <ScopedBotConnectWidget fallbackSchoolId={me.school?.id} />
                 <InviteCodeWidget compact />
               </div>
             </div>

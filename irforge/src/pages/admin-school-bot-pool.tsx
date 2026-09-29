@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Bot, Plus, CheckCircle2, Trash2, Loader2 } from "lucide-react";
+import { Bot, Plus, CheckCircle2, Trash2, Loader2, Unlock, Repeat } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RefreshButton } from "@/components/ui/refresh-button";
@@ -9,7 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
-import { listSchoolBotPool, addSchoolBotPoolToken, deleteSchoolBotPoolToken, type SchoolBotPoolEntry } from "@/lib/schools-api";
+import {
+  listSchoolBotPool, addSchoolBotPoolToken, deleteSchoolBotPoolToken,
+  releaseSchoolBotPoolToken, replaceSchoolBotPoolToken, type SchoolBotPoolEntry,
+} from "@/lib/schools-api";
 
 /**
  * pages/admin-school-bot-pool.tsx — بخش "/schools" فاز ۷ (بخش A): پنلِ
@@ -26,6 +29,10 @@ export default function AdminSchoolBotPool() {
   const [adding, setAdding] = useState(false);
   const [busyRow, setBusyRow] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  // فازِ ۹ (بندِ ۴): جایگزینی یک توکنِ تازه از کاربر می‌گیرد — فرمِ کوچکِ
+  // اینلاین به‌جایِ modal، همان سبکِ سادگیِ بقیه‌ی این صفحه.
+  const [replacingId, setReplacingId] = useState<string | null>(null);
+  const [replaceToken, setReplaceToken] = useState("");
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["admin", "school-bot-pool"],
@@ -74,6 +81,41 @@ export default function AdminSchoolBotPool() {
     } finally {
       setBusyRow(null);
       setConfirmDeleteId(null);
+    }
+  }
+
+  async function releaseEntry(entry: SchoolBotPoolEntry) {
+    setBusyRow(entry.id);
+    try {
+      const result = await releaseSchoolBotPoolToken(entry.id);
+      toast({
+        title: fa ? "توکن آزاد شد" : "Token released",
+        description: result.releasedSchoolBotId
+          ? (fa ? "باتِ مدرسه‌ی متصل هم جدا شد؛ مدرسه باید دوباره بات بخرد." : "The connected school's bot was detached; it must purchase a new one.")
+          : undefined,
+      });
+      await refetch();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: e?.data?.error ?? e?.message });
+    } finally {
+      setBusyRow(null);
+    }
+  }
+
+  async function replaceEntry(entry: SchoolBotPoolEntry) {
+    const token = replaceToken.trim();
+    if (!token) return;
+    setBusyRow(entry.id);
+    try {
+      await replaceSchoolBotPoolToken(entry.id, token);
+      toast({ title: fa ? "توکن جایگزین شد" : "Token replaced" });
+      setReplacingId(null);
+      setReplaceToken("");
+      await refetch();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: e?.data?.error ?? e?.message });
+    } finally {
+      setBusyRow(null);
     }
   }
 
@@ -151,36 +193,79 @@ export default function AdminSchoolBotPool() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: i * 0.03 }}
-              className="flex items-center gap-3 border-b p-3 last:border-b-0 hover:bg-muted/30"
+              className="flex flex-col gap-2 border-b p-3 last:border-b-0 hover:bg-muted/30"
             >
-              <div className="min-w-0 flex-1">
-                <span className="block truncate font-mono text-xs text-muted-foreground" dir="ltr">
-                  …{s.fingerprint ?? "?"}
-                </span>
-                {s.status === "assigned" && s.assignedSchoolName && (
-                  <span className="mt-0.5 block truncate text-xs font-medium text-foreground">{s.assignedSchoolName}</span>
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate font-mono text-xs text-muted-foreground" dir="ltr">
+                    …{s.fingerprint ?? "?"}
+                  </span>
+                  {s.status === "assigned" && s.assignedSchoolName && (
+                    <span className="mt-0.5 block truncate text-xs font-medium text-foreground">{s.assignedSchoolName}</span>
+                  )}
+                </div>
+                {s.status === "available" ? (
+                  <Badge className="shrink-0 gap-1 bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-400">
+                    <CheckCircle2 className="size-3" />
+                    {fa ? "آزاد" : "Available"}
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="shrink-0">{fa ? "اختصاص‌یافته" : "Assigned"}</Badge>
+                )}
+                {/* فازِ ۹ (بندِ ۴): جایگزینی — توکنِ خراب را بدونِ از دست‌دادنِ
+                    هویتِ باتِ مدرسه (اگر assigned باشد) عوض می‌کند. */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="shrink-0 size-8 text-muted-foreground hover:text-foreground"
+                  aria-label={fa ? "جایگزینیِ توکن" : "Replace token"}
+                  disabled={busyRow === s.id}
+                  onClick={() => { setReplacingId(replacingId === s.id ? null : s.id); setReplaceToken(""); }}
+                >
+                  <Repeat className="size-4" />
+                </Button>
+                {/* فازِ ۹ (بندِ ۴): آزادسازی — برایِ توکنِ گیرکرده/نامعتبر که استخر
+                    "assigned" نشانش می‌دهد ولی عملاً قابلِ‌استفاده نیست. */}
+                {s.status === "assigned" && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="shrink-0 size-8 text-muted-foreground hover:text-amber-600"
+                    aria-label={fa ? "آزادسازیِ توکن" : "Release token"}
+                    disabled={busyRow === s.id}
+                    onClick={() => releaseEntry(s)}
+                  >
+                    {busyRow === s.id ? <Loader2 className="size-4 animate-spin" /> : <Unlock className="size-4" />}
+                  </Button>
+                )}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="shrink-0 size-8 text-muted-foreground hover:text-destructive"
+                  aria-label={fa ? "حذف توکن" : "Delete token"}
+                  disabled={busyRow === s.id}
+                  onClick={() => removeEntry(s)}
+                >
+                  {busyRow === s.id ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                </Button>
+                {confirmDeleteId === s.id && (
+                  <span className="shrink-0 text-xs text-destructive">{fa ? "دوباره بزن برای حذف قطعی" : "Click again to confirm"}</span>
                 )}
               </div>
-              {s.status === "available" ? (
-                <Badge className="shrink-0 gap-1 bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-400">
-                  <CheckCircle2 className="size-3" />
-                  {fa ? "آزاد" : "Available"}
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="shrink-0">{fa ? "اختصاص‌یافته" : "Assigned"}</Badge>
-              )}
-              <Button
-                size="icon"
-                variant="ghost"
-                className="shrink-0 size-8 text-muted-foreground hover:text-destructive"
-                aria-label={fa ? "حذف توکن" : "Delete token"}
-                disabled={busyRow === s.id}
-                onClick={() => removeEntry(s)}
-              >
-                {busyRow === s.id ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
-              </Button>
-              {confirmDeleteId === s.id && (
-                <span className="shrink-0 text-xs text-destructive">{fa ? "دوباره بزن برای حذف قطعی" : "Click again to confirm"}</span>
+              {replacingId === s.id && (
+                <div className="flex gap-2">
+                  <Input
+                    value={replaceToken}
+                    onChange={(e) => setReplaceToken(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && replaceEntry(s)}
+                    placeholder={fa ? "توکنِ تازه (از BotFather)" : "New token (from BotFather)"}
+                    className="flex-1 font-mono text-sm"
+                    dir="ltr"
+                  />
+                  <Button size="sm" onClick={() => replaceEntry(s)} disabled={busyRow === s.id || !replaceToken.trim()}>
+                    {busyRow === s.id ? <Loader2 className="size-4 animate-spin" /> : (fa ? "جایگزینی" : "Replace")}
+                  </Button>
+                </div>
               )}
             </motion.div>
           ))}

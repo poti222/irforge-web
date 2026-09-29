@@ -904,3 +904,16 @@ export function addSchoolBotPoolToken(botToken: string) {
 export function deleteSchoolBotPoolToken(id: string) {
   return customFetch<void>(`/api/school-bot-pool/${id}`, { method: "DELETE" });
 }
+
+/** فازِ ۹ (بندِ ۴): آزادسازیِ دستیِ یک توکنِ گیرکرده/نامعتبر. */
+export function releaseSchoolBotPoolToken(id: string) {
+  return customFetch<SchoolBotPoolEntry & { releasedSchoolBotId: string | null }>(`/api/school-bot-pool/${id}/release`, { method: "POST" });
+}
+
+/** فازِ ۹ (بندِ ۴): جایگزینیِ توکنِ یک ردیف با توکنِ تازه، بدونِ از دست‌دادنِ هویتِ باتِ مدرسه. */
+export function replaceSchoolBotPoolToken(id: string, botToken: string) {
+  return customFetch<SchoolBotPoolEntry>(`/api/school-bot-pool/${id}/replace`, {
+    method: "POST",
+    body: JSON.stringify({ botToken }),
+  });
+}
