@@ -3682,6 +3682,7 @@
     "attendanceStatus_absent": "Absent",
     "attendanceStatus_late": "Late",
     "attendanceStatus_excused": "Excused",
+    "fieldAttendanceNotePlaceholder": "Note / reason (optional)",
     "attendanceSaved": "Attendance saved",
     "attendanceSaveError": "Failed to save attendance",
     "attendanceEmpty": "No attendance records yet.",

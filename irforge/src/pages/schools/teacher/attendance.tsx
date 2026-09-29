@@ -43,6 +43,11 @@ export default function TeacherAttendancePage() {
   const [date, setDate] = useState<string>(todayIso());
   const [saving, setSaving] = useState(false);
   const [statuses, setStatuses] = useState<Record<string, AttendanceStatus>>({});
+  // فازِ ۸: یادداشت/دلیلِ دستی‌ِ معلم به‌ازایِ هر دانش‌آموز — تا زمانی‌که معلم
+  // چیزی تایپ نکرده، مقدارِ پیش‌فرض از رکوردِ همین روز (اگر قبلاً ثبت شده)
+  // خوانده می‌شود (statusFor هم دقیقاً همین الگو را برایِ وضعیت دارد)، تا
+  // ویرایشِ یک روزِ قبلاً ثبت‌شده با یادداشتِ خالی باز نشود.
+  const [notes, setNotes] = useState<Record<string, string>>({});
 
   const { data: roster } = useQuery({
     queryKey: ["schools", "class-members", selectedClassId],
@@ -64,6 +69,12 @@ export default function TeacherAttendancePage() {
     return row?.status ?? "present";
   }
 
+  function noteFor(studentMemberId: string): string {
+    if (studentMemberId in notes) return notes[studentMemberId];
+    const row = (existing ?? []).find((e) => e.studentMemberId === studentMemberId);
+    return row?.note ?? "";
+  }
+
   async function handleSave() {
     if (!schoolId || !selectedClassId || students.length === 0) return;
     setSaving(true);
@@ -71,10 +82,15 @@ export default function TeacherAttendancePage() {
       await markAttendance(schoolId, {
         classId: selectedClassId,
         date,
-        entries: students.map((s) => ({ studentMemberId: s.schoolMemberId, status: statusFor(s.schoolMemberId) })),
+        entries: students.map((s) => ({
+          studentMemberId: s.schoolMemberId,
+          status: statusFor(s.schoolMemberId),
+          note: noteFor(s.schoolMemberId).trim() || null,
+        })),
       });
       await queryClient.invalidateQueries({ queryKey: ["schools", "attendance", selectedClassId, date] });
       setStatuses({});
+      setNotes({});
       toast({ title: t.attendanceSaved });
     } catch (err: any) {
       toast({ variant: "destructive", title: t.attendanceSaveError, description: err?.data?.error });
@@ -126,15 +142,21 @@ export default function TeacherAttendancePage() {
                     const status = statusFor(s.schoolMemberId);
                     return (
                       <div key={s.id} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between">
-                        <span className="text-sm font-medium">{person?.userName ?? person?.userEmail ?? s.schoolMemberId}</span>
+                        <span className="text-sm font-medium sm:w-40 sm:shrink-0">{person?.userName ?? person?.userEmail ?? s.schoolMemberId}</span>
                         <Select value={status} onValueChange={(v) => setStatuses((st) => ({ ...st, [s.schoolMemberId]: v as AttendanceStatus }))}>
-                          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="w-40 shrink-0"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {ATTENDANCE_STATUSES.map((st) => (
                               <SelectItem key={st} value={st}>{t[`attendanceStatus_${st}`]}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        <Input
+                          value={noteFor(s.schoolMemberId)}
+                          onChange={(e) => setNotes((n) => ({ ...n, [s.schoolMemberId]: e.target.value }))}
+                          placeholder={t.fieldAttendanceNotePlaceholder}
+                          className="sm:flex-1"
+                        />
                       </div>
                     );
                   })

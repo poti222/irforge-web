@@ -72,18 +72,33 @@ router.post("/api/schools/:schoolId/attendance", requireAuth, async (req: any, r
       res.status(403).json({ error: "Forbidden" });
       return;
     }
+    const isAbsentLike = (s: string) => s === "absent" || s === "late";
+
+    // فازِ ۸: بجایِ اعتماد به وضعیتِ تازه‌ی هر ردیف، وضعیت/یادداشتِ قبلی را هم
+    // نگه می‌داریم تا سه حالت را از هم تشخیص دهیم — نشانه‌گذاریِ اولیه‌ی غیبت،
+    // بازگشتِ دانش‌آموز (غیبت→حاضر)، یا صرفاً افزودن/ویرایشِ دلیل روی همان
+    // غیبتِ قبلاً اطلاع‌رسانی‌شده. اگر فقط به payloadِ ورودی تکیه کنیم (بدونِ
+    // خواندنِ ردیفِ موجود) نمی‌توانیم این‌ها را از هم تشخیص دهیم و یا اعلانِ
+    // غیبت را برایِ هر ویرایش دوباره می‌فرستیم (اسپم) یا اصلاً اعلانِ بازگشت
+    // را نمی‌فرستیم.
     const results: (typeof schoolAttendanceTable.$inferSelect)[] = [];
+    const newAbsences: (typeof schoolAttendanceTable.$inferSelect)[] = [];
+    const arrivals: (typeof schoolAttendanceTable.$inferSelect)[] = [];
+    const reasonAdded: (typeof schoolAttendanceTable.$inferSelect)[] = [];
     for (const entry of entries) {
       const studentMemberId = entry?.studentMemberId;
       const status = ["present", "absent", "late", "excused"].includes(entry?.status) ? entry.status : "present";
+      const newNote = entry?.note ?? null;
       if (!studentMemberId) continue;
       const [existing] = await db.select().from(schoolAttendanceTable)
         .where(and(eq(schoolAttendanceTable.classId, classId), eq(schoolAttendanceTable.studentMemberId, studentMemberId), eq(schoolAttendanceTable.date, date)))
         .limit(1);
+      const oldStatus = existing?.status ?? null;
+      const oldNote = existing?.note ?? null;
       let row;
       if (existing) {
         [row] = await db.update(schoolAttendanceTable)
-          .set({ status, note: entry?.note ?? null, markedByUserId: req.userId })
+          .set({ status, note: newNote, markedByUserId: req.userId })
           .where(eq(schoolAttendanceTable.id, existing.id))
           .returning();
       } else {
@@ -93,20 +108,35 @@ router.post("/api/schools/:schoolId/attendance", requireAuth, async (req: any, r
           studentMemberId,
           date,
           status,
-          note: entry?.note ?? null,
+          note: newNote,
           markedByUserId: req.userId,
         }).returning();
       }
       results.push(row);
+
+      const wasAbsentLike = oldStatus !== null && isAbsentLike(oldStatus);
+      const nowAbsentLike = isAbsentLike(status);
+      if (!wasAbsentLike && nowAbsentLike) {
+        // ردیفِ تازه یا ردیفی که تازه از «حاضر» به «غایب/دیر» تغییر کرده — اولین بارِ گزارشِ این غیبت.
+        newAbsences.push(row);
+      } else if (wasAbsentLike && !nowAbsentLike) {
+        // از غایب/دیر به حاضر — «فرزندتان امروز حاضر شد» (اعلانِ اطمینان‌بخشِ جبرانی).
+        arrivals.push(row);
+      } else if (wasAbsentLike && nowAbsentLike && oldNote !== newNote && newNote) {
+        // همچنان غایب/دیر مانده، فقط دلیل/یادداشت اضافه یا عوض شده — نه دوباره اعلانِ «غایب بود»
+        // (که برایِ والد تکراری و آزاردهنده است)، بلکه فقط اعلانِ کوچکِ «دلیل ثبت شد».
+        reasonAdded.push(row);
+      }
+      // بقیه‌ی حالت‌ها (حاضر مانده، یا حاضر مانده با تغییرِ یادداشت) عمداً اعلانی ندارند.
     }
 
-    // فازِ ۷ (بخشِ C): «فرزندتان امروز غایب بود» — فقط برایِ غایب/دیرآمده،
-    // فقط به والدینِ همان دانش‌آموز (school_guardianships). عمداً «فرزندتان»
-    // خنثی است نه پسر/دختر: این سیستم جنسیتِ دانش‌آموز را برای هر خانواده‌ای
-    // مطمئن نمی‌داند، پس حدسِ اشتباه بهتر است اصلاً زده نشود.
-    const toNotify = results.filter((r) => r.status === "absent" || r.status === "late");
-    if (toNotify.length > 0) {
-      const studentIds = [...new Set(toNotify.map((r) => r.studentMemberId))];
+    // فازِ ۷ (بخشِ C) + فازِ ۸: اعلان‌هایِ غیبت/بازگشت/دلیل — فقط به والدینِ همان
+    // دانش‌آموز (school_guardianships). عمداً «فرزندتان» خنثی است نه پسر/دختر:
+    // این سیستم جنسیتِ دانش‌آموز را برای هر خانواده‌ای مطمئن نمی‌داند، پس حدسِ
+    // اشتباه بهتر است اصلاً زده نشود.
+    const notifyRows = [...newAbsences, ...arrivals, ...reasonAdded];
+    if (notifyRows.length > 0) {
+      const studentIds = [...new Set(notifyRows.map((r) => r.studentMemberId))];
       const [students, links] = await Promise.all([
         db.select().from(schoolMembersTable).where(inArray(schoolMembersTable.id, studentIds)),
         db.select().from(schoolGuardianshipsTable).where(inArray(schoolGuardianshipsTable.studentMemberId, studentIds)),
@@ -123,17 +153,47 @@ router.post("/api/schools/:schoolId/attendance", requireAuth, async (req: any, r
         arr.push(l.parentUserId);
         guardiansByStudent.set(l.studentMemberId, arr);
       }
-      for (const row of toNotify) {
+
+      for (const row of newAbsences) {
         const parentIds = guardiansByStudent.get(row.studentMemberId);
         if (!parentIds || parentIds.length === 0) continue;
         const statusFa = row.status === "absent" ? "غایب" : "دیر حاضر";
+        const name = nameByMemberId.get(row.studentMemberId);
         await notifySchoolUsers({
           userIds: parentIds,
           schoolId: req.params.schoolId,
           kind: "school_attendance_absent",
           severity: row.status === "absent" ? "warning" : "info",
           title: `${statusFa}یِ امروزِ فرزندتان`,
-          body: `فرزندتان (${nameByMemberId.get(row.studentMemberId)}) امروز (${row.date}) ${statusFa} بود.`,
+          body: `فرزندتان (${name}) امروز (${row.date}) ${statusFa} بود.` + (row.note ? ` دلیل: ${row.note}` : ""),
+        });
+      }
+
+      for (const row of arrivals) {
+        const parentIds = guardiansByStudent.get(row.studentMemberId);
+        if (!parentIds || parentIds.length === 0) continue;
+        const name = nameByMemberId.get(row.studentMemberId);
+        await notifySchoolUsers({
+          userIds: parentIds,
+          schoolId: req.params.schoolId,
+          kind: "school_attendance_arrived",
+          severity: "info",
+          title: `حضورِ فرزندتان در مدرسه`,
+          body: `فرزندتان (${name}) امروز (${row.date}) در مدرسه حاضر شد.` + (row.note ? ` دلیل: ${row.note}` : ""),
+        });
+      }
+
+      for (const row of reasonAdded) {
+        const parentIds = guardiansByStudent.get(row.studentMemberId);
+        if (!parentIds || parentIds.length === 0) continue;
+        const name = nameByMemberId.get(row.studentMemberId);
+        await notifySchoolUsers({
+          userIds: parentIds,
+          schoolId: req.params.schoolId,
+          kind: "school_attendance_reason_added",
+          severity: "info",
+          title: `دلیلِ غیبتِ فرزندتان ثبت شد`,
+          body: `دلیلِ غیبتِ امروزِ فرزندتان (${name}) ثبت شد: ${row.note}`,
         });
       }
     }

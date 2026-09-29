@@ -3682,6 +3682,7 @@
     "attendanceStatus_absent": "غایب",
     "attendanceStatus_late": "تأخیر",
     "attendanceStatus_excused": "موجه",
+    "fieldAttendanceNotePlaceholder": "یادداشت/دلیل (اختیاری)",
     "attendanceSaved": "حضور و غیاب ذخیره شد",
     "attendanceSaveError": "ثبتِ حضور و غیاب ناموفق بود",
     "attendanceEmpty": "هنوز حضور و غیابی ثبت نشده است.",
