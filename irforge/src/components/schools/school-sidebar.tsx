@@ -35,6 +35,7 @@ import {
   BarChart3,
   MessagesSquare,
   Eye,
+  Inbox,
 } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
@@ -52,16 +53,19 @@ type NavItem = { key: string; href: string; icon: any; label: string };
 function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavItem[] {
   switch (role) {
     case "admin":
+      // فاز ۵ (بندِ ۱): «پیام‌ها» (صندوقِ ارتباط با مدیر) اضافه شد — جدا از
+      // «اعلامیه/بستنِ مدرسه» (که یک‌طرفه و همگانی‌اند، نه گفتگو).
       return [
         { key: "my-schools", href: "/schools/admin", icon: SchoolIcon, label: t.navMySchools },
         { key: "members", href: "/schools/admin/members", icon: Users, label: t.navMemberManagement },
         { key: "classes", href: "/schools/admin/classes", icon: LayoutGrid, label: t.navClassManagement },
         { key: "programs", href: "/schools/admin/programs", icon: CalendarClock, label: t.navProgramManagement },
+        { key: "messages", href: "/schools/admin/messages", icon: Inbox, label: t.navMessages },
         { key: "broadcast", href: "/schools/announcements", icon: Megaphone, label: t.navBroadcast },
         { key: "closure", href: "/schools/announcements", icon: BellRing, label: t.navClosureAnnouncement },
       ];
     case "student":
-      // فاز ۴ (بندِ ۱): «ارتباط با مشاور» دیگر استاب نیست.
+      // فاز ۵ (بندِ ۱): «ارتباط با مدیر»/«ارتباط با معلم» دیگر استاب نیستند.
       return [
         { key: "dictionary", href: "/schools/content/dictionary", icon: BookOpenText, label: t.navDictionary },
         { key: "notes", href: "/schools/content/note", icon: NotebookPen, label: t.navNotes },
@@ -70,16 +74,17 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
         { key: "announcements", href: "/schools/announcements", icon: Megaphone, label: t.navAnnouncements },
         { key: "exams", href: "/schools/student/exams", icon: FileQuestion, label: t.navExams },
         { key: "contact-counselor", href: "/schools/student/counselor", icon: MessageCircleQuestion, label: t.navContactCounselor },
-        { key: "contact-admin", href: "/schools/stub/contact-admin", icon: ShieldCheck, label: t.navContactAdmin },
-        { key: "contact-teacher", href: "/schools/stub/contact-teacher", icon: GraduationCap, label: t.navContactTeacher },
+        { key: "contact-admin", href: "/schools/student/admin-chat", icon: ShieldCheck, label: t.navContactAdmin },
+        { key: "contact-teacher", href: "/schools/student/teacher-chat", icon: GraduationCap, label: t.navContactTeacher },
       ];
     case "teacher":
-      // فاز ۴ (بندِ ۲): «بانکِ سؤال» و «آزمون‌ها» دیگر استاب نیستند.
+      // فاز ۵ (بندِ ۱): «پیام‌ها» (صندوقِ ارتباط با معلم) اضافه شد.
       return [
         { key: "classrooms", href: "/schools/teacher/classes", icon: Presentation, label: t.navClassrooms },
         { key: "assignments", href: "/schools/teacher/assignments", icon: ClipboardList, label: t.navAssignments },
         { key: "exams", href: "/schools/teacher/exams", icon: FileQuestion, label: t.navExams },
         { key: "question-bank", href: "/schools/teacher/questions", icon: Library, label: t.navQuestionBank },
+        { key: "messages", href: "/schools/teacher/messages", icon: Inbox, label: t.navMessages },
         { key: "today", href: "/schools/teacher/today", icon: CalendarDays, label: t.navToday },
       ];
     case "counselor":
@@ -102,10 +107,12 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
         { key: "closure", href: "/schools/announcements", icon: BellRing, label: t.navClosureAnnouncement },
       ];
     case "parent":
+      // فاز ۵ (بندِ ۲): «گزارش‌ها»/«چت» دیگر استاب نیستند — هر دو به یک
+      // صفحه‌ی ترکیبی می‌روند (parent/reports.tsx)، ببینید توضیحِ آن فایل.
       return [
         { key: "children", href: "/schools/parent/children", icon: Eye, label: t.navChildrenOverview },
-        { key: "reports", href: "/schools/stub/reports", icon: BarChart3, label: t.navReports },
-        { key: "chat", href: "/schools/stub/chat", icon: MessagesSquare, label: t.navChat },
+        { key: "reports", href: "/schools/parent/reports", icon: BarChart3, label: t.navReports },
+        { key: "chat", href: "/schools/parent/reports", icon: MessagesSquare, label: t.navChat },
       ];
     default:
       return [];

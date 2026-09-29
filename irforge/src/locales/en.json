@@ -3653,6 +3653,20 @@
     "startExamButton": "Start exam",
     "submitExamButton": "Submit answers",
     "examSubmitted": "Answers submitted",
-    "examAlreadySubmitted": "You have already taken this exam."
+    "examAlreadySubmitted": "You have already taken this exam.",
+
+    "navMessages": "Messages",
+    "studentAdminChatDescription": "Message the school's admins — all admins of the school can see this thread and reply.",
+    "studentTeacherChatDescription": "Pick one of your class teachers to chat with.",
+    "noTeacherYet": "You are not enrolled in any class with a teacher yet.",
+    "selectTeacherHint": "Select a teacher from the list.",
+    "adminMessagesDescription": "Threads from students who have messaged the school's admins.",
+    "teacherMessagesDescription": "Threads from students who have messaged you.",
+    "messagesInboxEmpty": "No messages yet.",
+    "parentReportsDescription": "Counselor reports about your child, and the admin-contact conversation for your child's school.",
+    "parentReportsEmpty": "No reports for this child yet.",
+    "resetAttemptButton": "Reset attempt",
+    "resetAttemptConfirm": "Delete this student's attempt so they can start the exam again?",
+    "attemptReset": "Attempt reset"
   }
 }

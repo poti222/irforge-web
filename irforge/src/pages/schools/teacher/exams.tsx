@@ -6,13 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FileQuestion, Plus } from "lucide-react";
+import { Loader2, FileQuestion, Plus, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
 import {
   getSchoolMe, listSchoolClasses, listSchoolQuestions, listSchoolExams, createSchoolExam,
-  listExamAttempts, gradeExamAttempt, listSchoolMembers,
+  listExamAttempts, gradeExamAttempt, resetExamAttempt, listSchoolMembers,
 } from "@/lib/schools-api";
 
 /**
@@ -201,6 +201,20 @@ function ExamAttemptsPanel({ schoolId, examId }: { schoolId: string; examId: str
     }
   }
 
+  // فازِ ۵ (بندِ ۳): «بازنشانیِ تلاش» — حذفِ ردیفِ تلاشِ فعلی تا دانش‌آموز
+  // بتواند دوباره آزمون را شروع کند (ایندکسِ یکتا اجازه‌ی تلاشِ دومِ همزمان
+  // را نمی‌دهد، پس اول باید ردیفِ قبلی برود).
+  async function handleReset(attemptId: string) {
+    if (!confirm(t.resetAttemptConfirm)) return;
+    try {
+      await resetExamAttempt(schoolId, examId, attemptId);
+      await queryClient.invalidateQueries({ queryKey: ["schools", "exam-attempts", examId] });
+      toast({ title: t.attemptReset });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: t.examSaveError, description: err?.data?.error });
+    }
+  }
+
   if (isLoading) return <Loader2 className="size-4 animate-spin" />;
 
   return (
@@ -227,6 +241,9 @@ function ExamAttemptsPanel({ schoolId, examId }: { schoolId: string; examId: str
                   onChange={(e) => setScores((s) => ({ ...s, [a.id]: e.target.value }))}
                 />
                 <Button size="sm" variant="outline" onClick={() => handleGrade(a.id)}>{t.saveButton}</Button>
+                <Button size="sm" variant="ghost" onClick={() => handleReset(a.id)} title={t.resetAttemptButton}>
+                  <RotateCcw className="me-1 size-3.5" /> {t.resetAttemptButton}
+                </Button>
               </div>
             </div>
           );

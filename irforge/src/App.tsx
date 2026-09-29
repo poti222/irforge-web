@@ -97,6 +97,12 @@ const StudentCounselorPage = lazy(() => import("@/pages/schools/student/counselo
 const TeacherQuestionsPage = lazy(() => import("@/pages/schools/teacher/questions"));
 const TeacherExamsPage = lazy(() => import("@/pages/schools/teacher/exams"));
 const StudentExamsPage = lazy(() => import("@/pages/schools/student/exams"));
+// بخش "/schools" فاز ۵ — ارتباط با مدیر/معلم، فازِ عمقِ والد
+const AdminMessagesPage = lazy(() => import("@/pages/schools/admin/messages"));
+const TeacherMessagesPage = lazy(() => import("@/pages/schools/teacher/messages"));
+const StudentAdminChatPage = lazy(() => import("@/pages/schools/student/admin-chat"));
+const StudentTeacherChatPage = lazy(() => import("@/pages/schools/student/teacher-chat"));
+const ParentReportsPage = lazy(() => import("@/pages/schools/parent/reports"));
 
 const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
 const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
@@ -385,6 +391,12 @@ function Router() {
       <Route path="/schools/teacher/questions"><SchoolProtectedRoute component={TeacherQuestionsPage} /></Route>
       <Route path="/schools/teacher/exams"><SchoolProtectedRoute component={TeacherExamsPage} /></Route>
       <Route path="/schools/student/exams"><SchoolProtectedRoute component={StudentExamsPage} /></Route>
+      {/* بخش "/schools" فاز ۵ — ارتباط با مدیر/معلم، عمقِ والد (گزارش‌ها) */}
+      <Route path="/schools/admin/messages"><SchoolProtectedRoute component={AdminMessagesPage} /></Route>
+      <Route path="/schools/teacher/messages"><SchoolProtectedRoute component={TeacherMessagesPage} /></Route>
+      <Route path="/schools/student/admin-chat"><SchoolProtectedRoute component={StudentAdminChatPage} /></Route>
+      <Route path="/schools/student/teacher-chat"><SchoolProtectedRoute component={StudentTeacherChatPage} /></Route>
+      <Route path="/schools/parent/reports"><SchoolProtectedRoute component={ParentReportsPage} /></Route>
       <Route path="/schools/stub/:key"><SchoolProtectedRoute component={SchoolsStub} /></Route>
 
       <Route path="/admin"><ProtectedRoute component={Admin} adminOnly /></Route>

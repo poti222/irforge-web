@@ -580,6 +580,93 @@ export function gradeExamAttempt(schoolId: string, examId: string, attemptId: st
   });
 }
 
+/** فازِ ۵ (بندِ ۳): بازنشانیِ تلاشِ دانش‌آموز تا دوباره بتواند آزمون را شروع کند. */
+export function resetExamAttempt(schoolId: string, examId: string, attemptId: string) {
+  return customFetch<void>(`/api/schools/${schoolId}/exams/${examId}/attempts/${attemptId}`, { method: "DELETE" });
+}
+
+/**
+ * ─── فاز ۵ ──────────────────────────────────────────────────────────────
+ * ارتباط با مدیر (رشته‌ی مشترک به‌ازایِ هر دانش‌آموز) + ارتباط با معلم (۱:۱،
+ * فقط معلم‌هایِ واقعیِ کلاس‌هایِ دانش‌آموز).
+ */
+
+export interface AdminMessage {
+  id: string;
+  schoolId: string;
+  studentMemberId: string;
+  senderUserId: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface AdminMessageThread {
+  studentMemberId: string;
+  studentUserName: string | null;
+  studentUserEmail: string | null;
+  lastMessage: AdminMessage;
+  messageCount: number;
+}
+
+export function listAdminMessages(schoolId: string, studentMemberId: string) {
+  return customFetch<AdminMessage[]>(`/api/schools/${schoolId}/admin-messages/${studentMemberId}`);
+}
+
+export function sendAdminMessage(schoolId: string, studentMemberId: string, body: string) {
+  return customFetch<AdminMessage>(`/api/schools/${schoolId}/admin-messages/${studentMemberId}`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export function listAdminMessageThreads(schoolId: string) {
+  return customFetch<AdminMessageThread[]>(`/api/schools/${schoolId}/admin-messages`);
+}
+
+export interface TeacherMessage {
+  id: string;
+  schoolId: string;
+  teacherUserId: string;
+  studentMemberId: string;
+  senderUserId: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface MyTeacherContact {
+  teacherUserId: string;
+  userName: string | null;
+  userEmail: string | null;
+}
+
+export interface TeacherMessageThread {
+  studentMemberId: string;
+  studentUserName: string | null;
+  studentUserEmail: string | null;
+  lastMessage: TeacherMessage;
+  messageCount: number;
+}
+
+export function listMyTeachers(schoolId: string) {
+  return customFetch<MyTeacherContact[]>(`/api/schools/${schoolId}/teacher-messages/my-teachers`);
+}
+
+export function listTeacherMessageThreads(schoolId: string) {
+  return customFetch<TeacherMessageThread[]>(`/api/schools/${schoolId}/teacher-messages/inbox`);
+}
+
+export function listTeacherMessages(schoolId: string, teacherUserId: string, studentMemberId: string) {
+  const params = new URLSearchParams({ teacherUserId, studentMemberId });
+  return customFetch<TeacherMessage[]>(`/api/schools/${schoolId}/teacher-messages?${params.toString()}`);
+}
+
+export function sendTeacherMessage(schoolId: string, input: { teacherUserId: string; studentMemberId: string; body: string }) {
+  return customFetch<TeacherMessage>(`/api/schools/${schoolId}/teacher-messages`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export interface MyChild {
   id: string;
   grade: string | null;

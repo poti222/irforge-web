@@ -3653,6 +3653,20 @@
     "startExamButton": "شروعِ آزمون",
     "submitExamButton": "ارسالِ پاسخ‌ها",
     "examSubmitted": "پاسخ‌ها ارسال شد",
-    "examAlreadySubmitted": "شما قبلاً در این آزمون شرکت کرده‌اید."
+    "examAlreadySubmitted": "شما قبلاً در این آزمون شرکت کرده‌اید.",
+
+    "navMessages": "پیام‌ها",
+    "studentAdminChatDescription": "پیام به مدیرِ مدرسه — همه‌یِ مدیرهایِ مدرسه این گفتگو را می‌بینند و می‌توانند پاسخ بدهند.",
+    "studentTeacherChatDescription": "یکی از معلم‌هایِ کلاس‌های خودت را برای گفتگو انتخاب کن.",
+    "noTeacherYet": "هنوز در هیچ کلاسی با معلمی ثبت نشده‌ای.",
+    "selectTeacherHint": "یک معلم را از لیست انتخاب کن.",
+    "adminMessagesDescription": "گفتگوهایِ دانش‌آموزانی که به مدیرِ مدرسه پیام داده‌اند.",
+    "teacherMessagesDescription": "گفتگوهایِ دانش‌آموزانی که به تو پیام داده‌اند.",
+    "messagesInboxEmpty": "هنوز پیامی نیست.",
+    "parentReportsDescription": "گزارش‌های مشاور دربابِ فرزندت و گفتگوی ارتباط با مدیرِ مدرسه.",
+    "parentReportsEmpty": "هنوز گزارشی برایِ این فرزند ثبت نشده.",
+    "resetAttemptButton": "بازنشانیِ تلاش",
+    "resetAttemptConfirm": "تلاشِ این دانش‌آموز حذف شود تا بتواند دوباره آزمون را شروع کند؟",
+    "attemptReset": "تلاش بازنشانی شد"
   }
 }
