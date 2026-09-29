@@ -25,6 +25,7 @@ import { clientIp, hit, send429, type HitFn } from "../middleware/rateLimit";
 import { resolveBotBySpreadsheetId } from "../lib/botConfig";
 import {
   cancelBotPayment, claimBotEffect, createBotPayment, decideBotPayment, getActiveBotChannel, getBotPayment,
+  listActiveBotChannels,
   listActiveBotPayments, listBotWork, listUnclaimedConfirmed, markBotEffectDone, submitBotReceipt,
   PaymentRequestError, type PaymentPurpose,
 } from "../lib/paymentBotApi";
@@ -146,7 +147,11 @@ export function createInternalBotPaymentsRouter(deps: InternalBotPaymentsDeps = 
     }
   });
 
-  route("/internal/payments/channel", async ({ botId }) => ({ channel: await getActiveBotChannel(pool, botId) }));
+  route("/internal/payments/channel", async ({ botId }) => {
+    // `channel` (تازه‌ترین کانالِ فعال) برایِ سازگاری؛ `channels` همه‌ی کانال‌های فعال برایِ انتخابِ حساب.
+    const channels = await listActiveBotChannels(pool, botId);
+    return { channel: await getActiveBotChannel(pool, botId), channels };
+  });
 
   route("/internal/payments/requests/create", async ({ botId, body }) => {
     const purpose = body.purpose === "wallet_topup" || body.purpose === "order" ? (body.purpose as PaymentPurpose) : null;

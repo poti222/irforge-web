@@ -76,6 +76,8 @@ export interface PaymentRequestRow {
   confirmedBy: "sms" | "admin" | null;
   confirmedAt: Date | null;
   matchedSmsId: string | null;
+  /** شناسه‌ی حسابِ (کانالِ) مقصد در لحظه‌ی ساخت — snapshot برایِ سفارش/گزارش. */
+  accountIdSnapshot: string | null;
 }
 
 export function mapRow(r: any): PaymentRequestRow {
@@ -99,6 +101,7 @@ export function mapRow(r: any): PaymentRequestRow {
     confirmedBy: r.confirmed_by ?? null,
     confirmedAt: r.confirmed_at ?? null,
     matchedSmsId: r.matched_sms_id ?? null,
+    accountIdSnapshot: r.account_id_snapshot ?? null,
   };
 }
 
@@ -223,8 +226,9 @@ export async function createPaymentRequest(pool: PoolLike, input: CreateRequestI
       c.query(
         `INSERT INTO payment_requests
            (id, channel_id, channel_kind, scope, bot_id, user_id, purpose, order_id,
-            base_amount_rial, suffix_rial, final_amount_rial, status, expires_at, queue_position, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::bigint,$10::bigint,$9::bigint + $10::bigint,$11,$12,$13,$14)
+            base_amount_rial, suffix_rial, final_amount_rial, status, expires_at, queue_position, created_at,
+            account_id_snapshot)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::bigint,$10::bigint,$9::bigint + $10::bigint,$11,$12,$13,$14,$2)
          RETURNING *`,
         [id, ch.id, kind, ch.scope, ch.bot_id, input.userId, input.purpose, input.orderId ?? null,
           base, suffix, status, exp, queuePosition, now],

@@ -45,6 +45,8 @@ export interface BotChannelInfo {
   bankName: string | null;
   minAmountRial: number;
   active: boolean;
+  /** فقط ۴ رقمِ آخرِ کارت (برایِ برچسبِ انتخابِ حساب در بات)؛ null برایِ کانالِ لینکی. */
+  cardLast4: string | null;
 }
 
 export interface BotPaymentView {
@@ -79,10 +81,20 @@ export interface BotPaymentView {
   };
 }
 
+function last4(enc: string | null): string | null {
+  if (!enc) return null;
+  try {
+    const d = decryptToken(enc).replace(/\D/g, "");
+    return d.length >= 4 ? d.slice(-4) : null;
+  } catch {
+    return null;
+  }
+}
+
 function toChannelInfo(r: any): BotChannelInfo {
   return {
     id: r.id, kind: r.kind, holderName: r.holder_name ?? null, bankName: r.bank_name ?? null,
-    minAmountRial: Number(r.min_amount_rial), active: Boolean(r.active),
+    minAmountRial: Number(r.min_amount_rial), active: Boolean(r.active), cardLast4: last4(r.card_number_enc ?? null),
   };
 }
 
@@ -117,6 +129,15 @@ export async function getActiveBotChannel(pool: PoolLike, botId: string): Promis
       `SELECT * FROM payment_channels WHERE scope = 'bot' AND bot_id = $1 AND active
         ORDER BY created_at DESC, id LIMIT 1`, [botId]);
     return rows[0] ? toChannelInfo(rows[0]) : null;
+  });
+}
+
+/** همه‌ی کانال‌های فعالِ این بات (قدیمی‌ترین اول) — برایِ انتخابِ حسابِ مقصد در بات. */
+export async function listActiveBotChannels(pool: PoolLike, botId: string): Promise<BotChannelInfo[]> {
+  return withClient(pool, async (c) => {
+    const { rows } = await c.query(
+      `SELECT * FROM payment_channels WHERE scope = 'bot' AND bot_id = $1 AND active ORDER BY created_at, id`, [botId]);
+    return rows.map(toChannelInfo);
   });
 }
 

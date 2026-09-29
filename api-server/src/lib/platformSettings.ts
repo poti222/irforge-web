@@ -278,6 +278,80 @@ export async function setSupportLinks(
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+//  راهنمای راه‌اندازیِ کارت‌به‌کارتِ خودکار — IRFORGE_CARD_AUTOCONFIRM_PROMPT فاز ۷
+// ══════════════════════════════════════════════════════════════════════════
+//
+// متنِ گام‌به‌گامِ MacroDroid/SMS Forwarder که در «کادر زردِ آموزشی» بالای بخشِ کارت‌به‌کارتِ خودکار
+// نشان داده می‌شود. **فقط سوپرادمین** می‌تواند آن را ویرایش کند (`PUT /admin/card-autoconfirm-guide`)؛
+// همه‌ی فروشنده‌های واردشده می‌توانند بخوانندش. بدونِ ردیفِ ذخیره‌شده، پیش‌فرضِ داخلِ کد برمی‌گردد.
+
+export const CARD_GUIDE_KEY = "card_autoconfirm_guide";
+export const CARD_GUIDE_MAX_TEXT = 8000;
+
+export type CardAutoConfirmGuide = {
+  title: string;
+  /** متنِ ساده؛ هر خط یک بند/گام. کلاینت آن را به‌صورتِ متن (نه HTML) نمایش می‌دهد. */
+  text: string;
+  /** لینکِ ویدیو/مقاله‌ی آموزشی (اختیاری، فقط https). */
+  tutorialUrl: string;
+  /** true وقتی سوپرادمین هنوز چیزی ذخیره نکرده. */
+  isDefault: boolean;
+};
+
+export const DEFAULT_CARD_GUIDE: CardAutoConfirmGuide = {
+  title: "راه‌اندازیِ تأییدِ خودکارِ پرداخت با پیامکِ بانک (اندروید)",
+  text: [
+    "۱. روی گوشی‌ای که پیامکِ واریزِ بانکِ همین کارت به آن می‌آید، برنامه‌ی MacroDroid (یا SMS Forwarder) را نصب کنید و مجوزِ خواندنِ پیامک و اجرا در پس‌زمینه را بدهید. بهینه‌سازیِ باتری را برایِ برنامه خاموش کنید تا اندروید آن را نبندد.",
+    "۲. یک ماکرو بسازید. Trigger: «دریافت پیامک» (Received SMS) با فیلترِ فرستنده‌ی بانک (مثلاً Blubank).",
+    "۳. Action: «HTTP Request». Method: POST — URL: همان «آدرسِ وبهوک» که در همین صفحه است — Content-Type: application/json.",
+    "۴. یک Header اضافه کنید: نام X-Sms-Secret و مقدارِ «کلیدِ امنیتی» که هنگامِ ساختِ کانال فقط یک‌بار نشان داده شد (گم شد؟ «چرخشِ کلید» را بزنید و در ماکرو جایگزین کنید).",
+    "۵. Body (JSON): {\"text\":\"<متنِ پیامک>\",\"sender\":\"<فرستنده>\",\"time\":\"<زمانِ دریافتِ پیامک>\"} — متغیرها را از لیستِ Magic Text برنامه انتخاب کنید. فرستادنِ زمانِ پیامک (ISO یا epoch) توصیه می‌شود.",
+    "۶. ماکرو را ذخیره و فعال کنید. بعد در همین صفحه «ارسال پیامک آزمایشی» را بزنید (تستِ سمتِ سرور) و یک واریزِ کوچکِ واقعی هم انجام دهید؛ «آخرین پیامکِ دریافتی» باید به‌روز شود.",
+    "نکته: مبلغی که مشتری می‌بیند به ریال و با چند رقمِ آخرِ یکتا است؛ باید دقیقاً همان مبلغ واریز شود. اگر گوشی چند ساعت آنلاین نبود، پرداخت‌ها با رسیدِ دستی تأیید می‌شوند.",
+    "امنیت: هرگز CVV2، رمزِ دوم یا کدِ پیامکیِ بانک را برای هیچ‌کس نفرستید؛ این سیستم چنین چیزی نمی‌خواهد. پول همیشه مستقیم به کارتِ خودتان می‌رود.",
+  ].join("\n"),
+  tutorialUrl: "",
+  isDefault: true,
+};
+
+function mergeCardGuide(stored: unknown): CardAutoConfirmGuide {
+  if (!stored || typeof stored !== "object") return { ...DEFAULT_CARD_GUIDE };
+  const raw = stored as Partial<CardAutoConfirmGuide>;
+  const title = typeof raw.title === "string" && raw.title.trim() ? raw.title.trim().slice(0, 120) : DEFAULT_CARD_GUIDE.title;
+  const text = typeof raw.text === "string" && raw.text.trim() ? raw.text.slice(0, CARD_GUIDE_MAX_TEXT) : DEFAULT_CARD_GUIDE.text;
+  let tutorialUrl = "";
+  if (typeof raw.tutorialUrl === "string" && raw.tutorialUrl.trim()) {
+    try {
+      const u = new URL(raw.tutorialUrl.trim());
+      if (u.protocol === "https:") tutorialUrl = u.toString().slice(0, 500);
+    } catch { /* آدرسِ نامعتبر ذخیره نمی‌شود */ }
+  }
+  return { title, text, tutorialUrl, isDefault: false };
+}
+
+/** هرگز throw نمی‌کند: خرابیِ دیتابیس → متنِ پیش‌فرض. */
+export async function getCardAutoConfirmGuide(): Promise<CardAutoConfirmGuide> {
+  try {
+    const [row] = await db.select().from(platformSettingsTable).where(eq(platformSettingsTable.key, CARD_GUIDE_KEY)).limit(1);
+    if (!row) return { ...DEFAULT_CARD_GUIDE };
+    return mergeCardGuide(JSON.parse(row.value));
+  } catch (err) {
+    logger.warn({ err }, "getCardAutoConfirmGuide failed — falling back to default");
+    return { ...DEFAULT_CARD_GUIDE };
+  }
+}
+
+export async function setCardAutoConfirmGuide(input: unknown, updatedBy: string): Promise<CardAutoConfirmGuide> {
+  const value = mergeCardGuide(input);
+  const stored = JSON.stringify({ title: value.title, text: value.text, tutorialUrl: value.tutorialUrl });
+  await db
+    .insert(platformSettingsTable)
+    .values({ key: CARD_GUIDE_KEY, value: stored, updatedBy })
+    .onConflictDoUpdate({ target: platformSettingsTable.key, set: { value: stored, updatedBy, updatedAt: new Date() } });
+  return value;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 //  نمایشِ چندارزی — IRFORGE_PROMPT_V3 Phase 39
 // ══════════════════════════════════════════════════════════════════════════
 //

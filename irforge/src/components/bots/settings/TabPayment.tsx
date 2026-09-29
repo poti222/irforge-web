@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
 import { SettingsSaveBar, SettingsError, CachePropagationNotice } from "./SettingsSaveBar";
 import { useDraft } from "./useDraft";
+import { CardAutoConfirmSection } from "./CardAutoConfirmSection";
 import {
   useSavePaymentConfig,
   useTestOrderDelivery,
@@ -103,6 +104,9 @@ export function TabPayment({ botId, data }: { botId: string; data: SettingsEnvel
           </div>
         </CardContent>
       </Card>
+
+      {/* کارت‌به‌کارتِ خودکار: مستقل از پیش‌نویسِ payment_cfg (API و ذخیره‌ی خودش را دارد). */}
+      <CardAutoConfirmSection botId={botId} />
 
       <Card>
         <CardHeader>

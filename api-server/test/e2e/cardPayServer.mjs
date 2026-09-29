@@ -20,6 +20,7 @@ import express from "express";
 const { encryptToken } = await import("../../src/lib/tokenCrypto.ts");
 const { createInternalBotPaymentsRouter } = await import("../../src/routes/internalBotPayments.ts");
 const { createPaymentSmsRouter } = await import("../../src/routes/paymentSmsWebhook.ts");
+const { createBotPaymentChannelsRouter } = await import("../../src/routes/botPaymentChannels.ts");
 const { generateSmsSecret, hashSmsSecret } = await import("../../src/lib/smsChannelSecret.ts");
 const pgMod = await import("pg");
 const Pool = pgMod.default?.Pool ?? pgMod.Pool;
@@ -59,11 +60,22 @@ const app = express();
 app.use(express.json({ limit: "256kb" }));
 app.use("/api", createInternalBotPaymentsRouter({ pool, hitFn: okHit, resolveBot }));
 app.use("/api", createPaymentSmsRouter({ pool, hitFn: okHit }));
+// پنلِ فروشنده (فاز ۷): همان routeِ واقعیِ مدیریتِ کانال؛ فقط احرازِ هویت/اعلانِ audit جعلی است.
+const SELLER = "u_e2e_seller";
+app.use("/api", createBotPaymentChannelsRouter({
+  pool, hitFn: okHit, audit: async () => {},
+  auth: (req, _res, next) => { req.userId = SELLER; next(); },
+  resolveBot: async (userId, botId) => {
+    if (userId !== SELLER || botId !== "bot_E2E") throw { status: 404, error: "not found" };
+    return { botId };
+  },
+}));
 const server = http.createServer(app);
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const port = server.address().port;
+process.env.PUBLIC_SITE_URL = `http://127.0.0.1:${port}`;
 console.log(JSON.stringify({
-  port, sheet: SHEET, smsUrl: `http://127.0.0.1:${port}/api/payments/sms/ch_e2e`, smsSecret, channelId: "ch_e2e",
+  port, sheet: SHEET, botId: "bot_E2E", panelBase: `http://127.0.0.1:${port}/api/bots/bot_E2E/payment-channels`, smsUrl: `http://127.0.0.1:${port}/api/payments/sms/ch_e2e`, smsSecret, channelId: "ch_e2e",
   internalSecret: process.env.PAYMENT_INTERNAL_SECRET,
 }));
 

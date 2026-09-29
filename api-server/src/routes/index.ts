@@ -89,6 +89,7 @@ import walletTopupRouter from "./walletTopup.js";
 import walletTopupSmsWebhookRouter from "./walletTopupSmsWebhook.js";
 import paymentSmsWebhookRouter from "./paymentSmsWebhook.js";
 import internalBotPaymentsRouter from "./internalBotPayments.js";
+import botPaymentChannelsRouter from "./botPaymentChannels.js";
 import guidedFlowRouter from "./guidedFlow.js";
 
 const router: IRouter = Router();
@@ -111,6 +112,7 @@ router.use(walletTopupRouter);
 router.use(walletTopupSmsWebhookRouter);
 router.use(paymentSmsWebhookRouter);
 router.use(internalBotPaymentsRouter);
+router.use(botPaymentChannelsRouter);
 router.use(databaseRouter);
 router.use(cutoverFlagsRouter);
 router.use(sheetsImportRouter);

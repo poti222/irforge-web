@@ -40,7 +40,13 @@ export type AuditAction =
   | "cutover_flag_changed"
   // IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فاز ۲ — درخواستِ مهاجرتِ
   // دیتای یک تننتِ خاص از Sheets به Postgres، از routes/sheetsImport.ts.
-  | "sheets_import_requested";
+  | "sheets_import_requested"
+  // IRFORGE_CARD_AUTOCONFIRM_PROMPT فاز ۷ — مدیریتِ کانالِ پرداختِ خودکارِ یک بات. metadata فقط شناسه‌ها
+  // (botId/channelId/kind)؛ هرگز شماره‌کارت یا secret.
+  | "payment_channel_created"
+  | "payment_channel_updated"
+  | "payment_channel_secret_rotated"
+  | "payment_channel_deleted";
 
 export async function writeAudit(input: {
   actorUserId: string;
