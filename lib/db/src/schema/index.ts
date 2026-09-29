@@ -55,3 +55,6 @@ export * from "./schoolExams";
 // بخش "/schools" فاز ۵ — ارتباط با مدیر/معلم (بندِ ۱)
 export * from "./schoolAdminMessages";
 export * from "./schoolTeacherMessages";
+// بخش "/schools" فاز ۶ — حضور و غیاب، اخطار/هشدارِ دانش‌آموز
+export * from "./schoolAttendance";
+export * from "./schoolStudentAlerts";

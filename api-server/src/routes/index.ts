@@ -107,6 +107,10 @@ import schoolExamsRouter from "./schoolExams.js";
 // بخش "/schools" فاز ۵ — ارتباط با مدیر/معلم
 import schoolAdminMessagesRouter from "./schoolAdminMessages.js";
 import schoolTeacherMessagesRouter from "./schoolTeacherMessages.js";
+// بخش "/schools" فاز ۶ — حضور و غیاب، نمره‌نامه‌ی ترکیبی، اخطار/هشدارِ دانش‌آموز
+import schoolAttendanceRouter from "./schoolAttendance.js";
+import schoolGradebookRouter from "./schoolGradebook.js";
+import schoolStudentAlertsRouter from "./schoolStudentAlerts.js";
 
 const router: IRouter = Router();
 
@@ -198,5 +202,8 @@ router.use(schoolQuestionsRouter);
 router.use(schoolExamsRouter);
 router.use(schoolAdminMessagesRouter);
 router.use(schoolTeacherMessagesRouter);
+router.use(schoolAttendanceRouter);
+router.use(schoolGradebookRouter);
+router.use(schoolStudentAlertsRouter);
 
 export default router;

@@ -47,6 +47,7 @@ function formatAttempt(a: typeof schoolExamAttemptsTable.$inferSelect) {
     score: a.score,
     startedAt: a.startedAt.toISOString(),
     submittedAt: a.submittedAt ? a.submittedAt.toISOString() : null,
+    lateSubmission: a.lateSubmission,
   };
 }
 
@@ -221,6 +222,12 @@ router.post("/api/schools/:schoolId/exams/:id/attempts/start", requireAuth, asyn
       res.status(403).json({ error: "Forbidden" });
       return;
     }
+    // فازِ ۶ (بندِ ۳): پنجره‌ی زمانی سمتِ سرور اجرا می‌شود — چکِ سمتِ کلاینت به‌تنهایی
+    // با تغییرِ ساعتِ سیستم/درخواستِ مستقیم دور زده می‌شود.
+    if (exam.scheduledAt && new Date() < exam.scheduledAt) {
+      res.status(403).json({ error: "Exam has not started yet" });
+      return;
+    }
     const [existing] = await db.select().from(schoolExamAttemptsTable)
       .where(and(eq(schoolExamAttemptsTable.examId, req.params.id), eq(schoolExamAttemptsTable.studentMemberId, member.id)))
       .limit(1);
@@ -282,8 +289,17 @@ router.post("/api/schools/:schoolId/exams/:id/attempts/submit", requireAuth, asy
       score = `${correctCount}/${questions.length}`;
     }
 
+    // فازِ ۶ (بندِ ۳): ارسالِ دیرهنگام رد نمی‌شود (کارِ دانش‌آموز هرگز بی‌صدا دور
+    // ریخته نمی‌شود)، فقط برایِ دیدِ معلم علامت می‌خورد — محاسبه‌ی گذرِ زمان
+    // کاملاً سمتِ سرور و بر مبنایِ startedAtِ همان تلاش (نه ساعتِ کلاینت).
+    let lateSubmission = false;
+    if (exam.durationMinutes) {
+      const elapsedMinutes = (Date.now() - attempt.startedAt.getTime()) / 60000;
+      lateSubmission = elapsedMinutes > exam.durationMinutes;
+    }
+
     const [row] = await db.update(schoolExamAttemptsTable)
-      .set({ answers: finalAnswers, submittedAt: new Date(), score })
+      .set({ answers: finalAnswers, submittedAt: new Date(), score, lateSubmission })
       .where(eq(schoolExamAttemptsTable.id, attempt.id))
       .returning();
     res.json(formatAttempt(row));

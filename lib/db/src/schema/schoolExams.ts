@@ -10,7 +10,7 @@
  * دستی ثبت می‌کند (اگر سؤالِ تشریحی داشته باشد) — دقیقاً مثلِ `grade` در
  * schoolAssignments.
  */
-import { pgTable, text, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, jsonb, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { schoolClassesTable } from "./schoolClasses";
@@ -35,6 +35,13 @@ export const schoolExamAttemptsTable = pgTable("school_exam_attempts", {
   score: text("score"),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  /**
+   * فازِ ۶ (بندِ ۳): آیا ارسال بعد از پایانِ durationMinutes بوده؟ ارسالِ دیرهنگام
+   * هرگز رد نمی‌شود (کارِ دانش‌آموز هیچ‌وقت بی‌صدا دور ریخته نمی‌شود) — فقط
+   * برایِ دیدِ معلم علامت می‌خورد. ببینید محاسبه‌ی سمتِ سرور در
+   * routes/schoolExams.ts (attempts/submit).
+   */
+  lateSubmission: boolean("late_submission").notNull().default(false),
 });
 
 export const insertSchoolExamSchema = createInsertSchema(schoolExamsTable).omit({ createdAt: true });
