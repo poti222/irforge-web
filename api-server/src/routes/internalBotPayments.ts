@@ -24,7 +24,7 @@ import { logger } from "../lib/logger";
 import { clientIp, hit, send429, type HitFn } from "../middleware/rateLimit";
 import { resolveBotBySpreadsheetId } from "../lib/botConfig";
 import {
-  cancelBotPayment, claimBotEffect, createBotPayment, getActiveBotChannel, getBotPayment,
+  cancelBotPayment, claimBotEffect, createBotPayment, decideBotPayment, getActiveBotChannel, getBotPayment,
   listActiveBotPayments, listBotWork, listUnclaimedConfirmed, markBotEffectDone, submitBotReceipt,
   PaymentRequestError, type PaymentPurpose,
 } from "../lib/paymentBotApi";
@@ -52,6 +52,8 @@ const STATUS_BY_CODE: Record<string, number> = {
   amount_below_minimum: 400,
   invalid_order: 400,
   invalid_receipt: 400,
+  invalid_admin: 400,
+  no_effect: 409,
   card_unavailable: 500,
 };
 
@@ -194,6 +196,21 @@ export function createInternalBotPaymentsRouter(deps: InternalBotPaymentsDeps = 
     });
     logger.info({ botId, requestId: r.payment.id, promoted: r.promoted.map((p) => p.id) }, "bot payment request canceled");
     return { payment: r.payment, promotedIds: r.promoted.map((p) => p.id) };
+  });
+
+  route("/internal/payments/requests/decide", async ({ botId, body }) => {
+    const decision = body.decision === "approve" || body.decision === "reject" ? body.decision : null;
+    if (!decision) throw new BadInput("decision باید approve یا reject باشد.");
+    const adminId = str(body.adminId, USER_ID_RE, "adminId");
+    const reason = body.reason == null ? null : typeof body.reason === "string" ? body.reason.slice(0, 2000) : null;
+    const r = await decideBotPayment(pool, {
+      botId, requestId: str(body.requestId, REQUEST_ID_RE, "requestId"), decision, adminId, reason,
+    });
+    logger.info(
+      { botId, requestId: r.payment.id, decision, decided: r.decided, status: r.payment.status, adminId },
+      "bot payment admin decision",
+    );
+    return { decided: r.decided, payment: r.payment, promotedIds: r.promoted.map((p) => p.id) };
   });
 
   route("/internal/payments/requests/unclaimed", async ({ botId }) => ({

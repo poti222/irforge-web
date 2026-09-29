@@ -92,6 +92,10 @@ export const paymentRequestsTable = pgTable(
     /** scope=bot: بات «claim» می‌کند تا اثرِ تأیید فقط یک‌بار اعمال شود (فاز ۵). */
     effectClaimedAt: timestamp("effect_claimed_at", { withTimezone: true }),
     effectDoneAt: timestamp("effect_done_at", { withTimezone: true }),
+    /** ردِ دستیِ ادمین (فاز ۶) — فقط وقتی status=rejected. */
+    rejectedByAdminId: text("rejected_by_admin_id"),
+    rejectReason: text("reject_reason"),
+    rejectedAt: timestamp("rejected_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -108,6 +112,10 @@ export const paymentRequestsTable = pgTable(
     index("idx_payment_requests_effect_pending")
       .on(t.botId, t.confirmedAt)
       .where(sql`${t.status} = 'confirmed' AND ${t.effectClaimedAt} IS NULL`),
+    check(
+      "payment_requests_reject_chk",
+      sql`(${t.rejectedByAdminId} IS NULL AND ${t.rejectedAt} IS NULL AND ${t.rejectReason} IS NULL) OR ${t.status} = 'rejected'`,
+    ),
     check(
       "payment_requests_effect_chk",
       sql`(${t.effectClaimedAt} IS NULL OR ${t.status} = 'confirmed') AND (${t.effectDoneAt} IS NULL OR ${t.effectClaimedAt} IS NOT NULL)`,

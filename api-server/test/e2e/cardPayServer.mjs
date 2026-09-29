@@ -31,7 +31,7 @@ const readSql = (f) => {
   const t = fs.readFileSync(new URL(`../../../lib/db/migrations/${f}`, import.meta.url), "utf8");
   return t.slice(t.indexOf("-- ───"));
 };
-const ddl = readSql("0029_card_autoconfirm.sql") + "\n" + readSql("0030_card_autoconfirm_effects.sql");
+const ddl = ["0029_card_autoconfirm.sql", "0030_card_autoconfirm_effects.sql", "0031_card_autoconfirm_reject.sql"].map(readSql).join("\n");
 
 const SHEET = "sheet_E2E_12345";
 const admin = new Pool({ connectionString: PG_URL, max: 2 });

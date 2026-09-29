@@ -24,6 +24,7 @@ import {
   type ClientLike, type PaymentRequestRow, type PoolLike,
 } from "./paymentRequests";
 import { retestUnmatchedForRequest } from "./paymentMatcher";
+import { decideRequestByAdmin, type AdminDecision } from "./paymentDecisions";
 import { registerDefaultPaymentEffects } from "./paymentEffectsBoot";
 import type { MatchAlerts } from "./paymentAlerts";
 
@@ -62,6 +63,9 @@ export interface BotPaymentView {
   receiptUploadedAt: Date | null;
   confirmedBy: "sms" | "admin" | null;
   confirmedAt: Date | null;
+  /** ادمینی که تأیید/رد کرده (تأییدِ دستی یا ردِ دستی)، وگرنه null. */
+  decidedByAdminId: string | null;
+  rejectReason: string | null;
   effectClaimed: boolean;
   effectDone: boolean;
   channel: {
@@ -153,6 +157,8 @@ async function buildView(pool: PoolLike, row: any, opts: { includePayTarget?: bo
     queuedAhead: r.status === "queued" ? await queueAheadOf(pool, r.id) : null,
     receiptUploadedAt: row.receipt_uploaded_at ?? null,
     confirmedBy: r.confirmedBy, confirmedAt: r.confirmedAt,
+    decidedByAdminId: row.confirmed_by_admin_id ?? row.rejected_by_admin_id ?? null,
+    rejectReason: row.reject_reason ?? null,
     effectClaimed: row.effect_claimed_at != null,
     effectDone: row.effect_done_at != null,
     channel: {
@@ -329,6 +335,26 @@ export async function cancelBotPayment(
   }
   const fresh = await loadScoped(pool, input.botId, input.requestId);
   return { payment: await buildView(pool, fresh), promoted: res.promoted };
+}
+
+// ─── تصمیمِ ادمین ───────────────────────────────────────────────────────────
+
+/**
+ * تأیید/ردِ دستیِ ادمین روی درخواستِ همین بات. اولین تصمیم برنده است: `decided=false` یعنی
+ * قبلاً (توسطِ ادمینِ دیگر یا پیامکِ بانک) تصمیم گرفته شده و `payment` همان تصمیم را نشان می‌دهد.
+ * احرازِ مجوزِ ادمین کارِ خودِ بات است؛ اینجا فقط `botId`-scope و ردپا.
+ */
+export async function decideBotPayment(
+  pool: PoolLike,
+  input: { botId: string; requestId: string; decision: AdminDecision; adminId: string; reason?: string | null; now?: Date },
+): Promise<{ decided: boolean; payment: BotPaymentView; promoted: PaymentRequestRow[] }> {
+  const pre = await loadScoped(pool, input.botId, input.requestId);
+  if (!pre) throw new PaymentRequestError("درخواست پیدا نشد.", "not_found");
+  const res = await decideRequestByAdmin(pool, {
+    requestId: input.requestId, decision: input.decision, adminId: input.adminId, reason: input.reason, now: input.now,
+  });
+  const fresh = await loadScoped(pool, input.botId, input.requestId);
+  return { decided: res.decided, payment: await buildView(pool, fresh), promoted: res.promoted };
 }
 
 // ─── اثرِ تجاریِ تأیید (claim یک‌باره) ─────────────────────────────────────────
