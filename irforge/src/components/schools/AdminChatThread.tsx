@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useT } from "@/hooks/use-translation";
-import { listAdminMessages, sendAdminMessage } from "@/lib/schools-api";
+import { listAdminMessages, sendAdminMessage, markThreadRead, adminThreadKey } from "@/lib/schools-api";
 
 /**
  * components/schools/AdminChatThread.tsx — بخش "/schools" فاز ۵ (بندِ ۱):
@@ -30,6 +30,14 @@ export function AdminChatThread({ schoolId, studentMemberId }: {
     queryFn: () => listAdminMessages(schoolId, studentMemberId),
     refetchInterval: 5000,
   });
+
+  // فازِ ۹ (بندِ ۱): بازکردنِ رشته یعنی «خواندمش» — best-effort، شکستش هیچ
+  // چیزِ دیگری را نباید بشکند (فقط نشانگرِ خوانده‌نشده دیرتر پاک می‌شود).
+  useEffect(() => {
+    markThreadRead(schoolId, adminThreadKey(schoolId, studentMemberId))
+      .then(() => queryClient.invalidateQueries({ queryKey: ["schools", "admin-message-threads"] }))
+      .catch(() => {});
+  }, [schoolId, studentMemberId]);
 
   async function handleSend() {
     if (!body.trim()) return;

@@ -1359,6 +1359,32 @@ VALUES
    0)
 ON CONFLICT (id) DO NOTHING;
 
+-- ─── SCHOOLS فاز ۹ (بندِ ۱: وضعیتِ خوانده‌شدنِ رشته‌ها) ────────────────────
+-- مایگریشنِ ۰۰۳۷ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+CREATE TABLE IF NOT EXISTS school_message_read_state (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  thread_key TEXT NOT NULL,
+  last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_message_read_state_uniq_idx ON school_message_read_state(user_id, thread_key);
+
+-- ─── SCHOOLS فاز ۹ (بندِ ۲: انقضا/سقفِ مصرفِ کدِ معرف) ─────────────────────
+ALTER TABLE school_invite_codes ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE school_invite_codes ADD COLUMN IF NOT EXISTS max_uses INTEGER;
+ALTER TABLE school_invite_codes ADD COLUMN IF NOT EXISTS uses_count INTEGER NOT NULL DEFAULT 0;
+
+-- ─── SCHOOLS فاز ۹ (بندِ ۳: لاگِ رخدادهایِ مدیریتی) ─────────────────────────
+CREATE TABLE IF NOT EXISTS school_audit_log (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  actor_user_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_description TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_audit_log_school ON school_audit_log(school_id, created_at DESC);
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT

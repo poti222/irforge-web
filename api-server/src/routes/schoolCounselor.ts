@@ -17,6 +17,7 @@ import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, getSchoolMember } from "../lib/schoolAuth";
 import { notifySchoolUsers } from "../lib/schoolNotify";
+import { counselorThreadKey, getReadMap, isUnread } from "../lib/schoolMessageReadState";
 
 const router = Router();
 
@@ -36,7 +37,27 @@ router.get("/api/schools/:schoolId/counselor/students", requireAuth, async (req:
     if (!ok) return;
     const rows = await db.select().from(schoolMembersTable)
       .where(and(eq(schoolMembersTable.schoolId, req.params.schoolId), eq(schoolMembersTable.role, "student")));
-    res.json(rows.map((m: typeof rows[number]) => ({ id: m.id, userId: m.userId, grade: m.grade, city: m.city })));
+
+    // فازِ ۹ (بندِ ۱): نشانگرِ خوانده‌نشده برایِ رشته‌یِ چتِ خودِ همین کاربر
+    // (req.userId) با هر دانش‌آموز — اگر مدیر این endpoint را بخواند (نقشِ
+    // مجازِ دیگرِ requireCounselor)، چون خودش هیچ رشته‌ای ندارد همیشه false می‌ماند.
+    const msgs = await db.select().from(schoolCounselorMessagesTable)
+      .where(and(eq(schoolCounselorMessagesTable.schoolId, req.params.schoolId), eq(schoolCounselorMessagesTable.counselorUserId, req.userId)));
+    const latestByStudent = new Map<string, Date>();
+    for (const m of msgs) {
+      const cur = latestByStudent.get(m.studentMemberId);
+      if (!cur || m.createdAt.getTime() > cur.getTime()) latestByStudent.set(m.studentMemberId, m.createdAt);
+    }
+    const threadKeys = rows.map((m: typeof rows[number]) => counselorThreadKey(req.params.schoolId, req.userId, m.id));
+    const readMap = await getReadMap(req.userId, threadKeys);
+
+    res.json(rows.map((m: typeof rows[number]) => ({
+      id: m.id,
+      userId: m.userId,
+      grade: m.grade,
+      city: m.city,
+      unread: isUnread(latestByStudent.get(m.id), readMap.get(counselorThreadKey(req.params.schoolId, req.userId, m.id))),
+    })));
   } catch (err) {
     logger.error({ err }, "List counselor students error");
     res.status(500).json({ error: "Internal server error" });

@@ -20,6 +20,7 @@ import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, getSchoolMember } from "../lib/schoolAuth";
 import { notifySchoolUsers } from "../lib/schoolNotify";
+import { adminThreadKey, getReadMap, isUnread } from "../lib/schoolMessageReadState";
 
 const router = Router();
 
@@ -150,6 +151,11 @@ router.get("/api/schools/:schoolId/admin-messages", requireAuth, async (req: any
     const users = userIds.length ? await db.select().from(usersTable).where(inArray(usersTable.id, userIds)) : [];
     const userMap = new Map(users.map((u: typeof users[number]) => [u.id, u]));
 
+    // فازِ ۹ (بندِ ۱): نشانگرِ خوانده‌نشده — طبقِ خودِ req.userId (هر مدیری
+    // مستقل از مدیرهایِ دیگرِ همین مدرسه، چون رشته مشترک است).
+    const threadKeys = studentIds.map((id) => adminThreadKey(req.params.schoolId, id));
+    const readMap = await getReadMap(req.userId, threadKeys);
+
     const threads = studentIds.map((studentMemberId) => {
       const list = byStudent.get(studentMemberId)!.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       const last = list[list.length - 1];
@@ -161,6 +167,7 @@ router.get("/api/schools/:schoolId/admin-messages", requireAuth, async (req: any
         studentUserEmail: user?.email ?? null,
         lastMessage: formatMessage(last),
         messageCount: list.length,
+        unread: isUnread(last.createdAt, readMap.get(adminThreadKey(req.params.schoolId, studentMemberId))),
       };
     });
     threads.sort((a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime());

@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useT } from "@/hooks/use-translation";
-import { listTeacherMessages, sendTeacherMessage } from "@/lib/schools-api";
+import { listTeacherMessages, sendTeacherMessage, markThreadRead, teacherThreadKey } from "@/lib/schools-api";
 
 /**
  * components/schools/TeacherChatThread.tsx — بخش "/schools" فاز ۵ (بندِ ۱):
@@ -31,6 +31,13 @@ export function TeacherChatThread({ schoolId, teacherUserId, studentMemberId }: 
     queryFn: () => listTeacherMessages(schoolId, teacherUserId, studentMemberId),
     refetchInterval: 5000,
   });
+
+  // فازِ ۹ (بندِ ۱): بازکردنِ رشته یعنی «خواندمش».
+  useEffect(() => {
+    markThreadRead(schoolId, teacherThreadKey(schoolId, teacherUserId, studentMemberId))
+      .then(() => queryClient.invalidateQueries({ queryKey: ["schools", "teacher-message-threads"] }))
+      .catch(() => {});
+  }, [schoolId, teacherUserId, studentMemberId]);
 
   async function handleSend() {
     if (!body.trim()) return;

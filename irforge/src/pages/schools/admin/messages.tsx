@@ -57,7 +57,10 @@ export default function AdminMessagesPage() {
                   className={`flex flex-col gap-1 rounded-md px-3 py-2 text-start text-sm transition ${selected === th.studentMemberId ? "bg-primary/10 font-medium" : "hover:bg-muted"}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span>{th.studentUserName ?? th.studentUserEmail ?? th.studentMemberId}</span>
+                    <span className="flex items-center gap-1.5">
+                      {th.unread && <span className="size-2 shrink-0 rounded-full bg-primary" aria-hidden />}
+                      {th.studentUserName ?? th.studentUserEmail ?? th.studentMemberId}
+                    </span>
                     <Badge variant="outline">{th.messageCount}</Badge>
                   </div>
                   <span className="truncate text-xs text-muted-foreground">{th.lastMessage.body}</span>

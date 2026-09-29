@@ -6,7 +6,7 @@
  * هویتِ سراسریِ `users`/`complete-profile.tsx` است: آن یکی برای کل سایت
  * اجباری است، این یکی فقط دروازه‌ی ورود به `/schools/*` است.
  */
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -47,6 +47,16 @@ export const schoolInviteCodesTable = pgTable("school_invite_codes", {
   role: text("role"),
   createdByUserId: text("created_by_user_id").notNull(),
   active: boolean("active").notNull().default(true),
+  /**
+   * فازِ ۹ (بندِ ۲): انقضا/سقفِ مصرف — هر دو nullable/اختیاری (کدِ بدونِ این
+   * دو، دقیقاً مثلِ قبل، تا وقتی active باشد بی‌نهایت‌بار قابلِ‌استفاده است).
+   * enforcement در routes/schools.ts (`POST /api/schools/onboarding`) با
+   * همان الگویِ تراکنشیِ claimFreeSchoolBotToken (schoolBots.ts) انجام
+   * می‌شود تا دو کاربرِ هم‌زمان آخرین استفاده‌ی مجاز را دوبار مصرف نکنند.
+   */
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  maxUses: integer("max_uses"),
+  usesCount: integer("uses_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

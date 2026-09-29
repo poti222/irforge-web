@@ -310,6 +310,8 @@ export interface CounselorStudent {
   userId: string;
   grade: string | null;
   city: string | null;
+  /** فازِ ۹ (بندِ ۱) */
+  unread: boolean;
 }
 
 export interface CounselorNote {
@@ -608,6 +610,8 @@ export interface AdminMessageThread {
   studentUserEmail: string | null;
   lastMessage: AdminMessage;
   messageCount: number;
+  /** فازِ ۹ (بندِ ۱) */
+  unread: boolean;
 }
 
 export function listAdminMessages(schoolId: string, studentMemberId: string) {
@@ -647,6 +651,8 @@ export interface TeacherMessageThread {
   studentUserEmail: string | null;
   lastMessage: TeacherMessage;
   messageCount: number;
+  /** فازِ ۹ (بندِ ۱) */
+  unread: boolean;
 }
 
 export function listMyTeachers(schoolId: string) {
@@ -666,6 +672,28 @@ export function sendTeacherMessage(schoolId: string, input: { teacherUserId: str
   return customFetch<TeacherMessage>(`/api/schools/${schoolId}/teacher-messages`, {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+/**
+ * ─── فاز ۹ (بندِ ۱) ─────────────────────────────────────────────────────
+ * وضعیتِ خوانده‌شدنِ رشته‌ها. سازنده‌هایِ threadKey باید عیناً با
+ * api-server/src/lib/schoolMessageReadState.ts یکی بمانند.
+ */
+export function adminThreadKey(schoolId: string, studentMemberId: string): string {
+  return `admin:${schoolId}:${studentMemberId}`;
+}
+export function teacherThreadKey(schoolId: string, teacherUserId: string, studentMemberId: string): string {
+  return `teacher:${schoolId}:${teacherUserId}:${studentMemberId}`;
+}
+export function counselorThreadKey(schoolId: string, counselorUserId: string, studentMemberId: string): string {
+  return `counselor:${schoolId}:${counselorUserId}:${studentMemberId}`;
+}
+
+export function markThreadRead(schoolId: string, threadKey: string) {
+  return customFetch<void>(`/api/schools/${schoolId}/message-read-state`, {
+    method: "POST",
+    body: JSON.stringify({ threadKey }),
   });
 }
 

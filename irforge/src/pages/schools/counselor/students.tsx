@@ -74,8 +74,9 @@ export default function CounselorStudentsPage() {
                 <button
                   key={s.id}
                   onClick={() => setSelected(s.id)}
-                  className={`rounded-md px-3 py-2 text-start text-sm transition ${selected === s.id ? "bg-primary/10 font-medium" : "hover:bg-muted"}`}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-start text-sm transition ${selected === s.id ? "bg-primary/10 font-medium" : "hover:bg-muted"}`}
                 >
+                  {s.unread && <span className="size-2 shrink-0 rounded-full bg-primary" aria-hidden />}
                   {s.grade ?? "—"} · {s.userId}
                 </button>
               ))}

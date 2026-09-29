@@ -60,3 +60,6 @@ export * from "./schoolAttendance";
 export * from "./schoolStudentAlerts";
 // بخش "/schools" فاز ۷ — استخرِ توکنِ بات + باتِ اطلاع‌رسانیِ هر مدرسه
 export * from "./schoolBots";
+// بخش "/schools" فاز ۹ — وضعیتِ خوانده‌شدنِ رشته‌ها + لاگِ رخدادهایِ مدیریتی
+export * from "./schoolMessageReadState";
+export * from "./schoolAuditLog";

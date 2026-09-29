@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useT } from "@/hooks/use-translation";
-import { listCounselorMessages, sendCounselorMessage } from "@/lib/schools-api";
+import { listCounselorMessages, sendCounselorMessage, markThreadRead, counselorThreadKey } from "@/lib/schools-api";
 
 /**
  * components/schools/CounselorChatThread.tsx — بخش "/schools" فاز ۴ (بندِ ۱):
@@ -31,6 +31,13 @@ export function CounselorChatThread({ schoolId, counselorUserId, studentMemberId
     queryFn: () => listCounselorMessages(schoolId, counselorUserId, studentMemberId),
     refetchInterval: 5000,
   });
+
+  // فازِ ۹ (بندِ ۱): بازکردنِ رشته یعنی «خواندمش».
+  useEffect(() => {
+    markThreadRead(schoolId, counselorThreadKey(schoolId, counselorUserId, studentMemberId))
+      .then(() => queryClient.invalidateQueries({ queryKey: ["schools", "counselor-students"] }))
+      .catch(() => {});
+  }, [schoolId, counselorUserId, studentMemberId]);
 
   async function handleSend() {
     if (!body.trim()) return;

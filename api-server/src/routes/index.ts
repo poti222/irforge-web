@@ -116,6 +116,8 @@ import schoolBotPoolRouter from "./schoolBotPool.js";
 import schoolBotsRouter from "./schoolBots.js";
 import schoolBotWebhookRouter from "./schoolBotWebhook.js";
 import schoolNotificationsRouter from "./schoolNotificationTriggers.js";
+// بخش "/schools" فاز ۹ — وضعیتِ خوانده‌شدنِ رشته‌ها
+import schoolMessageReadStateRouter from "./schoolMessageReadState.js";
 
 const router: IRouter = Router();
 
@@ -214,5 +216,6 @@ router.use(schoolBotPoolRouter);
 router.use(schoolBotsRouter);
 router.use(schoolBotWebhookRouter);
 router.use(schoolNotificationsRouter);
+router.use(schoolMessageReadStateRouter);
 
 export default router;
