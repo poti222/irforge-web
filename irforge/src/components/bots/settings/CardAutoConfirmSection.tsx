@@ -35,7 +35,8 @@ import {
 } from "./cardChannelsApi";
 
 const SECRET_HEADER = "X-Sms-Secret";
-const SAMPLE_BODY = '{"text":"<SMS text>","sender":"<sender>","time":"<SMS received time>"}';
+// بدنه = فقط Magic Textِ «SMS Message» (Content-Type: text/plain). هیچ متنِ دیگری نگذارید؛ مبلغ را سرور خودش از متنِ پیامک می‌خواند.
+const SAMPLE_BODY = "{sms_message}";
 
 /** ۴رقم‌۴رقم؛ ذخیره همیشه بدونِ فاصله. */
 function formatCardNumber(digits: string): string {
@@ -180,6 +181,8 @@ function SecretDialog({ secret, channel, onClose }: { secret: string; channel: C
           {row(t.cardAutoWebhook, channel.webhookUrl, "secret-url")}
           {row(t.cardAutoSecretHeader, SECRET_HEADER, "secret-header")}
           {row(t.cardAutoSecretValue, secret, "secret-value")}
+          {row("Content-Type", "text/plain", "secret-content-type")}
+          {channel.senderAllowlist[0] && row("X-Sms-Sender", channel.senderAllowlist[0], "secret-sender")}
           {row(t.cardAutoSecretBody, SAMPLE_BODY, "secret-body")}
         </div>
         <DialogFooter>
@@ -320,7 +323,7 @@ function SmsLog({ botId, channelId }: { botId: string; channelId: string }) {
   const log = useCardSmsLog(botId, channelId, true);
   const entries = log.data?.entries ?? [];
   const statusLabel: Record<string, string> = {
-    unmatched: t.cardAutoSt_unmatched, matched: t.cardAutoSt_matched, ambiguous: t.cardAutoSt_ambiguous, ignored: t.cardAutoSt_ignored,
+    unmatched: t.cardAutoSt_unmatched, unparsed: t.cardAutoSt_unparsed, matched: t.cardAutoSt_matched, ambiguous: t.cardAutoSt_ambiguous, ignored: t.cardAutoSt_ignored,
   };
   return (
     <div className="space-y-1.5" data-testid="sms-log">
@@ -329,13 +332,14 @@ function SmsLog({ botId, channelId }: { botId: string; channelId: string }) {
         <p className="text-xs text-muted-foreground">{t.cardAutoLogEmpty}</p>
       ) : (
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full min-w-[440px] text-xs">
+          <table className="w-full min-w-[560px] text-xs">
             <thead className="bg-muted/50 text-muted-foreground">
               <tr>
                 <th className="p-1.5 text-start font-medium">{t.cardAutoColTime}</th>
                 <th className="p-1.5 text-start font-medium">{t.cardAutoColSender}</th>
                 <th className="p-1.5 text-start font-medium">{t.cardAutoColAmount}</th>
                 <th className="p-1.5 text-start font-medium">{t.cardAutoColStatus}</th>
+                <th className="p-1.5 text-start font-medium">{t.cardAutoColText}</th>
               </tr>
             </thead>
             <tbody>
@@ -345,9 +349,10 @@ function SmsLog({ botId, channelId }: { botId: string; channelId: string }) {
                   <td className="p-1.5" dir="ltr">{e.sender ?? "—"}</td>
                   <td className="p-1.5" dir="ltr">{e.amountToman !== null ? e.amountToman.toLocaleString("en-US") : "—"}</td>
                   <td className="p-1.5">
-                    {statusLabel[e.status] ?? e.status}
+                    {statusLabel[e.status === "unmatched" && !e.parsedOk ? "unparsed" : e.status] ?? e.status}
                     {e.isTest && <Badge variant="outline" className="ms-1 px-1 py-0 text-[10px]">{t.cardAutoTestBadge}</Badge>}
                   </td>
+                  <td className="max-w-[220px] truncate p-1.5" dir="auto" title={e.preview}>{e.preview || "—"}</td>
                 </tr>
               ))}
             </tbody>
