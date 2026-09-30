@@ -7,7 +7,7 @@
  * (نه فقط اپلیکیشن).
  *
  * دو بخش:
- *  ۱. ایستا (همیشه): مایگریشنِ پروداکشن (migrate.mjs) و آینه‌اش (0029) یکی‌اند.
+ *  ۱. ایستا (همیشه): مایگریشنِ پروداکشن (migrate.mjs) و آینه‌اش (0038) یکی‌اند.
  *  ۲. زنده: فقط وقتی `CARD_TEST_PG_URL` تنظیم باشد (یک Postgres واقعیِ خالی) —
  *     DDL روی یک schemaِ موقتِ جدا اجرا و قیدها با insertِ واقعی امتحان می‌شوند.
  *     بدونِ آن env، این بخش skip می‌شود (مثلِ businessPg.test.mjs).
@@ -18,32 +18,32 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const mirror = fs.readFileSync(new URL("../../lib/db/migrations/0029_card_autoconfirm.sql", import.meta.url), "utf8");
+const mirror = fs.readFileSync(new URL("../../lib/db/migrations/0038_card_autoconfirm.sql", import.meta.url), "utf8");
 const migrate = fs.readFileSync(new URL("../migrate.mjs", import.meta.url), "utf8");
 
 /** بدنه‌ی DDL بدونِ سرفایلِ آینه (چهار خطِ اولِ کامنت). */
 const ddl = mirror.slice(mirror.indexOf("-- ─── CARD_AUTOCONFIRM"));
 
-test("مایگریشنِ پروداکشن دقیقاً همان DDLِ آینه‌ی 0029 را دارد", () => {
-  assert.ok(migrate.includes(ddl.trimEnd()), "migrate.mjs و 0029_card_autoconfirm.sql از هم جدا شده‌اند");
+test("مایگریشنِ پروداکشن دقیقاً همان DDLِ آینه‌ی 0038 را دارد", () => {
+  assert.ok(migrate.includes(ddl.trimEnd()), "migrate.mjs و 0038_card_autoconfirm.sql از هم جدا شده‌اند");
 });
 
-const mirror30 = fs.readFileSync(new URL("../../lib/db/migrations/0030_card_autoconfirm_effects.sql", import.meta.url), "utf8");
+const mirror30 = fs.readFileSync(new URL("../../lib/db/migrations/0039_card_autoconfirm_effects.sql", import.meta.url), "utf8");
 const ddl30 = mirror30.slice(mirror30.indexOf("-- ─── CARD_AUTOCONFIRM_P5"));
 
-test("مایگریشنِ پروداکشن دقیقاً همان DDLِ آینه‌ی 0030 (فاز ۵) را دارد و template-safe است", () => {
-  assert.ok(migrate.includes(ddl30.trimEnd()), "migrate.mjs و 0030_card_autoconfirm_effects.sql از هم جدا شده‌اند");
+test("مایگریشنِ پروداکشن دقیقاً همان DDLِ آینه‌ی 0039 (فاز ۵) را دارد و template-safe است", () => {
+  assert.ok(migrate.includes(ddl30.trimEnd()), "migrate.mjs و 0039_card_autoconfirm_effects.sql از هم جدا شده‌اند");
   assert.ok(!ddl30.includes("`") && !ddl30.includes("${"));
-  assert.ok(migrate.indexOf(ddl30.trimEnd()) > migrate.indexOf(ddl.trimEnd()), "0030 باید بعد از 0029 اجرا شود");
+  assert.ok(migrate.indexOf(ddl30.trimEnd()) > migrate.indexOf(ddl.trimEnd()), "0039 باید بعد از 0038 اجرا شود");
 });
 
-const mirror32 = fs.readFileSync(new URL("../../lib/db/migrations/0032_card_autoconfirm_p8_p9.sql", import.meta.url), "utf8");
+const mirror32 = fs.readFileSync(new URL("../../lib/db/migrations/0041_card_autoconfirm_p8_p9.sql", import.meta.url), "utf8");
 const ddl32 = mirror32.slice(mirror32.indexOf("-- ─── CARD_AUTOCONFIRM_P8_P9"));
 
-test("مایگریشنِ پروداکشن دقیقاً همان DDLِ آینه‌ی 0032 (فاز ۸/۹) را دارد و template-safe است", () => {
-  assert.ok(migrate.includes(ddl32.trimEnd()), "migrate.mjs و 0032_card_autoconfirm_p8_p9.sql از هم جدا شده‌اند");
+test("مایگریشنِ پروداکشن دقیقاً همان DDLِ آینه‌ی 0041 (فاز ۸/۹) را دارد و template-safe است", () => {
+  assert.ok(migrate.includes(ddl32.trimEnd()), "migrate.mjs و 0041_card_autoconfirm_p8_p9.sql از هم جدا شده‌اند");
   assert.ok(!ddl32.includes("`") && !ddl32.includes("${"));
-  assert.ok(migrate.indexOf(ddl32.trimEnd()) > migrate.indexOf(ddl30.trimEnd()), "0032 باید بعد از 0030/0031 اجرا شود");
+  assert.ok(migrate.indexOf(ddl32.trimEnd()) > migrate.indexOf(ddl30.trimEnd()), "0041 باید بعد از 0039/0040 اجرا شود");
 });
 
 test("DDL امن برای template literalِ migrate.mjs است (بدون backtick و ${})", () => {
@@ -252,7 +252,7 @@ test("sms_inbox: idempotency، برداشت هرگز match نمی‌شود، ه�
   }));
 
 
-// ─── 0032 (فاز ۸/۹) — زنده ───────────────────────────────────────────────────
+// ─── 0041 (فاز ۸/۹) — زنده ───────────────────────────────────────────────────
 import { DDL_ALL } from "./helpers/cardPayDdl.mjs";
 
 async function withFullSchema(fn) {
@@ -272,7 +272,7 @@ async function withFullSchema(fn) {
   }
 }
 
-test("0032: ردیفِ legacy پسوندِ نامضرب‌ده را می‌پذیرد، ردیفِ عادی نه؛ legacy_ref یکتاست", live, () =>
+test("0041: ردیفِ legacy پسوندِ نامضرب‌ده را می‌پذیرد، ردیفِ عادی نه؛ legacy_ref یکتاست", live, () =>
   withFullSchema(async (q) => {
     await q(`INSERT INTO payment_channels (id, scope, kind, payment_url, sms_secret_hash) VALUES ('c','platform','open_link','https://x.y/z','h')`);
     const ins = (id, suffix, legacy) => q(
@@ -285,7 +285,7 @@ test("0032: ردیفِ legacy پسوندِ نامضرب‌ده را می‌پذ�
     assert.equal(await code(ins("d", 20000, null)), CHECK);           // سقفِ ۹۹۹۰ برای غیرِ legacy
   }));
 
-test("0032: payment_events سطحِ نامعتبر را رد می‌کند و ایندکس‌ها ساخته می‌شوند", live, () =>
+test("0041: payment_events سطحِ نامعتبر را رد می‌کند و ایندکس‌ها ساخته می‌شوند", live, () =>
   withFullSchema(async (q) => {
     await q(`INSERT INTO payment_events (id, kind) VALUES ('e1','sms_received')`);
     assert.equal(await code(q(`INSERT INTO payment_events (id, kind, level) VALUES ('e2','x','fatal')`)), CHECK);

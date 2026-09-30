@@ -1018,6 +1018,373 @@ CREATE INDEX IF NOT EXISTS product_purchases_product_id_idx ON product_purchases
 -- that repo's migrations/sql/0037_sheets_export_requests.sql, not here.)
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS database_sql_expires_at TIMESTAMPTZ;
 
+-- ─── SCHOOLS (بخش "/schools" فاز ۱) ────────────────────────────────────────
+-- مدرسه‌ها، کدهای معرف، پروفایلِ مدرسه‌ایِ کاربر — مایگریشنِ ۰۰۲۹ در
+-- lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+CREATE TABLE IF NOT EXISTS schools (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT,
+  address TEXT,
+  photo_url TEXT,
+  city TEXT,
+  license_info TEXT,
+  created_by_user_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS schools_slug_unique_idx ON schools(slug) WHERE slug IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS school_invite_codes (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  code TEXT NOT NULL,
+  role TEXT,
+  created_by_user_id TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_invite_codes_code_unique_idx ON school_invite_codes(code);
+CREATE INDEX IF NOT EXISTS idx_school_invite_codes_school ON school_invite_codes(school_id);
+
+CREATE TABLE IF NOT EXISTS school_members (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  school_id TEXT REFERENCES schools(id),
+  role TEXT,
+  grade TEXT,
+  national_id TEXT,
+  birth_date TIMESTAMPTZ,
+  city TEXT,
+  school_name_free_text TEXT,
+  profile_complete BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_members_user_id_unique_idx ON school_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_school_members_school ON school_members(school_id);
+
+-- ─── SCHOOL CONTENT (لغت‌نامه/جزوه/کتاب/فرمول) ─────────────────────────────
+-- مایگریشنِ ۰۰۳۰ در lib/db/migrations همین بلوک را تکرار می‌کند.
+CREATE TABLE IF NOT EXISTS school_content_items (
+  id TEXT PRIMARY KEY,
+  school_id TEXT REFERENCES schools(id),
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  language TEXT,
+  created_by_user_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_content_items_school ON school_content_items(school_id);
+CREATE INDEX IF NOT EXISTS idx_school_content_items_type ON school_content_items(type);
+
+-- ─── SCHOOLS فاز ۲ (کلاس‌ها/برنامه‌ها/اعلامیه‌ها/یادداشتِ مشاور/والد/چندمدرسه‌ایِ مدیر) ──
+-- مایگریشنِ ۰۰۳۱ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+CREATE TABLE IF NOT EXISTS school_classes (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  name TEXT NOT NULL,
+  grade TEXT,
+  academic_year TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_classes_school ON school_classes(school_id);
+
+CREATE TABLE IF NOT EXISTS school_class_members (
+  id TEXT PRIMARY KEY,
+  class_id TEXT NOT NULL REFERENCES school_classes(id),
+  school_member_id TEXT NOT NULL,
+  role_in_class TEXT NOT NULL DEFAULT 'student',
+  added_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_class_members_class ON school_class_members(class_id);
+CREATE INDEX IF NOT EXISTS idx_school_class_members_member ON school_class_members(school_member_id);
+
+CREATE TABLE IF NOT EXISTS school_programs (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  class_id TEXT,
+  title TEXT NOT NULL,
+  description TEXT,
+  day_of_week TEXT,
+  start_time TEXT,
+  end_time TEXT,
+  created_by_user_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_programs_school ON school_programs(school_id);
+CREATE INDEX IF NOT EXISTS idx_school_programs_class ON school_programs(class_id);
+
+CREATE TABLE IF NOT EXISTS school_announcements (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  class_id TEXT,
+  author_user_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_announcements_school ON school_announcements(school_id);
+CREATE INDEX IF NOT EXISTS idx_school_announcements_class ON school_announcements(class_id);
+
+CREATE TABLE IF NOT EXISTS school_counselor_notes (
+  id TEXT PRIMARY KEY,
+  counselor_user_id TEXT NOT NULL,
+  student_member_id TEXT NOT NULL,
+  note TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_counselor_notes_student ON school_counselor_notes(student_member_id);
+
+CREATE TABLE IF NOT EXISTS school_guardianships (
+  id TEXT PRIMARY KEY,
+  parent_user_id TEXT NOT NULL,
+  student_member_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_guardianships_parent ON school_guardianships(parent_user_id);
+CREATE INDEX IF NOT EXISTS idx_school_guardianships_student ON school_guardianships(student_member_id);
+
+CREATE TABLE IF NOT EXISTS school_admins (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_admins_user_school_unique_idx ON school_admins(user_id, school_id);
+
+-- ─── SCHOOLS فاز ۳ (URLِ عکسِ محتوا، تکالیف) ────────────────────────────────
+-- مایگریشنِ ۰۰۳۲ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+ALTER TABLE school_content_items ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+CREATE TABLE IF NOT EXISTS school_assignments (
+  id TEXT PRIMARY KEY,
+  class_id TEXT NOT NULL REFERENCES school_classes(id),
+  teacher_user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  due_date TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_assignments_class ON school_assignments(class_id);
+
+CREATE TABLE IF NOT EXISTS school_assignment_submissions (
+  id TEXT PRIMARY KEY,
+  assignment_id TEXT NOT NULL REFERENCES school_assignments(id),
+  student_member_id TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  submitted_at TIMESTAMPTZ,
+  grade TEXT,
+  feedback TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_assignment_submissions_uniq_idx ON school_assignment_submissions(assignment_id, student_member_id);
+CREATE INDEX IF NOT EXISTS idx_school_assignment_submissions_student ON school_assignment_submissions(student_member_id);
+
+-- ─── SCHOOLS فاز ۴ (گزارش/برنامه/چتِ مشاور، بانکِ سؤال، آزمون) ───────────────
+-- مایگریشنِ ۰۰۳۳ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+ALTER TABLE school_programs ADD COLUMN IF NOT EXISTS counselor_user_id TEXT;
+
+CREATE TABLE IF NOT EXISTS school_counselor_reports (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  counselor_user_id TEXT NOT NULL,
+  student_member_id TEXT,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_counselor_reports_school ON school_counselor_reports(school_id);
+CREATE INDEX IF NOT EXISTS idx_school_counselor_reports_counselor ON school_counselor_reports(counselor_user_id);
+
+CREATE TABLE IF NOT EXISTS school_counselor_messages (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  counselor_user_id TEXT NOT NULL,
+  student_member_id TEXT NOT NULL,
+  sender_user_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_counselor_messages_pair ON school_counselor_messages(counselor_user_id, student_member_id);
+
+CREATE TABLE IF NOT EXISTS school_questions (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  teacher_user_id TEXT NOT NULL,
+  question_text TEXT NOT NULL,
+  choices JSONB,
+  correct_answer TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_questions_teacher ON school_questions(teacher_user_id);
+CREATE INDEX IF NOT EXISTS idx_school_questions_school ON school_questions(school_id);
+
+CREATE TABLE IF NOT EXISTS school_exams (
+  id TEXT PRIMARY KEY,
+  class_id TEXT NOT NULL REFERENCES school_classes(id),
+  teacher_user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  question_ids JSONB NOT NULL DEFAULT '[]',
+  scheduled_at TIMESTAMPTZ,
+  duration_minutes INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_exams_class ON school_exams(class_id);
+
+CREATE TABLE IF NOT EXISTS school_exam_attempts (
+  id TEXT PRIMARY KEY,
+  exam_id TEXT NOT NULL REFERENCES school_exams(id),
+  student_member_id TEXT NOT NULL,
+  answers JSONB NOT NULL DEFAULT '{}',
+  score TEXT,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  submitted_at TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_exam_attempts_uniq_idx ON school_exam_attempts(exam_id, student_member_id);
+CREATE INDEX IF NOT EXISTS idx_school_exam_attempts_student ON school_exam_attempts(student_member_id);
+
+-- ─── SCHOOLS فاز ۵ (ارتباط با مدیر/معلم) ─────────────────────────────────────
+-- مایگریشنِ ۰۰۳۴ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+-- school_admin_messages: یک رشته‌ی مشترک به‌ازایِ هر (school, student) — نه
+-- به‌ازایِ هر مدیر؛ ببینید توضیحِ کاملِ تصمیم در schema/schoolAdminMessages.ts.
+CREATE TABLE IF NOT EXISTS school_admin_messages (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  student_member_id TEXT NOT NULL,
+  sender_user_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_admin_messages_student ON school_admin_messages(school_id, student_member_id);
+
+CREATE TABLE IF NOT EXISTS school_teacher_messages (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  teacher_user_id TEXT NOT NULL,
+  student_member_id TEXT NOT NULL,
+  sender_user_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_teacher_messages_pair ON school_teacher_messages(teacher_user_id, student_member_id);
+
+-- ─── SCHOOLS فاز ۶ (حضور و غیاب، اخطار/هشدار، ارسالِ دیرهنگامِ آزمون) ────────
+-- مایگریشنِ ۰۰۳۵ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+CREATE TABLE IF NOT EXISTS school_attendance (
+  id TEXT PRIMARY KEY,
+  class_id TEXT NOT NULL REFERENCES school_classes(id),
+  student_member_id TEXT NOT NULL,
+  date DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'present',
+  marked_by_user_id TEXT NOT NULL,
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_attendance_uniq_idx ON school_attendance(class_id, student_member_id, date);
+CREATE INDEX IF NOT EXISTS idx_school_attendance_student ON school_attendance(student_member_id);
+
+CREATE TABLE IF NOT EXISTS school_student_alerts (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  student_member_id TEXT NOT NULL,
+  issued_by_user_id TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'notice',
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_student_alerts_student ON school_student_alerts(student_member_id);
+CREATE INDEX IF NOT EXISTS idx_school_student_alerts_school ON school_student_alerts(school_id);
+
+ALTER TABLE school_exam_attempts ADD COLUMN IF NOT EXISTS late_submission BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- ─── SCHOOLS فاز ۷ (استخرِ توکنِ بات، باتِ اطلاع‌رسانیِ مدرسه، اتصالِ تلگرام) ──
+-- مایگریشنِ ۰۰۳۶ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+CREATE TABLE IF NOT EXISTS school_bot_token_pool (
+  id TEXT PRIMARY KEY,
+  bot_token TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'available',
+  assigned_school_id TEXT REFERENCES schools(id),
+  added_by_user_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS school_bots (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL UNIQUE REFERENCES schools(id),
+  bot_token_pool_id TEXT NOT NULL REFERENCES school_bot_token_pool(id),
+  telegram_bot_id TEXT,
+  telegram_username TEXT,
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS school_bot_subscribers (
+  id TEXT PRIMARY KEY,
+  school_bot_id TEXT NOT NULL REFERENCES school_bots(id),
+  user_id TEXT NOT NULL,
+  telegram_chat_id TEXT NOT NULL,
+  linked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_bot_subscribers_uniq_idx ON school_bot_subscribers(school_bot_id, user_id);
+
+CREATE TABLE IF NOT EXISTS school_bot_link_tokens (
+  token TEXT PRIMARY KEY,
+  school_bot_id TEXT NOT NULL REFERENCES school_bots(id),
+  user_id TEXT NOT NULL,
+  used BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS school_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_notifications_school ON notifications(school_id);
+
+-- سیدِ محصولِ «بات اطلاع‌رسانیِ مدرسه» — دسته‌ی "school" از فازِ محصولات از
+-- قبل وجود داشت ولی هیچ محصولِ واقعی‌ای زیرش نبود. قیمت (۹۹۰٬۰۰۰ تومان) یک
+-- تصمیمِ تجاریِ آزاد است، از پنلِ ادمینِ محصولات (بدون دیپلوی) قابلِ ویرایش،
+-- دقیقاً مثلِ استاندارد/پرو/فروشگاه‌ساز بالاتر.
+INSERT INTO products (id, category_id, name, name_fa, description, description_fa, price, icon, metadata, sort_order)
+VALUES
+  ('school_bot_addon', 'school', 'School Notification Bot', 'بات اطلاع‌رسانیِ مدرسه',
+   'A dedicated Telegram bot, renamed to your school, that delivers attendance/exam/assignment/alert notifications to students, parents and staff.',
+   'یک بات تلگرامیِ اختصاصی با نامِ مدرسه‌ی شما که اعلان‌هایِ حضور و غیاب/آزمون/تکلیف/اخطار را به دانش‌آموز، والدین و کادر می‌رساند.',
+   9900000, 'Bot',
+   '{}',
+   0)
+ON CONFLICT (id) DO NOTHING;
+
+-- ─── SCHOOLS فاز ۹ (بندِ ۱: وضعیتِ خوانده‌شدنِ رشته‌ها) ────────────────────
+-- مایگریشنِ ۰۰۳۷ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+CREATE TABLE IF NOT EXISTS school_message_read_state (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  thread_key TEXT NOT NULL,
+  last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_message_read_state_uniq_idx ON school_message_read_state(user_id, thread_key);
+
+-- ─── SCHOOLS فاز ۹ (بندِ ۲: انقضا/سقفِ مصرفِ کدِ معرف) ─────────────────────
+ALTER TABLE school_invite_codes ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE school_invite_codes ADD COLUMN IF NOT EXISTS max_uses INTEGER;
+ALTER TABLE school_invite_codes ADD COLUMN IF NOT EXISTS uses_count INTEGER NOT NULL DEFAULT 0;
+
+-- ─── SCHOOLS فاز ۹ (بندِ ۳: لاگِ رخدادهایِ مدیریتی) ─────────────────────────
+CREATE TABLE IF NOT EXISTS school_audit_log (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  actor_user_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_description TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_audit_log_school ON school_audit_log(school_id, created_at DESC);
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT

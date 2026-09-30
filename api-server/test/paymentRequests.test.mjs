@@ -52,6 +52,21 @@ test("مبلغِ نامعتبر پیش از هر اتصالی رد می‌شود
   }
 });
 
+test("resolveDefaultExpiryMs: پیش‌فرض ۳۰ دقیقه؛ env فقط عددِ صحیحِ ۵..۲۴۰ را می‌پذیرد", () => {
+  const { resolveDefaultExpiryMs, DEFAULT_EXPIRY_MS } = svc;
+  const MIN = 60_000;
+  assert.equal(DEFAULT_EXPIRY_MS, 30 * MIN);
+  assert.equal(resolveDefaultExpiryMs({}), 30 * MIN);
+  assert.equal(resolveDefaultExpiryMs({ PAYMENT_REQUEST_EXPIRY_MINUTES: "45" }), 45 * MIN);
+  assert.equal(resolveDefaultExpiryMs({ PAYMENT_REQUEST_EXPIRY_MINUTES: " 10 " }), 10 * MIN);
+  assert.equal(resolveDefaultExpiryMs({ PAYMENT_REQUEST_EXPIRY_MINUTES: "5" }), 5 * MIN);
+  assert.equal(resolveDefaultExpiryMs({ PAYMENT_REQUEST_EXPIRY_MINUTES: "240" }), 240 * MIN);
+  // نامعتبر/خارج از بازه → همان ۳۰ دقیقه (نه صفر، نه بی‌نهایت، نه NaN)
+  for (const bad of ["", "0", "4", "241", "-10", "1.5", "abc", "1e3", "999999999999"]) {
+    assert.equal(resolveDefaultExpiryMs({ PAYMENT_REQUEST_EXPIRY_MINUTES: bad }), 30 * MIN, `مقدار ${bad}`);
+  }
+});
+
 // ─── زنده ───────────────────────────────────────────────────────────────────
 
 const PG_URL = process.env.CARD_TEST_PG_URL;
@@ -61,7 +76,7 @@ let pgMod = null;
 try { pgMod = await import("pg"); } catch { /* skip */ }
 const Pool = pgMod?.default?.Pool ?? pgMod?.Pool;
 
-const mirror = fs.readFileSync(new URL("../../lib/db/migrations/0029_card_autoconfirm.sql", import.meta.url), "utf8");
+const mirror = fs.readFileSync(new URL("../../lib/db/migrations/0038_card_autoconfirm.sql", import.meta.url), "utf8");
 const ddl = mirror.slice(mirror.indexOf("-- ─── CARD_AUTOCONFIRM"));
 
 async function withPool(fn) {

@@ -79,5 +79,8 @@
     "vite": "catalog:",
     "wouter": "^3.3.5",
     "zod": "catalog:"
+  },
+  "dependencies": {
+    "katex": "^0.18.9"
   }
 }

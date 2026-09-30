@@ -41,6 +41,20 @@ export interface PoolLike {
 export type ChannelScope = { scope: "platform" } | { scope: "bot"; botId: string };
 
 export const DEFAULT_EXPIRY_MS = 30 * 60 * 1000;
+export const MIN_EXPIRY_MINUTES = 5;
+export const MAX_EXPIRY_MINUTES = 240;
+
+/**
+ * مهلتِ پرداختِ پیش‌فرض (قابل تنظیم بدونِ تغییرِ کد): env `PAYMENT_REQUEST_EXPIRY_MINUTES`، عددِ صحیحِ ۵..۲۴۰؛
+ * نبود یا مقدارِ نامعتبر/خارج از بازه → ۳۰ دقیقه (هیچ‌وقت مهلتِ صفر/بی‌نهایت نمی‌شود). هر فراخوانی می‌تواند با `expiryMs` بازنویسی کند.
+ * فقط برایِ درخواست‌هایِ *تازه/ارتقاپیدا* اثر دارد؛ درخواست‌هایِ بازِ فعلی `expires_at` خودشان را نگه می‌دارند.
+ */
+export function resolveDefaultExpiryMs(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.PAYMENT_REQUEST_EXPIRY_MINUTES;
+  if (raw === undefined || !/^\d+$/.test(raw.trim())) return DEFAULT_EXPIRY_MS;
+  const minutes = Number(raw.trim());
+  return minutes >= MIN_EXPIRY_MINUTES && minutes <= MAX_EXPIRY_MINUTES ? minutes * 60_000 : DEFAULT_EXPIRY_MS;
+}
 /** حداکثر انتظار در صف — بعد از آن `expired` می‌شود و دیگر ارتقا نمی‌یابد. */
 export const DEFAULT_QUEUE_TTL_MS = 60 * 60 * 1000;
 export const SUFFIX_MIN_RIAL = 10;
@@ -206,7 +220,7 @@ export async function createPaymentRequest(pool: PoolLike, input: CreateRequestI
     throw new PaymentRequestError("مبلغ باید یک عدد صحیحِ مثبت (ریال) باشد.", "invalid_amount");
   }
   const now = input.now ?? new Date();
-  const expiresAt = new Date(now.getTime() + (input.expiryMs ?? DEFAULT_EXPIRY_MS));
+  const expiresAt = new Date(now.getTime() + (input.expiryMs ?? resolveDefaultExpiryMs()));
   const queueExpiresAt = new Date(now.getTime() + (input.queueTtlMs ?? DEFAULT_QUEUE_TTL_MS));
   const rnd = input.randomInt ?? crypto.randomInt;
 
@@ -281,7 +295,7 @@ export async function promoteQueue(
   opts: { now?: Date; expiryMs?: number; randomInt?: (n: number) => number } = {},
 ): Promise<PaymentRequestRow[]> {
   const now = opts.now ?? new Date();
-  const expiresAt = new Date(now.getTime() + (opts.expiryMs ?? DEFAULT_EXPIRY_MS));
+  const expiresAt = new Date(now.getTime() + (opts.expiryMs ?? resolveDefaultExpiryMs()));
   const rnd = opts.randomInt ?? crypto.randomInt;
   const promoted: PaymentRequestRow[] = [];
 

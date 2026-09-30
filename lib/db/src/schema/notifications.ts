@@ -36,6 +36,16 @@ export const notificationsTable = pgTable("notifications", {
    * لینک درمی‌آورد و هیچ راهی برای اشاره به یک رکورد مشخص نبود).
    */
   refId: text("ref_id"),
+  /**
+   * فاز ۷ "/schools": این جدول تا این‌جا فقط سراسری بود — قدیم‌ترین کامنتِ
+   * `schoolAnnouncements.ts` همین را دلیلِ ساختِ یک جدولِ مدرسه‌ایِ جدا
+   * می‌دانست، اما نوعِ اعلانِ **شخصی** (آزمون/تکلیف/غیبت/اخطار) دقیقاً همین
+   * ستون‌ها (userId/title/message/read) را می‌خواهد و دوباره‌سازیِ زنگوله +
+   * صفحه‌ی اعلان‌ها برایِ یک جدولِ جدا اتلافِ کار بود. `schoolId` فقط یک
+   * برچسبِ اختیاریِ فیلتر/routing است؛ منطقِ خواندن/خواندن‌شده همان قبلی
+   * می‌ماند (ببینید lib/schoolNotify.ts).
+   */
+  schoolId: text("school_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

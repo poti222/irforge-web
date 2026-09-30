@@ -1,7 +1,7 @@
--- 0032_card_autoconfirm_p8_p9.sql
+-- 0041_card_autoconfirm_p8_p9.sql
 -- Phase 8 (platform wallet top-up migration refs) + Phase 9 (event log).
 -- (Runtime migration lives in api-server/migrate.mjs; this file mirrors it for
--- drizzle-kit parity, same convention as 0025-0031.)
+-- drizzle-kit parity, same convention as 0025-0040.)
 
 -- ─── CARD_AUTOCONFIRM_P8_P9 (مهاجرتِ شارژ کیف‌پولِ پلتفرم + لاگِ رویدادها) ────────
 -- legacy_ref: ردیف‌های مهاجرت‌شده از wallet_topups / sms_logs با کلیدِ یکتا («جدول:id»)

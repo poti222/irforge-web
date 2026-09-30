@@ -1,5 +1,5 @@
 /**
- * test/helpers/cardPayDdl.mjs — DDLِ کاملِ ماژولِ کارت‌به‌کارت (0029..0032) از روی فایل‌های آینه.
+ * test/helpers/cardPayDdl.mjs — DDLِ کاملِ ماژولِ کارت‌به‌کارت (0038..0041) از روی فایل‌های آینه.
  * تست‌های زنده هر کدام روی یک schemaِ موقتِ جدا اجرا می‌کنند.
  */
 import fs from "node:fs";
@@ -10,10 +10,10 @@ const read = (f) => {
 };
 
 export const DDL_FILES = [
-  "0029_card_autoconfirm.sql",
-  "0030_card_autoconfirm_effects.sql",
-  "0031_card_autoconfirm_reject.sql",
-  "0032_card_autoconfirm_p8_p9.sql",
+  "0038_card_autoconfirm.sql",
+  "0039_card_autoconfirm_effects.sql",
+  "0040_card_autoconfirm_reject.sql",
+  "0041_card_autoconfirm_p8_p9.sql",
 ];
 export const DDL_ALL = DDL_FILES.map(read).join("\n");
 

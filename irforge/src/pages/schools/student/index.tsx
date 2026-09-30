@@ -1,0 +1,79 @@
+import { Link } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BookOpenText, NotebookPen, Library, Sigma, MessageCircleQuestion, ShieldCheck, GraduationCap, ClipboardList, FileQuestion, ClipboardCheck } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
+import { useT } from "@/hooks/use-translation";
+import { getSchoolMe, listMyAlerts } from "@/lib/schools-api";
+import { AlertsFeed } from "@/pages/schools/admin/alerts";
+
+const TILES = [
+  { key: "dictionary", href: "/schools/content/dictionary", icon: BookOpenText },
+  { key: "notes", href: "/schools/content/note", icon: NotebookPen },
+  { key: "books", href: "/schools/content/book", icon: Library },
+  { key: "formulas", href: "/schools/content/formula", icon: Sigma },
+  // فاز ۳ (بندِ ۳): «تکالیفِ من» — تکِ تایلِ تازه، به‌جایِ یک نوارِ کناریِ
+  // مجزا، چون این تایلیِ سادۀ صفحه‌ی خانه‌ی دانش‌آموز الگویِ بقیه هم هست.
+  { key: "assignments", href: "/schools/student/assignments", icon: ClipboardList },
+  // فاز ۴ (بندِ ۲/۱): «آزمونِ من» و «ارتباط با مشاور» دیگر استاب نیستند.
+  { key: "exams", href: "/schools/student/exams", icon: FileQuestion },
+  // فاز ۶ (بندِ ۱/۲): «حضور و غیاب» و «نمره‌های من» دیگر استاب نیستند.
+  { key: "attendance", href: "/schools/student/attendance", icon: ClipboardCheck },
+  { key: "grades", href: "/schools/student/grades", icon: GraduationCap },
+  { key: "contact-counselor", href: "/schools/student/counselor", icon: MessageCircleQuestion },
+  { key: "contact-admin", href: "/schools/student/admin-chat", icon: ShieldCheck },
+  { key: "contact-teacher", href: "/schools/student/teacher-chat", icon: GraduationCap },
+];
+
+const TILE_LABEL_KEY: Record<string, string> = {
+  dictionary: "navDictionary",
+  notes: "navNotes",
+  books: "navBooks",
+  formulas: "navFormulas",
+  assignments: "navAssignments",
+  exams: "navExams",
+  attendance: "navAttendance",
+  grades: "navGrades",
+  "contact-counselor": "navContactCounselor",
+  "contact-admin": "navContactAdmin",
+  "contact-teacher": "navContactTeacher",
+};
+
+export default function SchoolsStudentHome() {
+  const t = useT("schools") as any;
+  usePrivatePageTitle(t.studentHomeTitle);
+  const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
+  const schoolId = me?.schoolId ?? undefined;
+  // فاز ۶ (بندِ ۴): اخطار/هشدار باید در داشبوردِ خودِ دانش‌آموز هم دیده شود،
+  // نه فقط برایِ والد — طبقِ اسپکِ صریحِ فاز.
+  const { data: alerts, isLoading: alertsLoading } = useQuery({
+    queryKey: ["schools", "alerts", "my", schoolId],
+    queryFn: () => listMyAlerts(schoolId!),
+    enabled: !!schoolId,
+  });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-bold">{me?.school?.name ?? t.studentHomeTitle}</h1>
+        <p className="text-sm text-muted-foreground">{t.studentHomeDescription}</p>
+      </div>
+      {alerts && alerts.length > 0 && <AlertsFeed alerts={alerts} isLoading={alertsLoading} />}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {TILES.map((tile) => (
+          <Link key={tile.key} href={tile.href}>
+            <Card className="cursor-pointer transition hover:border-primary/50">
+              <CardHeader className="flex flex-row items-center gap-3 pb-2">
+                <tile.icon className="size-5 text-primary" />
+                <CardTitle className="text-base">{t[TILE_LABEL_KEY[tile.key]]}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">{t.studentTileHint}</p>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}

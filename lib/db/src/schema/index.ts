@@ -35,3 +35,33 @@ export * from "./exchangeRates";
 export * from "./products";
 // کارت‌به‌کارت با تأیید خودکار از روی پیامک بانک (platform + bot) — فاز ۱
 export * from "./paymentChannels";
+// بخش "/schools" فاز ۱ — مدرسه‌ها، کدهای معرف، پروفایلِ مدرسه‌ایِ کاربر
+export * from "./schools";
+// بخش "/schools" فاز ۱ — لغت‌نامه/جزوه/کتاب/فرمول
+export * from "./schoolContent";
+// بخش "/schools" فاز ۲ — کلاس‌ها، برنامه‌ها، اعلامیه‌ها، یادداشتِ مشاور،
+// پیوندِ والد↔دانش‌آموز، چندمدرسه‌ایِ مدیر
+export * from "./schoolClasses";
+export * from "./schoolPrograms";
+export * from "./schoolAnnouncements";
+export * from "./schoolCounselorNotes";
+export * from "./schoolGuardianships";
+export * from "./schoolAdmins";
+// بخش "/schools" فاز ۳ — تکالیفِ معلم/ارسالِ دانش‌آموز
+export * from "./schoolAssignments";
+// بخش "/schools" فاز ۴ — گزارش/برنامه/چتِ مشاور، بانکِ سؤال، آزمون
+export * from "./schoolCounselorReports";
+export * from "./schoolCounselorMessages";
+export * from "./schoolQuestions";
+export * from "./schoolExams";
+// بخش "/schools" فاز ۵ — ارتباط با مدیر/معلم (بندِ ۱)
+export * from "./schoolAdminMessages";
+export * from "./schoolTeacherMessages";
+// بخش "/schools" فاز ۶ — حضور و غیاب، اخطار/هشدارِ دانش‌آموز
+export * from "./schoolAttendance";
+export * from "./schoolStudentAlerts";
+// بخش "/schools" فاز ۷ — استخرِ توکنِ بات + باتِ اطلاع‌رسانیِ هر مدرسه
+export * from "./schoolBots";
+// بخش "/schools" فاز ۹ — وضعیتِ خوانده‌شدنِ رشته‌ها + لاگِ رخدادهایِ مدیریتی
+export * from "./schoolMessageReadState";
+export * from "./schoolAuditLog";

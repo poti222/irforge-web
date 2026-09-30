@@ -39,7 +39,7 @@ const readSql = (f) => {
   const t = fs.readFileSync(new URL(`../../lib/db/migrations/${f}`, import.meta.url), "utf8");
   return t.slice(t.indexOf("-- ───"));
 };
-const ddl = ["0029_card_autoconfirm.sql", "0030_card_autoconfirm_effects.sql", "0031_card_autoconfirm_reject.sql"]
+const ddl = ["0038_card_autoconfirm.sql", "0039_card_autoconfirm_effects.sql", "0040_card_autoconfirm_reject.sql"]
   .map(readSql).join("\n");
 
 const SHEETS = { sheet_A_12345: "bot_A", sheet_B_12345: "bot_B" };
@@ -332,7 +332,7 @@ test("منبع: مسیرِ decide از confirmRequestTx (تابعِ تأییدِ
   const logs = [...route.matchAll(/logger\.(?:info|warn|error)\(([\s\S]*?)\);/g)].map((m) => m[1]);
   for (const l of logs) assert.doesNotMatch(l.split('"')[0], /reason|cardNumber|secret/i, l);
   const mig = fs.readFileSync(new URL("../migrate.mjs", import.meta.url), "utf8");
-  const m31 = readSql("0031_card_autoconfirm_reject.sql");
-  assert.ok(mig.includes(m31.trimEnd()), "migrate.mjs و 0031 از هم جدا شده‌اند");
+  const m31 = readSql("0040_card_autoconfirm_reject.sql");
+  assert.ok(mig.includes(m31.trimEnd()), "migrate.mjs و 0040 از هم جدا شده‌اند");
   assert.ok(!m31.includes("`") && !m31.includes("${"));
 });

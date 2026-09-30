@@ -95,7 +95,7 @@ const readSql = (f) => {
   const t = fs.readFileSync(new URL(`../../lib/db/migrations/${f}`, import.meta.url), "utf8");
   return t.slice(t.indexOf("-- ───"));
 };
-const ddl = ["0029_card_autoconfirm.sql", "0030_card_autoconfirm_effects.sql", "0031_card_autoconfirm_reject.sql"].map(readSql).join("\n");
+const ddl = ["0038_card_autoconfirm.sql", "0039_card_autoconfirm_effects.sql", "0040_card_autoconfirm_reject.sql"].map(readSql).join("\n");
 
 // کاربر → باتی که مجاز است. سوپرادمین همه‌چیز را می‌بیند.
 const ACCESS = { owner_A: "bot_A", owner_B: "bot_B" };

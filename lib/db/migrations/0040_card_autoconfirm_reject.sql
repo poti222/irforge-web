@@ -1,4 +1,4 @@
--- 0031_card_autoconfirm_reject.sql
+-- 0040_card_autoconfirm_reject.sql
 -- Manual (admin) reject audit columns for the shared card-to-card module.
 -- (Runtime migration lives in api-server/migrate.mjs; this file mirrors it.)
 

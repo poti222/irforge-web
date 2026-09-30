@@ -67,8 +67,54 @@ const Plans = lazy(() => import("@/pages/plans"));
 const Profile = lazy(() => import("@/pages/profile"));
 const Admin = lazy(() => import("@/pages/admin"));
 
+// بخش "/schools" فاز ۱
+const SchoolsEntry = lazy(() => import("@/pages/schools/index"));
+const SchoolsAdminHome = lazy(() => import("@/pages/schools/admin/index"));
+const SchoolsStudentHome = lazy(() => import("@/pages/schools/student/index"));
+const SchoolsRoleHome = lazy(() => import("@/pages/schools/role-home"));
+const SchoolContentList = lazy(() => import("@/pages/schools/content-list"));
+const SchoolContentDetail = lazy(() => import("@/pages/schools/content-detail"));
+const SchoolsStub = lazy(() => import("@/pages/schools/stub"));
+const SchoolShell = lazy(() => import("@/components/layout/SchoolShell"));
+// بخش "/schools" فاز ۲
+const SchoolMembersPage = lazy(() => import("@/pages/schools/admin/members"));
+const SchoolClassesPage = lazy(() => import("@/pages/schools/admin/classes"));
+const SchoolClassDetailPage = lazy(() => import("@/pages/schools/admin/class-detail"));
+const SchoolProgramsPage = lazy(() => import("@/pages/schools/admin/programs"));
+const SchoolAnnouncementsPage = lazy(() => import("@/pages/schools/announcements"));
+const TeacherClassesPage = lazy(() => import("@/pages/schools/teacher/classes"));
+const CounselorStudentsPage = lazy(() => import("@/pages/schools/counselor/students"));
+const ParentChildrenPage = lazy(() => import("@/pages/schools/parent/children"));
+// بخش "/schools" فاز ۳
+const TeacherTodayPage = lazy(() => import("@/pages/schools/teacher/today"));
+const TeacherAssignmentsPage = lazy(() => import("@/pages/schools/teacher/assignments"));
+const StudentAssignmentsPage = lazy(() => import("@/pages/schools/student/assignments"));
+// بخش "/schools" فاز ۴ — گزارش/برنامه/چتِ مشاور، بانکِ سؤال، آزمون
+const CounselorReportsPage = lazy(() => import("@/pages/schools/counselor/reports"));
+const CounselorSchedulePage = lazy(() => import("@/pages/schools/counselor/schedule"));
+const CounselorChatPage = lazy(() => import("@/pages/schools/counselor/chat"));
+const StudentCounselorPage = lazy(() => import("@/pages/schools/student/counselor"));
+const TeacherQuestionsPage = lazy(() => import("@/pages/schools/teacher/questions"));
+const TeacherExamsPage = lazy(() => import("@/pages/schools/teacher/exams"));
+const StudentExamsPage = lazy(() => import("@/pages/schools/student/exams"));
+// بخش "/schools" فاز ۵ — ارتباط با مدیر/معلم، فازِ عمقِ والد
+const AdminMessagesPage = lazy(() => import("@/pages/schools/admin/messages"));
+const TeacherMessagesPage = lazy(() => import("@/pages/schools/teacher/messages"));
+const StudentAdminChatPage = lazy(() => import("@/pages/schools/student/admin-chat"));
+const StudentTeacherChatPage = lazy(() => import("@/pages/schools/student/teacher-chat"));
+const ParentReportsPage = lazy(() => import("@/pages/schools/parent/reports"));
+// بخش "/schools" فاز ۶ — حضور و غیاب، نمره‌نامه، اخطار/هشدارِ دانش‌آموز
+const TeacherAttendancePage = lazy(() => import("@/pages/schools/teacher/attendance"));
+const TeacherGradebookPage = lazy(() => import("@/pages/schools/teacher/gradebook"));
+const StudentAttendancePage = lazy(() => import("@/pages/schools/student/attendance"));
+const StudentGradesPage = lazy(() => import("@/pages/schools/student/grades"));
+const SchoolAlertsPage = lazy(() => import("@/pages/schools/admin/alerts"));
+// بخش "/schools" فاز ۹ — تاریخچه‌ی رخدادهایِ مدیریتی
+const SchoolAuditLogPage = lazy(() => import("@/pages/schools/admin/audit-log"));
+
 const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
 const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
+const AdminSchoolBotPool = lazy(() => import("@/pages/admin-school-bot-pool"));
 const AdminCutoverFlags = lazy(() => import("@/pages/admin-cutover-flags"));
 const AdminSheetsImport = lazy(() => import("@/pages/admin-sheets-import"));
 const Support = lazy(() => import("@/pages/support"));
@@ -140,6 +186,43 @@ function ProtectedRoute({ component: Component, adminOnly = false, superAdminOnl
       <DashboardShell routeKey={location}>
         <Component {...rest} />
       </DashboardShell>
+    </Suspense>
+  );
+}
+
+/**
+ * SchoolProtectedRoute — دقیقاً معادلِ `ProtectedRoute`، اما به‌جایِ
+ * `DashboardShell` از `SchoolShell` استفاده می‌کند (سایدبارِ نقش‌محورِ بخشِ
+ * "/schools"). دروازه‌ی هویتِ سراسری (لاگین + ویزاردِ تکمیلِ پروفایل) اینجا
+ * هم دست‌نخورده اعمال می‌شود — SchoolShell فقط *بعد* از آن، دروازه‌ی جداگانه‌ی
+ * «پروفایلِ مدرسه‌ای کامل است؟» را اضافه می‌کند (خودِ SchoolShell این را چک
+ * می‌کند و در صورتِ ناقص‌بودن به /schools ریدایرکت می‌کند).
+ */
+function SchoolProtectedRoute({ component: Component, ...rest }: { component: any; role?: string }) {
+  const { user, isLoading } = useAuth();
+  const [location] = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Redirect to="/login" />;
+  }
+
+  if (!user.profileComplete) {
+    return <Redirect to="/complete-profile" />;
+  }
+
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <SchoolShell key={location}>
+        <Component {...rest} />
+      </SchoolShell>
     </Suspense>
   );
 }
@@ -283,7 +366,56 @@ function Router() {
       <Route path="/updates/:id"><ProtectedRoute component={UpdateDetail} /></Route>
       <Route path="/database"><ProtectedRoute component={DatabasePage} /></Route>
       <Route path="/profile"><ProtectedRoute component={Profile} /></Route>
-      
+
+      {/* بخش "/schools" فاز ۱ — نقطه‌ی ورود (آنبوردینگ یا ریدایرکت به نقش)
+          هنوز نقشی معلوم نیست، پس هنوز از SchoolShell استفاده نمی‌کند. */}
+      <Route path="/schools"><ProtectedRoute component={SchoolsEntry} /></Route>
+      <Route path="/schools/admin"><SchoolProtectedRoute component={SchoolsAdminHome} /></Route>
+      <Route path="/schools/student"><SchoolProtectedRoute component={SchoolsStudentHome} /></Route>
+      <Route path="/schools/teacher"><SchoolProtectedRoute component={SchoolsRoleHome} role="teacher" /></Route>
+      <Route path="/schools/counselor"><SchoolProtectedRoute component={SchoolsRoleHome} role="counselor" /></Route>
+      <Route path="/schools/deputy"><SchoolProtectedRoute component={SchoolsRoleHome} role="deputy" /></Route>
+      <Route path="/schools/deputy-discipline"><SchoolProtectedRoute component={SchoolsRoleHome} role="deputy-discipline" /></Route>
+      <Route path="/schools/parent"><SchoolProtectedRoute component={SchoolsRoleHome} role="parent" /></Route>
+      <Route path="/schools/content/:type"><SchoolProtectedRoute component={SchoolContentList} /></Route>
+      <Route path="/schools/content/:type/:id"><SchoolProtectedRoute component={SchoolContentDetail} /></Route>
+      {/* بخش "/schools" فاز ۲ — مدیریتِ اعضا/کلاس‌ها/برنامه‌ها/اعلامیه‌ها + صفحاتِ واقعیِ معلم/مشاور/والد */}
+      <Route path="/schools/admin/members"><SchoolProtectedRoute component={SchoolMembersPage} /></Route>
+      <Route path="/schools/admin/classes"><SchoolProtectedRoute component={SchoolClassesPage} /></Route>
+      <Route path="/schools/admin/classes/:id"><SchoolProtectedRoute component={SchoolClassDetailPage} /></Route>
+      <Route path="/schools/admin/programs"><SchoolProtectedRoute component={SchoolProgramsPage} /></Route>
+      <Route path="/schools/announcements"><SchoolProtectedRoute component={SchoolAnnouncementsPage} /></Route>
+      <Route path="/schools/teacher/classes"><SchoolProtectedRoute component={TeacherClassesPage} /></Route>
+      <Route path="/schools/counselor/students"><SchoolProtectedRoute component={CounselorStudentsPage} /></Route>
+      <Route path="/schools/parent/children"><SchoolProtectedRoute component={ParentChildrenPage} /></Route>
+      {/* بخش "/schools" فاز ۳ — امروز/تکالیفِ معلم، تکالیفِ دانش‌آموز */}
+      <Route path="/schools/teacher/today"><SchoolProtectedRoute component={TeacherTodayPage} /></Route>
+      <Route path="/schools/teacher/assignments"><SchoolProtectedRoute component={TeacherAssignmentsPage} /></Route>
+      <Route path="/schools/student/assignments"><SchoolProtectedRoute component={StudentAssignmentsPage} /></Route>
+      {/* بخش "/schools" فاز ۴ — گزارش/برنامه/چتِ مشاور، بانکِ سؤال، آزمون */}
+      <Route path="/schools/counselor/reports"><SchoolProtectedRoute component={CounselorReportsPage} /></Route>
+      <Route path="/schools/counselor/schedule"><SchoolProtectedRoute component={CounselorSchedulePage} /></Route>
+      <Route path="/schools/counselor/chat"><SchoolProtectedRoute component={CounselorChatPage} /></Route>
+      <Route path="/schools/student/counselor"><SchoolProtectedRoute component={StudentCounselorPage} /></Route>
+      <Route path="/schools/teacher/questions"><SchoolProtectedRoute component={TeacherQuestionsPage} /></Route>
+      <Route path="/schools/teacher/exams"><SchoolProtectedRoute component={TeacherExamsPage} /></Route>
+      <Route path="/schools/student/exams"><SchoolProtectedRoute component={StudentExamsPage} /></Route>
+      {/* بخش "/schools" فاز ۵ — ارتباط با مدیر/معلم، عمقِ والد (گزارش‌ها) */}
+      <Route path="/schools/admin/messages"><SchoolProtectedRoute component={AdminMessagesPage} /></Route>
+      <Route path="/schools/teacher/messages"><SchoolProtectedRoute component={TeacherMessagesPage} /></Route>
+      <Route path="/schools/student/admin-chat"><SchoolProtectedRoute component={StudentAdminChatPage} /></Route>
+      <Route path="/schools/student/teacher-chat"><SchoolProtectedRoute component={StudentTeacherChatPage} /></Route>
+      <Route path="/schools/parent/reports"><SchoolProtectedRoute component={ParentReportsPage} /></Route>
+      {/* بخش "/schools" فاز ۶ — حضور و غیاب، نمره‌نامه، اخطار/هشدارِ دانش‌آموز */}
+      <Route path="/schools/teacher/attendance"><SchoolProtectedRoute component={TeacherAttendancePage} /></Route>
+      <Route path="/schools/teacher/gradebook"><SchoolProtectedRoute component={TeacherGradebookPage} /></Route>
+      <Route path="/schools/student/attendance"><SchoolProtectedRoute component={StudentAttendancePage} /></Route>
+      <Route path="/schools/student/grades"><SchoolProtectedRoute component={StudentGradesPage} /></Route>
+      <Route path="/schools/admin/alerts"><SchoolProtectedRoute component={SchoolAlertsPage} /></Route>
+      {/* بخش "/schools" فاز ۹ — تاریخچه‌ی رخدادهایِ مدیریتی */}
+      <Route path="/schools/admin/audit-log"><SchoolProtectedRoute component={SchoolAuditLogPage} /></Route>
+      <Route path="/schools/stub/:key"><SchoolProtectedRoute component={SchoolsStub} /></Route>
+
       <Route path="/admin"><ProtectedRoute component={Admin} adminOnly /></Route>
       {/* super_admin only — این صفحه می‌تواند نقش عوض کند، و ادمینی که بتواند
           به خودش super_admin بدهد عملاً super_admin است. */}
@@ -291,6 +423,7 @@ function Router() {
       <Route path="/admin/users/:id"><ProtectedRoute component={AdminUserDetail} superAdminOnly /></Route>
       <Route path="/admin/pending-payments"><ProtectedRoute component={AdminPendingPayments} superAdminOnly /></Route>
       <Route path="/admin/sheet-pool"><ProtectedRoute component={AdminSheetPool} superAdminOnly /></Route>
+      <Route path="/admin/school-bot-pool"><ProtectedRoute component={AdminSchoolBotPool} superAdminOnly /></Route>
       <Route path="/admin/cutover-flags"><ProtectedRoute component={AdminCutoverFlags} superAdminOnly /></Route>
       <Route path="/admin/sheets-import"><ProtectedRoute component={AdminSheetsImport} superAdminOnly /></Route>
 

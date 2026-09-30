@@ -22,6 +22,8 @@ import { formatToman } from "@/lib/format";
 import { toWebpDataUrl } from "@/lib/image";
 import type { Lang } from "@/lib/i18n";
 
+import { receiptReviewPhase } from "@/lib/topupCountdown";
+
 export type TopupChannel = {
   id: string;
   kind: "card_manual" | "fixed_link" | "open_link";
@@ -97,6 +99,18 @@ function useCountdown(expiresAt: string | null, active: boolean): number | null 
   return expiresAt ? Math.max(0, Math.floor((new Date(expiresAt).getTime() - now) / 1000)) : null;
 }
 
+/** هر ثانیه tick می‌زند تا وقتی `active` است؛ برایِ شمارشگرِ ۵دقیقه‌ایِ بعد از فیش. */
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [active]);
+  return now;
+}
+
 const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
 function channelLabel(c: TopupChannel, fa: boolean, i: number): string {
@@ -132,6 +146,8 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
 
   const isActive = order ? ACTIVE.includes(order.status) : false;
   const left = useCountdown(order?.expiresAt ?? null, order?.status === "pending");
+  const reviewNow = useNow(order?.status === "awaiting_review");
+  const review = order?.status === "awaiting_review" ? receiptReviewPhase(order.receiptUploadedAt, reviewNow) : null;
 
   // poll: تأییدِ خودکار (پیامک) یا ادمین همین‌جا دیده می‌شود.
   useEffect(() => {
@@ -310,8 +326,8 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              {fa ? "اگر پرداخت کردید و تأیید نیامد، تصویر فیش را بفرستید؛ سوپرادمین دستی بررسی می‌کند. (اگر پیامکِ بانک برسد همین‌جا خودکار تأیید می‌شود.)"
-                : "If you paid and it isn't confirmed, send the receipt image; an admin will review it. (If the bank SMS arrives it confirms automatically.)"}
+              {fa ? "اگر پرداخت کردید و تأیید نیامد، تصویر فیش را بفرستید؛ سوپرادمین دستی بررسی می‌کند. (اگر پیامکِ بانک برسد همین‌جا خودکار تأیید می‌شود.) در صورتِ قطعیِ اینترنتِ گوشیِ دریافت‌کننده ممکن است تأییدِ خودکار با تأخیر انجام شود."
+                : "If you paid and it isn't confirmed, send the receipt image; an admin will review it. (If the bank SMS arrives it confirms automatically.) If the receiving phone loses internet, automatic confirmation may be delayed."}
             </p>
           </div>
         )}
@@ -321,11 +337,24 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
             <div className="flex items-center gap-2 text-sm font-medium">
               <ReceiptText className="size-4 text-primary" /> {fa ? "فیش ثبت شد" : "Receipt submitted"}
             </div>
-            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-              <Hourglass className="mt-0.5 size-3.5 shrink-0" />
-              {fa ? "اگر پیامکِ بانک برسد خودکار تأیید می‌شود؛ وگرنه ادمین فیش را بررسی می‌کند و نتیجه همین‌جا اعلام می‌شود. لازم نیست دوباره واریز کنید."
-                : "It confirms automatically when the bank SMS arrives; otherwise an admin reviews the receipt and the result appears here. Do not pay again."}
-            </p>
+            {review?.phase === "auto" ? (
+              <div className="space-y-1.5" data-testid="topup-review-auto">
+                <div className="flex items-center justify-between gap-2 text-xs text-amber-600 dark:text-amber-400">
+                  <span className="flex items-center gap-1.5"><Hourglass className="size-3.5 shrink-0" />{fa ? "در حال بررسیِ خودکار…" : "Checking automatically…"}</span>
+                  <span dir="ltr" className="rounded bg-background px-1.5 py-0.5 font-mono font-semibold" data-testid="topup-review-countdown">{mmss(review.secondsLeft)}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {fa ? "اگر پیامکِ بانک برسد، پرداخت همین‌جا تأیید می‌شود. لازم نیست دوباره واریز کنید."
+                    : "If the bank SMS arrives, the payment is confirmed right here. Do not pay again."}
+                </p>
+              </div>
+            ) : (
+              <p className="flex items-start gap-1.5 text-xs text-muted-foreground" data-testid="topup-review-manual">
+                <Hourglass className="mt-0.5 size-3.5 shrink-0" />
+                {fa ? "در حال بررسیِ دستی است. ادمین فیش را بررسی می‌کند و نتیجه همین‌جا اعلام می‌شود؛ اگر پیامکِ بانک برسد هم خودکار تأیید می‌شود. لازم نیست دوباره واریز کنید."
+                  : "Manual review in progress. An admin is checking the receipt and the result appears here; it also confirms automatically if the bank SMS arrives. Do not pay again."}
+              </p>
+            )}
           </div>
         )}
 

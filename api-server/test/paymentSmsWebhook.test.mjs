@@ -122,7 +122,7 @@ let pgMod = null;
 try { pgMod = await import("pg"); } catch { /* skip */ }
 const Pool = pgMod?.default?.Pool ?? pgMod?.Pool;
 
-const mirror = fs.readFileSync(new URL("../../lib/db/migrations/0029_card_autoconfirm.sql", import.meta.url), "utf8");
+const mirror = fs.readFileSync(new URL("../../lib/db/migrations/0038_card_autoconfirm.sql", import.meta.url), "utf8");
 const ddl = mirror.slice(mirror.indexOf("-- ─── CARD_AUTOCONFIRM"));
 
 async function withEnv(fn, { hitFn } = {}) {

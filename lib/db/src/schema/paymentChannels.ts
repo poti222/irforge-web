@@ -9,7 +9,7 @@
  * (BIGINT) هستند؛ تومان فقط در مرزِ API/UI (lib/currency.ts).
  *
  * ⚠️ منبعِ حقیقتِ DDL در پروداکشن `api-server/migrate.mjs` است (آینه:
- * `lib/db/migrations/0029_card_autoconfirm.sql`). همه‌ی CHECKها و ایندکس‌های
+ * `lib/db/migrations/0038_card_autoconfirm.sql`). همه‌ی CHECKها و ایندکس‌های
  * یکتا اینجا هم اعلام شده‌اند تا `drizzle-kit push` آن‌ها را «اضافه» ندیده و
  * حذف نکند — یکتاییِ مبلغ و «هر پیامک فقط یک‌بار» قیدِ سطحِ دیتابیس‌اند.
  * bot_id عمداً FOREIGN KEY ندارد: purgeBotFully ردیفِ بات را حذف می‌کند و

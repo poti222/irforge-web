@@ -92,6 +92,37 @@ import internalBotPaymentsRouter from "./internalBotPayments.js";
 import botPaymentChannelsRouter from "./botPaymentChannels.js";
 import adminCardAutoConfirmRouter from "./adminCardAutoConfirm.js";
 import guidedFlowRouter from "./guidedFlow.js";
+// بخش "/schools" فاز ۱ — پروفایلِ مدرسه‌ای، کدهای معرف، مدیریتِ مدرسه
+import schoolsRouter from "./schools.js";
+// بخش "/schools" فاز ۱ — لغت‌نامه/جزوه/کتاب/فرمول
+import schoolContentRouter from "./schoolContent.js";
+// بخش "/schools" فاز ۲ — کلاس‌ها/برنامه‌ها/اعلامیه‌ها/مشاور/والد
+import schoolClassesRouter from "./schoolClasses.js";
+import schoolProgramsRouter from "./schoolPrograms.js";
+import schoolAnnouncementsRouter from "./schoolAnnouncements.js";
+import schoolCounselorRouter from "./schoolCounselor.js";
+import schoolGuardianshipsRouter from "./schoolGuardianships.js";
+// بخش "/schools" فاز ۳ — تکالیفِ معلم/ارسالِ دانش‌آموز
+import schoolAssignmentsRouter from "./schoolAssignments.js";
+// بخش "/schools" فاز ۴ — گزارش/برنامه/چتِ مشاور، بانکِ سؤال، آزمون
+import schoolCounselorReportsRouter from "./schoolCounselorReports.js";
+import schoolQuestionsRouter from "./schoolQuestions.js";
+import schoolExamsRouter from "./schoolExams.js";
+// بخش "/schools" فاز ۵ — ارتباط با مدیر/معلم
+import schoolAdminMessagesRouter from "./schoolAdminMessages.js";
+import schoolTeacherMessagesRouter from "./schoolTeacherMessages.js";
+// بخش "/schools" فاز ۶ — حضور و غیاب، نمره‌نامه‌ی ترکیبی، اخطار/هشدارِ دانش‌آموز
+import schoolAttendanceRouter from "./schoolAttendance.js";
+import schoolGradebookRouter from "./schoolGradebook.js";
+import schoolStudentAlertsRouter from "./schoolStudentAlerts.js";
+// بخش "/schools" فاز ۷ — استخرِ توکنِ بات (سوپرادمین) + خریدِ باتِ اطلاع‌رسانیِ مدرسه + اتصالِ تلگرام
+import schoolBotPoolRouter from "./schoolBotPool.js";
+import schoolBotsRouter from "./schoolBots.js";
+import schoolBotWebhookRouter from "./schoolBotWebhook.js";
+import schoolNotificationsRouter from "./schoolNotificationTriggers.js";
+// بخش "/schools" فاز ۹ — وضعیتِ خوانده‌شدنِ رشته‌ها + لاگِ رخدادهایِ مدیریتی
+import schoolMessageReadStateRouter from "./schoolMessageReadState.js";
+import schoolAuditLogRouter from "./schoolAuditLog.js";
 
 const router: IRouter = Router();
 
@@ -174,5 +205,27 @@ router.use(botWalletRouter);
 router.use(translatePostRouter);
 router.use(postboxRouter);
 router.use(guidedFlowRouter);
+router.use(schoolsRouter);
+router.use(schoolContentRouter);
+router.use(schoolClassesRouter);
+router.use(schoolProgramsRouter);
+router.use(schoolAnnouncementsRouter);
+router.use(schoolCounselorRouter);
+router.use(schoolGuardianshipsRouter);
+router.use(schoolAssignmentsRouter);
+router.use(schoolCounselorReportsRouter);
+router.use(schoolQuestionsRouter);
+router.use(schoolExamsRouter);
+router.use(schoolAdminMessagesRouter);
+router.use(schoolTeacherMessagesRouter);
+router.use(schoolAttendanceRouter);
+router.use(schoolGradebookRouter);
+router.use(schoolStudentAlertsRouter);
+router.use(schoolBotPoolRouter);
+router.use(schoolBotsRouter);
+router.use(schoolBotWebhookRouter);
+router.use(schoolNotificationsRouter);
+router.use(schoolMessageReadStateRouter);
+router.use(schoolAuditLogRouter);
 
 export default router;

@@ -73,7 +73,7 @@ const readSql = (f) => {
   const t = fs.readFileSync(new URL(`../../lib/db/migrations/${f}`, import.meta.url), "utf8");
   return t.slice(t.indexOf("-- ───"));
 };
-const ddl = readSql("0029_card_autoconfirm.sql") + "\n" + readSql("0030_card_autoconfirm_effects.sql");
+const ddl = readSql("0038_card_autoconfirm.sql") + "\n" + readSql("0039_card_autoconfirm_effects.sql");
 
 const SHEETS = { sheet_A_12345: "bot_A", sheet_B_12345: "bot_B" };
 const resolveBot = async (sid) => (SHEETS[sid] ? { botId: SHEETS[sid] } : null);

@@ -25,7 +25,16 @@ import type { Lang } from "@/lib/i18n";
 /** Shape of a locale file. Type-only, so this does NOT pull en.json into the graph. */
 export type LocaleData = typeof import("@/locales/en.json");
 
-const loaders: Record<Lang, () => Promise<{ default: LocaleData }>> = {
+/**
+ * بخشِ "/schools" فاز ۱ — طبقِ تصمیمِ صریحِ کاربر، فقط fa/en کلیدهای
+ * namespace «schools» را دارند؛ ar/ru/tr عمداً دست‌نخورده می‌مانند و از
+ * fallbackِ انگلیسیِ همینِ useT (که از قبل وجود داشت) استفاده می‌کنند. پس
+ * دیگر نمی‌شود فرض کرد هر locale دقیقاً شکلِ کاملِ `LocaleData` را دارد —
+ * لودر و خواندنش را روی `Partial<LocaleData>` تعریف می‌کنیم (مصرف‌کننده‌ها
+ * از قبل، چه در useT چه در faq-content/learn-content، با `?? {}`/`as any`
+ * برای کلیدِ گمشده آماده بودند).
+ */
+const loaders: Record<Lang, () => Promise<{ default: Partial<LocaleData> }>> = {
   en: () => import("@/locales/en.json"),
   fa: () => import("@/locales/fa.json"),
   ar: () => import("@/locales/ar.json"),
@@ -33,7 +42,7 @@ const loaders: Record<Lang, () => Promise<{ default: LocaleData }>> = {
   ru: () => import("@/locales/ru.json"),
 };
 
-const loaded: Partial<Record<Lang, LocaleData>> = {};
+const loaded: Partial<Record<Lang, Partial<LocaleData>>> = {};
 
 // Bumped whenever a locale lands, so useT() can re-render the tree when the
 // English fallback arrives after the first paint (see ensureLocales below).
@@ -55,20 +64,20 @@ function announce() {
 }
 
 /** Empty stand-in so a caller that races the load reads `{}`, never crashes. */
-const EMPTY = {} as LocaleData;
+const EMPTY = {} as Partial<LocaleData>;
 
 /** SSG only: hand the registry the statically-imported locales up front. */
-export function seedLocales(entries: Partial<Record<Lang, LocaleData>>): void {
+export function seedLocales(entries: Partial<Record<Lang, Partial<LocaleData>>>): void {
   Object.assign(loaded, entries);
 }
 
 /** Synchronous read. Safe to call during render *after* ensureLocales(lang). */
-export function getLocale(lang: Lang): LocaleData {
+export function getLocale(lang: Lang): Partial<LocaleData> {
   return loaded[lang] ?? loaded.en ?? EMPTY;
 }
 
 /** The English fallback layer, or `{}` if it somehow hasn't landed yet. */
-export function getFallbackLocale(): LocaleData {
+export function getFallbackLocale(): Partial<LocaleData> {
   return loaded.en ?? EMPTY;
 }
 
@@ -80,7 +89,7 @@ async function ensureOne(lang: Lang): Promise<void> {
   if (loaded[lang]) return;
   const mod = await loaders[lang]();
   // JSON modules expose the object on .default; be tolerant of either shape.
-  loaded[lang] = ((mod as any).default ?? mod) as LocaleData;
+  loaded[lang] = ((mod as any).default ?? mod) as Partial<LocaleData>;
   announce();
 }
 

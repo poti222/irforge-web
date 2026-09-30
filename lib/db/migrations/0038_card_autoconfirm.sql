@@ -1,4 +1,4 @@
--- 0029_card_autoconfirm.sql
+-- 0038_card_autoconfirm.sql
 -- Shared card-to-card module with SMS auto-confirm (platform + bot scopes).
 -- (Runtime migration lives in api-server/migrate.mjs; this file mirrors it for
 -- drizzle-kit parity, same convention as 0025-0028.)

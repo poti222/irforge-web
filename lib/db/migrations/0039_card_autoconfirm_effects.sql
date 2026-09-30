@@ -1,4 +1,4 @@
--- 0030_card_autoconfirm_effects.sql
+-- 0039_card_autoconfirm_effects.sql
 -- Bot-scope confirm-effect claim columns for the shared card-to-card module.
 -- (Runtime migration lives in api-server/migrate.mjs; this file mirrors it.)
 
