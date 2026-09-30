@@ -61,9 +61,31 @@ export class SmsIngestError extends Error {
   }
 }
 
+/** «<بلو>» → «بلو» (کاربر قالبِ نمونه‌ی `<sender>` را عیناً وارد کرده). */
+export function unwrapAngle(s: string): string {
+  const m = /^\s*<\s*([^<>]+?)\s*>\s*$/.exec(s);
+  return m ? m[1] : s;
+}
+
+/** کلِ متنِ پیامک داخلِ یک جفت `<` `>` (مثلاً کاربر در MacroDroid `<{sms_message}>` نوشته) → بدونِ آن‌ها. */
+export function unwrapWholeAngle(text: string): string {
+  const t = text.trim();
+  if (t.length > 2 && t.startsWith("<") && t.endsWith(">") && !/[<>]/.test(t.slice(1, -1))) return t.slice(1, -1).trim();
+  return t;
+}
+
+/**
+ * متنی که هنوز «جایگزین نشده»: قالبِ نمونه‌یِ پنل (`<SMS text>`) یا Magic Textِ خامِ MacroDroid (`{sms_message}`)
+ * که به‌جایِ متنِ واقعیِ پیامک فرستاده شده. چنین بدنه‌ای هرگز پیامکِ بانک نیست → خطای صریح، نه ذخیره‌یِ ساکت.
+ */
+export function isPlaceholderText(text: string): boolean {
+  const t = text.trim();
+  return /^<[^<>]{1,40}>$/.test(t) || /^\{[A-Za-z_= ]{1,40}\}$/.test(t) || /^\[[A-Za-z_ ]{1,40}\]$/.test(t);
+}
+
 /** شماره‌ها را به شکلِ یکسان (بدونِ +98/0098/0 ابتدایی) و نام‌ها را lower-case می‌کند. */
 export function canonSender(raw: unknown): string {
-  const s = normalizeSmsText(String(raw ?? "")).toLowerCase().replace(/\s+/g, "");
+  const s = unwrapAngle(normalizeSmsText(String(raw ?? ""))).toLowerCase().replace(/\s+/g, "");
   if (/^\+?\d[\d-]*$/.test(s)) {
     return s.replace(/\D/g, "").replace(/^(0098|98|0)/, "");
   }
@@ -143,9 +165,16 @@ export async function ingestSms(
   payload: SmsPayload,
   now: Date = new Date(),
 ): Promise<IngestResult> {
-  const text = String(payload.text ?? "").slice(0, MAX_SMS_TEXT).trim();
+  let text = String(payload.text ?? "").slice(0, MAX_SMS_TEXT).trim();
   if (!text) throw new SmsIngestError("text لازم است", "empty_text");
-  const sender = payload.sender === undefined || payload.sender === null ? null : String(payload.sender).slice(0, 120);
+  if (isPlaceholderText(text)) {
+    throw new SmsIngestError(
+      "به‌جایِ متنِ پیامک، یک متنِ نمونه/جایگزین‌نشده رسید. در MacroDroid بدنه را فقط با Magic Text «SMS Message» پر کنید (دکمه‌یِ + کنارِ فیلد)؛ متنِ <SMS text> را دستی ننویسید.",
+      "placeholder_body",
+    );
+  }
+  text = unwrapWholeAngle(text);
+  const sender = payload.sender === undefined || payload.sender === null ? null : unwrapAngle(String(payload.sender).slice(0, 120)).trim() || null;
 
   const provided = parseSmsTime(payload.time, now);
   const receivedAt = provided ?? now;
