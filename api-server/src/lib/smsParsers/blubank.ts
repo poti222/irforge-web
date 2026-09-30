@@ -15,7 +15,9 @@ import { finalize, UNPARSED, type ParsedSms } from "./types";
 
 const BALANCE_RE = new RegExp(String.raw`(?:موجودی|مانده)(?:\s*(?:فعلی|حساب))?\s*[:：]?\s*${NUM}\s*ریال`);
 const DEPOSIT_RE = new RegExp(String.raw`${NUM}\s*ریال\s*به\s*حساب\s*شما\s*نشست`);
-const WITHDRAW_RE = new RegExp(String.raw`${NUM}\s*ریال\s*از\s*حساب\s*شما\s*(?:برداشت|کسر)`);
+// «۲۲۹,۴۶۰ ریال [بابت خرید …] از حساب شما (برداشت شد | کسر شد | پرید | کم شد)». عددِ «موجودی» هرگز اینجا نمی‌نشیند
+// (بعد از آن «از حساب شما» نمی‌آید).
+const WITHDRAW_RE = new RegExp(String.raw`${NUM}\s*ریال\s*(?:[^.\n]{0,80}?\s)?از\s*حساب\s*شما\s*(?:برداشت|کسر|پرید|کم\s*شد)`);
 
 export function parseBlubankSms(rawText: string): ParsedSms {
   const text = normalizeSmsText(rawText);
@@ -24,7 +26,7 @@ export function parseBlubankSms(rawText: string): ParsedSms {
   const balance = toInt(text.match(BALANCE_RE)?.[1]);
   const deposit = /واریز/.test(text) ? text.match(DEPOSIT_RE) : null;
   const withdraw = text.match(WITHDRAW_RE);
-  const withdrawWord = /برداشت|کسر\s*از/.test(text);
+  const withdrawWord = /برداشت|کسر\s*از|از\s*حساب\s*شما\s*(?:پرید|کم\s*شد)|بابت\s*خرید/.test(text);
 
   // هر دو علامت هم‌زمان → مبهم؛ هرگز حدس نمی‌زنیم.
   if (deposit && (withdraw || withdrawWord)) return finalize("unknown", null, balance);
