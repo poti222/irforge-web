@@ -14,7 +14,7 @@ import { markThreadRead } from "../lib/schoolMessageReadState";
 const router = Router();
 
 // POST /api/schools/:schoolId/message-read-state
-router.post("/api/schools/:schoolId/message-read-state", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/message-read-state", requireAuth, async (req: any, res) => {
   try {
     const { threadKey } = req.body ?? {};
     if (typeof threadKey !== "string" || !threadKey.trim()) {

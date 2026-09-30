@@ -34,7 +34,7 @@ function timingEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(ab, bb);
 }
 
-router.post("/api/schools/bot-webhook/:schoolBotId", async (req: any, res) => {
+router.post("/schools/bot-webhook/:schoolBotId", async (req: any, res) => {
   // همیشه سریع 200 — همان قراردادِ routes/telegramWebhook.ts.
   res.status(200).end();
 

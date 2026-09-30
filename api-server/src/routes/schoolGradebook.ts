@@ -98,7 +98,7 @@ async function buildStudentGrades(studentMemberId: string, classId?: string): Pr
 }
 
 // GET /api/schools/:schoolId/gradebook/class/:classId — معلمِ همان کلاس یا مدیر: نمره‌هایِ همه‌یِ دانش‌آموزانِ کلاس.
-router.get("/api/schools/:schoolId/gradebook/class/:classId", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/gradebook/class/:classId", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await isClassTeacherOrAdmin(req.userId, req.params.schoolId, req.params.classId);
     if (!ok) {
@@ -120,7 +120,7 @@ router.get("/api/schools/:schoolId/gradebook/class/:classId", requireAuth, async
 });
 
 // GET /api/schools/:schoolId/gradebook/my — دانش‌آموز: نمره‌هایِ خودش (همه‌یِ کلاس‌ها).
-router.get("/api/schools/:schoolId/gradebook/my", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/gradebook/my", requireAuth, async (req: any, res) => {
   try {
     const member = await getMember(req.userId);
     if (!member || member.schoolId !== req.params.schoolId || member.role !== "student") {
@@ -136,7 +136,7 @@ router.get("/api/schools/:schoolId/gradebook/my", requireAuth, async (req: any, 
 });
 
 // GET /api/schools/:schoolId/gradebook/child/:studentMemberId — والد: نمره‌هایِ فرزندِ خودش (مرزِ حریمِ خصوصی — school_guardianships).
-router.get("/api/schools/:schoolId/gradebook/child/:studentMemberId", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/gradebook/child/:studentMemberId", requireAuth, async (req: any, res) => {
   try {
     const childIds = await myChildrenMemberIdsInSchool(req.userId, req.params.schoolId);
     if (!childIds.includes(req.params.studentMemberId)) {

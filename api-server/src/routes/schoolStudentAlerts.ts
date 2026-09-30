@@ -44,7 +44,7 @@ async function isGuardianOf(parentUserId: string, studentMemberId: string) {
 }
 
 // POST /api/schools/:schoolId/alerts — فقط admin/deputy/deputy_discipline.
-router.post("/api/schools/:schoolId/alerts", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/alerts", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, ["admin", "deputy", "deputy_discipline"]);
     if (!ok) {
@@ -101,7 +101,7 @@ router.post("/api/schools/:schoolId/alerts", requireAuth, async (req: any, res) 
 });
 
 // GET /api/schools/:schoolId/alerts?studentMemberId= — مدیر/معاون/معاونِ‌انضباطی/مشاور: همه یا فیلترشده با studentMemberId.
-router.get("/api/schools/:schoolId/alerts", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/alerts", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, ["admin", "deputy", "deputy_discipline", "counselor"]);
     if (!ok) {
@@ -121,7 +121,7 @@ router.get("/api/schools/:schoolId/alerts", requireAuth, async (req: any, res) =
 });
 
 // GET /api/schools/:schoolId/alerts/my — دانش‌آموز: اخطارهایِ خودش.
-router.get("/api/schools/:schoolId/alerts/my", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/alerts/my", requireAuth, async (req: any, res) => {
   try {
     const member = await getMember(req.userId);
     if (!member || member.schoolId !== req.params.schoolId || member.role !== "student") {
@@ -139,7 +139,7 @@ router.get("/api/schools/:schoolId/alerts/my", requireAuth, async (req: any, res
 });
 
 // GET /api/schools/:schoolId/alerts/child/:studentMemberId — والد: فقط اخطارهایِ فرزندِ خودش.
-router.get("/api/schools/:schoolId/alerts/child/:studentMemberId", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/alerts/child/:studentMemberId", requireAuth, async (req: any, res) => {
   try {
     if (!(await isGuardianOf(req.userId, req.params.studentMemberId))) {
       res.status(403).json({ error: "Forbidden" });

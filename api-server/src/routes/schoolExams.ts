@@ -69,7 +69,7 @@ async function isClassTeacherOrAdmin(userId: string, schoolId: string, classId: 
 }
 
 // GET /api/schools/:schoolId/exams?classId= — هر عضوِ مدرسه (دانش‌آموز هم برایِ دیدنِ فهرستِ آزمون‌هایِ کلاسش).
-router.get("/api/schools/:schoolId/exams", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/exams", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, [
       "admin", "deputy", "deputy_discipline", "counselor", "teacher", "student", "parent",
@@ -95,7 +95,7 @@ router.get("/api/schools/:schoolId/exams", requireAuth, async (req: any, res) =>
 });
 
 // POST /api/schools/:schoolId/exams — فقط معلمِ همان کلاس یا مدیر.
-router.post("/api/schools/:schoolId/exams", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/exams", requireAuth, async (req: any, res) => {
   try {
     const { classId, title, questionIds, scheduledAt, durationMinutes } = req.body ?? {};
     if (!classId?.trim() || !title?.trim() || !Array.isArray(questionIds) || questionIds.length === 0) {
@@ -144,7 +144,7 @@ router.post("/api/schools/:schoolId/exams", requireAuth, async (req: any, res) =
 
 // GET /api/schools/:schoolId/exams/:id/questions — سؤال‌هایِ همین آزمون؛ برایِ
 // دانش‌آموز correctAnswer حذف می‌شود، برایِ معلم/مدیر کامل برمی‌گردد.
-router.get("/api/schools/:schoolId/exams/:id/questions", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/exams/:id/questions", requireAuth, async (req: any, res) => {
   try {
     const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
     if (!exam) {
@@ -179,7 +179,7 @@ router.get("/api/schools/:schoolId/exams/:id/questions", requireAuth, async (req
 });
 
 // GET /api/schools/:schoolId/exams/:id/attempts — فقط معلمِ همان کلاس یا مدیر (همه‌یِ تلاش‌ها، برایِ نمره‌دهی).
-router.get("/api/schools/:schoolId/exams/:id/attempts", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/exams/:id/attempts", requireAuth, async (req: any, res) => {
   try {
     const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
     if (!exam) {
@@ -200,7 +200,7 @@ router.get("/api/schools/:schoolId/exams/:id/attempts", requireAuth, async (req:
 });
 
 // GET /api/schools/:schoolId/exams/:id/my-attempt — تلاشِ خودِ دانش‌آموز (اگر باشد).
-router.get("/api/schools/:schoolId/exams/:id/my-attempt", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/exams/:id/my-attempt", requireAuth, async (req: any, res) => {
   try {
     const member = await getMember(req.userId);
     if (!member || member.schoolId !== req.params.schoolId) {
@@ -226,7 +226,7 @@ async function isStudentInExamClass(member: NonNullable<Awaited<ReturnType<typeo
 }
 
 // POST /api/schools/:schoolId/exams/:id/attempts/start — دانش‌آموزِ عضوِ همان کلاس؛ idempotent (تلاشِ موجود را برمی‌گرداند).
-router.post("/api/schools/:schoolId/exams/:id/attempts/start", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/exams/:id/attempts/start", requireAuth, async (req: any, res) => {
   try {
     const member = await getMember(req.userId);
     if (!member || member.schoolId !== req.params.schoolId || member.role !== "student") {
@@ -269,7 +269,7 @@ router.post("/api/schools/:schoolId/exams/:id/attempts/start", requireAuth, asyn
 });
 
 // POST /api/schools/:schoolId/exams/:id/attempts/submit — بستنِ تلاشِ موجود + نمره‌دهیِ خودکار (وقتی ممکن باشد).
-router.post("/api/schools/:schoolId/exams/:id/attempts/submit", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/exams/:id/attempts/submit", requireAuth, async (req: any, res) => {
   try {
     const member = await getMember(req.userId);
     if (!member || member.schoolId !== req.params.schoolId || member.role !== "student") {
@@ -334,7 +334,7 @@ router.post("/api/schools/:schoolId/exams/:id/attempts/submit", requireAuth, asy
 // ایندکسِ یکتایِ (examId, studentMemberId) اجازه‌ی دو ردیف نمی‌دهد، «حذفِ
 // همان ردیف» ساده‌ترین راهِ اجازه‌دادنِ به یک تلاشِ تازه است — بعدِ حذف،
 // POST /attempts/start دوباره یک ردیفِ نو می‌سازد.
-router.delete("/api/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, async (req: any, res) => {
+router.delete("/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, async (req: any, res) => {
   try {
     const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
     if (!exam) {
@@ -361,7 +361,7 @@ router.delete("/api/schools/:schoolId/exams/:id/attempts/:attemptId", requireAut
 });
 
 // PATCH /api/schools/:schoolId/exams/:id/attempts/:attemptId — نمره‌ی دستیِ معلم (برایِ سؤالِ تشریحی).
-router.patch("/api/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, async (req: any, res) => {
+router.patch("/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, async (req: any, res) => {
   try {
     const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
     if (!exam) {

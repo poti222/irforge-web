@@ -62,7 +62,7 @@ async function isClassTeacherOrAdmin(userId: string, schoolId: string, classId: 
 }
 
 // GET /api/schools/:schoolId/assignments?classId= — هر عضوِ مدرسه می‌بیند (فیلترِ classId اختیاری).
-router.get("/api/schools/:schoolId/assignments", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/assignments", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, [
       "admin", "deputy", "deputy_discipline", "counselor", "teacher", "student", "parent",
@@ -84,7 +84,7 @@ router.get("/api/schools/:schoolId/assignments", requireAuth, async (req: any, r
 });
 
 // POST /api/schools/:schoolId/assignments — فقط معلمِ همان کلاس یا مدیر.
-router.post("/api/schools/:schoolId/assignments", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/assignments", requireAuth, async (req: any, res) => {
   try {
     const { classId, title, description, dueDate } = req.body ?? {};
     if (!classId?.trim() || !title?.trim()) {
@@ -131,7 +131,7 @@ router.post("/api/schools/:schoolId/assignments", requireAuth, async (req: any, 
 });
 
 // GET /api/schools/:schoolId/assignments/:id/submissions — فقط معلمِ همان کلاس یا مدیر (همه‌یِ ارسال‌ها).
-router.get("/api/schools/:schoolId/assignments/:id/submissions", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/assignments/:id/submissions", requireAuth, async (req: any, res) => {
   try {
     const [assignment] = await db.select().from(schoolAssignmentsTable).where(eq(schoolAssignmentsTable.id, req.params.id)).limit(1);
     if (!assignment) {
@@ -152,7 +152,7 @@ router.get("/api/schools/:schoolId/assignments/:id/submissions", requireAuth, as
 });
 
 // GET /api/schools/:schoolId/assignments/:id/my-submission — ارسالِ خودِ دانش‌آموز (اگر باشد).
-router.get("/api/schools/:schoolId/assignments/:id/my-submission", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/assignments/:id/my-submission", requireAuth, async (req: any, res) => {
   try {
     const member = await getMember(req.userId);
     if (!member || member.schoolId !== req.params.schoolId) {
@@ -170,7 +170,7 @@ router.get("/api/schools/:schoolId/assignments/:id/my-submission", requireAuth, 
 });
 
 // POST /api/schools/:schoolId/assignments/:id/submissions — دانش‌آموزِ عضوِ همان کلاس؛ upsert (یک ارسال به‌ازایِ هر دانش‌آموز).
-router.post("/api/schools/:schoolId/assignments/:id/submissions", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/assignments/:id/submissions", requireAuth, async (req: any, res) => {
   try {
     const member = await getMember(req.userId);
     if (!member || member.schoolId !== req.params.schoolId || member.role !== "student") {
@@ -216,7 +216,7 @@ router.post("/api/schools/:schoolId/assignments/:id/submissions", requireAuth, a
 });
 
 // PATCH /api/schools/:schoolId/assignments/:id/submissions/:submissionId — نمره/بازخوردِ معلم.
-router.patch("/api/schools/:schoolId/assignments/:id/submissions/:submissionId", requireAuth, async (req: any, res) => {
+router.patch("/schools/:schoolId/assignments/:id/submissions/:submissionId", requireAuth, async (req: any, res) => {
   try {
     const [assignment] = await db.select().from(schoolAssignmentsTable).where(eq(schoolAssignmentsTable.id, req.params.id)).limit(1);
     if (!assignment) {

@@ -14,7 +14,7 @@ import { canAccessSchool, SCHOOL_ADMIN_ONLY } from "../lib/schoolAuth";
 const router = Router();
 
 // POST /api/schools/:schoolId/guardianships — فقط مدیرِ همان مدرسه.
-router.post("/api/schools/:schoolId/guardianships", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/guardianships", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_ONLY);
     if (!ok) {
@@ -39,7 +39,7 @@ router.post("/api/schools/:schoolId/guardianships", requireAuth, async (req: any
 });
 
 // GET /api/schools/my-children — فرزندانِ والدِ جاری (پروفایلِ عضویتِ مدرسه‌ایِ هرکدام + نامِ مدرسه).
-router.get("/api/schools/my-children", requireAuth, async (req: any, res) => {
+router.get("/schools/my-children", requireAuth, async (req: any, res) => {
   try {
     const links = await db.select().from(schoolGuardianshipsTable).where(eq(schoolGuardianshipsTable.parentUserId, req.userId));
     if (links.length === 0) {
