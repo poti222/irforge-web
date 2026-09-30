@@ -4,6 +4,18 @@
  *
  * این دروازه کاملاً جدا از `completeProfile.ts` (ویزارد هویتِ سراسری) است:
  * آن یکی کل سایت را می‌بندد، این یکی فقط ورود به `/schools/*` را.
+ *
+ * **باگِ «ثبتِ اطلاعات با خطا مواجه شد» (تستِ زنده‌ی کاربر):** همه‌ی مسیرهای
+ * این فایل با پیشوندِ کاملِ `"/api/schools/…"` نوشته شده بودند، در حالی که
+ * این روتر با `router.use(schoolsRouter)` داخلِ `routes/index.ts` جمع می‌شود
+ * و آن روترِ ترکیبی خودش با `app.use("/api", router)` در app.ts مانت
+ * می‌شود — یعنی مسیرِ نهایی `"/api" + "/api/schools/onboarding"` می‌شد،
+ * یعنی `/api/api/schools/onboarding`. فرانت همیشه `/api/schools/onboarding`
+ * (بدونِ تکرار) صدا می‌زد، پس همیشه ۴۰۴ می‌گرفت و پیامِ عمومیِ خطا نشان داده
+ * می‌شد. الگوی درست همان چیزی است که بقیه‌ی فایل‌های این خانواده (مثلاً
+ * routes/auth.ts با `"/auth/…"`) از اول رعایت کرده‌اند: مسیرها اینجا باید
+ * *بدونِ* `/api` نوشته شوند، چون آن پیشوند را همان یک app.use بالا اضافه
+ * می‌کند.
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
@@ -77,7 +89,7 @@ async function requireSchoolAdmin(req: any, res: any, schoolId: string): Promise
 }
 
 // GET /api/schools/me — پروفایلِ مدرسه‌ایِ کاربرِ جاری (یا null)
-router.get("/api/schools/me", requireAuth, async (req: any, res) => {
+router.get("/schools/me", requireAuth, async (req: any, res) => {
   try {
     const member = await getMember(req.userId);
     if (!member) {
@@ -96,14 +108,35 @@ router.get("/api/schools/me", requireAuth, async (req: any, res) => {
   }
 });
 
+/**
+ * کدِ ملیِ ایران دقیقاً ۱۰ رقم است — همان چیزی که کاربر گزارش کرد
+ * («کد ملی باید 10 رقمی باشد»). هیچ اعتبارسنجیِ کدِ‌ملیِ دیگری در این کدبیس
+ * پیدا نشد تا از آن استفاده شود (مثلاً schema/users.ts فیلدِ کدِ‌ملی ندارد)،
+ * پس فقط همین قاعده‌ی صریحِ کاربر پیاده شده، بدونِ الگوریتمِ رقمِ کنترلی —
+ * چک‌سام واقعی یک الگوریتمِ تازه می‌خواست که خارج از دامنه‌ی این باگ‌فیکس است.
+ * سمتِ کلاینت هم دقیقاً همین regex را دارد (onboarding.tsx) تا هیچ‌وقت این دو
+ * جفت نشوند؛ ولی اعتبارسنجیِ سمتِ سرور اینجا تنها منبعِ قابلِ‌اعتماد است.
+ */
+const NATIONAL_ID_RE = /^\d{10}$/;
+
 // POST /api/schools/onboarding — upsert فیلدهای پروفایلِ مدرسه‌ای، با پیوستنِ
 // اختیاری به یک مدرسه از طریقِ کدِ معرف.
-router.post("/api/schools/onboarding", requireAuth, async (req: any, res) => {
+router.post("/schools/onboarding", requireAuth, async (req: any, res) => {
   try {
     const { role, grade, nationalId, birthDate, city, schoolNameFreeText, inviteCode } = req.body ?? {};
 
     if (role !== undefined && role !== null && !(SCHOOL_MEMBER_ROLES as readonly string[]).includes(role)) {
       res.status(400).json({ error: "Invalid role" });
+      return;
+    }
+
+    if (nationalId !== undefined && nationalId !== null && nationalId !== "" && !NATIONAL_ID_RE.test(nationalId)) {
+      res.status(400).json({ error: "کد ملی باید دقیقاً ۱۰ رقم باشد", code: "invalid_national_id" });
+      return;
+    }
+
+    if (birthDate !== undefined && birthDate !== null && birthDate !== "" && Number.isNaN(new Date(birthDate).getTime())) {
+      res.status(400).json({ error: "تاریخ تولد نامعتبر است", code: "invalid_birth_date" });
       return;
     }
 
@@ -206,7 +239,7 @@ function inviteCodeUsable(invite: typeof schoolInviteCodesTable.$inferSelect): {
 
 // GET /api/schools/invite-codes/:code — پیداکردنِ مدرسه از رویِ کدِ معرف
 // (برای ویجتِ «پیدا کردن مدرسه» کنارِ سایدبار و داخلِ فرمِ اولیه).
-router.get("/api/schools/invite-codes/:code", requireAuth, async (req: any, res) => {
+router.get("/schools/invite-codes/:code", requireAuth, async (req: any, res) => {
   try {
     const code = req.params.code?.trim();
     if (!code) {
@@ -238,7 +271,7 @@ router.get("/api/schools/invite-codes/:code", requireAuth, async (req: any, res)
 });
 
 // POST /api/schools — ساختِ یک مدرسه‌ی تازه؛ سازنده به‌طور خودکار مدیرِ آن می‌شود.
-router.post("/api/schools", requireAuth, async (req: any, res) => {
+router.post("/schools", requireAuth, async (req: any, res) => {
   try {
     const { name, address, city, licenseInfo } = req.body ?? {};
     if (!name?.trim()) {
@@ -278,7 +311,7 @@ router.post("/api/schools", requireAuth, async (req: any, res) => {
 });
 
 // PATCH /api/schools/:id — ویرایشِ نام/آدرس/مجوزها؛ فقط مدیرِ همان مدرسه.
-router.patch("/api/schools/:id", requireAuth, async (req: any, res) => {
+router.patch("/schools/:id", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolAdmin(req, res, req.params.id);
     if (!allowed) return;
@@ -316,7 +349,7 @@ function formatInviteCode(invite: typeof schoolInviteCodesTable.$inferSelect) {
 }
 
 // POST /api/schools/:id/invite-codes — تولید کدِ معرفِ جدید؛ فقط مدیرِ همان مدرسه.
-router.post("/api/schools/:id/invite-codes", requireAuth, async (req: any, res) => {
+router.post("/schools/:id/invite-codes", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolAdmin(req, res, req.params.id);
     if (!allowed) return;
@@ -363,7 +396,7 @@ router.post("/api/schools/:id/invite-codes", requireAuth, async (req: any, res) 
 });
 
 // GET /api/schools/:id/invite-codes — لیستِ کدهای معرفِ یک مدرسه؛ فقط مدیرِ همان مدرسه.
-router.get("/api/schools/:id/invite-codes", requireAuth, async (req: any, res) => {
+router.get("/schools/:id/invite-codes", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolAdmin(req, res, req.params.id);
     if (!allowed) return;
@@ -376,7 +409,7 @@ router.get("/api/schools/:id/invite-codes", requireAuth, async (req: any, res) =
 });
 
 // PATCH /api/schools/:id/invite-codes/:codeId — فعال/غیرفعال‌کردنِ یک کد؛ فقط مدیرِ همان مدرسه.
-router.patch("/api/schools/:id/invite-codes/:codeId", requireAuth, async (req: any, res) => {
+router.patch("/schools/:id/invite-codes/:codeId", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolAdmin(req, res, req.params.id);
     if (!allowed) return;
@@ -404,7 +437,7 @@ router.patch("/api/schools/:id/invite-codes/:codeId", requireAuth, async (req: a
 // مدیر/معاون/معاون‌انضباطی/مشاور می‌توانند بخوانند (طبقِ اسپکِ فاز ۲: معاون/
 // انضباطی حداقل به همین لیست دسترسیِ خواندن دارند)؛ نوشتن (تغییرِ نقش/حذف)
 // فقط مدیر.
-router.get("/api/schools/:id/members", requireAuth, async (req: any, res) => {
+router.get("/schools/:id/members", requireAuth, async (req: any, res) => {
   try {
     const { ok: canRead } = await canAccessSchool(req.userId, req.params.id, SCHOOL_MEMBERS_READ_ROLES);
     if (!canRead) {
@@ -430,7 +463,7 @@ router.get("/api/schools/:id/members", requireAuth, async (req: any, res) => {
 });
 
 // PATCH /api/schools/:id/members/:memberId — تغییرِ نقشِ یک عضو؛ فقط مدیر.
-router.patch("/api/schools/:id/members/:memberId", requireAuth, async (req: any, res) => {
+router.patch("/schools/:id/members/:memberId", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolAdmin(req, res, req.params.id);
     if (!allowed) return;
@@ -467,7 +500,7 @@ router.patch("/api/schools/:id/members/:memberId", requireAuth, async (req: any,
 // ردیفِ `school_members` حذف نمی‌شود (پروفایلِ سراسریِ کاربر است)، فقط
 // `schoolId`/`role` پاک می‌شوند — دقیقاً همان کاری که خودِ کاربر با «آنبوردینگِ
 // دوباره» می‌توانست انجام دهد.
-router.delete("/api/schools/:id/members/:memberId", requireAuth, async (req: any, res) => {
+router.delete("/schools/:id/members/:memberId", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolAdmin(req, res, req.params.id);
     if (!allowed) return;
@@ -493,7 +526,7 @@ router.delete("/api/schools/:id/members/:memberId", requireAuth, async (req: any
 // GET /api/schools/my-schools — همه‌یِ مدارسی که کاربرِ جاری مدیرشان است
 // (چندمدرسه‌ایِ فاز ۲: عضویتِ اصلی از `school_members` + مدرسه‌های اضافیِ
 // `school_admins`، یکتا بر اساسِ id).
-router.get("/api/schools/my-schools", requireAuth, async (req: any, res) => {
+router.get("/schools/my-schools", requireAuth, async (req: any, res) => {
   try {
     const member = await getMember(req.userId);
     const schoolIds = new Set<string>();
@@ -514,7 +547,7 @@ router.get("/api/schools/my-schools", requireAuth, async (req: any, res) => {
 });
 
 // POST /api/schools/:id/admins — افزودنِ یک مدیرِ دیگر به یک مدرسه (چندمدرسه‌ایِ فاز ۲)؛ فقط مدیرِ همان مدرسه.
-router.post("/api/schools/:id/admins", requireAuth, async (req: any, res) => {
+router.post("/schools/:id/admins", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolAdmin(req, res, req.params.id);
     if (!allowed) return;
