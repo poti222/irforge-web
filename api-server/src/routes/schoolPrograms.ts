@@ -30,7 +30,7 @@ function formatProgram(p: typeof schoolProgramsTable.$inferSelect) {
   };
 }
 
-router.get("/api/schools/:schoolId/programs", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/programs", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_MEMBER_ROLES);
     if (!ok) {
@@ -45,7 +45,7 @@ router.get("/api/schools/:schoolId/programs", requireAuth, async (req: any, res)
   }
 });
 
-router.post("/api/schools/:schoolId/programs", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/programs", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_DEPUTY_DISCIPLINE);
     if (!ok) {
@@ -75,7 +75,7 @@ router.post("/api/schools/:schoolId/programs", requireAuth, async (req: any, res
   }
 });
 
-router.patch("/api/schools/:schoolId/programs/:programId", requireAuth, async (req: any, res) => {
+router.patch("/schools/:schoolId/programs/:programId", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_DEPUTY_DISCIPLINE);
     if (!ok) {
@@ -104,7 +104,7 @@ router.patch("/api/schools/:schoolId/programs/:programId", requireAuth, async (r
   }
 });
 
-router.delete("/api/schools/:schoolId/programs/:programId", requireAuth, async (req: any, res) => {
+router.delete("/schools/:schoolId/programs/:programId", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_DEPUTY_DISCIPLINE);
     if (!ok) {

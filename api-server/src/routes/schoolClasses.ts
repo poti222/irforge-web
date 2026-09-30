@@ -45,7 +45,7 @@ async function requireSchoolWrite(req: any, res: any, schoolId: string): Promise
 }
 
 // GET /api/schools/:schoolId/classes — لیستِ کلاس‌های یک مدرسه؛ هر عضوِ همان مدرسه.
-router.get("/api/schools/:schoolId/classes", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/classes", requireAuth, async (req: any, res) => {
   try {
     const { ok, member: requester } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_MEMBER_ROLES);
     if (!ok) {
@@ -73,7 +73,7 @@ router.get("/api/schools/:schoolId/classes", requireAuth, async (req: any, res) 
 });
 
 // POST /api/schools/:schoolId/classes — فقط admin/deputy
-router.post("/api/schools/:schoolId/classes", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/classes", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolWrite(req, res, req.params.schoolId);
     if (!allowed) return;
@@ -97,7 +97,7 @@ router.post("/api/schools/:schoolId/classes", requireAuth, async (req: any, res)
 });
 
 // PATCH /api/schools/:schoolId/classes/:classId — فقط admin/deputy
-router.patch("/api/schools/:schoolId/classes/:classId", requireAuth, async (req: any, res) => {
+router.patch("/schools/:schoolId/classes/:classId", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolWrite(req, res, req.params.schoolId);
     if (!allowed) return;
@@ -121,7 +121,7 @@ router.patch("/api/schools/:schoolId/classes/:classId", requireAuth, async (req:
 });
 
 // DELETE /api/schools/:schoolId/classes/:classId — فقط admin/deputy
-router.delete("/api/schools/:schoolId/classes/:classId", requireAuth, async (req: any, res) => {
+router.delete("/schools/:schoolId/classes/:classId", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolWrite(req, res, req.params.schoolId);
     if (!allowed) return;
@@ -135,7 +135,7 @@ router.delete("/api/schools/:schoolId/classes/:classId", requireAuth, async (req
 });
 
 // GET /api/schools/:schoolId/classes/:classId/members — روسترِ کلاس
-router.get("/api/schools/:schoolId/classes/:classId/members", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/classes/:classId/members", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_MEMBER_ROLES);
     if (!ok) {
@@ -151,7 +151,7 @@ router.get("/api/schools/:schoolId/classes/:classId/members", requireAuth, async
 });
 
 // POST /api/schools/:schoolId/classes/:classId/members — افزودنِ دانش‌آموز/معلم به روستر؛ فقط admin/deputy
-router.post("/api/schools/:schoolId/classes/:classId/members", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/classes/:classId/members", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolWrite(req, res, req.params.schoolId);
     if (!allowed) return;
@@ -174,7 +174,7 @@ router.post("/api/schools/:schoolId/classes/:classId/members", requireAuth, asyn
 });
 
 // DELETE /api/schools/:schoolId/classes/:classId/members/:memberId — فقط admin/deputy
-router.delete("/api/schools/:schoolId/classes/:classId/members/:memberId", requireAuth, async (req: any, res) => {
+router.delete("/schools/:schoolId/classes/:classId/members/:memberId", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolWrite(req, res, req.params.schoolId);
     if (!allowed) return;

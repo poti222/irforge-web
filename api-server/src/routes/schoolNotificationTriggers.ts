@@ -33,7 +33,7 @@ function todayDateString(): string {
 }
 
 // GET /api/schools/:schoolId/admin/absence-summary?date= — شمارشِ غایب/دیرآمده‌یِ امروز، برایِ کارتِ داشبورد.
-router.get("/api/schools/:schoolId/admin/absence-summary", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/admin/absence-summary", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, ADMIN_LIKE_ROLES);
     if (!ok) {
@@ -63,7 +63,7 @@ router.get("/api/schools/:schoolId/admin/absence-summary", requireAuth, async (r
 });
 
 // POST /api/schools/:schoolId/admin/check-unmarked-attendance — دکمه‌یِ «بررسیِ حضور و غیابِ ثبت‌نشده».
-router.post("/api/schools/:schoolId/admin/check-unmarked-attendance", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/admin/check-unmarked-attendance", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, ADMIN_LIKE_ROLES);
     if (!ok) {

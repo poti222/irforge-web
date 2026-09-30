@@ -63,7 +63,7 @@ function formatBotStatus(bot: typeof schoolBotsTable.$inferSelect | null) {
 }
 
 // GET /api/schools/:schoolId/bot — وضعیتِ بات (هر عضوِ مدرسه می‌تواند ببیند، چون دکمه‌ی اتصال در پروفایلِ همه است).
-router.get("/api/schools/:schoolId/bot", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/bot", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, [
       "admin", "deputy", "deputy_discipline", "counselor", "teacher", "student", "parent",
@@ -81,7 +81,7 @@ router.get("/api/schools/:schoolId/bot", requireAuth, async (req: any, res) => {
 });
 
 // POST /api/schools/:schoolId/bot/purchase — فقط مدیرِ مدرسه.
-router.post("/api/schools/:schoolId/bot/purchase", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/bot/purchase", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_ONLY);
     if (!ok) {
@@ -210,7 +210,7 @@ router.post("/api/schools/:schoolId/bot/purchase", requireAuth, async (req: any,
 });
 
 // POST /api/schools/:schoolId/bot/link-token — هر عضوِ مدرسه: توکنِ لینکِ عمیق `/start <token>` می‌سازد.
-router.post("/api/schools/:schoolId/bot/link-token", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/bot/link-token", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, [
       "admin", "deputy", "deputy_discipline", "counselor", "teacher", "student", "parent",
@@ -239,7 +239,7 @@ router.post("/api/schools/:schoolId/bot/link-token", requireAuth, async (req: an
 });
 
 // GET /api/schools/:schoolId/bot/subscribed — آیا کاربرِ جاری به باتِ همین مدرسه وصل است؟
-router.get("/api/schools/:schoolId/bot/subscribed", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/bot/subscribed", requireAuth, async (req: any, res) => {
   try {
     const [bot] = await db.select().from(schoolBotsTable).where(eq(schoolBotsTable.schoolId, req.params.schoolId)).limit(1);
     if (!bot) {

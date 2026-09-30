@@ -29,7 +29,7 @@ function formatAnnouncement(a: typeof schoolAnnouncementsTable.$inferSelect) {
 }
 
 // GET /api/schools/:schoolId/announcements — فیدِ کلِ مدرسه (broadcast/closure) + اگر classId داده شود، اعلامیه‌های همان کلاس هم.
-router.get("/api/schools/:schoolId/announcements", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/announcements", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_MEMBER_ROLES);
     if (!ok) {
@@ -51,7 +51,7 @@ router.get("/api/schools/:schoolId/announcements", requireAuth, async (req: any,
 
 // POST /api/schools/:schoolId/announcements — kind="broadcast"/"closure" فقط admin/deputy؛
 // kind="class" فقط اگر فرستنده معلمِ همان کلاس باشد (school_class_members با roleInClass="teacher").
-router.post("/api/schools/:schoolId/announcements", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/announcements", requireAuth, async (req: any, res) => {
   try {
     const { ok, member: requester } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_MEMBER_ROLES);
     if (!ok || !requester) {

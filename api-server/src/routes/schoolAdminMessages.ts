@@ -64,7 +64,7 @@ async function canAccessThread(req: any, res: any, schoolId: string, studentMemb
 }
 
 // GET /api/schools/:schoolId/admin-messages/:studentMemberId
-router.get("/api/schools/:schoolId/admin-messages/:studentMemberId", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/admin-messages/:studentMemberId", requireAuth, async (req: any, res) => {
   try {
     const ok = await canAccessThread(req, res, req.params.schoolId, req.params.studentMemberId);
     if (!ok) return;
@@ -81,7 +81,7 @@ router.get("/api/schools/:schoolId/admin-messages/:studentMemberId", requireAuth
 });
 
 // POST /api/schools/:schoolId/admin-messages/:studentMemberId
-router.post("/api/schools/:schoolId/admin-messages/:studentMemberId", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/admin-messages/:studentMemberId", requireAuth, async (req: any, res) => {
   try {
     const { body } = req.body ?? {};
     if (!body?.trim()) {
@@ -130,7 +130,7 @@ router.post("/api/schools/:schoolId/admin-messages/:studentMemberId", requireAut
 
 // GET /api/schools/:schoolId/admin-messages — فقط مدیر: صندوقِ ورودی، یک
 // ردیف به‌ازایِ هر دانش‌آموزی که رشته دارد (آخرین پیام + اطلاعاتِ دانش‌آموز).
-router.get("/api/schools/:schoolId/admin-messages", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/admin-messages", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, ["admin"]);
     if (!ok) {

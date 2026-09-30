@@ -65,7 +65,7 @@ async function canAccessThread(req: any, res: any, schoolId: string, teacherUser
 }
 
 // GET /api/schools/:schoolId/teacher-messages/my-teachers — دانش‌آموز: معلم‌هایِ واقعیِ کلاس‌هایِ خودش.
-router.get("/api/schools/:schoolId/teacher-messages/my-teachers", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/teacher-messages/my-teachers", requireAuth, async (req: any, res) => {
   try {
     const member = await getSchoolMember(req.userId);
     if (!member || member.schoolId !== req.params.schoolId || member.role !== "student") {
@@ -100,7 +100,7 @@ router.get("/api/schools/:schoolId/teacher-messages/my-teachers", requireAuth, a
 });
 
 // GET /api/schools/:schoolId/teacher-messages/inbox — معلم: صندوقِ ورودی (رشته‌های دانش‌آموزانش).
-router.get("/api/schools/:schoolId/teacher-messages/inbox", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/teacher-messages/inbox", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, ["teacher"]);
     if (!ok) {
@@ -150,7 +150,7 @@ router.get("/api/schools/:schoolId/teacher-messages/inbox", requireAuth, async (
 });
 
 // GET /api/schools/:schoolId/teacher-messages?teacherUserId=&studentMemberId=
-router.get("/api/schools/:schoolId/teacher-messages", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/teacher-messages", requireAuth, async (req: any, res) => {
   try {
     const { teacherUserId, studentMemberId } = req.query ?? {};
     if (typeof teacherUserId !== "string" || typeof studentMemberId !== "string") {
@@ -173,7 +173,7 @@ router.get("/api/schools/:schoolId/teacher-messages", requireAuth, async (req: a
 });
 
 // POST /api/schools/:schoolId/teacher-messages
-router.post("/api/schools/:schoolId/teacher-messages", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/teacher-messages", requireAuth, async (req: any, res) => {
   try {
     const { teacherUserId, studentMemberId, body } = req.body ?? {};
     if (typeof teacherUserId !== "string" || typeof studentMemberId !== "string" || !body?.trim()) {
