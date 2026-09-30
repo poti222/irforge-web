@@ -45,7 +45,7 @@ async function myChildrenMemberIdsInSchool(parentUserId: string, schoolId: strin
 // GET /api/schools/:schoolId/counselor/reports — مشاور: فقط خودش. مدیر/معاون: همه.
 // والد (فازِ ۵ بندِ ۲): فقط‌خواندنی، فقط گزارش‌هایِ خطاب‌به‌studentMemberIdِ
 // فرزندِ خودش — هرگز گزارشِ عمومی/گزارشِ دانش‌آموزِ دیگر.
-router.get("/api/schools/:schoolId/counselor/reports", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/counselor/reports", requireAuth, async (req: any, res) => {
   try {
     const { ok, member } = await canAccessSchool(req.userId, req.params.schoolId, ["counselor", "admin", "deputy"]);
     if (ok) {
@@ -75,7 +75,7 @@ router.get("/api/schools/:schoolId/counselor/reports", requireAuth, async (req: 
 });
 
 // POST /api/schools/:schoolId/counselor/reports — فقط مشاور.
-router.post("/api/schools/:schoolId/counselor/reports", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/counselor/reports", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, ["counselor"]);
     if (!ok) {

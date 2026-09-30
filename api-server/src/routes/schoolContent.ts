@@ -38,7 +38,7 @@ async function canWrite(userId: string, schoolId: string | null): Promise<boolea
 }
 
 // GET /api/schools/content?schoolId=&type= — لیست، شاملِ محتوایِ عمومی + محتوایِ همان مدرسه
-router.get("/api/schools/content", requireAuth, async (req: any, res) => {
+router.get("/schools/content", requireAuth, async (req: any, res) => {
   try {
     const schoolId = typeof req.query.schoolId === "string" ? req.query.schoolId : undefined;
     const type = typeof req.query.type === "string" ? req.query.type : undefined;
@@ -59,7 +59,7 @@ router.get("/api/schools/content", requireAuth, async (req: any, res) => {
 });
 
 // GET /api/schools/content/:id
-router.get("/api/schools/content/:id", requireAuth, async (req: any, res) => {
+router.get("/schools/content/:id", requireAuth, async (req: any, res) => {
   try {
     const [row] = await db.select().from(schoolContentItemsTable).where(eq(schoolContentItemsTable.id, req.params.id)).limit(1);
     if (!row) {
@@ -74,7 +74,7 @@ router.get("/api/schools/content/:id", requireAuth, async (req: any, res) => {
 });
 
 // POST /api/schools/content — فقط admin/teacher
-router.post("/api/schools/content", requireAuth, async (req: any, res) => {
+router.post("/schools/content", requireAuth, async (req: any, res) => {
   try {
     const { schoolId, type, title, body, language, imageUrl } = req.body ?? {};
     if (!type || !(SCHOOL_CONTENT_TYPES as readonly string[]).includes(type)) {
@@ -108,7 +108,7 @@ router.post("/api/schools/content", requireAuth, async (req: any, res) => {
 });
 
 // PATCH /api/schools/content/:id — فقط admin/teacher
-router.patch("/api/schools/content/:id", requireAuth, async (req: any, res) => {
+router.patch("/schools/content/:id", requireAuth, async (req: any, res) => {
   try {
     const [existing] = await db.select().from(schoolContentItemsTable).where(eq(schoolContentItemsTable.id, req.params.id)).limit(1);
     if (!existing) {
@@ -135,7 +135,7 @@ router.patch("/api/schools/content/:id", requireAuth, async (req: any, res) => {
 });
 
 // DELETE /api/schools/content/:id — فقط admin/teacher
-router.delete("/api/schools/content/:id", requireAuth, async (req: any, res) => {
+router.delete("/schools/content/:id", requireAuth, async (req: any, res) => {
   try {
     const [existing] = await db.select().from(schoolContentItemsTable).where(eq(schoolContentItemsTable.id, req.params.id)).limit(1);
     if (!existing) {

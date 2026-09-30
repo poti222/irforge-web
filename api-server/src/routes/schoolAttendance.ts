@@ -60,7 +60,7 @@ async function myChildrenMemberIdsInSchool(parentUserId: string, schoolId: strin
 }
 
 // POST /api/schools/:schoolId/attendance — نشانه‌گذاریِ دسته‌جمعی: { classId, date, entries: [{studentMemberId, status, note?}] }
-router.post("/api/schools/:schoolId/attendance", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/attendance", requireAuth, async (req: any, res) => {
   try {
     const { classId, date, entries } = req.body ?? {};
     if (!classId?.trim() || !date?.trim() || !Array.isArray(entries) || entries.length === 0) {
@@ -206,7 +206,7 @@ router.post("/api/schools/:schoolId/attendance", requireAuth, async (req: any, r
 });
 
 // GET /api/schools/:schoolId/attendance?classId=&date=&from=&to= — معلمِ همان کلاس یا مدیر/معاون/معاونِ‌انضباطی.
-router.get("/api/schools/:schoolId/attendance", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/attendance", requireAuth, async (req: any, res) => {
   try {
     const classId = typeof req.query.classId === "string" ? req.query.classId : undefined;
     if (!classId) {
@@ -234,7 +234,7 @@ router.get("/api/schools/:schoolId/attendance", requireAuth, async (req: any, re
 });
 
 // GET /api/schools/:schoolId/attendance/my?from=&to= — تاریخچه‌ی خودِ دانش‌آموز.
-router.get("/api/schools/:schoolId/attendance/my", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/attendance/my", requireAuth, async (req: any, res) => {
   try {
     const member = await getMember(req.userId);
     if (!member || member.schoolId !== req.params.schoolId || member.role !== "student") {
@@ -258,7 +258,7 @@ router.get("/api/schools/:schoolId/attendance/my", requireAuth, async (req: any,
 // GET /api/schools/:schoolId/attendance/child/:studentMemberId?from=&to= — والد: فقط تاریخچه‌ی فرزندِ خودش
 // (مرزِ حریمِ خصوصی سمتِ سرور با school_guardianships — عیناً همان الگویِ
 // myChildrenMemberIdsInSchool در schoolCounselorReports.ts).
-router.get("/api/schools/:schoolId/attendance/child/:studentMemberId", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/attendance/child/:studentMemberId", requireAuth, async (req: any, res) => {
   try {
     const childIds = await myChildrenMemberIdsInSchool(req.userId, req.params.schoolId);
     if (!childIds.includes(req.params.studentMemberId)) {

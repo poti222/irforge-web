@@ -13,7 +13,7 @@ import { canAccessSchool, SCHOOL_ADMIN_ONLY } from "../lib/schoolAuth";
 const router = Router();
 
 // GET /api/schools/:schoolId/audit-log — جدیدترین اول.
-router.get("/api/schools/:schoolId/audit-log", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/audit-log", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_ONLY);
     if (!ok) {

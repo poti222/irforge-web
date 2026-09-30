@@ -27,7 +27,7 @@ function formatQuestion(q: typeof schoolQuestionsTable.$inferSelect) {
 }
 
 // GET /api/schools/:schoolId/questions — فقط معلمِ سازنده (بانکِ سؤالِ شخصیِ هر معلم) یا مدیر.
-router.get("/api/schools/:schoolId/questions", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/questions", requireAuth, async (req: any, res) => {
   try {
     const { ok, member } = await canAccessSchool(req.userId, req.params.schoolId, ["teacher", "admin"]);
     if (!ok) {
@@ -47,7 +47,7 @@ router.get("/api/schools/:schoolId/questions", requireAuth, async (req: any, res
 });
 
 // POST /api/schools/:schoolId/questions — فقط معلم.
-router.post("/api/schools/:schoolId/questions", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/questions", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, ["teacher"]);
     if (!ok) {
@@ -75,7 +75,7 @@ router.post("/api/schools/:schoolId/questions", requireAuth, async (req: any, re
 });
 
 // PATCH /api/schools/:schoolId/questions/:id — فقط سازنده.
-router.patch("/api/schools/:schoolId/questions/:id", requireAuth, async (req: any, res) => {
+router.patch("/schools/:schoolId/questions/:id", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, ["teacher"]);
     if (!ok) {
@@ -102,7 +102,7 @@ router.patch("/api/schools/:schoolId/questions/:id", requireAuth, async (req: an
 });
 
 // DELETE /api/schools/:schoolId/questions/:id — فقط سازنده.
-router.delete("/api/schools/:schoolId/questions/:id", requireAuth, async (req: any, res) => {
+router.delete("/schools/:schoolId/questions/:id", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, ["teacher"]);
     if (!ok) {

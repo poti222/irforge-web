@@ -31,7 +31,7 @@ async function requireCounselor(req: any, res: any, schoolId: string) {
 }
 
 // GET /api/schools/:schoolId/counselor/students — دانش‌آموزانِ همان مدرسه.
-router.get("/api/schools/:schoolId/counselor/students", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/counselor/students", requireAuth, async (req: any, res) => {
   try {
     const ok = await requireCounselor(req, res, req.params.schoolId);
     if (!ok) return;
@@ -65,7 +65,7 @@ router.get("/api/schools/:schoolId/counselor/students", requireAuth, async (req:
 });
 
 // GET /api/schools/:schoolId/counselor/students/:studentMemberId/notes
-router.get("/api/schools/:schoolId/counselor/students/:studentMemberId/notes", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/counselor/students/:studentMemberId/notes", requireAuth, async (req: any, res) => {
   try {
     const ok = await requireCounselor(req, res, req.params.schoolId);
     if (!ok) return;
@@ -80,7 +80,7 @@ router.get("/api/schools/:schoolId/counselor/students/:studentMemberId/notes", r
 });
 
 // POST /api/schools/:schoolId/counselor/students/:studentMemberId/notes
-router.post("/api/schools/:schoolId/counselor/students/:studentMemberId/notes", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/counselor/students/:studentMemberId/notes", requireAuth, async (req: any, res) => {
   try {
     const ok = await requireCounselor(req, res, req.params.schoolId);
     if (!ok) return;
@@ -104,7 +104,7 @@ router.post("/api/schools/:schoolId/counselor/students/:studentMemberId/notes", 
 
 // GET /api/schools/:schoolId/counselor/list — هر عضوِ مدرسه (برایِ دانش‌آموز:
 // انتخابِ مشاور برایِ شروعِ چت). فهرستِ عمومی (نام هنوز نداریم، فقط userId).
-router.get("/api/schools/:schoolId/counselor/list", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/counselor/list", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, [
       "admin", "deputy", "deputy_discipline", "counselor", "teacher", "student", "parent",
@@ -139,7 +139,7 @@ function formatScheduleSlot(p: typeof schoolProgramsTable.$inferSelect) {
 // GET /api/schools/:schoolId/counselor/schedule?counselorUserId= — هر عضوِ
 // مدرسه (دانش‌آموز هم باید ببیند مشاور کِی دردسترس است)؛ counselorUserId
 // اختیاری است (نبودش یعنی برنامه‌ی همه‌یِ مشاورانِ مدرسه).
-router.get("/api/schools/:schoolId/counselor/schedule", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/counselor/schedule", requireAuth, async (req: any, res) => {
   try {
     const { ok } = await canAccessSchool(req.userId, req.params.schoolId, [
       "admin", "deputy", "deputy_discipline", "counselor", "teacher", "student", "parent",
@@ -163,7 +163,7 @@ router.get("/api/schools/:schoolId/counselor/schedule", requireAuth, async (req:
 });
 
 // POST /api/schools/:schoolId/counselor/schedule — فقط خودِ مشاور برایِ خودش می‌سازد.
-router.post("/api/schools/:schoolId/counselor/schedule", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/counselor/schedule", requireAuth, async (req: any, res) => {
   try {
     const ok = await requireCounselor(req, res, req.params.schoolId);
     if (!ok) return;
@@ -192,7 +192,7 @@ router.post("/api/schools/:schoolId/counselor/schedule", requireAuth, async (req
 });
 
 // DELETE /api/schools/:schoolId/counselor/schedule/:id — فقط همان مشاور (یا مدیر).
-router.delete("/api/schools/:schoolId/counselor/schedule/:id", requireAuth, async (req: any, res) => {
+router.delete("/schools/:schoolId/counselor/schedule/:id", requireAuth, async (req: any, res) => {
   try {
     const { ok: isAdmin } = await canAccessSchool(req.userId, req.params.schoolId, ["admin"]);
     const [row] = await db.select().from(schoolProgramsTable).where(eq(schoolProgramsTable.id, req.params.id)).limit(1);
@@ -244,7 +244,7 @@ async function canAccessThread(req: any, res: any, schoolId: string, counselorUs
 }
 
 // GET /api/schools/:schoolId/counselor/messages?counselorUserId=&studentMemberId=
-router.get("/api/schools/:schoolId/counselor/messages", requireAuth, async (req: any, res) => {
+router.get("/schools/:schoolId/counselor/messages", requireAuth, async (req: any, res) => {
   try {
     const { counselorUserId, studentMemberId } = req.query ?? {};
     if (typeof counselorUserId !== "string" || typeof studentMemberId !== "string") {
@@ -267,7 +267,7 @@ router.get("/api/schools/:schoolId/counselor/messages", requireAuth, async (req:
 });
 
 // POST /api/schools/:schoolId/counselor/messages
-router.post("/api/schools/:schoolId/counselor/messages", requireAuth, async (req: any, res) => {
+router.post("/schools/:schoolId/counselor/messages", requireAuth, async (req: any, res) => {
   try {
     const { counselorUserId, studentMemberId, body } = req.body ?? {};
     if (typeof counselorUserId !== "string" || typeof studentMemberId !== "string" || !body?.trim()) {
