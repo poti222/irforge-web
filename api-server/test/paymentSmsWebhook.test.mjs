@@ -22,6 +22,7 @@ const { createPaymentRequest } = await import("../src/lib/paymentRequests.ts");
 const effects = await import("../src/lib/paymentEffects.ts");
 const { createPaymentSmsRouter, SMS_IP_LIMIT_PER_MIN } = await import("../src/routes/paymentSmsWebhook.ts");
 const { generateSmsSecret, hashSmsSecret } = await import("../src/lib/smsChannelSecret.ts");
+const { decodeSmsBody, repairJsonControlChars, isRawSmsPath } = await import("../src/lib/smsBody.ts");
 
 const NOW = new Date("2026-09-29T12:00:00.000Z");
 
@@ -111,6 +112,70 @@ test("منبعِ وبهوک: متنِ پیامک و secret هرگز وارِدِ
   for (const c of logCalls) {
     assert.doesNotMatch(c, /\btext\b|\bsecret\b|\bbody\b|rawText/, c);
   }
+});
+
+// ─── بدنه‌ی وبهوک (MacroDroid): پیامکِ چندخطی، text/plain، هدر ────────────────
+
+const MULTILINE = "بلو\nواریز پول\n فاطمه عزیز، 2,768,654 ریال به حساب شما نشست.\n۲۱:۱۱\n۱۴۰۵.۰۶.۰۸";
+
+test("repairJsonControlChars: فقط خط‌جدید/تبِ خامِ داخلِ رشته escape می‌شود؛ ساختار و escapeهای موجود دست‌نخورده", () => {
+  const raw = '{"text":"a\nb\tc\r","sender":"Blubank","k":"x\\ny\\"z"}'.replace(/\\n/g, "\\n");
+  const fixed = repairJsonControlChars('{"text":"a\nb","sender":"S"}');
+  assert.equal(fixed, '{"text":"a\\nb","sender":"S"}');
+  assert.deepEqual(JSON.parse(fixed), { text: "a\nb", sender: "S" });
+  // خط‌جدیدِ بیرونِ رشته (فاصله‌گذاریِ JSON) و escapeِ قبلی سالم می‌مانند
+  const ok = '{\n  "text": "x\\ny",\n  "n": 1\n}';
+  assert.equal(repairJsonControlChars(ok), ok);
+  assert.equal(JSON.parse(repairJsonControlChars('{"t":"q\\"r\ns"}')).t, 'q"r\ns');
+  assert.ok(raw.length > 0);
+});
+
+test("decodeSmsBody: JSONِ دارایِ خط‌جدیدِ خام → ترمیم می‌شود و متن عیناً می‌ماند", () => {
+  const body = `{"text":"${MULTILINE}","sender":"Blubank","time":"2026-09-29T11:58:00Z"}`;
+  const d = decodeSmsBody({ body, contentType: "application/json" });
+  assert.equal(d.text, MULTILINE);
+  assert.equal(d.sender, "Blubank");
+  assert.equal(d.time, "2026-09-29T11:58:00Z");
+  // بدونِ content-type هم (بدنه با { شروع می‌شود)
+  assert.equal(decodeSmsBody({ body, contentType: "" }).text, MULTILINE);
+});
+
+test("decodeSmsBody: text/plain = خودِ متن؛ فرستنده/زمان از هدر یا query (هدر مقدم بر query)", () => {
+  const h = (n) => ({ "x-sms-sender": "Blubank", "x-sms-time": "1790000000" })[n];
+  const d = decodeSmsBody({ body: MULTILINE, contentType: "text/plain; charset=utf-8", header: h, query: { sender: "other" } });
+  assert.deepEqual(d, { text: MULTILINE, sender: "Blubank", time: "1790000000" });
+  const q = decodeSmsBody({ body: MULTILINE, contentType: "text/plain", header: () => undefined, query: { sender: "Blubank", time: "2026-09-29T11:58:00Z" } });
+  assert.equal(q.sender, "Blubank");
+  assert.equal(q.time, "2026-09-29T11:58:00Z");
+  // فرستنده‌ی داخلِ JSON بر هدر مقدم است
+  assert.equal(decodeSmsBody({ body: '{"text":"t","sender":"A"}', contentType: "application/json", header: () => "B" }).sender, "A");
+});
+
+test("decodeSmsBody: urlencoded، نام‌های معادل، و شیءِ از پیش پارس‌شده", () => {
+  const f = decodeSmsBody({ body: "message=hello+world&from=Blubank&timestamp=1790000000", contentType: "application/x-www-form-urlencoded" });
+  assert.deepEqual(f, { text: "hello world", sender: "Blubank", time: "1790000000" });
+  assert.deepEqual(decodeSmsBody({ body: { body: "t", address: "X", date: "d" } }), { text: "t", sender: "X", time: "d" });
+  assert.equal(decodeSmsBody({ body: undefined }).text, undefined);
+  assert.equal(decodeSmsBody({ body: {} }).text, undefined);
+});
+
+test("decodeSmsBody: JSONِ غیرقابل‌ترمیم (\" بی‌escape داخلِ متن) یا غیرِ شیء → bad_body صریح، نه پذیرشِ ساکت", () => {
+  for (const body of ['{"text":"say "hi" now","sender":"B"}', "[1,2]", '"just a string"', "{oops"]) {
+    assert.throws(() => decodeSmsBody({ body, contentType: "application/json" }), (e) => e.code === "bad_body", body);
+  }
+});
+
+test("isRawSmsPath: فقط POST روی وبهوکِ کانال و aliasِ قدیمی (parserِ سراسری رد می‌شود)", () => {
+  assert.equal(isRawSmsPath("POST", "/api/payments/sms/pch_abc123"), true);
+  assert.equal(isRawSmsPath("POST", "/api/payments/sms/pch_abc123/"), true);
+  assert.equal(isRawSmsPath("POST", "/api/internal/wallet-topup/sms-webhook"), true);
+  assert.equal(isRawSmsPath("GET", "/api/payments/sms/pch_abc123"), false);
+  assert.equal(isRawSmsPath("POST", "/api/payments/sms/"), false);
+  assert.equal(isRawSmsPath("POST", "/api/payments/sms/a/b"), false);
+  assert.equal(isRawSmsPath("POST", "/api/payments/sms/../../admin"), false);
+  assert.equal(isRawSmsPath("POST", "/api/wallet/topup/request"), false);
+  const appSrc = fs.readFileSync(new URL("../src/app.ts", import.meta.url), "utf8");
+  assert.match(appSrc, /isRawSmsPath\(req\.method, req\.path\)/, "app.ts باید parserِ سراسری را برایِ این مسیرها رد کند");
 });
 
 // ─── زنده ───────────────────────────────────────────────────────────────────
@@ -499,4 +564,86 @@ test("وبهوک: برداشت/ignored هرگز به موتورِ تطبیق ن�
     } finally {
       await new Promise((r) => server.close(r));
     }
+  }));
+
+// ─── زنده: اپِ شبیهِ production (بدونِ parserِ سراسریِ JSON — خودِ route بدنه را می‌خواند) ───────
+
+async function withRawEnv(fn) {
+  const admin = new Pool({ connectionString: PG_URL, max: 2 });
+  const schema = `card_p3r_${Math.random().toString(36).slice(2, 10)}`;
+  await admin.query(`CREATE SCHEMA ${schema}`);
+  const pool = new Pool({ connectionString: PG_URL, max: 10, options: `-c search_path=${schema}` });
+  await pool.query(ddl);
+  const app = express();   // عمداً express.json() ندارد؛ app.ts هم برایِ این مسیر آن را رد می‌کند (isRawSmsPath)
+  app.use("/api", createPaymentSmsRouter({ pool, hitFn: async () => ({ allowed: true, retryAfterSeconds: 0 }) }));
+  const server = http.createServer(app);
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${server.address().port}/api/payments/sms`;
+  try { await fn({ pool, base }); } finally {
+    await new Promise((r) => server.close(r));
+    await pool.end();
+    await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+    await admin.end();
+  }
+}
+
+test("MacroDroid: JSON با پیامکِ چندخطیِ خام (خط‌جدید escape نشده) پذیرفته می‌شود و متن عیناً ذخیره می‌شود", live, () =>
+  withRawEnv(async ({ pool, base }) => {
+    const { id, secret } = await channel(pool, { allowlist: ["Blubank"] });
+    const rawJson = `{"text":"${DEPOSIT}","sender":"Blubank","time":"${new Date().toISOString()}"}`;
+    const r = await post(base, id, rawJson, { secret, raw: true });
+    assert.equal(r.status, 201, JSON.stringify(r.json));
+    assert.equal(r.json.direction, "deposit");
+    assert.equal(r.json.parsed, true);
+    const rows = await inbox(pool);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].status, "unmatched");
+    assert.equal(rows[0].raw_text, DEPOSIT, "خط‌جدیدها حفظ شده‌اند");
+    assert.equal(Number(rows[0].amount_rial), 2_768_654);
+    // ارسالِ دوباره‌ی همان = تکراری (idempotent)
+    assert.equal((await post(base, id, rawJson, { secret, raw: true })).status, 200);
+    assert.equal((await inbox(pool)).length, 1);
+  }));
+
+test("MacroDroid: text/plain (بدنه = فقط {sms_message}) + هدرِ X-Sms-Sender با allowlist کار می‌کند؛ بدونِ فرستنده ignored", live, () =>
+  withRawEnv(async ({ pool, base }) => {
+    const { id, secret } = await channel(pool, { allowlist: ["Blubank"] });
+    const ok = await post(base, id, DEPOSIT, { secret, contentType: "text/plain; charset=utf-8", headers: { "x-sms-sender": "Blubank" } });
+    assert.equal(ok.status, 201, JSON.stringify(ok.json));
+    assert.equal(ok.json.status, "unmatched");
+    assert.equal(ok.json.parsed, true);
+    // فرستنده از query
+    const q = await fetch(`${base}/${id}?sender=Blubank`, {
+      method: "POST", headers: { "content-type": "text/plain", "x-sms-secret": secret }, body: DEPOSIT.replace("2,768,654", "3,000,000"),
+    });
+    assert.equal(q.status, 201);
+    // بدونِ فرستنده با allowlistِ فعال → ignored و متنِ خام ذخیره نمی‌شود
+    const none = await post(base, id, WITHDRAW + " x", { secret, contentType: "text/plain" });
+    assert.equal(none.status, 201);
+    assert.equal(none.json.status, "ignored");
+    const rows = await inbox(pool);
+    assert.equal(rows.find((r) => r.status === "ignored").raw_text, IGNORED_TEXT_PLACEHOLDER);
+  }));
+
+test("MacroDroid: JSONِ غیرقابل‌ترمیم → ۴۰۰ با code=bad_body و چیزی ذخیره نمی‌شود؛ secret همچنان پیش از هر چیز چک می‌شود", live, () =>
+  withRawEnv(async ({ pool, base }) => {
+    const { id, secret } = await channel(pool);
+    const bad = await post(base, id, '{"text":"say "hi" now"}', { secret, raw: true });
+    assert.equal(bad.status, 400);
+    assert.equal(bad.json.code, "bad_body");
+    // secret اشتباه با بدنه‌ی خراب: همچنان ۴۰۱ (بدنه پیش از احراز خوانده/تفسیر نمی‌شود)
+    assert.equal((await post(base, id, '{"text":"say "hi" now"}', { secret: secret + "x", raw: true })).status, 401);
+    assert.equal((await inbox(pool)).length, 0);
+  }));
+
+test("MacroDroid: بدنه‌ی خالی → ۴۰۰؛ urlencodedِ ساده هم هنوز کار می‌کند", live, () =>
+  withRawEnv(async ({ pool, base }) => {
+    const { id, secret } = await channel(pool);
+    assert.equal((await post(base, id, "", { secret, contentType: "text/plain", raw: true })).status, 400);
+    assert.equal((await post(base, id, "", { secret, raw: true })).status, 400);
+    const form = await post(base, id, new URLSearchParams({ text: DEPOSIT, sender: "Blubank" }).toString(), {
+      secret, contentType: "application/x-www-form-urlencoded", raw: true,
+    });
+    assert.equal(form.status, 201, JSON.stringify(form.json));
+    assert.equal((await inbox(pool)).length, 1);
   }));

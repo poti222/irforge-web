@@ -18,13 +18,15 @@
  *   متن:      text | message | body | sms | content   (یا خودِ بدنه در text/plain)
  *   فرستنده:  sender | from | address | number
  *   زمان:     time | timestamp | received_at | date   (ISO یا epoch ثانیه/میلی‌ثانیه)
+ *   در text/plain (بدنه = فقط متنِ پیامک) فرستنده/زمان از هدرِ `X-Sms-Sender`/`X-Sms-Time` یا `?sender=`/`?time=` می‌آید.
+ *   JSONِ دارایِ خط‌جدیدِ خام (پیامکِ چندخطیِ بانک از MacroDroid) ترمیم می‌شود — `lib/smsBody.ts`.
  *
  * پس از ذخیره‌ی یک واریزِ قابل‌فهم، موتورِ تطبیق (`lib/paymentMatcher.ts`، فاز ۴) صدا زده
  * می‌شود؛ پاسخ `matched:true` است اگر یک درخواست خودکار تأیید شد. خطای تطبیق هرگز پاسخ را
  * خراب نمی‌کند (پیامک unmatched می‌ماند).
  *
  * پاسخ: 201 ذخیره شد، 200 تکراری (idempotent — forwarder می‌تواند امن retry کند)،
- * 400 بدونِ متن، 401 احراز ناموفق، 403 کانالِ غیرفعال، 429 rate limit.
+ * 400 بدونِ متن/بدنه‌ی نامعتبر (`bad_body`)، 401 احراز ناموفق، 403 کانالِ غیرفعال، 429 rate limit.
  */
 import express, { Router } from "express";
 import type { Request, Response } from "express";
@@ -38,6 +40,7 @@ import { matchSms, type MatchOutcome } from "../lib/paymentMatcher";
 import { registerDefaultPaymentEffects } from "../lib/paymentEffectsBoot";
 import { clientIp, hit, send429, type HitFn } from "../middleware/rateLimit";
 import { authenticateChannel, ingestSms, SmsIngestError, type SmsChannelRow } from "../lib/smsIngest";
+import { decodeSmsBody } from "../lib/smsBody";
 import type { PoolLike } from "../lib/paymentRequests";
 
 /** سقفِ درخواست به‌ازای IP (پیش از احراز) و به‌ازای کانال (پس از آن) در دقیقه. */
@@ -46,12 +49,6 @@ export const SMS_CHANNEL_LIMIT_PER_MIN = 120;
 const MINUTE = 60_000;
 
 const CHANNEL_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
-
-function pick(body: any, keys: string[]): unknown {
-  if (!body || typeof body !== "object") return undefined;
-  for (const k of keys) if (body[k] !== undefined && body[k] !== null && body[k] !== "") return body[k];
-  return undefined;
-}
 
 function extractSecret(req: Request): string {
   const x = req.header("X-Sms-Secret");
@@ -94,7 +91,7 @@ export function createPaymentSmsRouter(
 
   router.post(
     "/payments/sms/:channelId",
-    express.text({ type: "text/plain", limit: "16kb" }),
+    express.text({ type: () => true, limit: "16kb" }),
     async (req: Request, res: Response) => {
       const ip = clientIp(req);
       try {
@@ -123,10 +120,12 @@ export function createPaymentSmsRouter(
         const chVerdict = await hitFn(`sms-ch:${channel.id}`, SMS_CHANNEL_LIMIT_PER_MIN, 0, MINUTE);
         if (!chVerdict.allowed) { send429(res, chVerdict.retryAfterSeconds); return; }
 
-        const body: any = req.body;
-        const text = typeof body === "string" ? body : pick(body, ["text", "message", "body", "sms", "content"]);
-        const sender = pick(body, ["sender", "from", "address", "number"]);
-        const time = pick(body, ["time", "timestamp", "received_at", "date"]);
+        // بدنه را خودِ route می‌خواند (app.ts برایِ این مسیر parserِ سراسری را رد می‌کند): JSONِ دارایِ خط‌جدیدِ خام
+        // (پیامکِ چندخطیِ بانک از MacroDroid) ترمیم می‌شود؛ text/plain فرستنده/زمان را از هدر/query می‌گیرد.
+        const { text, sender, time } = decodeSmsBody({
+          body: req.body, contentType: req.header("content-type"), query: req.query as Record<string, unknown>,
+          header: (n) => req.header(n),
+        });
 
         const out = await processAuthenticatedSms(pool, channel, { text, sender, time }, matcher);
         res.status(out.inserted ? 201 : 200).json(out.body);

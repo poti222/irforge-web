@@ -12,7 +12,7 @@
  * در پنلِ ادمین (کارت‌به‌کارت خودکار ← کانال‌های پلتفرم) وبهوکِ جدید و کلیدِ تازه را روی گوشی گذاشتید،
  * `SMS_WEBHOOK_SECRET` را از env حذف کنید تا این alias خاموش شود (بدونِ آن، همیشه ۴۰۳ می‌دهد).
  */
-import { Router } from "express";
+import express, { Router } from "express";
 import crypto from "crypto";
 import { pool as defaultPool } from "@workspace/db";
 import { logger } from "../lib/logger";
@@ -21,6 +21,7 @@ import type { MatchAlerts } from "../lib/paymentAlerts";
 import { matchSms } from "../lib/paymentMatcher";
 import { logPaymentEvent } from "../lib/paymentEvents";
 import { SmsIngestError, type SmsChannelRow } from "../lib/smsIngest";
+import { decodeSmsBody } from "../lib/smsBody";
 import type { PoolLike } from "../lib/paymentRequests";
 import { defaultPaymentAlerts, processAuthenticatedSms } from "./paymentSmsWebhook";
 
@@ -64,14 +65,16 @@ export function createLegacyWalletWebhookRouter(deps: LegacyWalletWebhookDeps = 
   const hitFn = deps.hitFn ?? hit;
   const rateLimit = deps.rateLimit ?? authRateLimit("wallet_topup_sms_webhook");
 
-  router.post("/internal/wallet-topup/sms-webhook", rateLimit, async (req: any, res) => {
+  router.post("/internal/wallet-topup/sms-webhook", rateLimit, express.text({ type: () => true, limit: "16kb" }), async (req: any, res) => {
     if (!secretOk(req)) {
       logger.warn({ ip: clientIp(req) }, "Wallet topup SMS webhook (legacy alias): bad or missing secret");
       res.status(403).json({ error: "Forbidden" });
       return;
     }
     try {
-      const text = String(req.body?.text ?? req.body?.message ?? "").slice(0, 2000).trim();
+      // بدنه را خودِ route می‌خواند (app.ts parserِ سراسری را برایِ این مسیر رد می‌کند) — همان رمزگشاییِ وبهوکِ جدید.
+      const decoded = decodeSmsBody({ body: req.body, contentType: req.header("content-type"), query: req.query, header: (n) => req.header(n) });
+      const text = String(decoded.text ?? "").slice(0, 2000).trim();
       if (!text) { res.status(400).json({ error: "text لازم است" }); return; }
       const channel = await activePlatformChannel(pool);
       if (!channel) {
@@ -88,7 +91,7 @@ export function createLegacyWalletWebhookRouter(deps: LegacyWalletWebhookDeps = 
       }
       const alerts = deps.alerts ?? defaultPaymentAlerts(pool);
       const out = await processAuthenticatedSms(
-        pool, channel, { text, sender: req.body?.sender ? String(req.body.sender).slice(0, 120) : null },
+        pool, channel, { text, sender: decoded.sender ? String(decoded.sender).slice(0, 120) : null, time: decoded.time },
         (p, id) => matchSms(p, id, { alerts }),
       );
       res.status(out.inserted ? 201 : 200).json({ ok: true, matched: out.body.matched === true });

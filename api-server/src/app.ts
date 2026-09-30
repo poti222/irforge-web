@@ -12,6 +12,7 @@ import { logger } from "./lib/logger.js";
 import { sanitizeBody } from "./middleware/sanitizeBody.js";
 import { globalRateLimit } from "./middleware/rateLimit.js";
 import { resolveCorsOrigin } from "./lib/corsConfig.js";
+import { isRawSmsPath } from "./lib/smsBody.js";
 import { INLINE_SCRIPT_HASHES } from "./lib/csp.js";
 
 const app: Express = express();
@@ -116,6 +117,9 @@ const largeUrlencoded = express.urlencoded({ extended: true, limit: LARGE_BODY_L
 const mediaUrlencoded = express.urlencoded({ extended: true, limit: MEDIA_BODY_LIMIT });
 
 app.use((req: Request, res: Response, next: NextFunction) => {
+  // وبهوکِ پیامکِ بانک بدنه‌اش را خودش می‌خواند: پیامکِ چندخطی با خط‌جدیدِ خام JSONِ نامعتبر می‌سازد و parserِ سراسری
+  // آن را با ۴۰۰/۵۰۰ رد می‌کرد (lib/smsBody.ts). همان محدودیتِ ۱۶KB و احرازِ secret پیش از هر چیز سرِ جایشان‌اند.
+  if (isRawSmsPath(req.method, req.path)) { next(); return; }
   const tier = needsMediaBody(req) ? "media" : needsLargeBody(req) ? "large" : "small";
   const json = tier === "media" ? mediaJson : tier === "large" ? largeJson : smallJson;
   const urlencoded = tier === "media" ? mediaUrlencoded : tier === "large" ? largeUrlencoded : smallUrlencoded;

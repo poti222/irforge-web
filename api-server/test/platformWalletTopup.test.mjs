@@ -112,7 +112,7 @@ async function withEnv(fn) {
   const bankSms = (rial) => `بلو\nواریز پول\n فاطمه عزیز، ${Number(rial).toLocaleString("en-US")} ریال به حساب شما نشست.\n موجودی: 9,999,999 ریال\n۲۱:۱۱\n۱۴۰۵.۰۶.۰۸`;
 
   try {
-    await fn({ pool, call, postSms, mkChannel, balance, ledger, reqRow, events, bankSms, userNotes, adminNotes, origin });
+    await fn({ pool, call, postSms, mkChannel, balance, ledger, reqRow, events, bankSms, userNotes, adminNotes, origin, alerts });
   } finally {
     await new Promise((r) => server.close(r));
     await pool.end();
@@ -384,4 +384,50 @@ test("bot-scope و platform در یک DB: تأییدِ bot هرگز کیف‌پ�
   assert.equal(d.decided, true);
   assert.equal(await t.balance("u1"), 0);                         // اثرِ bot سمتِ بات است (claim)، نه کیف‌پولِ سایت
   assert.equal((await t.ledger("u1")).length, 0);
+}));
+
+test("MacroDroid واقعی (مثلِ production: بدونِ parserِ سراسریِ JSON): پیامکِ چندخطیِ خام با هر دو آدرس، کیف‌پول را دقیقاً یک‌بار شارژ می‌کند", live, () => withEnv(async (t) => {
+  const { channel, smsSecret: secret } = await t.mkChannel({ senderAllowlist: ["Blubank"] });
+  const raw = express();   // عمداً express.json() ندارد؛ app.ts هم برایِ این مسیرها رد می‌کند (isRawSmsPath)
+  raw.use("/api", createPaymentSmsRouter({ pool: t.pool, hitFn: okHit, matcher: (p, id) => matchSms(p, id, { alerts: t.alerts }) }));
+  raw.use("/api", createLegacyWalletWebhookRouter({ pool: t.pool, hitFn: okHit, rateLimit: (_q, _s, n) => n(), alerts: t.alerts }));
+  const srv = http.createServer(raw);
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const rawOrigin = `http://127.0.0.1:${srv.address().port}/api`;
+  try {
+    // ۱) آدرسِ کانال + JSONِ دارایِ خط‌جدیدِ خام (همان چیزی که MacroDroid با {sms_message} می‌فرستد)
+    const r1 = await t.call("POST", "/wallet/topup/request", { body: { amount: 200_000 } });
+    const sms1 = t.bankSms(r1.json.finalAmount);
+    assert.ok(sms1.includes("\n"), "پیامکِ نمونه چندخطی است");
+    const a = await fetch(`${rawOrigin}/payments/sms/${channel.id}`, {
+      method: "POST", headers: { "content-type": "application/json", "x-sms-secret": secret },
+      body: `{"text":"${sms1}","sender":"Blubank"}`,
+    });
+    assert.equal(a.status, 201, await a.clone().text());
+    assert.equal((await a.json()).matched, true);
+    assert.equal(await t.balance(), 2_000_000);
+
+    // ۲) همان کانال با text/plain: بدنه = فقط متنِ پیامک، فرستنده در هدر
+    const r2 = await t.call("POST", "/wallet/topup/request", { body: { amount: 500_000 } });
+    const b = await fetch(`${rawOrigin}/payments/sms/${channel.id}`, {
+      method: "POST", headers: { "content-type": "text/plain; charset=utf-8", "x-sms-secret": secret, "x-sms-sender": "Blubank" },
+      body: t.bankSms(r2.json.finalAmount),
+    });
+    assert.equal(b.status, 201);
+    assert.equal((await b.json()).matched, true);
+    assert.equal(await t.balance(), 7_000_000);
+
+    // ۳) aliasِ قدیمی با همان JSONِ چندخطی
+    const r3 = await t.call("POST", "/wallet/topup/request", { body: { amount: 100_000 } });
+    const c = await fetch(`${rawOrigin}/internal/wallet-topup/sms-webhook`, {
+      method: "POST", headers: { "content-type": "application/json", "x-sms-webhook-secret": process.env.SMS_WEBHOOK_SECRET },
+      body: `{"text":"${t.bankSms(r3.json.finalAmount)}","sender":"Blubank"}`,
+    });
+    assert.equal(c.status, 201, await c.clone().text());
+    assert.equal(await t.balance(), 8_000_000);
+    // هر سه پیامک دقیقاً یک‌بار اثر گذاشتند
+    assert.equal((await t.ledger()).length, 3);
+  } finally {
+    await new Promise((r) => srv.close(r));
+  }
 }));
