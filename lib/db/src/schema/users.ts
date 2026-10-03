@@ -156,6 +156,24 @@ export const usersTable = pgTable("users", {
   lastLogin: timestamp("last_login", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+
+  /**
+   * `/super` — حساب‌هایِ آزمایشیِ پلتفرم (بخشِ "Test Identities").
+   *
+   * این **کاملاً جدا** از سیستمِ جعلِ هویتِ `middleware/impersonation.ts` است:
+   * آن یکی یک نشستِ کوتاه‌مدت و read-only رویِ حسابِ یک کاربرِ *واقعی* می‌سازد؛
+   * این ستون برعکس — یک کاربرِ *تازه و واقعی* (با این‌که مصنوعی/آزمایشی است)
+   * می‌سازد که مثلِ هر کاربرِ دیگر نشستِ کاملِ خودش، با خواندن *و نوشتن*، را
+   * دارد. دلیلِ دوتا بودن: جعلِ هویتِ عمداً read-only است تا لاگِ ممیزی
+   * همیشه actor واقعی را نشان دهد؛ ضعیف‌کردنِ آن برای تستِ تعاملی یک
+   * رگرسیونِ امنیتیِ واقعی برای کل پلتفرم بود، نه فقط بخشِ مدارس. پس تستِ
+   * «کامل، تعاملی، خواندن و نوشتن» با یک حسابِ *واقعیِ دیگر* حل می‌شود که
+   * به‌وضوح برچسب‌خورده (همین ستون) است — نه با بازکردنِ یک درِ پشتی روی
+   * سیستمِ جعلِ هویتِ موجود.
+   */
+  isPlatformTestAccount: boolean("is_platform_test_account").notNull().default(false),
+  /** کدام سوپرادمینِ واقعی این حسابِ آزمایشی را ساخته — فقط برایِ ردگیری/پاکسازی. */
+  createdByUserId: text("created_by_user_id"),
 });
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ createdAt: true, updatedAt: true });

@@ -7,6 +7,7 @@ import ErrorBoundary from "@/components/error-boundary";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/hooks/use-language";
 import { Lock } from "lucide-react";
+import { TestModeBanner } from "@/components/layout/TestModeBanner";
 
 /**
  * DashboardShell.tsx — chrome around every authenticated page: sidebar,
@@ -50,6 +51,7 @@ export default function DashboardShell({
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
+        <TestModeBanner />
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
           <HeaderControls />

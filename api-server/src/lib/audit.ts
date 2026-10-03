@@ -52,7 +52,13 @@ export type AuditAction =
   | "card_autoconfirm_channel_active"
   | "card_autoconfirm_sms_assigned"
   | "card_autoconfirm_sweep"
-  | "card_autoconfirm_migration";
+  | "card_autoconfirm_migration"
+  // `/super` — هویت‌های آزمایشی (routes/testIdentities.ts): کاملاً جدا از
+  // "impersonation_started" بالا — این یک حسابِ واقعیِ تازه است، نه جعلِ هویت.
+  | "test_identity_created"
+  | "test_identity_entered"
+  | "test_identity_deleted"
+  | "test_school_cleaned_up";
 
 export async function writeAudit(input: {
   actorUserId: string;

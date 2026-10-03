@@ -175,6 +175,8 @@ export function toggleInviteCode(schoolId: string, codeId: string, active: boole
 export interface SchoolMemberWithUser extends Omit<SchoolMemberMe, "school"> {
   userName: string | null;
   userEmail: string | null;
+  /** `/super` بخشِ C — true فقط برایِ حساب‌هایِ آزمایشیِ ساخته‌شده از پنلِ سوپرادمین. */
+  isPlatformTestAccount?: boolean;
 }
 
 export function listSchoolMembers(schoolId: string) {

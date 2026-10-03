@@ -121,6 +121,7 @@ const Support = lazy(() => import("@/pages/support"));
 const Notifications = lazy(() => import("@/pages/notifications"));
 const Updates = lazy(() => import("@/pages/updates"));
 const AdminUsers = lazy(() => import("@/pages/admin-users"));
+const Super = lazy(() => import("@/pages/super"));
 const AdminUserDetail = lazy(() => import("@/pages/admin-user-detail"));
 const UpdateDetail = lazy(() => import("@/pages/update-detail"));
 const NotificationDetail = lazy(() => import("@/pages/notification-detail"));
@@ -256,6 +257,39 @@ function AuthOnlyRoute({ component: Component, ...rest }: { component: any }) {
 
   if (!user) {
     return <Redirect to="/login" />;
+  }
+
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <Component {...rest} />
+    </Suspense>
+  );
+}
+
+/**
+ * SuperOnlyRoute — مثلِ `AuthOnlyRoute`، اما فقط super_admin، و بدونِ هیچ
+ * شلی: pages/super.tsx خودش شلِ مینیمالِ خودش (فرمِ رمز یا داشبورد) را
+ * می‌سازد. دروازه‌ی هویتِ واقعیِ سراسری اینجا همچنان اجراست — فقط
+ * DashboardShell/پروفایل‌کامل‌بودن را نمی‌خواهد، چون /super خودش یک صفحه‌ی
+ * مستقل است، نه یک تبِ دیگرِ زیرِ ناوبریِ dashboard.
+ */
+function SuperOnlyRoute({ component: Component, ...rest }: { component: any }) {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Redirect to="/login" />;
+  }
+
+  if (user.role !== "super_admin") {
+    return <Redirect to="/dashboard" />;
   }
 
   return (
@@ -426,6 +460,7 @@ function Router() {
       <Route path="/admin/school-bot-pool"><ProtectedRoute component={AdminSchoolBotPool} superAdminOnly /></Route>
       <Route path="/admin/cutover-flags"><ProtectedRoute component={AdminCutoverFlags} superAdminOnly /></Route>
       <Route path="/admin/sheets-import"><ProtectedRoute component={AdminSheetsImport} superAdminOnly /></Route>
+      <Route path="/super"><SuperOnlyRoute component={Super} /></Route>
 
       <Route component={NotFound} />
     </Switch>

@@ -3567,6 +3567,7 @@
     "linkParentConfirm": "Link",
     "guardianshipLinked": "Parent link created",
     "fieldUserId": "User ID",
+    "testAccountBadge": "Test",
 
     "classesPageDescription": "Manage this school's classes — name, grade and academic year.",
     "addClassButton": "New class",
