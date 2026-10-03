@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,11 +10,14 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { BarChart3, ImageIcon, KeyRound, Loader2, Plus, School as SchoolIcon, UserPlus } from "lucide-react";
+import { BarChart3, ImageIcon, KeyRound, Loader2, Plus, School as SchoolIcon, UserPlus, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
+import { useLanguage } from "@/hooks/use-language";
 import { useViewedSchool } from "@/hooks/use-viewed-school";
+import { formatToman } from "@/lib/format";
+import { customFetch } from "@workspace/api-client-react";
 import {
   createSchool, getSchoolMe, updateSchool, listMySchools, listInviteCodes, createInviteCode, toggleInviteCode,
   listSchoolMembers, listSchoolClasses, addSchoolAdmin, SCHOOL_MEMBER_ROLES, listCounselorReports,
@@ -468,22 +472,44 @@ function InviteCodesCard({ schoolId }: { schoolId: string }) {
  * SchoolBotCard — فاز ۷ (بخشِ A): وضعیتِ باتِ اطلاع‌رسانیِ همین مدرسه + دکمه‌ی
  * خرید (از کیف‌پول، همان مکانیزمِ موجود). بعد از خرید @username واقعی نشان
  * داده می‌شود.
+ *
+ * باگِ گزارش‌شده توسطِ کاربر («جایی اسمِ wallet نبود»): این کارت نه موجودیِ
+ * کیف‌پول را نشان می‌داد نه قیمتِ بات را — خریدِ ناموفق فقط یک toastِ
+ * ناپدیدشونده بود، بدونِ این‌که کاربر بفهمد مشکل از کجاست یا کجا باید شارژ
+ * کند. حالا موجودی + قیمت کنارِ دکمه‌اند (همان الگویِ PluginsManager.tsx:
+ * query با همان queryKey مشترکِ `["wallet"]` که pages/wallet.tsx هم استفاده
+ * می‌کند — نه یک اندپوینتِ تازه)، و خطایِ insufficient یک پیامِ ماندگار +
+ * لینک به «/wallet» می‌سازد (همان صفحه‌یِ شارژِ موجود)، نه فقط toast.
  */
 function SchoolBotCard({ schoolId }: { schoolId: string }) {
   const t = useT("schools") as any;
+  const { lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [purchasing, setPurchasing] = useState(false);
+  const [showInsufficient, setShowInsufficient] = useState(false);
   const { data: bot } = useQuery({ queryKey: ["schools", "bot", schoolId], queryFn: () => getSchoolBotStatus(schoolId) });
+  // همان کوئری/کلید که pages/wallet.tsx و PluginsManager.tsx استفاده می‌کنند —
+  // کیف‌پول یک جا کش می‌شود، نه یک اندپوینتِ تازه برای همین کارت.
+  const { data: wallet } = useQuery({
+    queryKey: ["wallet"],
+    queryFn: () => customFetch<{ balance: number }>("/api/wallet"),
+  });
 
   async function handlePurchase() {
     setPurchasing(true);
+    setShowInsufficient(false);
     try {
       await purchaseSchoolBot(schoolId);
       await queryClient.invalidateQueries({ queryKey: ["schools", "bot", schoolId] });
+      await queryClient.invalidateQueries({ queryKey: ["wallet"] });
       toast({ title: t.botPurchased });
     } catch (err: any) {
       const code = err?.data?.code;
+      if (code === "insufficient") {
+        // toast + یک پیامِ ماندگار کنارِ دکمه (نه فقط toast، که ناپدید می‌شود).
+        setShowInsufficient(true);
+      }
       const description =
         code === "pool_empty" ? t.botPurchaseErrorPoolEmpty :
         code === "insufficient" ? t.botPurchaseErrorInsufficientBalance :
@@ -500,20 +526,41 @@ function SchoolBotCard({ schoolId }: { schoolId: string }) {
         <CardTitle className="flex items-center gap-2"><SchoolIcon className="size-5" /> {t.botCardTitle}</CardTitle>
         <CardDescription>{t.botCardDescription}</CardDescription>
       </CardHeader>
-      <CardContent className="flex items-center justify-between gap-3">
-        {bot?.purchased ? (
-          <div className="flex items-center gap-2">
-            <Badge className="gap-1 bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-400">{t.botActive}</Badge>
-            {bot.telegramUsername && <span className="font-mono text-sm text-muted-foreground" dir="ltr">@{bot.telegramUsername}</span>}
-          </div>
-        ) : (
-          <>
-            <Badge variant="outline">{t.botNotPurchased}</Badge>
-            <Button onClick={handlePurchase} disabled={purchasing}>
-              {purchasing ? <Loader2 className="me-2 size-4 animate-spin" /> : <UserPlus className="me-2 size-4" />}
-              {purchasing ? t.botPurchasing : t.botPurchaseButton}
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          {bot?.purchased ? (
+            <div className="flex items-center gap-2">
+              <Badge className="gap-1 bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-400">{t.botActive}</Badge>
+              {bot.telegramUsername && <span className="font-mono text-sm text-muted-foreground" dir="ltr">@{bot.telegramUsername}</span>}
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">{t.botNotPurchased}</Badge>
+                {typeof bot?.priceToman === "number" && (
+                  <Badge variant="secondary">{t.botCardPrice}: {formatToman(bot.priceToman, lang)}</Badge>
+                )}
+                {wallet && (
+                  <span className="flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                    <Wallet className="size-3.5 text-primary" />
+                    {t.botCardWalletBalance}: <span className="font-semibold text-foreground">{formatToman(wallet.balance, lang)}</span>
+                  </span>
+                )}
+              </div>
+              <Button onClick={handlePurchase} disabled={purchasing}>
+                {purchasing ? <Loader2 className="me-2 size-4 animate-spin" /> : <UserPlus className="me-2 size-4" />}
+                {purchasing ? t.botPurchasing : t.botPurchaseButton}
+              </Button>
+            </>
+          )}
+        </div>
+        {showInsufficient && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <span>{t.botCardInsufficientInline}</span>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/wallet">{t.botCardTopUpLink}</Link>
             </Button>
-          </>
+          </div>
         )}
       </CardContent>
     </Card>

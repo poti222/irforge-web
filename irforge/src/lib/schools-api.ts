@@ -902,6 +902,8 @@ export interface SchoolBotStatus {
   purchased: boolean;
   telegramUsername: string | null;
   botId: string | null;
+  /** قیمتِ محصول به تومان (null اگر محصول در حالِ حاضر فعال نیست). */
+  priceToman: number | null;
 }
 
 export function getSchoolBotStatus(schoolId: string) {
