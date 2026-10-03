@@ -13,6 +13,16 @@ const STATUS_VARIANT: Record<AttendanceStatus, "default" | "destructive" | "outl
   excused: "outline",
 };
 
+/** فازِ ۱۰ (بندِ ۱.۲): همان آمارِ ساده‌ی teacher/attendance.tsx، این‌جا برایِ یک دانش‌آموزِ واحد. */
+function computeAttendanceStats(records: { status: AttendanceStatus }[]) {
+  const total = records.length;
+  const absent = records.filter((r) => r.status === "absent").length;
+  const late = records.filter((r) => r.status === "late").length;
+  const present = records.filter((r) => r.status === "present" || r.status === "excused").length;
+  const rate = total > 0 ? Math.round((present / total) * 100) : null;
+  return { total, absent, late, rate };
+}
+
 /**
  * pages/schools/student/attendance.tsx — «حضور و غیابِ من» (فاز ۶، بندِ ۱):
  * تاریخچه‌ی فقط‌خواندنیِ خودِ دانش‌آموز. همین کامپوننت مستقیماً توسطِ داشبوردِ
@@ -45,10 +55,19 @@ export default function StudentAttendancePage() {
 
 export function AttendanceHistoryList({ records, isLoading }: { records: { id: string; date: string; status: AttendanceStatus; note: string | null }[] | undefined; isLoading: boolean }) {
   const t = useT("schools") as any;
+  const stats = records ? computeAttendanceStats(records) : null;
   return (
     <Card>
       <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ClipboardCheck className="size-4" /> {t.navAttendance}</CardTitle></CardHeader>
       <CardContent className="flex flex-col gap-2">
+        {/* فازِ ۱۰ (بندِ ۱.۲): آمارِ کلی — همان رکوردهایِ همین لیست، بدونِ درخواستِ تازه. */}
+        {stats && stats.total > 0 && (
+          <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground" dir="ltr">
+            <span>{t.attendanceSummaryAbsentCount}: {stats.absent}</span>
+            <span>{t.attendanceSummaryLateCount}: {stats.late}</span>
+            <span>{t.attendanceSummaryRate}: {stats.rate === null ? "—" : `${stats.rate}%`}</span>
+          </div>
+        )}
         {isLoading ? (
           <Loader2 className="size-5 animate-spin" />
         ) : !records || records.length === 0 ? (

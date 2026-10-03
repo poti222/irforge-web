@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,11 +87,19 @@ function ExamCard({ schoolId, exam }: { schoolId: string; exam: SchoolExam }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [starting, setStarting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // فازِ ۱۰ (بندِ ۳): همیشه آخرینِ answersِ تایپ‌شده را نگه می‌دارد تا
+  // auto-submitِ تایمر (که داخلِ یک effectِ دیگر صدا زده می‌شود) هیچ‌وقت یک
+  // بستنِ قدیمی/خالیِ answers را نفرستد.
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
+  // جلویِ auto-submitِ دوباره را می‌گیرد (مثلاً اگر تیک‌هایِ پشتِ‌هم هر دو صفر برسند).
+  const autoSubmittedRef = useRef(false);
 
+  const alreadySubmitted = !!myAttempt?.submittedAt;
   const { data: questions } = useQuery({
     queryKey: ["schools", "exam-questions", exam.id],
     queryFn: () => listExamQuestions(schoolId, exam.id),
-    enabled: taking,
+    enabled: taking || alreadySubmitted,
   });
 
   async function handleStart() {
@@ -107,10 +115,10 @@ function ExamCard({ schoolId, exam }: { schoolId: string; exam: SchoolExam }) {
     }
   }
 
-  async function handleSubmit() {
+  async function submitWith(finalAnswers: Record<string, string>) {
     setSubmitting(true);
     try {
-      await submitExamAttempt(schoolId, exam.id, answers);
+      await submitExamAttempt(schoolId, exam.id, finalAnswers);
       await queryClient.invalidateQueries({ queryKey: ["schools", "my-exam-attempt", exam.id] });
       setTaking(false);
       toast({ title: t.examSubmitted });
@@ -121,8 +129,17 @@ function ExamCard({ schoolId, exam }: { schoolId: string; exam: SchoolExam }) {
     }
   }
 
-  // فازِ ۶ (بندِ ۳): شمارشِ معکوسِ سمتِ کلاینت فقط یک نمایشِ کمکی است — نکته‌ی
-  // واقعیِ اجرا (رد نکردنِ ارسال، فقط علامتِ lateSubmission) سمتِ سرور است.
+  function handleSubmit() {
+    return submitWith(answersRef.current);
+  }
+
+  // فازِ ۶ (بندِ ۳) + فازِ ۱۰ (بندِ ۳): شمارشِ معکوسِ سمتِ کلاینت دیگر فقط
+  // نمایشی نیست — رسیدن به صفر همین‌جا با همین پاسخ‌هایِ تاکنون‌پرشده ارسال
+  // می‌کند، به‌جایِ این‌که فقط منتظرِ کلیکِ دستیِ دانش‌آموز بماند (که ممکن است
+  // دیگر پشتِ صفحه نباشد). محاسبه‌ی authoritative همچنان سمتِ سرور است
+  // (lateSubmission بر مبنایِ startedAt، نه ساعتِ کلاینت) — این فقط UX است؛
+  // اگر تب بسته شود یا این effect هرگز اجرا نشود، سرور هنوز همان ارسالِ
+  // دیرهنگام را قبول/علامت‌گذاری می‌کند.
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   useEffect(() => {
     if (!taking || !myAttempt || !exam.durationMinutes) {
@@ -130,15 +147,21 @@ function ExamCard({ schoolId, exam }: { schoolId: string; exam: SchoolExam }) {
       return;
     }
     const deadline = new Date(myAttempt.startedAt).getTime() + exam.durationMinutes * 60000;
-    const tick = () => setRemainingSeconds(Math.max(0, Math.floor((deadline - Date.now()) / 1000)));
+    const tick = () => {
+      const left = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+      setRemainingSeconds(left);
+      if (left === 0 && !autoSubmittedRef.current) {
+        autoSubmittedRef.current = true;
+        submitWith(answersRef.current);
+      }
+    };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taking, myAttempt, exam.durationMinutes]);
 
   if (attemptLoading) return <Loader2 className="size-4 animate-spin" />;
-
-  const alreadySubmitted = !!myAttempt?.submittedAt;
 
   return (
     <Card>
@@ -153,7 +176,36 @@ function ExamCard({ schoolId, exam }: { schoolId: string; exam: SchoolExam }) {
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {alreadySubmitted ? (
-          <p className="text-sm text-muted-foreground">{t.examAlreadySubmitted}</p>
+          <>
+            <p className="text-sm text-muted-foreground">{t.examAlreadySubmitted}</p>
+            {/* فازِ ۱۰ (بندِ ۲.۱): «۳ از ۵» دیگر کافی نیست — این‌جا دقیقاً نشان
+                می‌دهد کدام سؤال درست/غلط بود (خودکار) یا هنوز منتظرِ نمره‌دهیِ
+                معلم است (تشریحی). */}
+            {questions && questions.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {questions.map((q, idx) => {
+                  const entry = (myAttempt?.answerBreakdown ?? []).find((b) => b.questionId === q.id);
+                  const isEssay = !q.choices;
+                  return (
+                    <div key={q.id} className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm">
+                      <span className="truncate">{idx + 1}. {q.questionText}</span>
+                      {isEssay ? (
+                        entry?.pointsAwarded === null || entry?.pointsAwarded === undefined ? (
+                          <Badge variant="outline" className="shrink-0">{t.questionResultPending}</Badge>
+                        ) : (
+                          <Badge className="shrink-0" dir="ltr">{entry.pointsAwarded}</Badge>
+                        )
+                      ) : (
+                        <Badge variant={entry?.correct ? "default" : "destructive"} className="shrink-0">
+                          {entry?.correct ? t.questionResultCorrect : t.questionResultWrong}
+                        </Badge>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         ) : taking ? (
           <>
             {remainingSeconds !== null && (

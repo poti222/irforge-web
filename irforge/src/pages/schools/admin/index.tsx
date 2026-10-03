@@ -47,6 +47,9 @@ export default function SchoolsAdminHome() {
   const [city, setCity] = useState("");
   const [licenseInfo, setLicenseInfo] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
+  // فازِ ۱۰ (بندِ ۱.۳): آستانه‌یِ غیبتِ پیاپی برایِ اخطارِ خودکار — رشته (نه عدد)
+  // تا اینپوت بتواند موقتاً خالی باشد؛ handleSave آن را عدد می‌کند.
+  const [absenceThreshold, setAbsenceThreshold] = useState("");
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newSchoolName, setNewSchoolName] = useState("");
@@ -65,6 +68,7 @@ export default function SchoolsAdminHome() {
     setCity(school.city ?? "");
     setLicenseInfo(school.licenseInfo ?? "");
     setPhotoUrl(school.photoUrl ?? "");
+    setAbsenceThreshold(String(school.consecutiveAbsenceAlertThreshold ?? 3));
     setInitializedFor(school.id);
   }
 
@@ -72,7 +76,11 @@ export default function SchoolsAdminHome() {
     if (!school) return;
     setSaving(true);
     try {
-      await updateSchool(school.id, { name, address, city, licenseInfo, photoUrl: photoUrl.trim() || null });
+      const thresholdNum = Number(absenceThreshold);
+      await updateSchool(school.id, {
+        name, address, city, licenseInfo, photoUrl: photoUrl.trim() || null,
+        consecutiveAbsenceAlertThreshold: Number.isFinite(thresholdNum) && thresholdNum > 0 ? Math.trunc(thresholdNum) : null,
+      });
       await queryClient.invalidateQueries({ queryKey: ["schools", "me"] });
       await queryClient.invalidateQueries({ queryKey: ["schools", "my-schools"] });
       toast({ title: t.schoolSaved });
@@ -182,6 +190,11 @@ export default function SchoolsAdminHome() {
                     dir="ltr"
                   />
                 </div>
+              </div>
+              <div className="flex flex-col gap-1.5 sm:w-56">
+                <Label>{t.fieldAbsenceAlertThreshold}</Label>
+                <Input type="number" min="1" value={absenceThreshold} onChange={(e) => setAbsenceThreshold(e.target.value)} dir="ltr" />
+                <p className="text-xs text-muted-foreground">{t.fieldAbsenceAlertThresholdHint}</p>
               </div>
               <Button onClick={handleSave} disabled={saving} className="w-fit">
                 {saving && <Loader2 className="me-2 size-4 animate-spin" />}

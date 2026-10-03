@@ -6,21 +6,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FileQuestion, Plus, RotateCcw } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { Loader2, FileQuestion, Plus, RotateCcw, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
 import {
   getSchoolMe, listSchoolClasses, listSchoolQuestions, listSchoolExams, createSchoolExam,
-  listExamAttempts, gradeExamAttempt, resetExamAttempt, listSchoolMembers,
+  listExamAttempts, gradeExamQuestions, resetExamAttempt, listSchoolMembers, listExamQuestions,
+  getExamAnalytics, type ExamAttempt,
 } from "@/lib/schools-api";
 
 /**
- * pages/schools/teacher/exams.tsx — «آزمون‌ها» (فاز ۴، بندِ ۲): معلم برایِ
- * یکی از کلاس‌های خودش، از بانکِ سؤالِ خودش چند سؤال انتخاب می‌کند و آزمون
- * می‌سازد؛ سپس تلاش‌ها/نمره‌ها را می‌بیند. نمره‌ی خودکار (اگر همه‌ی سؤال‌ها
- * چندگزینه‌ای باشند) توسطِ سرور محاسبه می‌شود؛ این‌جا فقط برایِ سؤالِ تشریحی
- * یک اینپوتِ نمره‌ی دستی هست.
+ * pages/schools/teacher/exams.tsx — «آزمون‌ها» (فاز ۴، بندِ ۲؛ بهبودهایِ فازِ
+ * ۱۰): معلم برایِ یکی از کلاس‌های خودش، از بانکِ سؤالِ خودش چند سؤال انتخاب
+ * می‌کند و آزمون می‌سازد (اختیاراً با ترتیبِ تصادفیِ سؤال‌ها به‌ازایِ هر
+ * دانش‌آموز)؛ سپس تلاش‌ها را سؤال‌به‌سؤال نمره می‌دهد و تحلیلِ کلاسی می‌بیند.
  */
 export default function TeacherExamsPage() {
   const t = useT("schools") as any;
@@ -48,8 +49,10 @@ export default function TeacherExamsPage() {
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [durationMinutes, setDurationMinutes] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [randomizeOrder, setRandomizeOrder] = useState(false);
   const [saving, setSaving] = useState(false);
   const [openExamId, setOpenExamId] = useState<string | null>(null);
+  const [analyticsExamId, setAnalyticsExamId] = useState<string | null>(null);
 
   const { data: exams } = useQuery({
     queryKey: ["schools", "exams", schoolId, selectedClassId],
@@ -71,9 +74,10 @@ export default function TeacherExamsPage() {
         questionIds: selectedQuestionIds,
         durationMinutes: durationMinutes ? Number(durationMinutes) : null,
         scheduledAt: scheduledAt || null,
+        randomizeOrder,
       });
       await queryClient.invalidateQueries({ queryKey: ["schools", "exams", schoolId, selectedClassId] });
-      setTitle(""); setSelectedQuestionIds([]); setDurationMinutes(""); setScheduledAt(""); setShowForm(false);
+      setTitle(""); setSelectedQuestionIds([]); setDurationMinutes(""); setScheduledAt(""); setRandomizeOrder(false); setShowForm(false);
       toast({ title: t.examSaved });
     } catch (err: any) {
       toast({ variant: "destructive", title: t.examSaveError, description: err?.data?.error });
@@ -127,6 +131,10 @@ export default function TeacherExamsPage() {
                       <Label>{t.fieldExamScheduledAt}</Label>
                       <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} dir="ltr" />
                     </div>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Checkbox checked={randomizeOrder} onCheckedChange={(v) => setRandomizeOrder(v === true)} />
+                      {t.fieldExamRandomizeOrder}
+                    </label>
                     <div className="flex flex-col gap-1.5">
                       <Label>{t.fieldExamQuestions}</Label>
                       {!myQuestions || myQuestions.length === 0 ? (
@@ -161,11 +169,18 @@ export default function TeacherExamsPage() {
                           <div className="flex items-center gap-2 font-medium">
                             <FileQuestion className="size-4 text-primary" /> {e.title}
                             <Badge variant="outline">{e.questionIds.length} {t.questionsCountSuffix}</Badge>
+                            {e.randomizeOrder && <Badge variant="secondary">{t.examRandomizedBadge}</Badge>}
                           </div>
-                          <Button size="sm" variant="ghost" onClick={() => setOpenExamId(openExamId === e.id ? null : e.id)}>
-                            {t.viewAttemptsButton}
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => setAnalyticsExamId(analyticsExamId === e.id ? null : e.id)}>
+                              <BarChart3 className="me-1 size-4" /> {t.examAnalyticsButton}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setOpenExamId(openExamId === e.id ? null : e.id)}>
+                              {t.viewAttemptsButton}
+                            </Button>
+                          </div>
                         </div>
+                        {analyticsExamId === e.id && <ExamAnalyticsPanel schoolId={schoolId!} examId={e.id} />}
                         {openExamId === e.id && <ExamAttemptsPanel schoolId={schoolId!} examId={e.id} />}
                       </CardContent>
                     </Card>
@@ -180,6 +195,50 @@ export default function TeacherExamsPage() {
   );
 }
 
+/** فازِ ۱۰ (بندِ ۲.۴): میانگین/بالاترین/پایین‌ترین + توزیعِ نمره‌ها — همان الگویِ نمودارِ بارِ AdminOverview/academic-status. */
+function ExamAnalyticsPanel({ schoolId, examId }: { schoolId: string; examId: string }) {
+  const t = useT("schools") as any;
+  const { data, isLoading } = useQuery({
+    queryKey: ["schools", "exam-analytics", examId],
+    queryFn: () => getExamAnalytics(schoolId, examId),
+  });
+
+  if (isLoading) return <Loader2 className="size-4 animate-spin" />;
+  if (!data || data.gradedCount === 0) {
+    return <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">{t.examAnalyticsEmpty}</p>;
+  }
+
+  return (
+    <div className="mt-2 flex flex-col gap-3 border-t pt-2">
+      <div className="grid grid-cols-3 gap-2 text-center text-sm">
+        <div className="rounded-md border p-2">
+          <div className="text-xs text-muted-foreground">{t.examAnalyticsAverage}</div>
+          <div className="font-bold" dir="ltr">{data.average}%</div>
+        </div>
+        <div className="rounded-md border p-2">
+          <div className="text-xs text-muted-foreground">{t.examAnalyticsHighest}</div>
+          <div className="font-bold" dir="ltr">{data.highest}%</div>
+        </div>
+        <div className="rounded-md border p-2">
+          <div className="text-xs text-muted-foreground">{t.examAnalyticsLowest}</div>
+          <div className="font-bold" dir="ltr">{data.lowest}%</div>
+        </div>
+      </div>
+      <div className="h-40 w-full" dir="ltr">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data.distribution} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+            <XAxis dataKey="range" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+            <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
+            <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 function ExamAttemptsPanel({ schoolId, examId }: { schoolId: string; examId: string }) {
   const t = useT("schools") as any;
   const { toast } = useToast();
@@ -188,12 +247,24 @@ function ExamAttemptsPanel({ schoolId, examId }: { schoolId: string; examId: str
     queryKey: ["schools", "exam-attempts", examId],
     queryFn: () => listExamAttempts(schoolId, examId),
   });
+  const { data: questions } = useQuery({
+    queryKey: ["schools", "exam-questions", examId, "teacher"],
+    queryFn: () => listExamQuestions(schoolId, examId),
+  });
   const { data: members } = useQuery({ queryKey: ["schools", "members", schoolId], queryFn: () => listSchoolMembers(schoolId) });
-  const [scores, setScores] = useState<Record<string, string>>({});
+  // فازِ ۱۰ (بندِ ۲.۱): نمره‌ی پیش‌نویسِ هر سؤالِ تشریحی، کلید = `${attemptId}:${questionId}`.
+  const [draftPoints, setDraftPoints] = useState<Record<string, string>>({});
 
-  async function handleGrade(attemptId: string) {
+  async function handleSaveQuestionGrades(attempt: ExamAttempt) {
+    const essayQuestionIds = (questions ?? []).filter((q) => !q.choices).map((q) => q.id);
+    const questionPoints: Record<string, number> = {};
+    for (const qid of essayQuestionIds) {
+      const raw = draftPoints[`${attempt.id}:${qid}`];
+      if (raw !== undefined && raw.trim() !== "") questionPoints[qid] = Number(raw);
+    }
+    if (Object.keys(questionPoints).length === 0) return;
     try {
-      await gradeExamAttempt(schoolId, examId, attemptId, scores[attemptId] ?? null);
+      await gradeExamQuestions(schoolId, examId, attempt.id, questionPoints);
       await queryClient.invalidateQueries({ queryKey: ["schools", "exam-attempts", examId] });
       toast({ title: t.gradeSaved });
     } catch (err: any) {
@@ -217,6 +288,8 @@ function ExamAttemptsPanel({ schoolId, examId }: { schoolId: string; examId: str
 
   if (isLoading) return <Loader2 className="size-4 animate-spin" />;
 
+  const byId = new Map((questions ?? []).map((q) => [q.id, q]));
+
   return (
     <div className="mt-2 flex flex-col gap-2 border-t pt-2">
       {!attempts || attempts.length === 0 ? (
@@ -224,6 +297,8 @@ function ExamAttemptsPanel({ schoolId, examId }: { schoolId: string; examId: str
       ) : (
         attempts.map((a) => {
           const person = (members ?? []).find((m) => m.id === a.studentMemberId);
+          // فازِ ۱۰ (بندِ ۲.۲): نمایِ معلم همیشه ترتیبِ بانکِ سؤال است، نه questionOrderِ شخصی‌شده‌یِ خودِ دانش‌آموز.
+          const orderedBreakdown = (questions ?? []).map((q) => (a.answerBreakdown ?? []).find((b) => b.questionId === q.id));
           return (
             <div key={a.id} className="flex flex-col gap-1 rounded-md border p-2 text-sm">
               <div className="flex items-center justify-between">
@@ -236,14 +311,44 @@ function ExamAttemptsPanel({ schoolId, examId }: { schoolId: string; examId: str
               <span className="text-xs text-muted-foreground">
                 {a.submittedAt ? t.attemptSubmitted : t.attemptInProgress}
               </span>
+
+              {/* فازِ ۱۰ (بندِ ۲.۱): شکستِ نمره به‌ازایِ هر سؤال — تشریحی‌ها اینپوتِ نمره‌ی خودشان را دارند. */}
+              {a.submittedAt && questions && questions.length > 0 && (
+                <div className="flex flex-col gap-1 rounded-md bg-muted/30 p-2">
+                  {(questions ?? []).map((q, idx) => {
+                    const entry = orderedBreakdown[idx];
+                    const isEssay = !q.choices;
+                    return (
+                      <div key={q.id} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate">{idx + 1}. {q.questionText}</span>
+                        {!isEssay ? (
+                          <Badge variant={entry?.correct ? "default" : "destructive"} className="shrink-0">
+                            {entry?.correct ? t.questionResultCorrect : t.questionResultWrong}
+                          </Badge>
+                        ) : (
+                          <Input
+                            type="number"
+                            min="0"
+                            max="1"
+                            step="0.5"
+                            className="h-7 w-20 shrink-0 text-xs"
+                            placeholder={t.fieldQuestionPoints}
+                            value={draftPoints[`${a.id}:${q.id}`] ?? (entry?.pointsAwarded ?? "")}
+                            onChange={(e) => setDraftPoints((d) => ({ ...d, [`${a.id}:${q.id}`]: e.target.value }))}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                  {(questions ?? []).some((q) => !q.choices) && (
+                    <Button size="sm" variant="outline" className="mt-1 w-fit" onClick={() => handleSaveQuestionGrades(a)}>
+                      {t.saveButton}
+                    </Button>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
-                <Input
-                  className="h-8 w-24"
-                  placeholder={t.fieldGrade}
-                  value={scores[a.id] ?? a.score ?? ""}
-                  onChange={(e) => setScores((s) => ({ ...s, [a.id]: e.target.value }))}
-                />
-                <Button size="sm" variant="outline" onClick={() => handleGrade(a.id)}>{t.saveButton}</Button>
                 <Button size="sm" variant="ghost" onClick={() => handleReset(a.id)} title={t.resetAttemptButton}>
                   <RotateCcw className="me-1 size-3.5" /> {t.resetAttemptButton}
                 </Button>

@@ -1385,6 +1385,16 @@ CREATE TABLE IF NOT EXISTS school_audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_school_audit_log_school ON school_audit_log(school_id, created_at DESC);
 
+-- ─── SCHOOLS فاز ۱۰ (حضور و غیابِ بهتر + آزمونِ بهتر) ───────────────────────
+-- مایگریشنِ ۰۰۳۸ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+-- بندِ ۱.۳: آستانه‌یِ غیبتِ پیاپیِ قابلِ‌تنظیم به‌ازایِ هر مدرسه برایِ اخطارِ خودکار.
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS consecutive_absence_alert_threshold INTEGER DEFAULT 3;
+-- بندِ ۲.۲: ترتیبِ تصادفیِ سؤال‌هایِ آزمون (اختیاری، کنترل‌شده توسطِ معلم).
+ALTER TABLE school_exams ADD COLUMN IF NOT EXISTS randomize_order BOOLEAN NOT NULL DEFAULT FALSE;
+-- بندِ ۲.۱: شکستِ نمره به‌ازایِ هر سؤال؛ بندِ ۲.۲: ترتیبِ شخصی‌شده‌یِ سؤال‌ها.
+ALTER TABLE school_exam_attempts ADD COLUMN IF NOT EXISTS answer_breakdown JSONB;
+ALTER TABLE school_exam_attempts ADD COLUMN IF NOT EXISTS question_order JSONB;
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT

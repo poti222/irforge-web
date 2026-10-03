@@ -27,6 +27,8 @@ export interface SchoolSummary {
   photoUrl: string | null;
   city: string | null;
   licenseInfo: string | null;
+  /** فازِ ۱۰ (بندِ ۱.۳) — null یعنی پیش‌فرضِ ۳ در سرور. */
+  consecutiveAbsenceAlertThreshold: number | null;
   createdByUserId: string;
   createdAt: string;
   updatedAt: string;
@@ -82,7 +84,7 @@ export function createSchool(input: { name: string; address?: string; city?: str
   });
 }
 
-export function updateSchool(id: string, patch: Partial<{ name: string; address: string; city: string; licenseInfo: string; photoUrl: string | null }>) {
+export function updateSchool(id: string, patch: Partial<{ name: string; address: string; city: string; licenseInfo: string; photoUrl: string | null; consecutiveAbsenceAlertThreshold: number | null }>) {
   return customFetch<SchoolSummary>(`/api/schools/${id}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
@@ -525,6 +527,8 @@ export interface SchoolExam {
   questionIds: string[];
   scheduledAt: string | null;
   durationMinutes: number | null;
+  /** فازِ ۱۰ (بندِ ۲.۲) */
+  randomizeOrder: boolean;
   createdAt: string;
 }
 
@@ -535,12 +539,23 @@ export interface ExamQuestion {
   correctAnswer?: string | null;
 }
 
+/** فازِ ۱۰ (بندِ ۲.۱) — یک سؤال از دیدِ نتیجه؛ correct/pointsAwarded هر دو null یعنی «هنوز نمره‌دهی نشده (تشریحی)». */
+export interface ExamAnswerBreakdownEntry {
+  questionId: string;
+  correct: boolean | null;
+  pointsAwarded: number | null;
+}
+
 export interface ExamAttempt {
   id: string;
   examId: string;
   studentMemberId: string;
   answers: Record<string, string>;
   score: string | null;
+  /** فازِ ۱۰ (بندِ ۲.۱) */
+  answerBreakdown: ExamAnswerBreakdownEntry[] | null;
+  /** فازِ ۱۰ (بندِ ۲.۲) — فقط وقتی exam.randomizeOrder باشد پر می‌شود. */
+  questionOrder: string[] | null;
   startedAt: string;
   submittedAt: string | null;
   /** فازِ ۶ (بندِ ۳): ارسال بعد از پایانِ durationMinutes بوده؟ */
@@ -551,11 +566,24 @@ export function listSchoolExams(schoolId: string, classId: string) {
   return customFetch<SchoolExam[]>(`/api/schools/${schoolId}/exams?classId=${encodeURIComponent(classId)}`);
 }
 
-export function createSchoolExam(schoolId: string, input: { classId: string; title: string; questionIds: string[]; scheduledAt?: string | null; durationMinutes?: number | null }) {
+export function createSchoolExam(schoolId: string, input: { classId: string; title: string; questionIds: string[]; scheduledAt?: string | null; durationMinutes?: number | null; randomizeOrder?: boolean }) {
   return customFetch<SchoolExam>(`/api/schools/${schoolId}/exams`, {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export interface ExamAnalytics {
+  submittedCount: number;
+  gradedCount: number;
+  average: number | null;
+  highest: number | null;
+  lowest: number | null;
+  distribution: { range: string; count: number }[];
+}
+
+export function getExamAnalytics(schoolId: string, examId: string) {
+  return customFetch<ExamAnalytics>(`/api/schools/${schoolId}/exams/${examId}/analytics`);
 }
 
 export function listExamQuestions(schoolId: string, examId: string) {
@@ -581,10 +609,19 @@ export function submitExamAttempt(schoolId: string, examId: string, answers: Rec
   });
 }
 
+/** نمره‌دهیِ خامِ قدیمی — فقط برایِ fallback (وقتی آزمون اصلاً سؤالِ ثبت‌شده‌ای ندارد). ترجیحاً gradeExamQuestions را بزنید. */
 export function gradeExamAttempt(schoolId: string, examId: string, attemptId: string, score: string | null) {
   return customFetch<ExamAttempt>(`/api/schools/${schoolId}/exams/${examId}/attempts/${attemptId}`, {
     method: "PATCH",
     body: JSON.stringify({ score }),
+  });
+}
+
+/** فازِ ۱۰ (بندِ ۲.۱): نمره‌ی هر سؤالِ تشریحی به‌تنهایی — نمره‌ی تجمیعی (score) خودکار از این‌ها بازساخته می‌شود. */
+export function gradeExamQuestions(schoolId: string, examId: string, attemptId: string, questionPoints: Record<string, number>) {
+  return customFetch<ExamAttempt>(`/api/schools/${schoolId}/exams/${examId}/attempts/${attemptId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ questionPoints }),
   });
 }
 
@@ -769,6 +806,23 @@ export function listChildAttendance(schoolId: string, studentMemberId: string, p
   const qs = new URLSearchParams({ ...(params?.from ? { from: params.from } : {}), ...(params?.to ? { to: params.to } : {}) });
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return customFetch<AttendanceRecord[]>(`/api/schools/${schoolId}/attendance/child/${studentMemberId}${suffix}`);
+}
+
+/**
+ * فازِ ۱۰ (بندِ ۱.۱): دکمه‌ی «کپی از روز قبل» — اول نزدیک‌ترین تاریخِ ثبت‌شده‌ی
+ * قبل از `before` را پیدا می‌کند، بعد خودِ فرانت با listClassAttendance همان
+ * تاریخ را می‌خواند و پیش‌نویسِ امروز را از آن پر می‌کند (ارسالِ خودکار نیست).
+ */
+export function getPreviousAttendanceDate(schoolId: string, classId: string, before: string) {
+  return customFetch<{ date: string } | null>(
+    `/api/schools/${schoolId}/attendance/previous-date?classId=${encodeURIComponent(classId)}&before=${encodeURIComponent(before)}`,
+  );
+}
+
+/** فازِ ۱۰ (بندِ ۱.۴): لینکِ دانلودِ CSV — مستقیماً در Input یا window.open باز می‌شود، نه customFetch (پاسخ JSON نیست). */
+export function attendanceExportUrl(schoolId: string, classId: string, params?: { from?: string; to?: string }) {
+  const qs = new URLSearchParams({ classId, ...(params?.from ? { from: params.from } : {}), ...(params?.to ? { to: params.to } : {}) });
+  return `/api/schools/${schoolId}/attendance/export?${qs.toString()}`;
 }
 
 export interface GradeItem {
