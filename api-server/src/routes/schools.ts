@@ -464,6 +464,10 @@ router.get("/schools/:id/members", requireAuth, async (req: any, res) => {
       ...formatMember(m),
       userName: userMap.get(m.userId)?.name ?? null,
       userEmail: userMap.get(m.userId)?.email ?? null,
+      // `/super` بخشِ C: برچسبِ «حسابِ آزمایشیِ پلتفرم» — همین یک جایِ مشترکی
+      // است که این صفحه (admin/members.tsx) نام/ایمیلِ کاربر را از users جوین
+      // می‌کند، پس همان‌جا این فلگ هم اضافه می‌شود، نه یک کوئریِ جدا.
+      isPlatformTestAccount: userMap.get(m.userId)?.isPlatformTestAccount ?? false,
     })));
   } catch (err) {
     logger.error({ err }, "List school members error");

@@ -119,6 +119,10 @@ import schoolNotificationsRouter from "./schoolNotificationTriggers.js";
 // بخش "/schools" فاز ۹ — وضعیتِ خوانده‌شدنِ رشته‌ها + لاگِ رخدادهایِ مدیریتی
 import schoolMessageReadStateRouter from "./schoolMessageReadState.js";
 import schoolAuditLogRouter from "./schoolAuditLog.js";
+// `/super` — گیتِ رمزِ دوم + داشبوردِ یکجایِ سوپرادمین + هویت‌های آزمایشی
+import superGateRouter from "./superGate.js";
+import superDashboardRouter from "./superDashboard.js";
+import testIdentitiesRouter from "./testIdentities.js";
 
 const router: IRouter = Router();
 
@@ -219,5 +223,8 @@ router.use(schoolBotWebhookRouter);
 router.use(schoolNotificationsRouter);
 router.use(schoolMessageReadStateRouter);
 router.use(schoolAuditLogRouter);
+router.use(superGateRouter);
+router.use(superDashboardRouter);
+router.use(testIdentitiesRouter);
 
 export default router;

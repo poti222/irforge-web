@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -120,7 +121,12 @@ export default function SchoolMembersPage() {
                   <TableRow key={m.id}>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-medium">{m.userName ?? "—"}</span>
+                        <span className="flex items-center gap-1.5 font-medium">
+                          {m.userName ?? "—"}
+                          {m.isPlatformTestAccount && (
+                            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{t.testAccountBadge}</Badge>
+                          )}
+                        </span>
                         <span className="text-xs text-muted-foreground" dir="ltr">{m.userEmail ?? m.userId}</span>
                       </div>
                     </TableCell>

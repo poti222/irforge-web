@@ -10,6 +10,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { getSchoolMe } from "@/lib/schools-api";
 import { Redirect } from "wouter";
 import { ViewedSchoolProvider, useViewedSchoolId } from "@/hooks/use-viewed-school";
+import { TestModeBanner } from "@/components/layout/TestModeBanner";
 
 /**
  * SchoolShell.tsx — معادلِ DashboardShell برایِ بخشِ "/schools"، اما با
@@ -60,6 +61,7 @@ export default function SchoolShell({ children }: { children: ReactNode }) {
       <SidebarProvider>
         <SchoolSidebar role={me.role} schoolName={me.school?.name} />
         <SidebarInset>
+          <TestModeBanner />
           <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
             <SidebarTrigger />
             <HeaderControls />

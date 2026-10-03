@@ -40,7 +40,13 @@ export type AuditAction =
   | "cutover_flag_changed"
   // IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فاز ۲ — درخواستِ مهاجرتِ
   // دیتای یک تننتِ خاص از Sheets به Postgres، از routes/sheetsImport.ts.
-  | "sheets_import_requested";
+  | "sheets_import_requested"
+  // `/super` — هویت‌های آزمایشی (routes/testIdentities.ts): کاملاً جدا از
+  // "impersonation_started" بالا — این یک حسابِ واقعیِ تازه است، نه جعلِ هویت.
+  | "test_identity_created"
+  | "test_identity_entered"
+  | "test_identity_deleted"
+  | "test_school_cleaned_up";
 
 export async function writeAudit(input: {
   actorUserId: string;
