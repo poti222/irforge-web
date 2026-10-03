@@ -75,7 +75,13 @@ export default function SchoolShell({ children }: { children: ReactNode }) {
                   موبایل زیرِ محتوا می‌افتد، روی دسکتاپ یک ستونِ کناری باریک. */}
               <div className="flex w-full shrink-0 flex-col gap-4 lg:w-72">
                 <ScopedBotConnectWidget fallbackSchoolId={me.school?.id} />
-                <InviteCodeWidget compact />
+                {/* طبقِ خواستِ کاربر: کسی که از قبل عضوِ مدرسه‌ای است (me.school
+                    موجود است) این ویجتِ همیشه‌نمایان را نمی‌بیند — فقط کسی که
+                    هنوز هیچ مدرسه‌ای ندارد (مثلاً نقش را انتخاب کرده ولی هنوز
+                    کدِ معرف نداده) آن‌را این‌جا پرزنت می‌بیند؛ بقیه از آیتمِ
+                    ناوبریِ «پیدا کردن مدرسه‌ی دیگر» در سایدبار استفاده می‌کنند
+                    (school-sidebar.tsx). */}
+                {!me.school && <InviteCodeWidget compact />}
               </div>
             </div>
           </main>
