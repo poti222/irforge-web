@@ -35,6 +35,8 @@ function formatExam(e: typeof schoolExamsTable.$inferSelect) {
     questionIds: e.questionIds,
     scheduledAt: e.scheduledAt ? e.scheduledAt.toISOString() : null,
     durationMinutes: e.durationMinutes,
+    /** فازِ ۱۰ (بندِ ۲.۲) */
+    randomizeOrder: e.randomizeOrder,
     createdAt: e.createdAt.toISOString(),
   };
 }
@@ -46,10 +48,42 @@ function formatAttempt(a: typeof schoolExamAttemptsTable.$inferSelect) {
     studentMemberId: a.studentMemberId,
     answers: a.answers,
     score: a.score,
+    /** فازِ ۱۰ (بندِ ۲.۱) */
+    answerBreakdown: a.answerBreakdown ?? null,
+    /** فازِ ۱۰ (بندِ ۲.۲) */
+    questionOrder: a.questionOrder ?? null,
     startedAt: a.startedAt.toISOString(),
     submittedAt: a.submittedAt ? a.submittedAt.toISOString() : null,
     lateSubmission: a.lateSubmission,
   };
+}
+
+/**
+ * فازِ ۱۰ (بندِ ۲.۱): نمره‌ی تجمیعیِ "x/y" را از answerBreakdown می‌سازد —
+ * فقط وقتی هر سؤال یک pointsAwarded غیرِ null دارد (یعنی کاملاً نمره‌دهی‌شده،
+ * یا خودکار یا دستی)؛ وگرنه null می‌ماند تا معلم بقیه را هم نمره بدهد. این
+ * تنها جایی‌ست که score ساخته می‌شود — submit و PATCHِ نمره‌دهی هر دو از
+ * همین عبور می‌کنند تا score/answerBreakdown هرگز با هم ناهم‌خوان نشوند.
+ */
+function deriveScoreFromBreakdown(breakdown: Array<{ pointsAwarded: number | null }>): string | null {
+  if (breakdown.length === 0) return null;
+  if (breakdown.some((b) => b.pointsAwarded === null)) return null;
+  const sum = breakdown.reduce((s, b) => s + (b.pointsAwarded ?? 0), 0);
+  const rounded = Math.round(sum * 100) / 100;
+  return `${rounded}/${breakdown.length}`;
+}
+
+/** چندگزینه‌ای‌هایِ auto-gradable همین‌جا نمره می‌گیرند؛ تشریحی null می‌ماند. مشترکِ submit و fallbackِ PATCH (برایِ تلاش‌هایِ قدیمی‌تر از این فاز که answerBreakdown ندارند). */
+function computeAutoBreakdown(
+  questions: (typeof schoolQuestionsTable.$inferSelect)[],
+  finalAnswers: Record<string, string>,
+) {
+  return questions.map((q) => {
+    const autoGradable = !!q.choices && q.correctAnswer !== null && q.correctAnswer !== undefined;
+    if (!autoGradable) return { questionId: q.id, correct: null, pointsAwarded: null };
+    const correct = finalAnswers[q.id] === q.correctAnswer;
+    return { questionId: q.id, correct, pointsAwarded: correct ? 1 : 0 };
+  });
 }
 
 async function getMember(userId: string) {
@@ -97,7 +131,7 @@ router.get("/schools/:schoolId/exams", requireAuth, async (req: any, res) => {
 // POST /api/schools/:schoolId/exams — فقط معلمِ همان کلاس یا مدیر.
 router.post("/schools/:schoolId/exams", requireAuth, async (req: any, res) => {
   try {
-    const { classId, title, questionIds, scheduledAt, durationMinutes } = req.body ?? {};
+    const { classId, title, questionIds, scheduledAt, durationMinutes, randomizeOrder } = req.body ?? {};
     if (!classId?.trim() || !title?.trim() || !Array.isArray(questionIds) || questionIds.length === 0) {
       res.status(400).json({ error: "classId, title and at least one questionId are required" });
       return;
@@ -115,6 +149,7 @@ router.post("/schools/:schoolId/exams", requireAuth, async (req: any, res) => {
       questionIds,
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       durationMinutes: durationMinutes ?? null,
+      randomizeOrder: randomizeOrder === true,
     }).returning();
 
     // فازِ ۷ (بخشِ C): «آزمون داری» به همه‌یِ دانش‌آموزانِ روسترِ همین کلاس.
@@ -159,11 +194,25 @@ router.get("/schools/:schoolId/exams/:id/questions", requireAuth, async (req: an
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const ids = (exam.questionIds ?? []) as string[];
+    let ids = (exam.questionIds ?? []) as string[];
+    // فازِ ۱۰ (بندِ ۲.۲): معلم/مدیر همیشه ترتیبِ بانکِ سؤال (questionIds) را
+    // می‌بیند؛ فقط وقتی خودِ دانش‌آموزِ صاحبِ یک تلاشِ واقعی باشد (نه teacher
+    // که فقط دارد پیش‌نمایش می‌کند) و questionOrderِ آن تلاش ذخیره شده باشد،
+    // همان ترتیبِ شخصی‌شده را می‌بیند — یک‌بار در attempts/start ساخته شده،
+    // پس بازدیدِ دوباره هم همان ترتیب را می‌دهد.
+    if (!isTeacher && exam.randomizeOrder) {
+      const member = await getMember(req.userId);
+      if (member) {
+        const [attempt] = await db.select().from(schoolExamAttemptsTable)
+          .where(and(eq(schoolExamAttemptsTable.examId, exam.id), eq(schoolExamAttemptsTable.studentMemberId, member.id)))
+          .limit(1);
+        if (attempt?.questionOrder && attempt.questionOrder.length > 0) ids = attempt.questionOrder;
+      }
+    }
     const rows: (typeof schoolQuestionsTable.$inferSelect)[] = ids.length
       ? await db.select().from(schoolQuestionsTable).where(inArray(schoolQuestionsTable.id, ids))
       : [];
-    // ترتیبِ questionIds حفظ می‌شود (نه ترتیبِ برگشتیِ کوئری).
+    // ترتیبِ ids (بانکِ سؤال یا شخصی‌شده) حفظ می‌شود، نه ترتیبِ برگشتیِ کوئری.
     const byId = new Map(rows.map((q) => [q.id, q]));
     const ordered = ids.map((id) => byId.get(id)).filter(Boolean) as typeof rows;
     res.json(ordered.map((q) => ({
@@ -255,11 +304,24 @@ router.post("/schools/:schoolId/exams/:id/attempts/start", requireAuth, async (r
       res.json(formatAttempt(existing));
       return;
     }
+    // فازِ ۱۰ (بندِ ۲.۲): فقط همین‌جا، فقط یک‌بار، ترتیبِ شخصی‌شده ساخته می‌شود —
+    // Fisher-Yates روی questionIds — تا بازدیدِ دوباره‌ی همین تلاش (رفرش/قطعیِ
+    // اینترنت) همان ترتیب را ببیند، نه قاطی‌شده‌یِ تازه.
+    let questionOrder: string[] | null = null;
+    if (exam.randomizeOrder) {
+      const shuffled = [...(exam.questionIds ?? [])];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      questionOrder = shuffled;
+    }
     const [row] = await db.insert(schoolExamAttemptsTable).values({
       id: crypto.randomUUID(),
       examId: req.params.id,
       studentMemberId: member.id,
       answers: {},
+      questionOrder,
     }).returning();
     res.status(201).json(formatAttempt(row));
   } catch (err) {
@@ -300,14 +362,14 @@ router.post("/schools/:schoolId/exams/:id/attempts/submit", requireAuth, async (
     const questions: (typeof schoolQuestionsTable.$inferSelect)[] = ids.length
       ? await db.select().from(schoolQuestionsTable).where(inArray(schoolQuestionsTable.id, ids))
       : [];
-    // نمره‌ی خودکار فقط وقتی همه‌ی سؤال‌ها چندگزینه‌ای با correctAnswer مشخص‌اند؛
-    // وگرنه null می‌ماند تا معلم دستی نمره بدهد (دقیقاً مثلِ grade در schoolAssignments).
-    const canAutoScore = questions.length > 0 && questions.every((q) => !!q.choices && q.correctAnswer !== null && q.correctAnswer !== undefined);
-    let score: string | null = null;
-    if (canAutoScore) {
-      const correctCount = questions.filter((q) => finalAnswers[q.id] === q.correctAnswer).length;
-      score = `${correctCount}/${questions.length}`;
-    }
+    // فازِ ۱۰ (بندِ ۲.۱): شکستِ نمره به‌ازایِ هر سؤال — چندگزینه‌ایِ با
+    // correctAnswer همین‌جا خودکار محاسبه می‌شود (۱ نمره/سؤال)؛ تشریحی تا
+    // نمره‌دهیِ معلم (PATCHِ پایین) با correct/pointsAwarded=null می‌ماند.
+    // نمره‌ی تجمیعی دیگر این‌جا جدا محاسبه نمی‌شود، فقط از همین breakdown
+    // استخراج می‌شود (deriveScoreFromBreakdown) — طبقِ اسپکِ فاز، تا این دو
+    // هیچ‌وقت با هم ناهم‌خوان نشوند.
+    const answerBreakdown = computeAutoBreakdown(questions, finalAnswers);
+    const score = deriveScoreFromBreakdown(answerBreakdown);
 
     // فازِ ۶ (بندِ ۳): ارسالِ دیرهنگام رد نمی‌شود (کارِ دانش‌آموز هرگز بی‌صدا دور
     // ریخته نمی‌شود)، فقط برایِ دیدِ معلم علامت می‌خورد — محاسبه‌ی گذرِ زمان
@@ -319,7 +381,7 @@ router.post("/schools/:schoolId/exams/:id/attempts/submit", requireAuth, async (
     }
 
     const [row] = await db.update(schoolExamAttemptsTable)
-      .set({ answers: finalAnswers, submittedAt: new Date(), score, lateSubmission })
+      .set({ answers: finalAnswers, submittedAt: new Date(), score, answerBreakdown, lateSubmission })
       .where(eq(schoolExamAttemptsTable.id, attempt.id))
       .returning();
     res.json(formatAttempt(row));
@@ -360,7 +422,10 @@ router.delete("/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, a
   }
 });
 
-// PATCH /api/schools/:schoolId/exams/:id/attempts/:attemptId — نمره‌ی دستیِ معلم (برایِ سؤالِ تشریحی).
+// PATCH /api/schools/:schoolId/exams/:id/attempts/:attemptId — نمره‌دهیِ دستیِ معلم.
+// بدنه: { questionPoints?: Record<questionId, number> } — نمره‌یِ هر سؤالِ تشریحی به‌تنهایی (فازِ ۱۰، بندِ ۲.۱).
+// `score` خامِ قدیمی هم هنوز پذیرفته می‌شود (برایِ آزمون‌هایی که اصلاً سؤال/breakdown ندارند) ولی وقتی questionPoints
+// بیاید، همیشه برنده است — score دیگر هرگز مستقیم ست نمی‌شود وقتی breakdown موجود است.
 router.patch("/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, async (req: any, res) => {
   try {
     const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
@@ -373,8 +438,35 @@ router.patch("/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, as
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const { score } = req.body ?? {};
-    const [row] = await db.update(schoolExamAttemptsTable).set({ score: score ?? null })
+    const [attempt] = await db.select().from(schoolExamAttemptsTable)
+      .where(and(eq(schoolExamAttemptsTable.id, req.params.attemptId), eq(schoolExamAttemptsTable.examId, req.params.id)))
+      .limit(1);
+    if (!attempt) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const { questionPoints, score: rawScore } = req.body ?? {};
+    let patch: Record<string, unknown>;
+    if (questionPoints && typeof questionPoints === "object") {
+      // اگر این تلاش از قبلِ این فاز است و هنوز breakdown ندارد، همین‌جا از
+      // روی سؤال‌هایِ واقعی ساخته می‌شود (fallback) تا نمره‌دهیِ تشریحی رویِ
+      // آزمون‌هایِ قدیمی‌تر هم کار کند.
+      let breakdown = attempt.answerBreakdown;
+      if (!breakdown || breakdown.length === 0) {
+        const ids = (exam.questionIds ?? []) as string[];
+        const questions = ids.length ? await db.select().from(schoolQuestionsTable).where(inArray(schoolQuestionsTable.id, ids)) : [];
+        breakdown = computeAutoBreakdown(questions, attempt.answers ?? {});
+      }
+      const nextBreakdown = breakdown.map((b) => {
+        const points = questionPoints[b.questionId];
+        if (typeof points !== "number" || Number.isNaN(points)) return b;
+        return { ...b, pointsAwarded: points, correct: points > 0 };
+      });
+      patch = { answerBreakdown: nextBreakdown, score: deriveScoreFromBreakdown(nextBreakdown) };
+    } else {
+      patch = { score: rawScore ?? null };
+    }
+    const [row] = await db.update(schoolExamAttemptsTable).set(patch)
       .where(and(eq(schoolExamAttemptsTable.id, req.params.attemptId), eq(schoolExamAttemptsTable.examId, req.params.id)))
       .returning();
     if (!row) {
@@ -384,6 +476,59 @@ router.patch("/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, as
     res.json(formatAttempt(row));
   } catch (err) {
     logger.error({ err }, "Grade exam attempt error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/schools/:schoolId/exams/:id/analytics — معلمِ همان کلاس یا مدیر: میانگین/بالاترین/پایین‌ترین/توزیعِ نمره‌ها (فازِ ۱۰، بندِ ۲.۴).
+router.get("/schools/:schoolId/exams/:id/analytics", requireAuth, async (req: any, res) => {
+  try {
+    const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
+    if (!exam) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const { ok } = await isClassTeacherOrAdmin(req.userId, req.params.schoolId, exam.classId);
+    if (!ok) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const attempts = await db.select().from(schoolExamAttemptsTable)
+      .where(and(eq(schoolExamAttemptsTable.examId, req.params.id)));
+    // فقط تلاش‌هایِ ارسال‌شده و نمره‌دار — تلاشِ درحالِ‌انجام/هنوز نمره‌نگرفته‌یِ
+    // تشریحی در میانگین/توزیع بی‌معناست.
+    const percents: number[] = [];
+    for (const a of attempts) {
+      if (!a.submittedAt || !a.score) continue;
+      const m = a.score.trim().match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+      if (!m) continue;
+      const total = parseFloat(m[2]);
+      if (!total) continue;
+      percents.push((parseFloat(m[1]) / total) * 100);
+    }
+    const submittedCount = attempts.filter((a) => a.submittedAt).length;
+    if (percents.length === 0) {
+      res.json({ submittedCount, gradedCount: 0, average: null, highest: null, lowest: null, distribution: [] });
+      return;
+    }
+    const average = percents.reduce((s, v) => s + v, 0) / percents.length;
+    // توزیعِ ساده روی سطل‌هایِ ۱۰درصدی — همان الگویِ نمودارهایِ بارِ موجود (مثلاً AdminOverview).
+    const buckets = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    for (const p of percents) {
+      const idx = Math.min(9, Math.floor(p / 10));
+      buckets[idx]++;
+    }
+    const distribution = buckets.map((count, i) => ({ range: `${i * 10}-${i * 10 + 10}`, count }));
+    res.json({
+      submittedCount,
+      gradedCount: percents.length,
+      average: Math.round(average * 10) / 10,
+      highest: Math.round(Math.max(...percents) * 10) / 10,
+      lowest: Math.round(Math.min(...percents) * 10) / 10,
+      distribution,
+    });
+  } catch (err) {
+    logger.error({ err }, "Get exam analytics error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
