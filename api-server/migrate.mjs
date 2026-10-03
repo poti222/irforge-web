@@ -1420,6 +1420,26 @@ CREATE TABLE IF NOT EXISTS school_teacher_subjects (
 CREATE INDEX IF NOT EXISTS idx_school_teacher_subjects_school ON school_teacher_subjects(school_id);
 CREATE INDEX IF NOT EXISTS idx_school_teacher_subjects_teacher ON school_teacher_subjects(teacher_user_id);
 
+-- ─── لایه‌یِ «درس» رویِ کتابخانه‌ی محتوا ───────────────────────────────────
+-- مایگریشنِ ۰۰۴۱ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+-- بدونِ FK رویِ lesson_id (مثلِ schoolId در خودِ school_content_items) —
+-- اعتبارسنجی در routes/schoolContentLessons.ts، نه دیتابیس؛ ببینید توضیحِ
+-- ستون در schema/schoolContent.ts و توضیحِ جدول در schema/schoolContentLessons.ts.
+CREATE TABLE IF NOT EXISTS school_content_lessons (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  subject TEXT NOT NULL,
+  title TEXT NOT NULL,
+  created_by_user_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_content_lessons_school ON school_content_lessons(school_id);
+CREATE INDEX IF NOT EXISTS idx_school_content_lessons_subject ON school_content_lessons(subject);
+
+ALTER TABLE school_content_items ADD COLUMN IF NOT EXISTS lesson_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_school_content_items_lesson ON school_content_items(lesson_id);
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT

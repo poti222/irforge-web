@@ -13,8 +13,13 @@ import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-/** type های ممکن: "dictionary" | "note" | "book" | "formula" */
-export const SCHOOL_CONTENT_TYPES = ["dictionary", "note", "book", "formula"] as const;
+/**
+ * type های ممکن: "dictionary" | "note" | "book" | "formula" | "poem".
+ * "poem" اضافه شد طبقِ گزارشِ مستقیمِ کاربر («شعر یا لغت») — از نظرِ شکلِ
+ * داده دقیقاً مثلِ بقیه (title/body/language/subject/imageUrl)، یک شعر فقط
+ * متنِ body است، چیزِ خاصِ دیگری لازم ندارد.
+ */
+export const SCHOOL_CONTENT_TYPES = ["dictionary", "note", "book", "formula", "poem"] as const;
 export type SchoolContentType = (typeof SCHOOL_CONTENT_TYPES)[number];
 
 /**
@@ -73,6 +78,15 @@ export const schoolContentItemsTable = pgTable("school_content_items", {
    * در فازِ بعد اگر اولویت شد، همین ستون می‌تواند با آپلودِ واقعی جایگزین شود.
    */
   imageUrl: text("image_url"),
+  /**
+   * لایه‌یِ «درس» (schoolContentLessons.ts) — عمداً nullable، دقیقاً به همان
+   * دلیلِ `subject` بالا: آیتم‌هایِ از‌قبل‌موجود (قبل از این ستون) و
+   * آیتم‌هایِ عمداً بدونِ‌درس باید همچنان کار کنند، نه این‌که با این migration
+   * ناپدید/غیرقابل‌دسترس شوند. بدونِ FKِ دیتابیسی (مثلِ schoolId بالا) —
+   * همان قراردادِ این فایل: محدودسازی/اعتبارسنجیِ واقعی در لایه‌ی اپلیکیشن
+   * (routes/schoolContentLessons.ts) انجام می‌شود.
+   */
+  lessonId: text("lesson_id"),
   createdByUserId: text("created_by_user_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

@@ -65,3 +65,5 @@ export * from "./schoolMessageReadState";
 export * from "./schoolAuditLog";
 // تخصیصِ معلم↔درس (کنترلِ دسترسیِ موضوعی به کتابخانه‌ی محتوا)
 export * from "./schoolTeacherSubjects";
+// لایه‌یِ «درس» رویِ کتابخانه‌ی محتوا — گروه‌بندیِ آیتم‌های لغت‌نامه/شعر/جزوه/... داخلِ یک درسِ واحد
+export * from "./schoolContentLessons";
