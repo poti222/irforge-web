@@ -3437,6 +3437,7 @@
     "joinedSchool": "Joined the school successfully",
     "joinButton": "Join",
     "findSchoolHint": "Enter and search a school's invite code.",
+    "findSchoolNavLabel": "Find/join another school",
     "adminMySchools": "My Schools",
     "adminMySchoolsDescription": "See and edit the school you manage.",
     "noSchoolYetTitle": "You haven't created a school yet",
@@ -3473,6 +3474,8 @@
     "contentNoSubjectAssigned": "You haven't been assigned any subject yet — ask your school admin to assign you one.",
     "contentSubjectFilterLabel": "Subject filter",
     "contentSubjectFilterAll": "All subjects",
+    "editContentButton": "Edit",
+    "deleteContentButton": "Delete",
 
     "navAnnouncements": "Announcements",
     "openButton": "Open",

@@ -10,9 +10,11 @@ import {
   SidebarGroupContent,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { Fragment } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Fragment, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { SidebarBrandHeader } from "@/components/layout/brand-home";
+import { InviteCodeWidget } from "@/components/schools/InviteCodeWidget";
 import {
   UserCircle,
   Users,
@@ -40,6 +42,7 @@ import {
   Table2,
   ShieldAlert,
   History,
+  Search,
 } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
@@ -145,8 +148,13 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
 export function SchoolSidebar({ role, schoolName }: { role: SchoolMemberRole | null | undefined; schoolName?: string | null }) {
   const [location] = useLocation();
   const { lang } = useLanguage();
-  const t = useT("schools");
+  const t = useT("schools") as any;
   const items = useNavByRole(role, t);
+  // طبقِ خواستِ کاربر: کسی که از قبل عضوِ مدرسه‌ای است، ویجتِ همیشه‌نمایانِ
+  // «پیدا کردن مدرسه» را کنارِ سایدبار نمی‌بیند (SchoolShell.tsx) — به‌جایش
+  // همین آیتمِ ناوبری که آن ویجت را در یک دیالوگِ روی‌تقاضا باز می‌کند، برایِ
+  // وقتی مثلاً مدیر/معلمی می‌خواهد با یک کدِ دیگر به مدرسه‌یِ دیگری هم بپیوندد.
+  const [findSchoolOpen, setFindSchoolOpen] = useState(false);
 
   return (
     <Sidebar side={isRtlLang(lang) ? "right" : "left"} variant="inset" collapsible="icon">
@@ -192,6 +200,12 @@ export function SchoolSidebar({ role, schoolName }: { role: SchoolMemberRole | n
       <SidebarFooter className="border-t border-sidebar-border p-2">
         <SidebarMenu>
           <SidebarMenuItem>
+            <SidebarMenuButton onClick={() => setFindSchoolOpen(true)} tooltip={t.findSchoolNavLabel} data-testid="nav-school-find-other">
+              <Search />
+              <span>{t.findSchoolNavLabel}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
             {/* «پروفایل» باید توی همه‌ی نقش‌ها باشه — همون صفحه‌ی سراسریِ /profile، دوباره ساخته نمی‌شود. */}
             <SidebarMenuButton asChild isActive={location === "/profile"} tooltip={t.navProfile}>
               <Link href="/profile" data-testid="nav-school-profile">
@@ -202,6 +216,15 @@ export function SchoolSidebar({ role, schoolName }: { role: SchoolMemberRole | n
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+
+      <Dialog open={findSchoolOpen} onOpenChange={setFindSchoolOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.findSchoolNavLabel}</DialogTitle>
+          </DialogHeader>
+          <InviteCodeWidget compact />
+        </DialogContent>
+      </Dialog>
     </Sidebar>
   );
 }

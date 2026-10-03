@@ -116,8 +116,11 @@ export default function SchoolContentList() {
             </SelectContent>
           </Select>
           {canWrite && (
-            <Button size="sm" variant={showForm ? "secondary" : "default"} onClick={() => setShowForm((s) => !s)}>
-              <Plus className="me-1 size-4" /> {t.addContentButton}
+            // طبقِ گزارشِ کاربر («پیدا کردنِ دکمه‌ی افزودن/ویرایش برایِ معلم سخت
+            // بود»): برچسبِ مشخص («افزودنِ + نام‌ِ نوع») به‌جایِ یک «افزودن»ِ
+            // مبهم، و اندازه‌ی معمولی (نه sm) تا واقعاً دیده شود.
+            <Button variant={showForm ? "secondary" : "default"} onClick={() => setShowForm((s) => !s)}>
+              <Plus className="me-1 size-4" /> {t.addContentButton} {label}
             </Button>
           )}
         </div>

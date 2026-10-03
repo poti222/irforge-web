@@ -115,12 +115,14 @@ export default function SchoolContentDetail() {
             {item.subject && <Badge variant="secondary" className="text-[10px]">{item.subject}</Badge>}
           </div>
           {canWrite && canWriteThisItem && (
+            // طبقِ گزارشِ کاربر: دکمه‌ی فقط-آیکنِ قبلی برایِ معلم به‌سختی دیده
+            // می‌شد — حالا هم آیکن و هم برچسبِ متنیِ «ویرایش»/«حذف» دارد.
             <div className="flex gap-2">
-              <Button size="icon" variant="outline" onClick={() => setEditing((s) => !s)}>
-                <Pencil className="size-4" />
+              <Button variant={editing ? "secondary" : "outline"} onClick={() => setEditing((s) => !s)}>
+                <Pencil className="me-1.5 size-4" /> {t.editContentButton}
               </Button>
-              <Button size="icon" variant="outline" className="text-destructive" onClick={handleDelete}>
-                <Trash2 className="size-4" />
+              <Button variant="outline" className="text-destructive hover:bg-destructive/10" onClick={handleDelete}>
+                <Trash2 className="me-1.5 size-4" /> {t.deleteContentButton}
               </Button>
             </div>
           )}

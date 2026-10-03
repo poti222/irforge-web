@@ -3437,6 +3437,7 @@
     "joinedSchool": "با موفقیت به مدرسه پیوستید",
     "joinButton": "پیوستن",
     "findSchoolHint": "کد معرفِ مدرسه را وارد و جستجو کنید.",
+    "findSchoolNavLabel": "پیدا کردن/پیوستن به مدرسه‌ی دیگر",
     "adminMySchools": "مدرسه‌های من",
     "adminMySchoolsDescription": "مدرسه‌ای که مدیریت می‌کنید را اینجا ببینید و ویرایش کنید.",
     "noSchoolYetTitle": "هنوز مدرسه‌ای نساخته‌اید",
@@ -3473,6 +3474,8 @@
     "contentNoSubjectAssigned": "شما هنوز به هیچ درسی تخصیص داده‌نشده‌اید — از مدیرِ مدرسه بخواهید درسی به شما تخصیص دهد.",
     "contentSubjectFilterLabel": "فیلترِ درس",
     "contentSubjectFilterAll": "همه‌ی درس‌ها",
+    "editContentButton": "ویرایش",
+    "deleteContentButton": "حذف",
 
     "navAnnouncements": "اعلامیه‌ها",
     "openButton": "باز کردن",
