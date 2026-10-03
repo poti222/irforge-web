@@ -15,7 +15,7 @@
 import { logger } from "../lib/logger";
 import { Router } from "express";
 import {
-  db, schoolContentItemsTable, schoolMembersTable, schoolTeacherSubjectsTable,
+  db, schoolContentItemsTable, schoolContentLessonsTable, schoolMembersTable, schoolTeacherSubjectsTable,
   SCHOOL_CONTENT_TYPES, SCHOOL_SUBJECTS,
 } from "@workspace/db";
 import { eq, or, isNull, and } from "drizzle-orm";
@@ -34,6 +34,7 @@ function formatItem(i: typeof schoolContentItemsTable.$inferSelect) {
     language: i.language,
     subject: i.subject,
     imageUrl: i.imageUrl,
+    lessonId: i.lessonId,
     createdByUserId: i.createdByUserId,
     createdAt: i.createdAt.toISOString(),
     updatedAt: i.updatedAt.toISOString(),
@@ -75,12 +76,14 @@ async function canWrite(userId: string, schoolId: string | null, subject: string
   return { ok: true, member };
 }
 
-// GET /api/schools/content?schoolId=&type=&subject= — لیست، شاملِ محتوایِ عمومی + محتوایِ همان مدرسه
+// GET /api/schools/content?schoolId=&type=&subject=&lessonId= — لیست، شاملِ محتوایِ عمومی + محتوایِ همان مدرسه
+// lessonId="none" یعنی فقط آیتم‌هایِ بدونِ‌درس (پسودوگروهِ «بدون درس» در UI).
 router.get("/schools/content", requireAuth, async (req: any, res) => {
   try {
     const schoolId = typeof req.query.schoolId === "string" ? req.query.schoolId : undefined;
     const type = typeof req.query.type === "string" ? req.query.type : undefined;
     const subject = typeof req.query.subject === "string" ? req.query.subject : undefined;
+    const lessonId = typeof req.query.lessonId === "string" ? req.query.lessonId : undefined;
     if (type && !(SCHOOL_CONTENT_TYPES as readonly string[]).includes(type)) {
       res.status(400).json({ error: "Invalid type" });
       return;
@@ -90,6 +93,8 @@ router.get("/schools/content", requireAuth, async (req: any, res) => {
       : isNull(schoolContentItemsTable.schoolId);
     let whereClause = type ? and(scopeFilter, eq(schoolContentItemsTable.type, type)) : scopeFilter;
     if (subject) whereClause = and(whereClause, eq(schoolContentItemsTable.subject, subject));
+    if (lessonId === "none") whereClause = and(whereClause, isNull(schoolContentItemsTable.lessonId));
+    else if (lessonId) whereClause = and(whereClause, eq(schoolContentItemsTable.lessonId, lessonId));
     const rows = await db.select().from(schoolContentItemsTable).where(whereClause);
     res.json(rows.map(formatItem));
   } catch (err) {
@@ -116,7 +121,7 @@ router.get("/schools/content/:id", requireAuth, async (req: any, res) => {
 // POST /api/schools/content — فقط admin/teacher، و معلم فقط در درسِ تخصیص‌داده‌شده‌اش
 router.post("/schools/content", requireAuth, async (req: any, res) => {
   try {
-    const { schoolId, type, title, body, language, subject, imageUrl } = req.body ?? {};
+    const { schoolId, type, title, body, language, subject, imageUrl, lessonId } = req.body ?? {};
     if (!type || !(SCHOOL_CONTENT_TYPES as readonly string[]).includes(type)) {
       res.status(400).json({ error: "Invalid type" });
       return;
@@ -125,11 +130,23 @@ router.post("/schools/content", requireAuth, async (req: any, res) => {
       res.status(400).json({ error: "title is required" });
       return;
     }
-    if (subject && !(SCHOOL_SUBJECTS as readonly string[]).includes(subject)) {
+    // اگر lessonId داده شده، subjectِ آیتم از خودِ درس گرفته می‌شود (نه از
+    // ورودیِ کاربر) — وگرنه ممکن بود آیتمی با subject=X داخلِ درسی با
+    // subject=Y قرار بگیرد و گیتِ موضوعی دیگر معنا نمی‌داد (ببینید توضیحِ
+    // بالایِ schema/schoolContentLessons.ts).
+    let effectiveSubject: string | null = subject ?? null;
+    if (lessonId) {
+      const [lesson] = await db.select().from(schoolContentLessonsTable).where(eq(schoolContentLessonsTable.id, lessonId)).limit(1);
+      if (!lesson || lesson.schoolId !== (schoolId ?? null)) {
+        res.status(400).json({ error: "Invalid lessonId" });
+        return;
+      }
+      effectiveSubject = lesson.subject;
+    } else if (effectiveSubject && !(SCHOOL_SUBJECTS as readonly string[]).includes(effectiveSubject)) {
       res.status(400).json({ error: "Invalid subject" });
       return;
     }
-    const check = await canWrite(req.userId, schoolId ?? null, subject ?? null);
+    const check = await canWrite(req.userId, schoolId ?? null, effectiveSubject);
     if (!check.ok) {
       res.status(check.status).json({ error: check.error });
       return;
@@ -141,8 +158,9 @@ router.post("/schools/content", requireAuth, async (req: any, res) => {
       title: title.trim(),
       body: body ?? "",
       language: language ?? null,
-      subject: subject ?? null,
+      subject: effectiveSubject,
       imageUrl: imageUrl ?? null,
+      lessonId: lessonId ?? null,
       createdByUserId: req.userId,
     }).returning();
     res.status(201).json(formatItem(item));
@@ -165,7 +183,17 @@ router.patch("/schools/content/:id", requireAuth, async (req: any, res) => {
       res.status(check.status).json({ error: check.error });
       return;
     }
-    const { title, body, language, subject, imageUrl } = req.body ?? {};
+    let { title, body, language, subject, imageUrl, lessonId } = req.body ?? {};
+    // اگر lessonId تغییر کند و به یک درسِ واقعی اشاره کند، subject هم طبقِ
+    // همان درس بازنویسی می‌شود (ببینید توضیحِ همین منطق در POST بالا).
+    if (lessonId !== undefined && lessonId !== existing.lessonId && lessonId) {
+      const [lesson] = await db.select().from(schoolContentLessonsTable).where(eq(schoolContentLessonsTable.id, lessonId)).limit(1);
+      if (!lesson || lesson.schoolId !== existing.schoolId) {
+        res.status(400).json({ error: "Invalid lessonId" });
+        return;
+      }
+      subject = lesson.subject;
+    }
     if (subject !== undefined && subject !== existing.subject) {
       // معلم نمی‌تواند آیتم را به درسی که مالکش نیست منتقل کند (و نه به
       // بدونِ‌درس — آن فقط کارِ admin است)؛ دوباره با `subject` جدید چک می‌شود.
@@ -187,6 +215,7 @@ router.patch("/schools/content/:id", requireAuth, async (req: any, res) => {
     if (language !== undefined) patch.language = language;
     if (subject !== undefined) patch.subject = subject;
     if (imageUrl !== undefined) patch.imageUrl = imageUrl;
+    if (lessonId !== undefined) patch.lessonId = lessonId;
     const [updated] = await db.update(schoolContentItemsTable).set(patch).where(eq(schoolContentItemsTable.id, req.params.id)).returning();
     res.json(formatItem(updated));
   } catch (err) {

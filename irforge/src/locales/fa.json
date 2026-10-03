@@ -3451,6 +3451,7 @@
     "navNotes": "جزوه‌ها",
     "navBooks": "کتاب‌ها",
     "navFormulas": "فرمول‌ها",
+    "navPoems": "اشعار",
     "navContactCounselor": "ارتباط با مشاور",
     "navContactAdmin": "ارتباط با مدیر",
     "navContactTeacher": "ارتباط با معلم",
@@ -3668,6 +3669,20 @@
 
     "contentImageUrlField": "آدرسِ عکس (اختیاری)",
     "contentImageUrlPlaceholder": "https://...",
+
+    "cancel": "انصراف",
+    "addLessonButton": "افزودنِ درس",
+    "lessonTitleField": "عنوانِ درس",
+    "lessonTitlePlaceholder": "مثلاً «درسِ ۱ — واژگانِ دوره‌ی رضاشاه»",
+    "lessonsEmpty": "هنوز درسی ساخته نشده است",
+    "noLessonGroupLabel": "بدون درس",
+    "noLessonGroupHint": "آیتم‌های قدیمی یا بدونِ‌دسته‌بندی",
+    "backToLessons": "بازگشت به درس‌ها",
+    "editLessonButton": "ویرایشِ درس",
+    "deleteLessonButton": "حذفِ درس",
+    "lessonDeleteNonCascadeHint": "با حذفِ این درس، آیتم‌های داخلش حذف نمی‌شوند؛ فقط از این درس خارج می‌شوند.",
+    "addItemToLessonButton": "افزودنِ آیتم به این درس",
+    "contentTypeField": "نوعِ محتوا",
 
     "teacherTodayDescription": "آخرین اطلاعیه‌های کلاس‌های شما.",
     "teacherTodayEmpty": "هنوز اطلاعیه‌ای برای این کلاس ثبت نشده است.",

@@ -27,6 +27,7 @@ import {
   NotebookPen,
   Library,
   Sigma,
+  Feather,
   MessageCircleQuestion,
   ShieldCheck,
   GraduationCap,
@@ -81,6 +82,8 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
         { key: "notes", href: "/schools/content/note", icon: NotebookPen, label: t.navNotes },
         { key: "books", href: "/schools/content/book", icon: Library, label: t.navBooks },
         { key: "formulas", href: "/schools/content/formula", icon: Sigma, label: t.navFormulas },
+        // لایه‌یِ «درس» — type جدیدِ «شعر» (طبقِ گزارشِ کاربر: «شعر یا لغت»)
+        { key: "poems", href: "/schools/content/poem", icon: Feather, label: t.navPoems },
         { key: "announcements", href: "/schools/announcements", icon: Megaphone, label: t.navAnnouncements },
         { key: "attendance", href: "/schools/student/attendance", icon: ClipboardCheck, label: t.navAttendance },
         { key: "grades", href: "/schools/student/grades", icon: GraduationCap, label: t.navGrades },
@@ -91,7 +94,18 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
       ];
     case "teacher":
       // فاز ۶ (بندِ ۱/۲): «حضور و غیاب» و «نمره‌نامه» اضافه شدند.
+      // لایه‌یِ «درس» — طبقِ گزارشِ کاربر («جایی برای افزودن لغت‌نامه نیست»):
+      // تا این‌جا معلم هیچ لینکِ ناوبریی به‌سمتِ کتابخانه‌ی محتوا (لغت‌نامه/
+      // جزوه/کتاب/فرمول/شعر) نداشت — این صفحات فقط در ناوبریِ دانش‌آموز بودند!
+      // یعنی معلم باید آدرسِ /schools/content/dictionary را حدس می‌زد تا
+      // اصلاً به فرمِ افزودن برسد. این خودِ ریشه‌ی گزارشِ کاربر بود، نه فقط
+      // نبودِ گروه‌بندیِ درس.
       return [
+        { key: "dictionary", href: "/schools/content/dictionary", icon: BookOpenText, label: t.navDictionary },
+        { key: "notes", href: "/schools/content/note", icon: NotebookPen, label: t.navNotes },
+        { key: "books", href: "/schools/content/book", icon: Library, label: t.navBooks },
+        { key: "formulas", href: "/schools/content/formula", icon: Sigma, label: t.navFormulas },
+        { key: "poems", href: "/schools/content/poem", icon: Feather, label: t.navPoems },
         { key: "classrooms", href: "/schools/teacher/classes", icon: Presentation, label: t.navClassrooms },
         { key: "attendance", href: "/schools/teacher/attendance", icon: ClipboardCheck, label: t.navAttendance },
         { key: "assignments", href: "/schools/teacher/assignments", icon: ClipboardList, label: t.navAssignments },

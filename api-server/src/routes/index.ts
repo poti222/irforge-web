@@ -125,6 +125,8 @@ import schoolMessageReadStateRouter from "./schoolMessageReadState.js";
 import schoolAuditLogRouter from "./schoolAuditLog.js";
 // تخصیصِ معلم↔درس (کنترلِ دسترسیِ موضوعی به کتابخانه‌ی محتوا)
 import schoolTeacherSubjectsRouter from "./schoolTeacherSubjects.js";
+// لایه‌یِ «درس» رویِ کتابخانه‌ی محتوا
+import schoolContentLessonsRouter from "./schoolContentLessons.js";
 // `/super` — گیتِ رمزِ دوم + داشبوردِ یکجایِ سوپرادمین + هویت‌های آزمایشی
 import superGateRouter from "./superGate.js";
 import superDashboardRouter from "./superDashboard.js";
@@ -234,6 +236,7 @@ router.use(schoolNotificationsRouter);
 router.use(schoolMessageReadStateRouter);
 router.use(schoolAuditLogRouter);
 router.use(schoolTeacherSubjectsRouter);
+router.use(schoolContentLessonsRouter);
 router.use(superGateRouter);
 router.use(superDashboardRouter);
 router.use(testIdentitiesRouter);
