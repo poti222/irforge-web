@@ -16,7 +16,7 @@ import {
 import { FlaskConical, Loader2, LogIn, Trash2, Sparkles } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
-import { SCHOOL_MEMBER_ROLES, type SchoolMemberRole } from "@/lib/schools-api";
+import { SCHOOL_MEMBER_ROLES, SCHOOL_SUBJECTS, type SchoolMemberRole } from "@/lib/schools-api";
 import { setAuthToken, getAuthToken } from "@/lib/auth-token";
 import { SUPER_STASH_KEY } from "@/lib/super-stash";
 
@@ -50,6 +50,7 @@ export function TestIdentitiesManager() {
 
   const [role, setRole] = useState<SchoolMemberRole | "">("");
   const [grade, setGrade] = useState("");
+  const [subject, setSubject] = useState("");
   const [schoolChoice, setSchoolChoice] = useState<string>(""); // schoolId یا "__new__"
   const [newSchoolName, setNewSchoolName] = useState("");
   const [creating, setCreating] = useState(false);
@@ -72,6 +73,13 @@ export function TestIdentitiesManager() {
       toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: fa ? "پایه لازم است" : "Grade is required" });
       return;
     }
+    // بدونِ این، معلمِ آزمایشی هیچ ردیفی در school_teacher_subjects ندارد و
+    // فرمِ افزودنِ محتوا برایش عملاً غیرقابل‌استفاده می‌شود (نگاه کن
+    // توضیحِ کاملِ این تصمیم در routes/testIdentities.ts).
+    if (role === "teacher" && !subject) {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: fa ? "درس برایِ معلم لازم است" : "Subject is required for a teacher" });
+      return;
+    }
     const isNew = schoolChoice === "__new__";
     if (isNew && !newSchoolName.trim()) {
       toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: fa ? "نام مدرسه‌ی آزمایشی لازم است" : "Test school name is required" });
@@ -89,6 +97,7 @@ export function TestIdentitiesManager() {
         body: JSON.stringify({
           role,
           grade: role === "student" ? grade.trim() : undefined,
+          subject: role === "teacher" ? subject : undefined,
           schoolId: isNew ? undefined : schoolChoice,
           newSchoolName: isNew ? newSchoolName.trim() : undefined,
         }),
@@ -96,6 +105,7 @@ export function TestIdentitiesManager() {
       toast({ title: fa ? "هویتِ آزمایشی ساخته شد" : "Test identity created" });
       setRole("");
       setGrade("");
+      setSubject("");
       setSchoolChoice("");
       setNewSchoolName("");
       queryClient.invalidateQueries({ queryKey: ["super", "test-identities"] });
@@ -189,6 +199,18 @@ export function TestIdentitiesManager() {
             {role === "student" && (
               <Input value={grade} onChange={(e) => setGrade(e.target.value)} placeholder={fa ? "پایه" : "Grade"} />
             )}
+            {role === "teacher" && (
+              <Select value={subject} onValueChange={setSubject}>
+                <SelectTrigger>
+                  <SelectValue placeholder={fa ? "درس (لازم است)" : "Subject (required)"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {SCHOOL_SUBJECTS.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <Select value={schoolChoice} onValueChange={setSchoolChoice}>
@@ -208,7 +230,7 @@ export function TestIdentitiesManager() {
             <Input value={newSchoolName} onChange={(e) => setNewSchoolName(e.target.value)} placeholder={fa ? "نامِ مدرسه‌ی آزمایشی" : "Test school name"} />
           )}
 
-          <Button onClick={create} disabled={creating || !role}>
+          <Button onClick={create} disabled={creating || !role || (role === "teacher" && !subject)}>
             {creating ? <Loader2 className="me-1.5 size-4 animate-spin" /> : <Sparkles className="me-1.5 size-4" />}
             {fa ? "ساختِ هویتِ آزمایشی" : "Create test identity"}
           </Button>

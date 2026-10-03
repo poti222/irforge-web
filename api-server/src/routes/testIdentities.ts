@@ -30,8 +30,10 @@ import {
   usersTable,
   schoolsTable,
   schoolMembersTable,
+  schoolTeacherSubjectsTable,
   sessionsTable,
   SCHOOL_MEMBER_ROLES,
+  SCHOOL_SUBJECTS,
   computeSchoolProfileComplete,
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
@@ -111,19 +113,31 @@ router.get("/super/test-identities/schools", requireSuperAdmin, requireSuperGate
 
 /**
  * POST /api/super/test-identities
- * body: { role, grade?, schoolId? , newSchoolName? }
+ * body: { role, grade?, schoolId? , newSchoolName?, subject? }
  * یکی از `schoolId` (مدرسه‌یِ واقعیِ موجود) یا `newSchoolName` (ساختِ یک
  * مدرسه‌یِ تازه‌یِ `isTestSchool=true`) باید بیاید.
+ *
+ * `subject` فقط برایِ role="teacher" و اجباری است — قبل از این، یک معلمِ
+ * آزمایشیِ تازه هیچ ردیفی در `school_teacher_subjects` نداشت (آن جدول در
+ * فازِ قبل اضافه شد، این فرم هیچ‌وقت به‌روز نشده بود)، پس فرمِ افزودنِ محتوا
+ * بازمی‌شد ولی دکمه‌ی ذخیره همیشه غیرفعال بود — دقیقاً همان مشکلی که کاربر
+ * با آن روبرو شد. اینجا همان کاری را می‌کنیم که مدیر در «مدیریت اعضا» برایِ
+ * یک معلمِ واقعی می‌کند (POST /api/schools/:schoolId/teacher-subjects)، فقط
+ * در همان درخواستِ ساختِ هویت.
  */
 router.post("/super/test-identities", requireSuperAdmin, requireSuperGate, async (req: any, res) => {
   try {
-    const { role, grade, schoolId, newSchoolName } = req.body ?? {};
+    const { role, grade, schoolId, newSchoolName, subject } = req.body ?? {};
     if (!role || !(SCHOOL_MEMBER_ROLES as readonly string[]).includes(role)) {
       res.status(400).json({ error: "نقش نامعتبر است", code: "invalid_role" });
       return;
     }
     if (role === "student" && !grade) {
       res.status(400).json({ error: "پایه برایِ دانش‌آموز لازم است", code: "grade_required" });
+      return;
+    }
+    if (role === "teacher" && (!subject || !(SCHOOL_SUBJECTS as readonly string[]).includes(subject))) {
+      res.status(400).json({ error: "درس برایِ معلم لازم است", code: "subject_required" });
       return;
     }
     if (!schoolId && !newSchoolName?.trim()) {
@@ -199,13 +213,26 @@ router.post("/super/test-identities", requireSuperAdmin, requireSuperGate, async
       })
       .returning();
 
+    if (role === "teacher") {
+      // همان ردیفی که مدیر برایِ یک معلمِ واقعی در «مدیریت اعضا» می‌سازد
+      // (classId=null یعنی این درس را در همه‌یِ کلاس‌هایش تدریس می‌کند) —
+      // بدونِ این، معلمِ آزمایشی هیچ درسی برایِ انتخاب در فرمِ محتوا نمی‌بیند.
+      await db.insert(schoolTeacherSubjectsTable).values({
+        id: crypto.randomUUID(),
+        schoolId: targetSchoolId,
+        teacherUserId: userId,
+        subject,
+        classId: null,
+      });
+    }
+
     const [school] = await db.select().from(schoolsTable).where(eq(schoolsTable.id, targetSchoolId)).limit(1);
 
     await writeAudit({
       actorUserId: req.userId,
       action: "test_identity_created",
       targetUserId: userId,
-      metadata: { schoolId: targetSchoolId, role },
+      metadata: { schoolId: targetSchoolId, role, subject: role === "teacher" ? subject : undefined },
     });
 
     res.status(201).json(formatIdentity(user, member, school?.name ?? null));
