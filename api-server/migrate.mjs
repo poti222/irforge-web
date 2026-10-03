@@ -1403,6 +1403,23 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS is_platform_test_account BOOLEAN NOT 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS created_by_user_id TEXT;
 ALTER TABLE schools ADD COLUMN IF NOT EXISTS is_test_school BOOLEAN NOT NULL DEFAULT false;
 
+-- ─── تخصیصِ معلم↔درس (کنترلِ دسترسیِ موضوعی به کتابخانه‌ی محتوا) ───────────
+-- مایگریشنِ ۰۰۴۰ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+-- subject فعلاً NULL برای آیتم‌های قدیمی می‌ماند — ببینید توضیحِ ستون در
+-- lib/db/src/schema/schoolContent.ts.
+ALTER TABLE school_content_items ADD COLUMN IF NOT EXISTS subject TEXT;
+
+CREATE TABLE IF NOT EXISTS school_teacher_subjects (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  teacher_user_id TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  class_id TEXT REFERENCES school_classes(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_teacher_subjects_school ON school_teacher_subjects(school_id);
+CREATE INDEX IF NOT EXISTS idx_school_teacher_subjects_teacher ON school_teacher_subjects(teacher_user_id);
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT

@@ -63,3 +63,5 @@ export * from "./schoolBots";
 // بخش "/schools" فاز ۹ — وضعیتِ خوانده‌شدنِ رشته‌ها + لاگِ رخدادهایِ مدیریتی
 export * from "./schoolMessageReadState";
 export * from "./schoolAuditLog";
+// تخصیصِ معلم↔درس (کنترلِ دسترسیِ موضوعی به کتابخانه‌ی محتوا)
+export * from "./schoolTeacherSubjects";

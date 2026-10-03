@@ -17,6 +17,30 @@ import { z } from "zod";
 export const SCHOOL_CONTENT_TYPES = ["dictionary", "note", "book", "formula"] as const;
 export type SchoolContentType = (typeof SCHOOL_CONTENT_TYPES)[number];
 
+/**
+ * درس‌هایِ معمولِ دبیرستانِ ایران — فهرستِ ثابت برایِ پیکرِ انتخابِ UI (و تخصیصِ
+ * معلم↔درس در schoolTeacherSubjects.ts). روی خودِ ستون به‌عمد enum/FK دیتابیسی
+ * نیست (متنِ آزاد) تا اضافه‌کردنِ یک درسِ جدید بدونِ مایگریشن ممکن باشد؛
+ * محدودسازی به همین فهرست فقط در لایه‌ی UI/اعتبارسنجیِ اپلیکیشن است.
+ * فارسی/عربی/انگلیسی (لغت‌نامه) و فیزیک (فرمول) از CONFIG قدیمیِ ریپویِ dars
+ * گرفته شده‌اند؛ بقیه دروسِ معمولِ دبیرستانِ ایران + یک سطلِ عمومیِ "سایر".
+ */
+export const SCHOOL_SUBJECTS = [
+  "ریاضی",
+  "فیزیک",
+  "شیمی",
+  "زیست‌شناسی",
+  "ادبیاتِ فارسی",
+  "عربی",
+  "زبانِ انگلیسی",
+  "دینی",
+  "تاریخ",
+  "جغرافیا",
+  "ورزش",
+  "سایر",
+] as const;
+export type SchoolSubject = (typeof SCHOOL_SUBJECTS)[number];
+
 export const schoolContentItemsTable = pgTable("school_content_items", {
   id: text("id").primaryKey(),
   /** null = محتوایِ عمومیِ پلتفرم، در غیر این صورت مختصِ همان مدرسه */
@@ -31,6 +55,16 @@ export const schoolContentItemsTable = pgTable("school_content_items", {
   body: text("body").notNull().default(""),
   /** فقط برای لغت‌نامه معنا دارد — "fa" | "en" | ... */
   language: text("language"),
+  /**
+   * بخشِ کنترلِ دسترسیِ معلم↔درس: معلم فقط می‌تواند آیتمِ محتوایی بسازد/ویرایش
+   * کند که `subject`اش یکی از درسهایِ تخصیص‌داده‌شده به او باشد (ببینید
+   * `canWrite()` در routes/schoolContent.ts). nullable چون بعضی محتوا واقعاً
+   * بدونِ‌درس است (مثلاً یک یادداشتِ عمومیِ شبه‌اطلاعیه)؛ آیتم‌هایِ از قبل
+   * موجود (قبل از این ستون) هم `NULL` می‌مانند — فقط مدیر می‌تواند آن‌ها را
+   * (تا زمانِ برچسب‌گذاریِ دوباره با یک درسِ واقعی) ویرایش کند، نه هر معلمی
+   * بدونِ مالکیتِ مشخص و نه این‌که برایِ نویسنده‌ی اصلی‌اش قفل شود.
+   */
+  subject: text("subject"),
   /**
    * فاز ۳ — این ریپو هیچ زیرساختِ آپلودِ فایلِ عمومی ندارد (نه S3، نه چیزِ
    * مشابه؛ `uploadSessions` یک رله‌یِ چتِ باتِ تلگرام است، نه آپلودِ فایل).
