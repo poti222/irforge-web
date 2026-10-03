@@ -3384,6 +3384,7 @@
     "navNotes": "Notes",
     "navBooks": "Books",
     "navFormulas": "Formulas",
+    "navPoems": "Poems",
     "navContactCounselor": "Contact Counselor",
     "navContactAdmin": "Contact Admin",
     "navContactTeacher": "Contact Teacher",
@@ -3601,6 +3602,20 @@
 
     "contentImageUrlField": "Image URL (optional)",
     "contentImageUrlPlaceholder": "https://...",
+
+    "cancel": "Cancel",
+    "addLessonButton": "Add Lesson",
+    "lessonTitleField": "Lesson title",
+    "lessonTitlePlaceholder": "e.g. \"Lesson 1 — Reza Shah era vocabulary\"",
+    "lessonsEmpty": "No lessons created yet",
+    "noLessonGroupLabel": "No lesson",
+    "noLessonGroupHint": "Legacy or uncategorized items",
+    "backToLessons": "Back to lessons",
+    "editLessonButton": "Edit lesson",
+    "deleteLessonButton": "Delete lesson",
+    "lessonDeleteNonCascadeHint": "Deleting this lesson will not delete its items; they will just be removed from this lesson.",
+    "addItemToLessonButton": "Add item to this lesson",
+    "contentTypeField": "Content type",
 
     "teacherTodayDescription": "The latest announcements from your classes.",
     "teacherTodayEmpty": "No announcements for this class yet.",

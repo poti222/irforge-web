@@ -75,7 +75,7 @@ export default function SchoolContentDetail() {
     try {
       await updateSchoolContentItem(id, { body, subject: subject || null, imageUrl: imageUrl.trim() || null });
       await queryClient.invalidateQueries({ queryKey: ["schools", "content-item", id] });
-      await queryClient.invalidateQueries({ queryKey: ["schools", "content", type] });
+      await queryClient.invalidateQueries({ queryKey: ["schools", "content-by-lesson"] });
       setEditing(false);
       toast({ title: t.contentSaved });
     } catch (err: any) {
@@ -88,8 +88,8 @@ export default function SchoolContentDetail() {
   async function handleDelete() {
     try {
       await deleteSchoolContentItem(id);
-      await queryClient.invalidateQueries({ queryKey: ["schools", "content", type] });
-      navigate(`/schools/content/${type}`);
+      await queryClient.invalidateQueries({ queryKey: ["schools", "content-by-lesson"] });
+      navigate(`/schools/content/${type}/lesson/${item?.lessonId ?? "none"}`);
     } catch (err: any) {
       toast({ variant: "destructive", title: t.contentSaveError, description: err?.data?.error });
     }
@@ -105,8 +105,8 @@ export default function SchoolContentDetail() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Button variant="ghost" size="sm" className="w-fit" onClick={() => navigate(`/schools/content/${type}`)}>
-        <ArrowRight className="me-1 size-4" /> {t.backToList}
+      <Button variant="ghost" size="sm" className="w-fit" onClick={() => navigate(`/schools/content/${type}/lesson/${item.lessonId ?? "none"}`)}>
+        <ArrowRight className="me-1 size-4" /> {t.backToLessons}
       </Button>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

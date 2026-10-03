@@ -98,7 +98,8 @@ export function createInviteCode(schoolId: string, role?: SchoolMemberRole | nul
   );
 }
 
-export const SCHOOL_CONTENT_TYPES = ["dictionary", "note", "book", "formula"] as const;
+/** "poem" اضافه شد طبقِ گزارشِ کاربر («شعر یا لغت») — کپیِ SCHOOL_CONTENT_TYPES در schema/schoolContent.ts */
+export const SCHOOL_CONTENT_TYPES = ["dictionary", "note", "book", "formula", "poem"] as const;
 export type SchoolContentType = (typeof SCHOOL_CONTENT_TYPES)[number];
 
 /**
@@ -134,15 +135,24 @@ export interface SchoolContentItem {
   subject: string | null;
   /** فاز ۳ — فیلدِ URLِ عکس (نه آپلودِ واقعی، ببینید توضیحِ imageUrl در schema/schoolContent.ts) */
   imageUrl: string | null;
+  /** فازِ «درس» — null یعنی بدونِ‌درس (پسودوگروهِ «بدون درس» در UI) */
+  lessonId: string | null;
   createdByUserId: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export function listSchoolContent(type: SchoolContentType, schoolId?: string | null, subject?: string | null) {
-  const params = new URLSearchParams({ type });
+/**
+ * `lessonId`: "none" یعنی فقط آیتم‌هایِ بدونِ‌درس؛ یک idِ واقعی یعنی فقط
+ * آیتم‌هایِ همان درس (در این حالت می‌تواند هر typeی داشته باشد — صفحه‌ی
+ * لایه‌ی درس خودش با type فیلتر نمی‌کند، ببینید pages/schools/content-lesson.tsx).
+ */
+export function listSchoolContent(type: SchoolContentType | undefined, schoolId?: string | null, subject?: string | null, lessonId?: string | null) {
+  const params = new URLSearchParams();
+  if (type) params.set("type", type);
   if (schoolId) params.set("schoolId", schoolId);
   if (subject) params.set("subject", subject);
+  if (lessonId) params.set("lessonId", lessonId);
   return customFetch<SchoolContentItem[]>(`/api/schools/content?${params.toString()}`);
 }
 
@@ -150,14 +160,14 @@ export function getSchoolContentItem(id: string) {
   return customFetch<SchoolContentItem>(`/api/schools/content/${id}`);
 }
 
-export function createSchoolContentItem(input: { type: SchoolContentType; title: string; body: string; language?: string | null; subject?: string | null; schoolId?: string | null; imageUrl?: string | null }) {
+export function createSchoolContentItem(input: { type: SchoolContentType; title: string; body: string; language?: string | null; subject?: string | null; schoolId?: string | null; imageUrl?: string | null; lessonId?: string | null }) {
   return customFetch<SchoolContentItem>("/api/schools/content", {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
 
-export function updateSchoolContentItem(id: string, patch: Partial<{ title: string; body: string; language: string | null; subject: string | null; imageUrl: string | null }>) {
+export function updateSchoolContentItem(id: string, patch: Partial<{ title: string; body: string; language: string | null; subject: string | null; imageUrl: string | null; lessonId: string | null }>) {
   return customFetch<SchoolContentItem>(`/api/schools/content/${id}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
@@ -166,6 +176,49 @@ export function updateSchoolContentItem(id: string, patch: Partial<{ title: stri
 
 export function deleteSchoolContentItem(id: string) {
   return customFetch<void>(`/api/schools/content/${id}`, { method: "DELETE" });
+}
+
+/**
+ * لایه‌یِ «درس» — گروه‌بندیِ آیتم‌هایِ کتابخانه‌ی محتوا (بالا) داخلِ یک درسِ
+ * واحد، مستقل از typeِ هر آیتم (ببینید توضیحِ طراحی در
+ * schema/schoolContentLessons.ts). خواندن برایِ هر عضوِ مدرسه؛ نوشتن
+ * admin/teacherِ گیت‌شده با همان گیتِ موضوعیِ بالا.
+ */
+export interface SchoolContentLesson {
+  id: string;
+  schoolId: string;
+  subject: string;
+  title: string;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function listContentLessons(schoolId: string, subject?: string | null) {
+  const qs = subject ? `?subject=${encodeURIComponent(subject)}` : "";
+  return customFetch<SchoolContentLesson[]>(`/api/schools/${schoolId}/content-lessons${qs}`);
+}
+
+export function getContentLesson(schoolId: string, lessonId: string) {
+  return customFetch<SchoolContentLesson>(`/api/schools/${schoolId}/content-lessons/${lessonId}`);
+}
+
+export function createContentLesson(schoolId: string, input: { subject: string; title: string }) {
+  return customFetch<SchoolContentLesson>(`/api/schools/${schoolId}/content-lessons`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateContentLesson(schoolId: string, lessonId: string, patch: Partial<{ title: string; subject: string }>) {
+  return customFetch<SchoolContentLesson>(`/api/schools/${schoolId}/content-lessons/${lessonId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deleteContentLesson(schoolId: string, lessonId: string) {
+  return customFetch<void>(`/api/schools/${schoolId}/content-lessons/${lessonId}`, { method: "DELETE" });
 }
 
 /**
