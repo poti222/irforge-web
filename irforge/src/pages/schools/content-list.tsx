@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
@@ -15,6 +16,8 @@ import {
   createSchoolContentItem,
   getSchoolMe,
   listSchoolContent,
+  listTeacherSubjects,
+  SCHOOL_SUBJECTS,
   type SchoolContentType,
 } from "@/lib/schools-api";
 
@@ -43,17 +46,32 @@ export default function SchoolContentList() {
 
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
   const canWrite = me?.role === "admin" || me?.role === "teacher";
+  const isAdmin = me?.role === "admin";
   const schoolId = me?.schoolId ?? undefined;
 
+  // گیتِ موضوعی: معلم فقط باید درس‌هایِ تخصیص‌داده‌شده‌ی خودش را در پیکر
+  // ببیند (نه کلِ SCHOOL_SUBJECTS و امیدِ به رد شدن از سمتِ سرور)؛ admin
+  // همه‌ی فهرستِ ثابت را می‌بیند چون سرور برایِ او گیتِ موضوعی ندارد.
+  const { data: myAssignments } = useQuery({
+    queryKey: ["schools", "teacher-subjects", schoolId, me?.userId],
+    queryFn: () => listTeacherSubjects(schoolId!, me!.userId),
+    enabled: !!schoolId && me?.role === "teacher",
+  });
+  const assignableSubjects = isAdmin
+    ? SCHOOL_SUBJECTS
+    : Array.from(new Set((myAssignments ?? []).map((a) => a.subject)));
+
+  const [subjectFilter, setSubjectFilter] = useState<string>("all");
   const { data: items, isLoading } = useQuery({
-    queryKey: ["schools", "content", type, schoolId],
-    queryFn: () => listSchoolContent(type, schoolId),
+    queryKey: ["schools", "content", type, schoolId, subjectFilter],
+    queryFn: () => listSchoolContent(type, schoolId, subjectFilter === "all" ? undefined : subjectFilter),
   });
 
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [language, setLanguage] = useState("");
+  const [subject, setSubject] = useState<string>("");
   const [imageUrl, setImageUrl] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -63,12 +81,14 @@ export default function SchoolContentList() {
     try {
       await createSchoolContentItem({
         type, title: title.trim(), body, language: language.trim() || null,
+        subject: subject || null,
         schoolId: schoolId ?? null, imageUrl: imageUrl.trim() || null,
       });
       await queryClient.invalidateQueries({ queryKey: ["schools", "content", type] });
       setTitle("");
       setBody("");
       setLanguage("");
+      setSubject("");
       setImageUrl("");
       setShowForm(false);
       toast({ title: t.contentSaved });
@@ -81,13 +101,26 @@ export default function SchoolContentList() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold">{label}</h1>
-        {canWrite && (
-          <Button size="sm" variant={showForm ? "secondary" : "default"} onClick={() => setShowForm((s) => !s)}>
-            <Plus className="me-1 size-4" /> {t.addContentButton}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <Select value={subjectFilter} onValueChange={setSubjectFilter}>
+            <SelectTrigger className="h-9 w-40">
+              <SelectValue placeholder={t.contentSubjectFilterLabel} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t.contentSubjectFilterAll}</SelectItem>
+              {SCHOOL_SUBJECTS.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {canWrite && (
+            <Button size="sm" variant={showForm ? "secondary" : "default"} onClick={() => setShowForm((s) => !s)}>
+              <Plus className="me-1 size-4" /> {t.addContentButton}
+            </Button>
+          )}
+        </div>
       </div>
 
       {canWrite && showForm && (
@@ -96,6 +129,22 @@ export default function SchoolContentList() {
             <div className="flex flex-col gap-1.5">
               <Label>{t.contentTitleField}</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>{t.contentSubjectField}</Label>
+              <Select value={subject} onValueChange={setSubject}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t.contentSubjectPlaceholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  {assignableSubjects.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!isAdmin && assignableSubjects.length === 0 && (
+                <p className="text-xs text-destructive">{t.contentNoSubjectAssigned}</p>
+              )}
             </div>
             {type === "dictionary" && (
               <div className="flex flex-col gap-1.5">
@@ -121,7 +170,7 @@ export default function SchoolContentList() {
                 <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder={t.contentImageUrlPlaceholder} dir="ltr" />
               </div>
             </div>
-            <Button onClick={handleCreate} disabled={saving || !title.trim()} className="w-fit">
+            <Button onClick={handleCreate} disabled={saving || !title.trim() || (!isAdmin && !subject)} className="w-fit">
               {saving && <Loader2 className="me-2 size-4 animate-spin" />}
               {t.saveButton}
             </Button>
@@ -143,11 +192,16 @@ export default function SchoolContentList() {
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center justify-between text-base">
                     <span>{item.title}</span>
-                    {item.language && (
-                      <Badge variant="outline" className="text-[10px] uppercase">
-                        {item.language}
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {item.subject && (
+                        <Badge variant="secondary" className="text-[10px]">{item.subject}</Badge>
+                      )}
+                      {item.language && (
+                        <Badge variant="outline" className="text-[10px] uppercase">
+                          {item.language}
+                        </Badge>
+                      )}
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="flex items-start gap-3">

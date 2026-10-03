@@ -101,6 +101,28 @@ export function createInviteCode(schoolId: string, role?: SchoolMemberRole | nul
 export const SCHOOL_CONTENT_TYPES = ["dictionary", "note", "book", "formula"] as const;
 export type SchoolContentType = (typeof SCHOOL_CONTENT_TYPES)[number];
 
+/**
+ * درس‌هایِ معمولِ دبیرستانِ ایران — کپیِ همان فهرستِ ثابتِ
+ * `SCHOOL_SUBJECTS` در lib/db/src/schema/schoolContent.ts (این فایل طبقِ
+ * قراردادِ خودش هیچ نوعی از بک‌اند import نمی‌کند، مثلِ SCHOOL_MEMBER_ROLES
+ * بالا). فقط برایِ پیکرِ UI؛ ستونِ واقعی متنِ آزاد است.
+ */
+export const SCHOOL_SUBJECTS = [
+  "ریاضی",
+  "فیزیک",
+  "شیمی",
+  "زیست‌شناسی",
+  "ادبیاتِ فارسی",
+  "عربی",
+  "زبانِ انگلیسی",
+  "دینی",
+  "تاریخ",
+  "جغرافیا",
+  "ورزش",
+  "سایر",
+] as const;
+export type SchoolSubject = (typeof SCHOOL_SUBJECTS)[number];
+
 export interface SchoolContentItem {
   id: string;
   schoolId: string | null;
@@ -108,6 +130,8 @@ export interface SchoolContentItem {
   title: string;
   body: string;
   language: string | null;
+  /** null = بدونِ‌درس (محتوایِ قدیمی یا عمداً عمومی) — فقط admin آن را می‌نویسد. */
+  subject: string | null;
   /** فاز ۳ — فیلدِ URLِ عکس (نه آپلودِ واقعی، ببینید توضیحِ imageUrl در schema/schoolContent.ts) */
   imageUrl: string | null;
   createdByUserId: string;
@@ -115,9 +139,10 @@ export interface SchoolContentItem {
   updatedAt: string;
 }
 
-export function listSchoolContent(type: SchoolContentType, schoolId?: string | null) {
+export function listSchoolContent(type: SchoolContentType, schoolId?: string | null, subject?: string | null) {
   const params = new URLSearchParams({ type });
   if (schoolId) params.set("schoolId", schoolId);
+  if (subject) params.set("subject", subject);
   return customFetch<SchoolContentItem[]>(`/api/schools/content?${params.toString()}`);
 }
 
@@ -125,14 +150,14 @@ export function getSchoolContentItem(id: string) {
   return customFetch<SchoolContentItem>(`/api/schools/content/${id}`);
 }
 
-export function createSchoolContentItem(input: { type: SchoolContentType; title: string; body: string; language?: string | null; schoolId?: string | null; imageUrl?: string | null }) {
+export function createSchoolContentItem(input: { type: SchoolContentType; title: string; body: string; language?: string | null; subject?: string | null; schoolId?: string | null; imageUrl?: string | null }) {
   return customFetch<SchoolContentItem>("/api/schools/content", {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
 
-export function updateSchoolContentItem(id: string, patch: Partial<{ title: string; body: string; language: string | null; imageUrl: string | null }>) {
+export function updateSchoolContentItem(id: string, patch: Partial<{ title: string; body: string; language: string | null; subject: string | null; imageUrl: string | null }>) {
   return customFetch<SchoolContentItem>(`/api/schools/content/${id}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
@@ -141,6 +166,35 @@ export function updateSchoolContentItem(id: string, patch: Partial<{ title: stri
 
 export function deleteSchoolContentItem(id: string) {
   return customFetch<void>(`/api/schools/content/${id}`, { method: "DELETE" });
+}
+
+/**
+ * تخصیصِ معلم↔درس — کنترلِ دسترسیِ موضوعی به کتابخانه‌یِ محتوا (بخشِ بالا).
+ * خواندن برایِ هر عضوِ مدرسه (پیکرِ انتخابِ درسِ فرمِ محتوا)؛ نوشتن فقط admin.
+ */
+export interface SchoolTeacherSubject {
+  id: string;
+  schoolId: string;
+  teacherUserId: string;
+  subject: string;
+  classId: string | null;
+  createdAt: string;
+}
+
+export function listTeacherSubjects(schoolId: string, teacherUserId?: string) {
+  const qs = teacherUserId ? `?teacherUserId=${encodeURIComponent(teacherUserId)}` : "";
+  return customFetch<SchoolTeacherSubject[]>(`/api/schools/${schoolId}/teacher-subjects${qs}`);
+}
+
+export function assignTeacherSubject(schoolId: string, input: { teacherUserId: string; subject: string; classId?: string | null }) {
+  return customFetch<SchoolTeacherSubject>(`/api/schools/${schoolId}/teacher-subjects`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function revokeTeacherSubject(schoolId: string, id: string) {
+  return customFetch<void>(`/api/schools/${schoolId}/teacher-subjects/${id}`, { method: "DELETE" });
 }
 
 /**

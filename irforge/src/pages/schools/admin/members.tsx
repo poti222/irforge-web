@@ -10,7 +10,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2, UserPlus, UserX } from "lucide-react";
+import { Loader2, UserPlus, UserX, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
@@ -21,7 +21,11 @@ import {
   updateSchoolMember,
   removeSchoolMember,
   createGuardianship,
+  listTeacherSubjects,
+  assignTeacherSubject,
+  revokeTeacherSubject,
   SCHOOL_MEMBER_ROLES,
+  SCHOOL_SUBJECTS,
   type SchoolMemberRole,
 } from "@/lib/schools-api";
 
@@ -51,6 +55,43 @@ export default function SchoolMembersPage() {
   const [linkingFor, setLinkingFor] = useState<string | null>(null);
   const [parentUserId, setParentUserId] = useState("");
   const [linking, setLinking] = useState(false);
+
+  // تخصیصِ معلم↔درس (کنترلِ دسترسیِ موضوعی به کتابخانه‌ی محتوا) — فقط admin.
+  const { data: teacherSubjects } = useQuery({
+    queryKey: ["schools", "teacher-subjects", schoolId],
+    queryFn: () => listTeacherSubjects(schoolId!),
+    enabled: !!schoolId && isAdmin,
+  });
+  const teacherMembers = (members ?? []).filter((m) => m.role === "teacher");
+  const [assignTeacherId, setAssignTeacherId] = useState("");
+  const [assignSubject, setAssignSubject] = useState("");
+  const [assigning, setAssigning] = useState(false);
+
+  async function handleAssignSubject() {
+    if (!schoolId || !assignTeacherId || !assignSubject) return;
+    setAssigning(true);
+    try {
+      await assignTeacherSubject(schoolId, { teacherUserId: assignTeacherId, subject: assignSubject });
+      await queryClient.invalidateQueries({ queryKey: ["schools", "teacher-subjects", schoolId] });
+      setAssignSubject("");
+      toast({ title: t.subjectAssigned });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: t.subjectAssignError, description: err?.data?.error });
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  async function handleRevokeSubject(id: string) {
+    if (!schoolId) return;
+    try {
+      await revokeTeacherSubject(schoolId, id);
+      await queryClient.invalidateQueries({ queryKey: ["schools", "teacher-subjects", schoolId] });
+      toast({ title: t.subjectRevoked });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: t.subjectAssignError, description: err?.data?.error });
+    }
+  }
 
   async function handleRoleChange(memberId: string, role: SchoolMemberRole) {
     if (!schoolId) return;
@@ -201,6 +242,74 @@ export default function SchoolMembersPage() {
           )}
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t.teacherSubjectsTitle}</CardTitle>
+            <p className="text-sm text-muted-foreground">{t.teacherSubjectsDescription}</p>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-muted-foreground">{t.memberColName}</label>
+                <Select value={assignTeacherId} onValueChange={setAssignTeacherId}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder={t.teacherSubjectsSelectTeacher} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teacherMembers.map((m) => (
+                      <SelectItem key={m.userId} value={m.userId}>{m.userName ?? m.userEmail ?? m.userId}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-muted-foreground">{t.teacherSubjectsSelectSubject}</label>
+                <Select value={assignSubject} onValueChange={setAssignSubject}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder={t.teacherSubjectsSelectSubject} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SCHOOL_SUBJECTS.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button size="sm" disabled={assigning || !assignTeacherId || !assignSubject} onClick={handleAssignSubject}>
+                {assigning && <Loader2 className="me-2 size-4 animate-spin" />}
+                {t.teacherSubjectsAssignButton}
+              </Button>
+            </div>
+
+            {!teacherSubjects || teacherSubjects.length === 0 ? (
+              <div className="flex h-16 items-center justify-center text-sm text-muted-foreground">{t.teacherSubjectsEmpty}</div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {teacherSubjects.map((row) => {
+                  const teacher = teacherMembers.find((m) => m.userId === row.teacherUserId);
+                  return (
+                    <Badge key={row.id} variant="outline" className="flex items-center gap-1.5 py-1 ps-2 pe-1 text-xs">
+                      <span>{teacher?.userName ?? teacher?.userEmail ?? row.teacherUserId}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span>{row.subject}</span>
+                      <button
+                        type="button"
+                        className="rounded-sm p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+                        title={t.teacherSubjectsRevokeButton}
+                        onClick={() => handleRevokeSubject(row.id)}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

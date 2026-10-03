@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Pencil, Trash2, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
@@ -13,7 +15,9 @@ import {
   deleteSchoolContentItem,
   getSchoolContentItem,
   getSchoolMe,
+  listTeacherSubjects,
   updateSchoolContentItem,
+  SCHOOL_SUBJECTS,
   type SchoolContentType,
 } from "@/lib/schools-api";
 import { FormulaBody } from "@/components/schools/FormulaBody";
@@ -36,17 +40,32 @@ export default function SchoolContentDetail() {
   });
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
   const canWrite = me?.role === "admin" || me?.role === "teacher";
+  const isAdmin = me?.role === "admin";
+  const schoolId = item?.schoolId ?? me?.schoolId ?? undefined;
+
+  // گیتِ موضوعی، همان منطقِ content-list.tsx: معلم فقط باید درس‌هایِ
+  // تخصیص‌داده‌شده‌ی خودش را در پیکرِ ویرایش ببیند.
+  const { data: myAssignments } = useQuery({
+    queryKey: ["schools", "teacher-subjects", schoolId, me?.userId],
+    queryFn: () => listTeacherSubjects(schoolId!, me!.userId),
+    enabled: !!schoolId && me?.role === "teacher",
+  });
+  const assignableSubjects: string[] = isAdmin
+    ? [...SCHOOL_SUBJECTS]
+    : Array.from(new Set((myAssignments ?? []).map((a) => a.subject)));
 
   usePrivatePageTitle(item?.title ?? "");
 
   const [editing, setEditing] = useState(false);
   const [body, setBody] = useState("");
+  const [subject, setSubject] = useState<string>("");
   const [imageUrl, setImageUrl] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (item) {
       setBody(item.body);
+      setSubject(item.subject ?? "");
       setImageUrl(item.imageUrl ?? "");
     }
   }, [item?.id]);
@@ -54,7 +73,7 @@ export default function SchoolContentDetail() {
   async function handleSave() {
     setSaving(true);
     try {
-      await updateSchoolContentItem(id, { body, imageUrl: imageUrl.trim() || null });
+      await updateSchoolContentItem(id, { body, subject: subject || null, imageUrl: imageUrl.trim() || null });
       await queryClient.invalidateQueries({ queryKey: ["schools", "content-item", id] });
       await queryClient.invalidateQueries({ queryKey: ["schools", "content", type] });
       setEditing(false);
@@ -80,6 +99,10 @@ export default function SchoolContentDetail() {
     return <Loader2 className="size-6 animate-spin" />;
   }
 
+  // گیتِ موضوعیِ UI: معلمی که درسِ این آیتم را ندارد، اصلاً دکمه‌ی
+  // ویرایش/حذف نمی‌بیند (سرور هم ۴۰۳ می‌دهد؛ این فقط UXِ بهتر است).
+  const canWriteThisItem = isAdmin || (!!item.subject && assignableSubjects.includes(item.subject));
+
   return (
     <div className="flex flex-col gap-4">
       <Button variant="ghost" size="sm" className="w-fit" onClick={() => navigate(`/schools/content/${type}`)}>
@@ -87,8 +110,11 @@ export default function SchoolContentDetail() {
       </Button>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{item.title}</CardTitle>
-          {canWrite && (
+          <div className="flex items-center gap-2">
+            <CardTitle>{item.title}</CardTitle>
+            {item.subject && <Badge variant="secondary" className="text-[10px]">{item.subject}</Badge>}
+          </div>
+          {canWrite && canWriteThisItem && (
             <div className="flex gap-2">
               <Button size="icon" variant="outline" onClick={() => setEditing((s) => !s)}>
                 <Pencil className="size-4" />
@@ -103,6 +129,19 @@ export default function SchoolContentDetail() {
           {editing ? (
             <div className="flex flex-col gap-3">
               <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} dir="auto" />
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm text-muted-foreground">{t.contentSubjectField}</label>
+                <Select value={subject} onValueChange={setSubject}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={t.contentSubjectPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assignableSubjects.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm text-muted-foreground">{t.contentImageUrlField}</label>
                 <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder={t.contentImageUrlPlaceholder} dir="ltr" />
