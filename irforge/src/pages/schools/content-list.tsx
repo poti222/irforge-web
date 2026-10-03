@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Loader2, Plus, TriangleAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
@@ -126,7 +127,22 @@ export default function SchoolContentList() {
         </div>
       </div>
 
-      {canWrite && showForm && (
+      {canWrite && showForm && !isAdmin && assignableSubjects.length === 0 && (
+        // گزارشِ کاربر («هنوز نمی‌توانم بخشِ افزودنِ لغت‌نامه را پیدا کنم»): یک
+        // معلمِ بدونِ هیچ تخصیصِ درسی (مثلاً هویتِ آزمایشیِ تازه‌ساخته‌شده، قبل
+        // از اصلاحِ فرمِ ساختِ آن در /super) فرمِ معمولی را می‌دید — پیکرِ درس
+        // خالی، دکمه‌ی ذخیره غیرفعال، فقط یک متنِ کوچکِ قرمز کنارِ پیکر که
+        // به‌راحتی از قلم می‌افتد. حالا به‌جایِ آن فرمِ نیمه‌غیرفعال، یک اعلانِ
+        // تمام‌عرض و غیرقابل‌نادیده‌گرفتن نشان داده می‌شود؛ خودِ دکمه‌ی «افزودن»
+        // دست‌نخورده می‌ماند تا معلم بداند نوشتن برایِ نقشش اصولاً ممکن است.
+        <Alert variant="destructive">
+          <TriangleAlert className="size-4" />
+          <AlertTitle>{t.contentNoSubjectAssignedTitle}</AlertTitle>
+          <AlertDescription>{t.contentNoSubjectAssigned}</AlertDescription>
+        </Alert>
+      )}
+
+      {canWrite && showForm && (isAdmin || assignableSubjects.length > 0) && (
         <Card>
           <CardContent className="flex flex-col gap-3 pt-4">
             <div className="flex flex-col gap-1.5">
@@ -145,9 +161,6 @@ export default function SchoolContentList() {
                   ))}
                 </SelectContent>
               </Select>
-              {!isAdmin && assignableSubjects.length === 0 && (
-                <p className="text-xs text-destructive">{t.contentNoSubjectAssigned}</p>
-              )}
             </div>
             {type === "dictionary" && (
               <div className="flex flex-col gap-1.5">
