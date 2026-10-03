@@ -43,6 +43,59 @@ async function isGuardianOf(parentUserId: string, studentMemberId: string) {
   return !!row;
 }
 
+/**
+ * مسیرِ مشترکِ صدورِ اخطار — هم POSTِ دستیِ همین فایل و هم اخطارِ خودکارِ
+ * «غیبتِ پیاپی» (فازِ ۱۰، بندِ ۱.۳؛ routes/schoolAttendance.ts) از همین تابع
+ * رد می‌شوند تا دوباره‌کاریِ مسیرِ اعلان/لاگ پیش نیاید — طبقِ اسپکِ صریحِ فاز.
+ */
+export async function issueSchoolStudentAlert(params: {
+  schoolId: string;
+  studentMemberId: string;
+  issuedByUserId: string;
+  severity: typeof SEVERITIES[number];
+  title: string;
+  body: string;
+}) {
+  const [row] = await db.insert(schoolStudentAlertsTable).values({
+    id: crypto.randomUUID(),
+    schoolId: params.schoolId,
+    studentMemberId: params.studentMemberId,
+    issuedByUserId: params.issuedByUserId,
+    severity: SEVERITIES.includes(params.severity) ? params.severity : "notice",
+    title: params.title,
+    body: params.body,
+  }).returning();
+
+  // فازِ ۷ (بخشِ C): خودِ دانش‌آموز + والدینِ او — درخواستِ صریحِ کاربر
+  // («اخطار/هشدارِ فرزند»). severity مدرسه به severity اعلانِ سایت هم
+  // نگاشت می‌شود (notice→info، warning→warning، serious→critical).
+  const [studentMember] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.id, row.studentMemberId)).limit(1);
+
+  // فازِ ۹ (بندِ ۳): لاگِ رخداد.
+  if (studentMember) {
+    const [u] = await db.select().from(usersTable).where(eq(usersTable.id, studentMember.userId)).limit(1);
+    await logSchoolAudit(params.schoolId, params.issuedByUserId, "alert.issued", `${u?.name ?? u?.email ?? studentMember.userId}: ${row.title}`);
+  }
+
+  const guardianRows = await db.select().from(schoolGuardianshipsTable).where(eq(schoolGuardianshipsTable.studentMemberId, row.studentMemberId));
+  const recipientUserIds = [
+    ...(studentMember ? [studentMember.userId] : []),
+    ...guardianRows.map((g: typeof guardianRows[number]) => g.parentUserId),
+  ];
+  if (recipientUserIds.length > 0) {
+    await notifySchoolUsers({
+      userIds: [...new Set(recipientUserIds)],
+      schoolId: params.schoolId,
+      kind: "school_student_alert",
+      severity: row.severity === "serious" ? "critical" : row.severity === "warning" ? "warning" : "info",
+      title: row.title,
+      body: row.body,
+    });
+  }
+
+  return row;
+}
+
 // POST /api/schools/:schoolId/alerts — فقط admin/deputy/deputy_discipline.
 router.post("/schools/:schoolId/alerts", requireAuth, async (req: any, res) => {
   try {
@@ -56,43 +109,14 @@ router.post("/schools/:schoolId/alerts", requireAuth, async (req: any, res) => {
       res.status(400).json({ error: "studentMemberId, title and body are required" });
       return;
     }
-    const [row] = await db.insert(schoolStudentAlertsTable).values({
-      id: crypto.randomUUID(),
+    const row = await issueSchoolStudentAlert({
       schoolId: req.params.schoolId,
       studentMemberId: studentMemberId.trim(),
       issuedByUserId: req.userId,
       severity: SEVERITIES.includes(severity) ? severity : "notice",
       title: title.trim(),
       body: body.trim(),
-    }).returning();
-
-    // فازِ ۷ (بخشِ C): خودِ دانش‌آموز + والدینِ او — درخواستِ صریحِ کاربر
-    // («اخطار/هشدارِ فرزند»). severity مدرسه به severity اعلانِ سایت هم
-    // نگاشت می‌شود (notice→info، warning→warning، serious→critical).
-    const [studentMember] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.id, row.studentMemberId)).limit(1);
-
-    // فازِ ۹ (بندِ ۳): لاگِ رخداد.
-    if (studentMember) {
-      const [u] = await db.select().from(usersTable).where(eq(usersTable.id, studentMember.userId)).limit(1);
-      await logSchoolAudit(req.params.schoolId, req.userId, "alert.issued", `${u?.name ?? u?.email ?? studentMember.userId}: ${row.title}`);
-    }
-
-    const guardianRows = await db.select().from(schoolGuardianshipsTable).where(eq(schoolGuardianshipsTable.studentMemberId, row.studentMemberId));
-    const recipientUserIds = [
-      ...(studentMember ? [studentMember.userId] : []),
-      ...guardianRows.map((g: typeof guardianRows[number]) => g.parentUserId),
-    ];
-    if (recipientUserIds.length > 0) {
-      await notifySchoolUsers({
-        userIds: [...new Set(recipientUserIds)],
-        schoolId: req.params.schoolId,
-        kind: "school_student_alert",
-        severity: row.severity === "serious" ? "critical" : row.severity === "warning" ? "warning" : "info",
-        title: row.title,
-        body: row.body,
-      });
-    }
-
+    });
     res.status(201).json(formatAlert(row));
   } catch (err) {
     logger.error({ err }, "Create student alert error");

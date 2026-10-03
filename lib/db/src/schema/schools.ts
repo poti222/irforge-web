@@ -28,6 +28,13 @@ export const schoolsTable = pgTable("schools", {
   licenseInfo: text("license_info"),
   /** کاربری که این مدرسه را ساخته (معمولاً مدیر) — بدون FK سخت، مطابق قراردادِ همین فایل‌ها (مثلاً `products.createdBy`). */
   createdByUserId: text("created_by_user_id").notNull(),
+  /**
+   * فازِ ۱۰ (بندِ ۱.۳): آستانه‌یِ غیبتِ پیاپی که اخطارِ خودکار صادر می‌کند —
+   * nullable تا مدارسِ قدیمی بدونِ مایگریشنِ backfill هم مقدارِ پیش‌فرض (۳) را
+   * در لایه‌ی اپلیکیشن بگیرند (`?? 3` در routes/schoolAttendance.ts)، نه یک
+   * ستونِ NOT NULL که یک UPDATE دسته‌جمعی لازم دارد.
+   */
+  consecutiveAbsenceAlertThreshold: integer("consecutive_absence_alert_threshold"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

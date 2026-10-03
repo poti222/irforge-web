@@ -10,13 +10,14 @@
 import { logger } from "../lib/logger";
 import { Router } from "express";
 import {
-  db, schoolAttendanceTable, schoolClassMembersTable, schoolMembersTable, schoolGuardianshipsTable, usersTable,
+  db, schoolAttendanceTable, schoolClassMembersTable, schoolMembersTable, schoolGuardianshipsTable, usersTable, schoolsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, lt, inArray, desc } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, SCHOOL_ADMIN_ONLY } from "../lib/schoolAuth";
 import { notifySchoolUsers } from "../lib/schoolNotify";
+import { issueSchoolStudentAlert } from "./schoolStudentAlerts";
 
 const router = Router();
 
@@ -59,6 +60,31 @@ async function myChildrenMemberIdsInSchool(parentUserId: string, schoolId: strin
   return members.filter((m: typeof members[number]) => m.schoolId === schoolId).map((m: typeof members[number]) => m.id);
 }
 
+const isAbsentLikeStatus = (s: string) => s === "absent" || s === "late";
+
+/**
+ * فازِ ۱۰ (بندِ ۱.۳): طولِ رشته‌ی غیبت/دیرحضورِ پیاپیِ یک دانش‌آموز در یک کلاس،
+ * تا و شاملِ `uptoDate`. تصمیم: «پیاپی» یعنی پیاپی در میانِ **ردیف‌هایِ
+ * ثبت‌شده‌یِ واقعی** (مرتب بر اساسِ تاریخ، نزولی) — نه روزهایِ تقویمی؛ وگرنه
+ * هر آخرهفته/تعطیلیِ ثبت‌نشده رشته را قطع می‌کرد که برایِ یک مدرسه‌ی واقعی
+ * بی‌معنا است. اولین ردیفِ «حاضر» رشته را متوقف می‌کند.
+ */
+async function consecutiveAbsenceStreak(classId: string, studentMemberId: string, uptoDate: string): Promise<number> {
+  const rows = await db.select().from(schoolAttendanceTable)
+    .where(and(
+      eq(schoolAttendanceTable.classId, classId),
+      eq(schoolAttendanceTable.studentMemberId, studentMemberId),
+      lte(schoolAttendanceTable.date, uptoDate),
+    ));
+  rows.sort((a: typeof rows[number], b: typeof rows[number]) => (a.date < b.date ? 1 : -1));
+  let streak = 0;
+  for (const r of rows) {
+    if (isAbsentLikeStatus(r.status)) streak++;
+    else break;
+  }
+  return streak;
+}
+
 // POST /api/schools/:schoolId/attendance — نشانه‌گذاریِ دسته‌جمعی: { classId, date, entries: [{studentMemberId, status, note?}] }
 router.post("/schools/:schoolId/attendance", requireAuth, async (req: any, res) => {
   try {
@@ -72,7 +98,7 @@ router.post("/schools/:schoolId/attendance", requireAuth, async (req: any, res) 
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const isAbsentLike = (s: string) => s === "absent" || s === "late";
+    const isAbsentLike = isAbsentLikeStatus;
 
     // فازِ ۸: بجایِ اعتماد به وضعیتِ تازه‌ی هر ردیف، وضعیت/یادداشتِ قبلی را هم
     // نگه می‌داریم تا سه حالت را از هم تشخیص دهیم — نشانه‌گذاریِ اولیه‌ی غیبت،
@@ -198,9 +224,117 @@ router.post("/schools/:schoolId/attendance", requireAuth, async (req: any, res) 
       }
     }
 
+    // فازِ ۱۰ (بندِ ۱.۳): اخطارِ خودکارِ «غیبتِ پیاپی» — روی هر ردیفی که بعدِ
+    // این درخواست غایب/دیرحاضر ماند (نه فقط newAbsences، چون یک روزِ میانیِ
+    // یک رشته‌یِ قبلاً شروع‌شده هم باید چک شود)، طولِ رشته را از همین تاریخ به
+    // عقب می‌شماریم. برایِ این‌که این اخطار دوباره‌و‌دوباره برایِ همان رشته
+    // صادر نشود، فقط دقیقاً در لحظه‌ی «عبور از آستانه» (streak === threshold)
+    // صادر می‌شود، نه هر روزی که streak >= threshold بماند.
+    const stillAbsentRows = results.filter((r) => isAbsentLike(r.status));
+    if (stillAbsentRows.length > 0) {
+      const [school] = await db.select().from(schoolsTable).where(eq(schoolsTable.id, req.params.schoolId)).limit(1);
+      const threshold = school?.consecutiveAbsenceAlertThreshold ?? 3;
+      if (threshold > 0) {
+        for (const row of stillAbsentRows) {
+          const streak = await consecutiveAbsenceStreak(classId, row.studentMemberId, row.date);
+          if (streak !== threshold) continue;
+          const [studentMember] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.id, row.studentMemberId)).limit(1);
+          const studentUser = studentMember ? (await db.select().from(usersTable).where(eq(usersTable.id, studentMember.userId)).limit(1))[0] : undefined;
+          const name = studentUser?.name ?? "دانش‌آموز";
+          await issueSchoolStudentAlert({
+            schoolId: req.params.schoolId,
+            studentMemberId: row.studentMemberId,
+            issuedByUserId: req.userId,
+            severity: "warning",
+            title: `غیبتِ پیاپیِ ${name}`,
+            body: `${name} به‌مدتِ ${streak} روزِ پیاپی غایب/دیرحاضر بوده است (آخرین روز: ${row.date}).`,
+          });
+        }
+      }
+    }
+
     res.status(200).json(results.map(formatAttendance));
   } catch (err) {
     logger.error({ err }, "Mark attendance error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/schools/:schoolId/attendance/previous-date?classId=&before= — نزدیک‌ترین تاریخِ ثبت‌شده‌ی قبل از `before` برای این کلاس؛
+// برایِ دکمه‌ی «کپی از روز قبل» در فرانت (معلم همان تاریخ را به‌عنوانِ پیش‌فرضِ وضعیت/یادداشتِ امروز می‌گیرد، نه ارسالِ خودکار).
+router.get("/schools/:schoolId/attendance/previous-date", requireAuth, async (req: any, res) => {
+  try {
+    const classId = typeof req.query.classId === "string" ? req.query.classId : undefined;
+    const before = typeof req.query.before === "string" ? req.query.before : undefined;
+    if (!classId || !before) {
+      res.status(400).json({ error: "classId and before are required" });
+      return;
+    }
+    const { ok } = await canMarkClass(req.userId, req.params.schoolId, classId);
+    if (!ok) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const [row] = await db.select({ date: schoolAttendanceTable.date }).from(schoolAttendanceTable)
+      .where(and(eq(schoolAttendanceTable.classId, classId), lt(schoolAttendanceTable.date, before)))
+      .orderBy(desc(schoolAttendanceTable.date))
+      .limit(1);
+    res.json(row ? { date: row.date } : null);
+  } catch (err) {
+    logger.error({ err }, "Get previous attendance date error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/schools/:schoolId/attendance/export?classId=&from=&to= — خروجیِ CSV (نام دانش‌آموز، تاریخ، وضعیت، یادداشت).
+// معلمِ همان کلاس یا مدیر/معاون/معاونِ‌انضباطی — دقیقاً همان مجوزِ GET لیستِ معمولی.
+router.get("/schools/:schoolId/attendance/export", requireAuth, async (req: any, res) => {
+  try {
+    const classId = typeof req.query.classId === "string" ? req.query.classId : undefined;
+    if (!classId) {
+      res.status(400).json({ error: "classId is required" });
+      return;
+    }
+    const { ok } = await canMarkClass(req.userId, req.params.schoolId, classId);
+    if (!ok) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const conditions = [eq(schoolAttendanceTable.classId, classId)];
+    const from = typeof req.query.from === "string" ? req.query.from : undefined;
+    const to = typeof req.query.to === "string" ? req.query.to : undefined;
+    if (from) conditions.push(gte(schoolAttendanceTable.date, from));
+    if (to) conditions.push(lte(schoolAttendanceTable.date, to));
+    const rows = await db.select().from(schoolAttendanceTable).where(and(...conditions));
+    rows.sort((a: typeof rows[number], b: typeof rows[number]) => (a.date < b.date ? -1 : 1));
+
+    const memberIds = [...new Set(rows.map((r: typeof rows[number]) => r.studentMemberId))];
+    const members = memberIds.length ? await db.select().from(schoolMembersTable).where(inArray(schoolMembersTable.id, memberIds)) : [];
+    const userIds = members.map((m: typeof members[number]) => m.userId);
+    const users = userIds.length ? await db.select().from(usersTable).where(inArray(usersTable.id, userIds)) : [];
+    const nameByMemberId = new Map(members.map((m: typeof members[number]) => {
+      const u = users.find((x: typeof users[number]) => x.id === m.userId);
+      return [m.id, u?.name ?? u?.email ?? m.id];
+    }));
+
+    // اسکیپِ استانداردِ CSV: اگر مقدار شاملِ کاما/گیومه/خطِ‌جدید باشد، داخلِ
+    // گیومه می‌رود و خودِ گیومه‌ها دوبرابر می‌شوند — وگرنه یادداشتی مثلِ
+    // `"سرماخوردگی، تب بالا"` خودِ فایلِ CSV را خراب می‌کند.
+    const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const header = ["student", "date", "status", "note"].join(",");
+    const lines = rows.map((r: typeof rows[number]) => [
+      esc(nameByMemberId.get(r.studentMemberId) ?? r.studentMemberId),
+      r.date,
+      r.status,
+      esc(r.note ?? ""),
+    ].join(","));
+    const csv = "﻿" + [header, ...lines].join("\n");
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="attendance-${classId}.csv"`);
+    res.status(200).send(csv);
+  } catch (err) {
+    logger.error({ err }, "Export attendance CSV error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

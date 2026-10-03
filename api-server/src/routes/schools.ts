@@ -64,6 +64,8 @@ function formatSchool(s: typeof schoolsTable.$inferSelect) {
     photoUrl: s.photoUrl,
     city: s.city,
     licenseInfo: s.licenseInfo,
+    /** فازِ ۱۰ (بندِ ۱.۳) */
+    consecutiveAbsenceAlertThreshold: s.consecutiveAbsenceAlertThreshold,
     createdByUserId: s.createdByUserId,
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
@@ -315,12 +317,19 @@ router.patch("/schools/:id", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolAdmin(req, res, req.params.id);
     if (!allowed) return;
-    const { name, address, city, licenseInfo } = req.body ?? {};
+    const { name, address, city, licenseInfo, consecutiveAbsenceAlertThreshold } = req.body ?? {};
     const patch: Record<string, unknown> = {};
     if (name !== undefined) patch.name = name;
     if (address !== undefined) patch.address = address;
     if (city !== undefined) patch.city = city;
     if (licenseInfo !== undefined) patch.licenseInfo = licenseInfo;
+    // فازِ ۱۰ (بندِ ۱.۳): آستانه‌یِ اخطارِ غیبتِ پیاپی — فقط عددِ صحیحِ مثبت یا
+    // null (یعنی «پیش‌فرضِ ۳ در لایه‌ی اپلیکیشن») پذیرفته می‌شود.
+    if (consecutiveAbsenceAlertThreshold !== undefined) {
+      patch.consecutiveAbsenceAlertThreshold = consecutiveAbsenceAlertThreshold === null
+        ? null
+        : Math.max(1, Math.trunc(Number(consecutiveAbsenceAlertThreshold)) || 3);
+    }
     const [updated] = await db.update(schoolsTable).set(patch).where(eq(schoolsTable.id, req.params.id)).returning();
     if (!updated) {
       res.status(404).json({ error: "School not found" });
