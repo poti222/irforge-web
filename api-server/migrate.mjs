@@ -1395,6 +1395,14 @@ ALTER TABLE school_exams ADD COLUMN IF NOT EXISTS randomize_order BOOLEAN NOT NU
 ALTER TABLE school_exam_attempts ADD COLUMN IF NOT EXISTS answer_breakdown JSONB;
 ALTER TABLE school_exam_attempts ADD COLUMN IF NOT EXISTS question_order JSONB;
 
+-- ─── /super (گیتِ رمز + داشبوردِ یکجایِ سوپرادمین + هویت‌هایِ آزمایشی) ──────
+-- مایگریشنِ ۰۰۳۹ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
+-- حساب‌های آزمایشی کاملاً جدا از جعلِ هویتِ read-only (middleware/impersonation.ts)
+-- هستند — نگاه کن توضیحِ ستون در lib/db/src/schema/users.ts.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_platform_test_account BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS created_by_user_id TEXT;
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS is_test_school BOOLEAN NOT NULL DEFAULT false;
+
 -- ─── SCHEMA MIGRATIONS ────────────────────────────────────────────────────
 -- IRFORGE_RIAL_MIGRATION Phase 2. This runtime script is otherwise entirely
 -- idempotent (CREATE TABLE IF NOT EXISTS / ALTER ... ADD COLUMN IF NOT

@@ -35,6 +35,14 @@ export const schoolsTable = pgTable("schools", {
    * ستونِ NOT NULL که یک UPDATE دسته‌جمعی لازم دارد.
    */
   consecutiveAbsenceAlertThreshold: integer("consecutive_absence_alert_threshold"),
+  /**
+   * `/super` — مدرسه‌یِ آزمایشیِ پلتفرم (بخشِ "Test Identities"): برایِ سناریوهایی
+   * که سوپرادمین نمی‌خواهد داخلِ یک مدرسه‌یِ واقعی تست کند، یک مدرسه‌یِ یک‌بارمصرف
+   * با اعضایِ مصنوعی می‌سازد. فقط برایِ پیداکردن/پاکسازیِ دسته‌جمعی‌اش استفاده
+   * می‌شود — همه‌یِ منطقِ عادیِ "/schools" رویِ این مدرسه هم بدونِ هیچ شرطِ خاصی
+   * اجرا می‌شود (مدرسه‌ای مثلِ هر مدرسه‌یِ دیگر است، فقط با یک برچسب).
+   */
+  isTestSchool: boolean("is_test_school").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
