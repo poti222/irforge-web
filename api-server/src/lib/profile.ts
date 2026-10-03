@@ -64,9 +64,21 @@ type UserLike = Pick<
   | "platformUsername"
   | "passwordHash"
   | "oauthProvider"
+  | "isPlatformTestAccount"
 >;
 
 export function checkProfile(user: UserLike): ProfileCheck {
+  // «/super» هویت‌هایِ آزمایشی — کل هدفشان این بود که بدون هیچ فرمی مستقیم
+  // داشبوردِ نقش را ببینند (testIdentities.ts کامنت می‌کند: «این حساب هرگز
+  // از ویزاردِ هویتِ سراسری رد نمی‌شود»)، ولی این دروازه زنده با چک‌کردنِ
+  // phone/telegramId/telegramUsername/gender/platformUsername روی هر
+  // درخواست دوباره محاسبه می‌شد و آن پرچمِ profileComplete=true که در زمانِ
+  // ساخت ست شده بود را نادیده می‌گرفت — یعنی وارد شدن با هویتِ آزمایشی همیشه
+  // به /complete-profile پرت می‌شد. این حساب‌ها هرگز از این فیلدها استفاده
+  // نمی‌کنند (بات تلگرام ندارند، شماره‌یِ واقعی ندارند) پس مستقیم معاف‌اند.
+  if (user.isPlatformTestAccount) {
+    return { complete: true, missing: [], onlyUsernameMissing: false };
+  }
   const missing: ProfileField[] = [];
 
   // نام کامل به دو بخش تقسیم می‌شود؛ ستون `name` یک رشته‌ی واحد است.

@@ -198,6 +198,10 @@ export type User = typeof usersTable.$inferSelect;
  * را ثابت نمی‌کند — oauthProvider همان تمایز را می‌دهد.
  */
 export function computeProfileComplete(user: Partial<User>): boolean {
+  // باید دقیقاً با معافیتِ isPlatformTestAccount در checkProfile() یکی بماند
+  // (ببینید api-server/src/lib/profile.ts) — هویت‌های آزمایشیِ "/super" هرگز
+  // از ویزاردِ هویتِ سراسری رد نمی‌شوند.
+  if (user.isPlatformTestAccount) return true;
   const hasPassword = Boolean(user.passwordHash) || Boolean(user.oauthProvider);
   const nameParts = (user.name ?? "").trim().split(/\s+/).filter(Boolean);
   return Boolean(
