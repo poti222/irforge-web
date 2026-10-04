@@ -97,6 +97,50 @@ async function buildStudentGrades(studentMemberId: string, classId?: string): Pr
   return { items, average };
 }
 
+/**
+ * نسخه‌ی دسته‌ایِ buildStudentGrades برایِ «نمره‌نامه‌ی کلاس» — همان محاسبه،
+ * فقط برایِ همه‌یِ دانش‌آموزانِ روستر با **۴ کوئری ثابت** به‌جایِ ۴ کوئری
+ * به‌ازایِ هر دانش‌آموز (N+1 — روی یک کلاسِ ۳۰نفره یعنی ۱۲۰ کوئری در هر بازِ
+ * صفحه، دقیقاً همان کلاسِ باگِ عملکردی که دورِ دیباگ دنبالش بود).
+ */
+async function buildClassGrades(studentMemberIds: string[], classId?: string) {
+  const [submissions, attempts] = await Promise.all([
+    db.select().from(schoolAssignmentSubmissionsTable).where(inArray(schoolAssignmentSubmissionsTable.studentMemberId, studentMemberIds)),
+    db.select().from(schoolExamAttemptsTable).where(inArray(schoolExamAttemptsTable.studentMemberId, studentMemberIds)),
+  ]);
+  const assignmentIds = [...new Set(submissions.map((s: typeof submissions[number]) => s.assignmentId))];
+  const examIds = [...new Set(attempts.map((a: typeof attempts[number]) => a.examId))];
+  const [assignments, exams] = await Promise.all([
+    assignmentIds.length ? db.select().from(schoolAssignmentsTable).where(inArray(schoolAssignmentsTable.id, assignmentIds)) : Promise.resolve([]),
+    examIds.length ? db.select().from(schoolExamsTable).where(inArray(schoolExamsTable.id, examIds)) : Promise.resolve([]),
+  ]);
+  const assignmentMap = new Map(assignments.map((a: typeof assignments[number]) => [a.id, a]));
+  const examMap = new Map(exams.map((e: typeof exams[number]) => [e.id, e]));
+
+  const itemsByStudent = new Map<string, GradeItem[]>();
+  for (const s of submissions) {
+    const a = assignmentMap.get(s.assignmentId);
+    if (!a || (classId && a.classId !== classId)) continue;
+    const list = itemsByStudent.get(s.studentMemberId) ?? [];
+    list.push({ itemType: "assignment", itemId: a.id, itemTitle: a.title, classId: a.classId, value: s.grade });
+    itemsByStudent.set(s.studentMemberId, list);
+  }
+  for (const at of attempts) {
+    const e = examMap.get(at.examId);
+    if (!e || (classId && e.classId !== classId)) continue;
+    const list = itemsByStudent.get(at.studentMemberId) ?? [];
+    list.push({ itemType: "exam", itemId: e.id, itemTitle: e.title, classId: e.classId, value: at.score });
+    itemsByStudent.set(at.studentMemberId, list);
+  }
+
+  return studentMemberIds.map((studentMemberId) => {
+    const items = itemsByStudent.get(studentMemberId) ?? [];
+    const numericValues = items.map((i) => toNumeric(i.value)).filter((v): v is number => v !== null);
+    const average = numericValues.length ? numericValues.reduce((sum, v) => sum + v, 0) / numericValues.length : null;
+    return { studentMemberId, items, average };
+  });
+}
+
 // GET /api/schools/:schoolId/gradebook/class/:classId — معلمِ همان کلاس یا مدیر: نمره‌هایِ همه‌یِ دانش‌آموزانِ کلاس.
 router.get("/schools/:schoolId/gradebook/class/:classId", requireAuth, async (req: any, res) => {
   try {
@@ -107,11 +151,9 @@ router.get("/schools/:schoolId/gradebook/class/:classId", requireAuth, async (re
     }
     const roster = await db.select().from(schoolClassMembersTable)
       .where(and(eq(schoolClassMembersTable.classId, req.params.classId), eq(schoolClassMembersTable.roleInClass, "student")));
-    const result = [];
-    for (const r of roster) {
-      const { items, average } = await buildStudentGrades(r.schoolMemberId, req.params.classId);
-      result.push({ studentMemberId: r.schoolMemberId, items, average });
-    }
+    const result = roster.length
+      ? await buildClassGrades(roster.map((r: typeof roster[number]) => r.schoolMemberId), req.params.classId)
+      : [];
     res.json(result);
   } catch (err) {
     logger.error({ err }, "Get class gradebook error");
