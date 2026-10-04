@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "wouter";
 import { PublicFooter } from "@/components/layout/public-footer";
 import { PublicPageControls } from "@/components/layout/public-page-controls";
+import { BuildBotCta } from "@/components/learn/BuildBotCta";
 import { ChevronDown, Clock, Send, ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -119,6 +120,9 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
             {t.readingTime.replace("{n}", String(minutes))}
           </span>
         </p>
+        {/* On screen before any scrolling: the point of the page is that the reader
+            goes and builds the bot. A second one closes the page below. */}
+        <BuildBotCta />
         <p className="text-lg leading-relaxed">{article.lead}</p>
       </header>
 
@@ -260,16 +264,16 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
         </section>
       )}
 
-      <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed p-6 sm:flex-row sm:items-center sm:justify-between">
+      <section className="space-y-4 rounded-2xl border border-primary/30 bg-primary/5 p-6">
         <div className="space-y-1">
-          <p className="font-semibold">{t.ctaTitle}</p>
+          <h2 className="text-xl font-semibold">{t.ctaTitle}</h2>
           <p className="text-sm text-muted-foreground">{t.ctaBody}</p>
         </div>
-        <div className="flex shrink-0 gap-2">
-          <Button asChild><Link href="/register">{t.ctaButton}</Link></Button>
-          <Button asChild variant="outline"><Link href="/pricing">{t.ctaPricing}</Link></Button>
-        </div>
-      </div>
+        <BuildBotCta showNote={false} className="border-0 bg-transparent p-0 sm:justify-start sm:p-0" />
+        <Button asChild variant="link" className="h-auto p-0">
+          <Link href="/pricing">{t.ctaPricing}</Link>
+        </Button>
+      </section>
 
       <Button variant="ghost" size="sm" asChild className="-ms-2">
         <Link href="/learn">

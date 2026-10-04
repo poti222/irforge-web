@@ -723,7 +723,7 @@
     "channelCta": "Kanalı aç",
     "ctaTitle": "Botunuzu IrForge ile kurun",
     "ctaBody": "Bot oluşturun, komut ekleyin, verinizi bağlayın — kod yazmadan.",
-    "ctaButton": "Hemen başlayın",
+    "ctaButton": "Kendi botunu yap",
     "ctaPricing": "Fiyatları gör",
     "backToHub": "Tüm rehberler",
     "articles": {
@@ -1684,7 +1684,9 @@
         "nextTitle": "Sonraki adım",
         "next": "Henüz botunuz yoksa [Telegram botu nasıl yapılır](/learn/how-to-make-a-telegram-bot) rehberini izleyin. Kullanıcıları bota geri getiren bir menü için [menüler ve satır içi düğmeler](/learn/telegram-bot-menu-buttons) yazısına bakın; satış yapıyorsanız indirim mesajlarının doğal yeri [mağaza botu](/learn/telegram-shop-bot)."
       }
-    }
+    },
+    "topCtaButton": "Kendi botunu yap",
+    "topCtaNote": "7 gün ücretsiz dene — kodsuz, sunucusuz."
   },
   "pricing": {
     "title": "IrForge fiyatlandırma",
@@ -3962,7 +3964,7 @@
     "contactInstagram": "Instagram",
     "ctaTitle": "İlk botunuzu yapmaya hazır mısınız?",
     "ctaBody": "7 gün ücretsiz deneyin — kodsuz, sunucusuz.",
-    "ctaButton": "Başlayın",
+    "ctaButton": "Kendi botunu yap",
     "ctaPricing": "Fiyatları gör"
   }
 }

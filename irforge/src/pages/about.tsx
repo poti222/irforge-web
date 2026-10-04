@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Instagram, Send } from "lucide-react";
 import { PublicFooter } from "@/components/layout/public-footer";
 import { PublicPageControls } from "@/components/layout/public-page-controls";
+import { BuildBotCta } from "@/components/learn/BuildBotCta";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { RichText } from "@/pages/learn/ArticleLayout";
@@ -45,6 +46,7 @@ export default function About() {
 
         <header className="space-y-4">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{t.h1}</h1>
+          <BuildBotCta />
           <p className="text-lg leading-relaxed">{t.lead}</p>
         </header>
 

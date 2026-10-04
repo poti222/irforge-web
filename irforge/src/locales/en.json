@@ -723,7 +723,7 @@
     "channelCta": "Open the channel",
     "ctaTitle": "Build your bot with IrForge",
     "ctaBody": "Create a bot, add commands and connect your data — no code required.",
-    "ctaButton": "Get started",
+    "ctaButton": "Build your own bot",
     "ctaPricing": "See pricing",
     "backToHub": "All guides",
     "articles": {
@@ -1684,7 +1684,9 @@
         "nextTitle": "Next step",
         "next": "If you have no bot yet, follow [how to make a Telegram bot](/learn/how-to-make-a-telegram-bot). For a menu that brings users back to the bot, see [menus and inline buttons](/learn/telegram-bot-menu-buttons); and if you sell, a [shop bot](/learn/telegram-shop-bot) is the natural home for discount messages."
       }
-    }
+    },
+    "topCtaButton": "Build your own bot",
+    "topCtaNote": "Try it free for 7 days — no code, no servers."
   },
   "pricing": {
     "title": "IrForge pricing",
@@ -4377,7 +4379,7 @@
     "contactInstagram": "Instagram",
     "ctaTitle": "Ready to build your first bot?",
     "ctaBody": "Try it free for 7 days — no coding, no servers.",
-    "ctaButton": "Get started",
+    "ctaButton": "Build your own bot",
     "ctaPricing": "See pricing"
   }
 }

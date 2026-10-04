@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { PublicFooter } from "@/components/layout/public-footer";
 import { PublicPageControls } from "@/components/layout/public-page-controls";
+import { BuildBotCta } from "@/components/learn/BuildBotCta";
 import { BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/hooks/use-language";
@@ -43,6 +44,7 @@ export default function LearnHub() {
           <BookOpen className="size-7 shrink-0" aria-hidden="true" />
           {t.hubTitle}
         </h1>
+        <BuildBotCta />
         <p className="text-lg leading-relaxed text-muted-foreground">{t.hubIntro}</p>
       </header>
 

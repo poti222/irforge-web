@@ -163,3 +163,16 @@ test("ادعاهای پشتیبانی‌نشده در متن‌های عمومی
     }
   }
 });
+
+test("دکمه‌ی «بات خودت را بساز» در هر پنج زبان متن دارد و ArticleLayout آن را هم بالا و هم پایین می‌گذارد", () => {
+  for (const lang of LANGS) {
+    for (const key of ["topCtaButton", "topCtaNote", "ctaTitle", "ctaPricing"]) {
+      assert.ok(locales[lang].learn[key]?.trim(), `${lang}: learn.${key} خالی است`);
+    }
+  }
+  const layout = readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/pages/learn/ArticleLayout.tsx"), "utf-8");
+  const uses = (layout.match(/<BuildBotCta\b/g) ?? []).length;
+  assert.ok(uses >= 2, `ArticleLayout باید BuildBotCta را حداقل دوبار (زیر عنوان و انتهای صفحه) بگذارد؛ ${uses} بار دارد`);
+  // بالای صفحه = قبل از lead، یعنی بدون اسکرول دیده می‌شود
+  assert.ok(layout.indexOf("<BuildBotCta />") < layout.indexOf("{article.lead}"), "دکمه‌ی بالا باید قبل از lead بیاید");
+});
