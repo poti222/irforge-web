@@ -170,6 +170,74 @@ router.post("/schools/content", requireAuth, async (req: any, res) => {
   }
 });
 
+/**
+ * POST /api/schools/:schoolId/content/bulk — افزودنِ دسته‌ایِ چند آیتم با یک
+ * درخواست (طبقِ گزارشِ مستقیمِ کاربر: «به‌جایِ یکی‌یکی، چند خط با هم»).
+ * فقط برایِ یک `lessonId` واقعی (نه «بدونِ‌درس») — چون subject از خودِ درس
+ * گرفته می‌شود، دقیقاً همان منطقِ POST تکی بالا؛ اینجا هم عمداً از همان
+ * `canWrite()` استفاده شده (نه یک گیتِ موازیِ جدا) تا این مسیر هرگز راهِ
+ * دورزدنِ گیتِ موضوعی نشود.
+ *
+ * چرا یک insert با آرایه به‌جایِ N تا درخواست/insert؟ هم کارآمدتر است، هم
+ * atomic (یا همه یا هیچ) — تجربه‌یِ معلمی که ۲۰ واژه پیست می‌کند نباید با
+ * نیمه‌کاره‌ماندنِ درخواست (مثلاً قطعِ شبکه در میانه‌ی N درخواست) به یک
+ * نتیجه‌یِ نامشخص برسد.
+ */
+router.post("/schools/:schoolId/content/bulk", requireAuth, async (req: any, res) => {
+  try {
+    const schoolId = req.params.schoolId;
+    const { lessonId, type, entries } = req.body ?? {};
+    if (!type || !(SCHOOL_CONTENT_TYPES as readonly string[]).includes(type)) {
+      res.status(400).json({ error: "Invalid type" });
+      return;
+    }
+    if (!lessonId || typeof lessonId !== "string") {
+      res.status(400).json({ error: "lessonId is required" });
+      return;
+    }
+    if (!Array.isArray(entries) || entries.length === 0) {
+      res.status(400).json({ error: "entries is required" });
+      return;
+    }
+    const [lesson] = await db.select().from(schoolContentLessonsTable).where(eq(schoolContentLessonsTable.id, lessonId)).limit(1);
+    if (!lesson || lesson.schoolId !== schoolId) {
+      res.status(400).json({ error: "Invalid lessonId" });
+      return;
+    }
+    // همان گیتِ موضوعیِ POST تکی — subject از خودِ درس، نه از ورودیِ کاربر.
+    const check = await canWrite(req.userId, schoolId, lesson.subject);
+    if (!check.ok) {
+      res.status(check.status).json({ error: check.error });
+      return;
+    }
+    // دفاعی: حتی اگر فرانت پیش از ارسال خط‌هایِ ناقص را فیلتر کرده، سرور هم
+    // دوباره چک می‌کند — کلاینت هرگز منبعِ اعتماد نیست.
+    const valid = (entries as any[])
+      .filter((e) => e && typeof e.title === "string" && e.title.trim() && typeof e.body === "string" && e.body.trim())
+      .map((e) => ({
+        id: crypto.randomUUID(),
+        schoolId,
+        type,
+        title: String(e.title).trim(),
+        body: String(e.body).trim(),
+        language: null,
+        subject: lesson.subject,
+        imageUrl: null,
+        lessonId,
+        createdByUserId: req.userId,
+      }));
+    if (valid.length === 0) {
+      res.status(400).json({ error: "No valid entries" });
+      return;
+    }
+    const created = await db.insert(schoolContentItemsTable).values(valid).returning();
+    res.status(201).json(created.map(formatItem));
+  } catch (err) {
+    logger.error({ err }, "Bulk create school content error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // PATCH /api/schools/content/:id — فقط admin/teacher، و معلم فقط در درسِ (فعلی/جدیدِ) تخصیص‌داده‌شده‌اش
 router.patch("/schools/content/:id", requireAuth, async (req: any, res) => {
   try {
