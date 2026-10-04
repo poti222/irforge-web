@@ -20,31 +20,56 @@ export interface ArticleFaq {
   a: string;
 }
 
+/**
+ * A free-form chapter: an <h2>, some paragraphs and an optional bullet list.
+ *
+ * The step-by-step fields below suit "how do I do X" guides; explanatory
+ * pages ("what is a Telegram bot", "how to choose a builder") are not
+ * sequences, and forcing them into numbered steps would be dishonest
+ * structure. `sections` renders between the outcome and the step list.
+ */
+export interface ArticleSection {
+  h2: string;
+  body?: string[];
+  items?: string[];
+}
+
 export interface ArticleContent {
   /** the <h1>; carries this language's primary target phrase */
   h1: string;
   /** opening paragraph — the primary phrase belongs in the first 100 words */
   lead: string;
-  outcomeTitle: string;
-  outcome: string;
-  prereqTitle: string;
-  prereqs: string[];
-  stepsTitle: string;
-  steps: ArticleStep[];
-  mistakesTitle: string;
-  mistakes: string[];
-  faqTitle: string;
-  faq: ArticleFaq[];
-  nextTitle: string;
-  next: string;
+  outcomeTitle?: string;
+  outcome?: string;
+  /** free-form chapters, rendered after the outcome — see ArticleSection */
+  sections?: ArticleSection[];
+  prereqTitle?: string;
+  prereqs?: string[];
+  stepsTitle?: string;
+  steps?: ArticleStep[];
+  mistakesTitle?: string;
+  mistakes?: string[];
+  faqTitle?: string;
+  faq?: ArticleFaq[];
+  nextTitle?: string;
+  next?: string;
 }
 
+/**
+ * Order is reading order: it drives the /learn hub list, the footer and the
+ * hub's ItemList schema — from "what is it" through "build it" and "sell with
+ * it" to reference material.
+ */
 export const ARTICLE_SLUGS = [
-  "telegram-bot-token",
+  "what-is-a-telegram-bot",
   "how-to-make-a-telegram-bot",
+  "telegram-bot-token",
+  "telegram-bot-without-coding",
+  "choose-a-telegram-bot-builder",
   "telegram-shop-bot",
   "telegram-support-bot",
-  "telegram-bot-without-coding",
+  "telegram-bot-menu-buttons",
+  "telegram-bot-broadcast",
   "telegram-bot-google-sheets",
   "telegram-bot-cost",
   "botfather-commands",
@@ -58,6 +83,7 @@ export const HOWTO_SLUGS: readonly ArticleSlug[] = [
   "telegram-bot-token",
   "how-to-make-a-telegram-bot",
   "botfather-commands",
+  "telegram-bot-menu-buttons",
 ];
 
 /**
@@ -69,13 +95,17 @@ export const HOWTO_SLUGS: readonly ArticleSlug[] = [
  * an article's copy actually changes.
  */
 export const ARTICLE_DATES: Record<ArticleSlug, { published: string; modified: string }> = {
+  "what-is-a-telegram-bot": { published: "2026-10-04", modified: "2026-10-04" },
   "telegram-bot-token": { published: "2026-08-10", modified: "2026-08-10" },
-  "how-to-make-a-telegram-bot": { published: "2026-08-10", modified: "2026-08-10" },
-  "telegram-shop-bot": { published: "2026-08-10", modified: "2026-08-10" },
-  "telegram-support-bot": { published: "2026-08-10", modified: "2026-08-10" },
-  "telegram-bot-without-coding": { published: "2026-08-10", modified: "2026-08-10" },
-  "telegram-bot-google-sheets": { published: "2026-08-10", modified: "2026-08-10" },
-  "telegram-bot-cost": { published: "2026-08-10", modified: "2026-08-10" },
+  "how-to-make-a-telegram-bot": { published: "2026-08-10", modified: "2026-10-04" },
+  "choose-a-telegram-bot-builder": { published: "2026-10-04", modified: "2026-10-04" },
+  "telegram-shop-bot": { published: "2026-08-10", modified: "2026-10-04" },
+  "telegram-support-bot": { published: "2026-08-10", modified: "2026-10-04" },
+  "telegram-bot-menu-buttons": { published: "2026-10-04", modified: "2026-10-04" },
+  "telegram-bot-broadcast": { published: "2026-10-04", modified: "2026-10-04" },
+  "telegram-bot-without-coding": { published: "2026-08-10", modified: "2026-10-04" },
+  "telegram-bot-google-sheets": { published: "2026-08-10", modified: "2026-10-04" },
+  "telegram-bot-cost": { published: "2026-08-10", modified: "2026-10-04" },
   "botfather-commands": { published: "2026-08-10", modified: "2026-08-10" },
   "telegram-bot-webhook-vs-polling": { published: "2026-08-10", modified: "2026-08-10" },
 };
@@ -84,8 +114,19 @@ export const ARTICLE_DATES: Record<ArticleSlug, { published: string; modified: s
  * Related articles per slug — at least three each, so every article is a real
  * hub node rather than a dead end. A new hub only gets crawled if its pages
  * link to each other; this map is what makes that true by construction.
+ *
+ * Shape of the cluster: "what is a bot" and "how to make one" are the entry
+ * points; the use-case guides (shop, support, buttons, broadcast) hang off
+ * them; cost / choose-a-builder serve the buying-comparison intent and link
+ * back to the no-code guide and the shop guide.
  */
 export const RELATED: Record<ArticleSlug, ArticleSlug[]> = {
+  "what-is-a-telegram-bot": [
+    "how-to-make-a-telegram-bot",
+    "telegram-bot-without-coding",
+    "telegram-bot-token",
+    "telegram-shop-bot",
+  ],
   "telegram-bot-token": [
     "how-to-make-a-telegram-bot",
     "botfather-commands",
@@ -95,19 +136,40 @@ export const RELATED: Record<ArticleSlug, ArticleSlug[]> = {
     "telegram-bot-token",
     "telegram-bot-without-coding",
     "telegram-shop-bot",
+    "telegram-bot-menu-buttons",
+  ],
+  "choose-a-telegram-bot-builder": [
+    "telegram-bot-without-coding",
+    "telegram-bot-cost",
+    "telegram-shop-bot",
+    "telegram-bot-google-sheets",
   ],
   "telegram-shop-bot": [
+    "telegram-bot-menu-buttons",
     "telegram-bot-google-sheets",
-    "how-to-make-a-telegram-bot",
+    "telegram-bot-broadcast",
     "telegram-bot-cost",
   ],
   "telegram-support-bot": [
+    "telegram-bot-menu-buttons",
     "how-to-make-a-telegram-bot",
     "telegram-bot-google-sheets",
-    "telegram-bot-without-coding",
+    "telegram-bot-broadcast",
+  ],
+  "telegram-bot-menu-buttons": [
+    "how-to-make-a-telegram-bot",
+    "telegram-shop-bot",
+    "telegram-support-bot",
+    "telegram-bot-broadcast",
+  ],
+  "telegram-bot-broadcast": [
+    "telegram-shop-bot",
+    "telegram-bot-menu-buttons",
+    "telegram-support-bot",
   ],
   "telegram-bot-without-coding": [
     "how-to-make-a-telegram-bot",
+    "choose-a-telegram-bot-builder",
     "telegram-bot-cost",
     "telegram-shop-bot",
   ],
@@ -115,9 +177,11 @@ export const RELATED: Record<ArticleSlug, ArticleSlug[]> = {
     "telegram-shop-bot",
     "telegram-support-bot",
     "how-to-make-a-telegram-bot",
+    "telegram-bot-cost",
   ],
   "telegram-bot-cost": [
     "telegram-bot-without-coding",
+    "choose-a-telegram-bot-builder",
     "telegram-shop-bot",
     "how-to-make-a-telegram-bot",
   ],
@@ -151,7 +215,14 @@ export function articleFor(lang: Lang, slug: ArticleSlug): ArticleContent | null
   const base = (getFallbackLocale() as any)?.learn?.articles?.[slug];
   const local = (getLocale(lang) as any)?.learn?.articles?.[slug];
   if (!base && !local) return null;
-  return { ...(base ?? {}), ...(local ?? {}) } as ArticleContent;
+  const merged = { ...(base ?? {}), ...(local ?? {}) } as ArticleContent;
+  // `sections` is the one key that must NOT fall back to English. A page that
+  // has no extra chapters in its own language is simply shorter; one that
+  // silently grew English chapters in the middle of Arabic prose is not a page
+  // anyone — user or crawler — can make sense of.
+  if (local && !local.sections) delete merged.sections;
+  if (!local && lang !== "en") delete merged.sections;
+  return merged;
 }
 
 /**
@@ -165,12 +236,13 @@ export function readingMinutes(article: ArticleContent): number {
   const parts = [
     article.lead,
     article.outcome,
+    ...(article.sections ?? []).flatMap((c) => [c.h2, ...(c.body ?? []), ...(c.items ?? [])]),
     ...(article.prereqs ?? []),
     ...(article.steps ?? []).flatMap((s) => [s.name, s.text]),
     ...(article.mistakes ?? []),
     ...(article.faq ?? []).flatMap((f) => [f.q, f.a]),
     article.next,
-  ].filter(Boolean);
+  ].filter((part): part is string => Boolean(part));
   const words = parts.join(" ").split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.round(words / 200));
 }

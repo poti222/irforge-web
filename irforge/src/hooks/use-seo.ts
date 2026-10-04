@@ -37,13 +37,20 @@ interface SEOOptions {
 // Read lazily, not at module scope: this module is pulled into the prerender
 // bundle, where `document` doesn't exist. Captured on first use (inside an
 // effect, i.e. always in the browser) and memoised.
-let defaults: { title: string; description: string } | null = null;
+let defaults: { title: string; description: string; robots: string } | null = null;
 function siteDefaults() {
   if (!defaults) {
     defaults = {
       title: document.title,
       description:
         document.querySelector('meta[name="description"]')?.getAttribute("content") ?? "",
+      // The document's own robots directive as served: `index, follow` on a
+      // prerendered public page, `noindex, follow` on the neutral app shell
+      // (scripts/ssg.mjs). Restoring THIS — rather than a hardcoded
+      // "index, follow" — is what keeps a private page's noindex from being
+      // flipped to indexable when the visitor navigates away to a route that
+      // sets no SEO of its own.
+      robots: document.querySelector('meta[name="robots"]')?.getAttribute("content") ?? "noindex, follow",
     };
   }
   return defaults;
@@ -124,9 +131,7 @@ export function useSEO({ title, description, noindex = false, route }: SEOOption
         setMeta("og:description", site.description, "property");
         setMeta("twitter:description", site.description);
       }
-      if (noindex) {
-        setMeta("robots", "index, follow");
-      }
+      setMeta("robots", site.robots);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, description, noindex]);

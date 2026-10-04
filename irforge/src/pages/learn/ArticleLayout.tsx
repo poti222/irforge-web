@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link } from "wouter";
 import { PublicFooter } from "@/components/layout/public-footer";
 import { PublicPageControls } from "@/components/layout/public-page-controls";
@@ -33,6 +34,37 @@ import { ROUTE_SEO } from "@/lib/lang-routing";
  *  2. **One `<h1>`, then `<h2>`/`<h3>` in strict order.** Section headings are
  *     never demoted or skipped for styling; size comes from classes.
  */
+
+/**
+ * Inline links inside article prose: `[anchor text](/learn/some-slug)`.
+ *
+ * Contextual links — a sentence that names another guide and links to it — are
+ * worth more to a reader and to a crawler than a link list at the bottom of the
+ * page, but the copy lives in locale JSON, where raw JSX can't go. This renders
+ * the one tiny syntax we need and nothing else: the target must be a
+ * root-relative path (the router `base` adds the language prefix, so it must
+ * never be written into the copy), and anything that doesn't match is shown as
+ * plain text rather than guessed at. Used only for `sections` and `next`, which
+ * are not mirrored into schema — FAQ answers, which are, stay link-free.
+ */
+const INLINE_LINK = /\[([^\]]+)\]\((\/[^)\s]*)\)/g;
+
+export function RichText({ text }: { text: string }) {
+  const nodes: ReactNode[] = [];
+  let last = 0;
+  for (const match of text.matchAll(INLINE_LINK)) {
+    const at = match.index ?? 0;
+    if (at > last) nodes.push(text.slice(last, at));
+    nodes.push(
+      <Link key={`${at}-${match[2]}`} href={match[2]} className="text-primary underline-offset-4 hover:underline">
+        {match[1]}
+      </Link>,
+    );
+    last = at + match[0].length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return <>{nodes}</>;
+}
 
 /** Anchor for step N — HowTo schema points at these, so they must exist. */
 export function stepAnchor(index: number): string {
@@ -90,12 +122,31 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
         <p className="text-lg leading-relaxed">{article.lead}</p>
       </header>
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">{article.outcomeTitle}</h2>
-        <p className="leading-relaxed text-muted-foreground">{article.outcome}</p>
-      </section>
+      {article.outcome && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold">{article.outcomeTitle}</h2>
+          <p className="leading-relaxed text-muted-foreground">{article.outcome}</p>
+        </section>
+      )}
 
-      {article.prereqs?.length > 0 && (
+      {/* Free-form chapters. Explanatory pages ("what is a bot", "how to pick a
+          builder") are not sequences, so they get plain <h2> sections rather
+          than numbered steps. Order in the markup is order on the page. */}
+      {article.sections?.map((chapter) => (
+        <section key={chapter.h2} className="space-y-3">
+          <h2 className="text-xl font-semibold">{chapter.h2}</h2>
+          {chapter.body?.map((paragraph) => (
+            <p key={paragraph} className="leading-relaxed text-muted-foreground"><RichText text={paragraph} /></p>
+          ))}
+          {chapter.items && chapter.items.length > 0 && (
+            <ul className="list-disc space-y-2 ps-6 leading-relaxed text-muted-foreground">
+              {chapter.items.map((item) => <li key={item}><RichText text={item} /></li>)}
+            </ul>
+          )}
+        </section>
+      ))}
+
+      {article.prereqs && article.prereqs.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">{article.prereqTitle}</h2>
           <ul className="list-disc space-y-2 ps-6 leading-relaxed text-muted-foreground">
@@ -104,7 +155,7 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
         </section>
       )}
 
-      {article.steps?.length > 0 && (
+      {article.steps && article.steps.length > 0 && (
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">{article.stepsTitle}</h2>
           {/* <ol> so the sequence survives without CSS and reads correctly to a
@@ -132,7 +183,7 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
         </section>
       )}
 
-      {article.mistakes?.length > 0 && (
+      {article.mistakes && article.mistakes.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">{article.mistakesTitle}</h2>
           <ul className="list-disc space-y-2 ps-6 leading-relaxed text-muted-foreground">
@@ -141,7 +192,7 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
         </section>
       )}
 
-      {article.faq?.length > 0 && (
+      {article.faq && article.faq.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">{article.faqTitle}</h2>
           <div className="space-y-3">
@@ -164,10 +215,12 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
         </section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">{article.nextTitle}</h2>
-        <p className="leading-relaxed text-muted-foreground">{article.next}</p>
-      </section>
+      {article.next && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold">{article.nextTitle}</h2>
+          <p className="leading-relaxed text-muted-foreground"><RichText text={article.next} /></p>
+        </section>
+      )}
 
       {/* Education channel — the brand's own distribution, linked from every
           article so a reader who prefers video has somewhere to go. */}

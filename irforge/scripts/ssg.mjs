@@ -20,7 +20,7 @@ const pkgRoot = resolve(here, "..");
 const distDir = join(pkgRoot, "dist");
 const templatePath = join(distDir, "index.html");
 
-const { renderPage, allPages, sitemapEntries, PRIVATE_ROUTES, ALL_LANGS } = await import(
+const { renderPage, allPages, sitemapEntries, PRIVATE_ROUTES, CRAWLABLE_NOINDEX_ROUTES, ALL_LANGS } = await import(
   pathToFileURL(join(pkgRoot, "dist-ssg", "entry-ssg.mjs")).href
 );
 
@@ -76,7 +76,52 @@ const template = loadTemplate();
  * script to contradict.
  */
 const shellPath = join(distDir, "app-shell.html");
-writeFileSync(shellPath, template, "utf8");
+
+/**
+ * SEO audit (2026-10): the shell used to be a byte-for-byte copy of the client
+ * template, whose static <head> is the HOMEPAGE's — `<title>` and description
+ * of the landing page, `<link rel="canonical" href="https://irforge.ir/">`,
+ * `<meta name="robots" content="index, follow">` and its og:* tags. The server
+ * answers every app route (/dashboard, /bots/:id, /schools/…) and — before the
+ * soft-404 fix in api-server/src/lib/seoRouting.ts — every unknown URL with
+ * this file, so a crawler that doesn't run JS saw ~hundreds of URLs all
+ * claiming to be the homepage and asking to be indexed. (Googlebot renders JS,
+ * where `useSEO({noindex})` helps, but only after a fetch robots.txt may not
+ * even have allowed.)
+ *
+ * The shell is for pages that must never rank, so make it say so by default:
+ * a neutral title, `noindex, follow`, no canonical, no description, no social
+ * tags. Safe-by-default also means a future app page that forgets
+ * `usePrivatePageTitle()` is noindex rather than a homepage duplicate. Public
+ * pages are unaffected: they are prerendered from `template`, not from this.
+ */
+function neutralShell(tpl) {
+  let h = tpl;
+  h = h.replace(/<title>[\s\S]*?<\/title>/i, "<title>IrForge</title>");
+  h = h.replace(/\s*<meta\s+name="(?:description|keywords|twitter:[^"]*)"[^>]*>/gi, "");
+  h = h.replace(/\s*<meta\s+property="og:[^"]*"[^>]*>/gi, "");
+  h = h.replace(/\s*<link\s+rel="canonical"[^>]*>/gi, "");
+  h = h.replace(/\s*<link\s+rel="alternate"[^>]*hreflang[^>]*>/gi, "");
+  h = h.replace(/<meta\s+name="robots"\s+content="[^"]*"\s*\/?>/i, '<meta name="robots" content="noindex, follow" />');
+  return h;
+}
+
+const shellHtml = neutralShell(template);
+writeFileSync(shellPath, shellHtml, "utf8");
+
+/** The shell must be noindex and must not impersonate any page. Cheap, so assert it. */
+function assertShellIsNeutral() {
+  const h = readFileSync(shellPath, "utf8");
+  const problems = [];
+  if (!/<meta\s+name="robots"\s+content="noindex, follow"/i.test(h)) problems.push('missing <meta name="robots" content="noindex, follow">');
+  if (/<link\s+rel="canonical"/i.test(h)) problems.push("has a canonical link");
+  if (/<meta\s+property="og:/i.test(h)) problems.push("carries og:* tags");
+  if (/<meta\s+name="description"/i.test(h)) problems.push("carries a meta description");
+  if (/<link\s+rel="alternate"[^>]*hreflang/i.test(h)) problems.push("carries hreflang links");
+  if (!/<div id="root"><\/div>/.test(h)) problems.push("lost its empty #root");
+  if (problems.length) throw new Error("dist/app-shell.html is not neutral: " + problems.join("; "));
+  return true;
+}
 
 /**
  * Locale chunks, by language.
@@ -361,14 +406,34 @@ function assertRobotsCoverage() {
       .map((l) => l.replace(/^Disallow:\s*/i, ""))
   );
 
+  const crawlable = new Set(CRAWLABLE_NOINDEX_ROUTES);
   const missing = [];
+  const blockedButMustBeCrawlable = [];
   for (const route of PRIVATE_ROUTES) {
+    if (crawlable.has(route)) {
+      // must stay crawlable so the crawler can SEE the noindex (header + meta)
+      if (rules.has(route)) blockedButMustBeCrawlable.push(`Disallow: ${route}`);
+      if (rules.has(`/*${route}`)) blockedButMustBeCrawlable.push(`Disallow: /*${route}`);
+      continue;
+    }
     if (!rules.has(route)) missing.push(`Disallow: ${route}`);
     if (!rules.has(`/*${route}`)) missing.push(`Disallow: /*${route}`);
+  }
+  for (const route of CRAWLABLE_NOINDEX_ROUTES) {
+    if (!PRIVATE_ROUTES.includes(route)) {
+      throw new Error(`CRAWLABLE_NOINDEX_ROUTES has "${route}" which is not in PRIVATE_ROUTES.`);
+    }
   }
   if (missing.length) {
     throw new Error(
       `robots.txt does not cover every private route.\nAdd to irforge/public/robots.txt:\n  ${missing.join(
+        "\n  "
+      )}`
+    );
+  }
+  if (blockedButMustBeCrawlable.length) {
+    throw new Error(
+      `robots.txt blocks routes that must stay crawlable so their noindex is visible (see CRAWLABLE_NOINDEX_ROUTES in lang-routing.ts).\nRemove from irforge/public/robots.txt:\n  ${blockedButMustBeCrawlable.join(
         "\n  "
       )}`
     );
@@ -516,6 +581,8 @@ console.log(`app-shell.html: ${(Buffer.byteLength(readFileSync(shellPath)) / 102
 
 const urls = writeSitemap();
 console.log(`sitemap.xml: ${urls} URLs`);
+assertShellIsNeutral();
+console.log("app-shell.html: neutral (noindex, follow; no canonical/description/og)");
 const ruleCount = assertRobotsCoverage();
 console.log(`robots.txt: ${ruleCount} disallow rules, all private routes covered`);
 const assetCount = assertBrandAssets();

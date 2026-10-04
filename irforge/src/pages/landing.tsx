@@ -22,6 +22,12 @@ import {
   Smartphone,
   ClipboardCheck,
   MessageSquare,
+  ShoppingBag,
+  LifeBuoy,
+  LayoutGrid,
+  Megaphone,
+  CalendarCheck,
+  Database,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,12 +41,33 @@ import { PublicFooter } from "@/components/layout/public-footer";
 import { useLanguage } from "@/hooks/use-language";
 import { articleFor, type ArticleSlug } from "@/lib/learn-content";
 
-/** The four guides worth surfacing on the homepage, highest intent first. */
+/**
+ * The guides worth surfacing on the homepage, highest intent first: the two
+ * "what is it / how do I start" pages, then the buying-comparison pages. The
+ * rest of the cluster is one hop away through the hub and the footer.
+ */
 const FEATURED_GUIDES: ArticleSlug[] = [
+  "what-is-a-telegram-bot",
   "how-to-make-a-telegram-bot",
-  "telegram-bot-token",
+  "telegram-bot-without-coding",
+  "choose-a-telegram-bot-builder",
   "telegram-shop-bot",
   "telegram-bot-cost",
+];
+
+/**
+ * Use-case cards: each one is a real capability of the product with its own
+ * guide, which is what makes the homepage a hub for those pages instead of a
+ * single page trying to rank for all of them. Copy lives in `landing.useCases.<key>`;
+ * the slug stays here because it must be identical in every language.
+ */
+const USE_CASES: { key: "shop" | "support" | "menu" | "broadcast" | "services" | "data"; icon: LucideIcon; slug: ArticleSlug }[] = [
+  { key: "shop", icon: ShoppingBag, slug: "telegram-shop-bot" },
+  { key: "support", icon: LifeBuoy, slug: "telegram-support-bot" },
+  { key: "menu", icon: LayoutGrid, slug: "telegram-bot-menu-buttons" },
+  { key: "broadcast", icon: Megaphone, slug: "telegram-bot-broadcast" },
+  { key: "services", icon: CalendarCheck, slug: "what-is-a-telegram-bot" },
+  { key: "data", icon: Database, slug: "telegram-bot-google-sheets" },
 ];
 import { useIsMobileViewport } from "@/components/landing/use-is-mobile-viewport";
 import { RevealItem, VIEWPORT_ONCE, revealContainer, revealItem } from "@/components/landing/motion";
@@ -183,6 +210,9 @@ export default function Landing() {
                 base already supplies the language prefix. */}
             <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
               <Link href="/learn">{footerT.learnNav}</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
+              <Link href="/pricing">{seo.navPricing}</Link>
             </Button>
             <ThemeToggleButton className="rounded-full" />
 
@@ -350,6 +380,56 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* ── Use cases ───────────────────────────────────────────────────
+            What people actually search for ("telegram shop bot", "support
+            bot", "inline buttons", "broadcast"…) each get a card that links to
+            the guide for it. Every card describes something the product does
+            today — no capability is listed here that the admin panel lacks. */}
+        <section className="border-b py-20 md:py-24">
+          <div className="container mx-auto px-4">
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, amount: 0.1 }}
+            >
+              <RevealItem variants={sectionItem}>
+                <div className="mx-auto mb-12 max-w-2xl text-center">
+                  <h2 className="text-3xl font-bold tracking-tight md:text-4xl">{tr.useCasesTitle}</h2>
+                  <p className="mt-3 text-muted-foreground">{tr.useCasesSub}</p>
+                </div>
+              </RevealItem>
+
+              <ul className="mx-auto grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {USE_CASES.map(({ key, icon: Icon, slug }) => (
+                  <li key={key}>
+                    {/* the <li> stays the direct child of the <ul>; RevealItem renders a div */}
+                    <RevealItem variants={sectionItem} className="h-full">
+                      <Link href={`/learn/${slug}`} className="group block h-full">
+                        <div className="flex h-full flex-col rounded-2xl border border-border bg-card p-6 shadow-sm transition-colors group-hover:border-primary/40">
+                          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                            <Icon className="size-5" />
+                          </span>
+                          <h3 className="mt-4 text-lg font-semibold">{tr.useCases[key].title}</h3>
+                          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{tr.useCases[key].desc}</p>
+                        </div>
+                      </Link>
+                    </RevealItem>
+                  </li>
+                ))}
+              </ul>
+
+              <RevealItem variants={sectionItem}>
+                <p className="mt-8 text-center">
+                  <Link href="/learn/what-is-a-telegram-bot" className="text-primary underline-offset-4 hover:underline">
+                    {tr.useCasesMore}
+                  </Link>
+                </p>
+              </RevealItem>
+            </motion.div>
+          </div>
+        </section>
+
         {/* ── Features (bento) ────────────────────────────────────────────── */}
         <section className="bg-card/30 py-20 md:py-24">
           <div className="container mx-auto px-4">
@@ -510,7 +590,8 @@ export default function Landing() {
         <section className="border-t py-16 md:py-20">
           <div className="container mx-auto px-4">
             <div className="mx-auto mb-8 max-w-2xl text-center">
-              <h2 className="text-3xl font-bold tracking-tight md:text-4xl">{footerT.learnTitle}</h2>
+              <h2 className="text-3xl font-bold tracking-tight md:text-4xl">{tr.guidesTitle}</h2>
+              <p className="mt-3 text-muted-foreground">{tr.guidesSub}</p>
             </div>
             <ul className="mx-auto grid max-w-4xl gap-3 sm:grid-cols-2">
               {FEATURED_GUIDES.map((slug) => {

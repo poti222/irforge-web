@@ -5,7 +5,6 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import path from "path";
-import { existsSync } from "fs";
 import { fileURLToPath } from "url";
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
@@ -13,6 +12,7 @@ import { sanitizeBody } from "./middleware/sanitizeBody.js";
 import { globalRateLimit } from "./middleware/rateLimit.js";
 import { resolveCorsOrigin } from "./lib/corsConfig.js";
 import { isRawSmsPath } from "./lib/smsBody.js";
+import { createSeoRedirects, createSpaFallback } from "./lib/seoRouting.js";
 import { INLINE_SCRIPT_HASHES } from "./lib/csp.js";
 
 const app: Express = express();
@@ -155,6 +155,11 @@ app.use("/api", (err: unknown, req: Request, res: Response, next: NextFunction) 
 // dist/index.cjs lives at api-server/dist/, frontend is at irforge/dist
 const frontendDist = path.resolve(currentDir, "../../irforge/dist");
 
+// SEO audit (2026-10): 301 every duplicate/legacy form of a public URL to its one canonical form BEFORE
+// express.static can answer it with a 200 (`/docs/`, `/en`, `/fa/learn`, `/docs/index.html`,
+// `/learn/bot-token` …) — see lib/seoRouting.ts.
+app.use(createSeoRedirects());
+
 // `redirect: false`: without it, a request for /docs — which is now a real
 // directory in dist — gets a 301 to /docs/, changing the canonical URL of an
 // already-indexed page. We resolve extension-less paths ourselves below
@@ -204,15 +209,6 @@ app.use(
   }),
 );
 
-/** Resolve a request path to a prerendered file inside dist, or null. */
-function prerenderedFor(urlPath: string): string | null {
-  const rel = urlPath.replace(/^\/+|\/+$/g, "");
-  const candidate = path.resolve(frontendDist, rel, "index.html");
-  // path.resolve + prefix check keeps a crafted path from escaping dist
-  if (!candidate.startsWith(frontendDist)) return null;
-  return existsSync(candidate) ? candidate : null;
-}
-
 // IRFORGE_PROMPT_V3 Phase 47 — a dedicated, never-prerendered shell (built by
 // scripts/ssg.mjs) for any URL that isn't one of the pages that script
 // actually prerenders. dist/index.html and dist/<lang>/index.html are NOT
@@ -223,16 +219,11 @@ function prerenderedFor(urlPath: string): string | null {
 // shell needs no per-language variant — index.html's own inline script
 // already sets `lang`/`dir` from the current URL before first paint, and
 // every app page sets its own <title> client-side via useSEO().
-const appShellPath = path.join(frontendDist, "app-shell.html");
-
-app.get("/{*splat}", (req, res) => {
-  // 1. an exact prerendered page for this URL (/, /docs, /en, /en/docs, ...)
-  const exact = prerenderedFor(req.path);
-  if (exact) return res.sendFile(exact);
-
-  // 2. everything else is an app route (/dashboard, /en/bots/:id, ...):
-  //    the neutral shell, never the landing page.
-  res.sendFile(appShellPath);
-});
+//
+// SEO audit (2026-10): the shell is now neutral (noindex, follow; no canonical)
+// and the catch-all answers a REAL 404 for URLs that are not app routes, plus
+// `X-Robots-Tag: noindex, follow` on everything served from the shell — all in
+// lib/seoRouting.ts, unit-tested against App.tsx's actual routes.
+app.get("/{*splat}", createSpaFallback(frontendDist));
 
 export default app;

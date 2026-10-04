@@ -58,40 +58,40 @@
     "dashboard": "Dashboard",
     "startBuilding": "Start Building Now",
     "viewDocs": "View Documentation",
-    "tagline": "The professional Telegram Bot Platform",
-    "taglineSub": "Build, deploy, and scale advanced Telegram bots and Mini Apps. The power of code, the speed of no-code, wrapped in a developer-first experience.",
-    "engineeredForScale": "Engineered for Scale",
-    "engineeredSub": "Everything you need to run production bots, right out of the box.",
+    "tagline": "Telegram bot builder — no code, no servers",
+    "taglineSub": "Build a shop bot, support bot, booking bot or broadcast tool with IrForge: paste your BotFather token and your bot is live in minutes — no server, no coding. Try your first bot free for 7 days.",
+    "engineeredForScale": "Everything a useful bot needs",
+    "engineeredSub": "From storefront and payments to support and broadcasts — one admin panel, nothing to install, no server to run.",
     "readyToForge": "Ready to forge your bots?",
-    "readyToForgeSub": "Join thousands of Iranian developers building the next generation of Telegram experiences.",
+    "readyToForgeSub": "Enter your bot token and try your first bot free for 7 days.",
     "createFreeAccount": "Create Free Account",
-    "madeWith": "Made with pride for Iranian developers.",
+    "madeWith": "Proudly built for Iranian businesses.",
     "toggleTheme": "Toggle Theme",
     "toggleLang": "Language",
     "language": "Language",
-    "advancedCommands": "Advanced Commands",
-    "advancedCommandsDesc": "Visual builder meets code. Define complex logic, argument parsing, and permissions with ease.",
-    "pluginMarketplace": "Plugin Marketplace",
-    "pluginMarketplaceDesc": "One-click install plugins. Analytics, moderation, payments, AI integrations, and more.",
-    "instantDeploy": "Instant Deploy",
-    "instantDeployDesc": "Push changes instantly without downtime. Real-time logging and performance monitoring.",
-    "enterpriseSecurity": "Enterprise Security",
-    "enterpriseSecurityDesc": "Role-based permissions, token management, and full audit logs for your team.",
-    "analyticsDashboard": "Analytics Dashboard",
-    "analyticsDashboardDesc": "Track users, messages, uptime, and revenue with beautiful real-time charts.",
-    "multiBotManagement": "Multi-Bot Management",
-    "multiBotManagementDesc": "Control unlimited bots from one dashboard. Switch contexts in seconds.",
-    "heroBadge": "Platform v2.0 — Built for Iran's builders",
-    "heroTitleLine1": "The professional",
-    "heroTitleGradient": "Telegram Bot Platform",
+    "advancedCommands": "Menus, commands & forms",
+    "advancedCommandsDesc": "Lay out your bot's menu with panels and inline buttons, define commands, and collect requests with step-by-step forms.",
+    "pluginMarketplace": "Plugin marketplace",
+    "pluginMarketplaceDesc": "Switch on a storefront, wallet, support tickets, appointment booking, giveaways, surveys and CRM for each bot.",
+    "instantDeploy": "No servers to run",
+    "instantDeployDesc": "No hosting needed — enter your token and IrForge sets up the webhook and the bot's profile for you.",
+    "enterpriseSecurity": "Admins & security",
+    "enterpriseSecurityDesc": "Several admins with separate roles. Your bot token stays on the server and never appears in a link.",
+    "analyticsDashboard": "Stats & reports",
+    "analyticsDashboardDesc": "Follow your bot's users, orders and payments from the admin panel.",
+    "multiBotManagement": "Several bots, one account",
+    "multiBotManagementDesc": "Manage your bots from one dashboard and switch between them; how many bots you can run depends on the package.",
+    "heroBadge": "Built for Iranian businesses — Persian-first panel and support",
+    "heroTitleLine1": "Telegram bot builder: create or buy a bot",
+    "heroTitleGradient": "without code",
     "howItWorks": "From idea to live bot in three steps",
     "howItWorksSub": "No servers to rent, no boilerplate to write. Connect a token and ship.",
     "step1Title": "Create your bot",
     "step1Desc": "Paste your BotFather token — IrForge wires up the webhook and profile for you.",
-    "step2Title": "Add commands & plugins",
-    "step2Desc": "Build command flows visually, then install marketplace plugins with one click.",
-    "step3Title": "Deploy and watch it run",
-    "step3Desc": "Publish instantly with zero downtime, then follow live logs and analytics.",
+    "step2Title": "Add menus and plugins",
+    "step2Desc": "Define commands, panels and buttons, and switch on the plugins you need — storefront, wallet, booking and more.",
+    "step3Title": "Launch and manage",
+    "step3Desc": "Share the bot with your customers and follow orders, users and stats from the admin panel.",
     "previewBadge": "Preview",
     "demoBotStatus": "online",
     "demoBotReply1": "Hi! I'm your shop bot. Send /report for today's summary.",
@@ -102,18 +102,10 @@
     "pluginInstalled": "Installed",
     "pluginNameAnalytics": "Analytics",
     "pluginNamePayments": "Payments",
-    "pluginNameAi": "AI replies",
-    "pluginNameModeration": "Moderation",
     "analyticsPreviewLabel": "Messages · last 7 days",
     "ctaPointFree": "Free to start",
     "ctaPointNoCard": "No credit card required",
     "ctaPointSupport": "Persian-language support",
-    "plansTitle": "Pick a plan and your bot is live",
-    "plansSub": "One-off price per bot, with the resources it runs on stated up front. No subscription, no surprises — and you can move up later.",
-    "plansCustomTitle": "Need something else?",
-    "plansCustomDesc": "Build your own: choose RAM, CPU cores and exactly the plugins you want, and see the price change as you go.",
-    "plansCustomCta": "Build a custom bot",
-    "plansNote": "Prices are in Rial and cover one bot. Plugins are bought separately, one purchase per bot.",
     "schoolSectionTitle": "Why manage your school on Telegram?",
     "schoolSectionSubtitle": "Parents already have Telegram installed — no new app for them to download.",
     "schoolPoint1Title": "No new app required",
@@ -122,7 +114,40 @@
     "schoolPoint2Desc": "Use IrForge's broadcast tool to send grades, absences and important announcements straight to parents' Telegram.",
     "schoolPoint3Title": "Two-way contact with families",
     "schoolPoint3Desc": "Custom commands and private messages keep school-parent communication out of noisy, chaotic group chats.",
-    "schoolCta": "Build your school bot now"
+    "schoolCta": "Build your school bot now",
+    "pluginNameBooking": "Appointment booking",
+    "pluginNameGiveaway": "Giveaways",
+    "useCasesTitle": "What can you build with a Telegram bot?",
+    "useCasesSub": "Common use cases you can launch without writing code — each one has its own step-by-step guide.",
+    "useCases": {
+      "shop": {
+        "title": "Shop bot",
+        "desc": "Catalog with categories and plans, stock, receipt checking and order approval, a wallet, and automatic or manual delivery."
+      },
+      "support": {
+        "title": "Support bot & tickets",
+        "desc": "Tickets with priority and status, assignment to admins, and replies to customers from the admin panel."
+      },
+      "menu": {
+        "title": "Menus & inline buttons",
+        "desc": "Nested panels with multi-row buttons: links, forms, mini apps, product orders and more."
+      },
+      "broadcast": {
+        "title": "Broadcast messages",
+        "desc": "Announcements with photos and video to all your bot's users — with a preview, confirmation before sending and a report afterwards."
+      },
+      "services": {
+        "title": "Booking, forms & surveys",
+        "desc": "A booking calendar, step-by-step forms, surveys and giveaways inside the bot itself."
+      },
+      "data": {
+        "title": "Data in Google Sheets or SQL",
+        "desc": "Every bot gets its own sheet; move to a dedicated SQL database when you need to."
+      }
+    },
+    "useCasesMore": "What is a Telegram bot, and where do I start?",
+    "guidesTitle": "Telegram bot guides",
+    "guidesSub": "Free step-by-step guides — no sign-up needed."
   },
   "auth": {
     "signInAccount": "Sign in to your account",
@@ -450,33 +475,33 @@
   "admin": {},
   "botLanguageSettings": {},
   "seo": {
-    "homeTitle": "Build or Buy a Telegram Bot Without Code | IrForge",
-    "homeDescription": "Build a Telegram bot without code, or start from a ready-made package. Install plugins, run a school communication bot, and launch your bot in minutes with IrForge.",
+    "homeTitle": "Telegram Bot Builder | Create a Bot Without Code | IrForge",
+    "homeDescription": "Build a Telegram bot without code with IrForge: shop bot, support tickets, broadcasts, booking and a Persian admin panel. Enter your token and try it free for 7 days.",
     "docsTitle": "IrForge Docs | Telegram Bot Builder Guide & SDK",
     "docsDescription": "Complete IrForge documentation: quick start, defining commands with arguments, writing plugins, and finding your way around the management panel.",
     "navHome": "Home",
     "navDocs": "Documentation",
-    "keywords": "build a telegram bot, telegram bot builder, no-code telegram bot, buy a telegram bot, ready-made telegram bot, create telegram bot free, how to make a telegram bot, telegram shop bot, telegram bot for schools, school management bot, telegram automation, IrForge",
+    "keywords": "telegram bot builder, build a telegram bot, no-code telegram bot, telegram shop bot, telegram support bot, telegram broadcast, buy a telegram bot, ready-made telegram bot, telegram bot admin panel, school management bot, IrForge",
     "botTokenTitle": "How to Get a Telegram Bot Token from BotFather | IrForge",
     "botTokenDescription": "Get a Telegram bot token in seven steps with @BotFather, learn what the token actually is, how to keep it safe, and how to revoke one that has leaked.",
     "navBotToken": "Bot token",
     "learnHubTitle": "Telegram Bot Guides & Tutorials | IrForge",
-    "learnHubDescription": "Practical, step-by-step guides to building Telegram bots: getting a token, shop and support bots, Google Sheets as a database, costs, and BotFather commands.",
+    "learnHubDescription": "Step-by-step Telegram bot guides: what a bot is, getting a token, shop and support bots, menus and buttons, broadcasts, costs and how to choose a builder.",
     "navLearnHub": "Learn",
     "howToMakeTitle": "How to Make a Telegram Bot: Full Beginner Guide | IrForge",
     "howToMakeDescription": "How to make a Telegram bot from scratch: create it in BotFather, connect it, add your first commands, test it, and put it in front of real users.",
     "navHowToMake": "Make a bot",
     "shopBotTitle": "How to Build a Telegram Shop Bot | IrForge",
-    "shopBotDescription": "Build a Telegram shop bot that shows a catalogue, takes orders and records them: what to plan first, how to structure products, and how to handle payment.",
+    "shopBotDescription": "Build a Telegram shop bot that shows a catalog, takes orders and checks receipts: product structure, plans and stock, payment, delivery and order follow-up.",
     "navShopBot": "Shop bot",
     "supportBotTitle": "How to Build a Telegram Support Bot | IrForge",
-    "supportBotDescription": "Build a Telegram support bot that collects tickets, routes them to your team and keeps a history — without leaving customers waiting in a busy inbox.",
+    "supportBotDescription": "Build a Telegram support bot with a ticket system: priority and status, assignment to admins and replies from a panel — so customers never get lost in unread messages.",
     "navSupportBot": "Support bot",
     "withoutCodingTitle": "Build a Telegram Bot Without Coding | IrForge",
     "withoutCodingDescription": "Build a Telegram bot without coding: what a no-code builder can and cannot do, how commands and plugins replace scripts, and when you still need a developer.",
     "navWithoutCoding": "No-code bot",
-    "googleSheetsTitle": "Telegram Bot with Google Sheets as a Database | IrForge",
-    "googleSheetsDescription": "Use Google Sheets as your Telegram bot's database: how rows map to records, what a sheet is good and bad at, and how IrForge writes your data to your own sheet.",
+    "googleSheetsTitle": "Telegram Bot & Google Sheets: Where Bot Data Lives | IrForge",
+    "googleSheetsDescription": "Where does a Telegram bot's data live? A dedicated sheet per bot, orders and tickets in their own tabs, Google Sheets' limits, and when to move to a SQL database.",
     "navGoogleSheets": "Google Sheets",
     "botCostTitle": "Telegram Bot Cost: What You Actually Pay | IrForge",
     "botCostDescription": "What a Telegram bot costs and what drives the price: build vs buy, hosting, maintenance, and which of these you avoid entirely with a hosted builder.",
@@ -487,25 +512,40 @@
     "webhookTitle": "Telegram Webhook vs Polling: Which to Use | IrForge",
     "webhookDescription": "Telegram webhook vs polling explained: how each delivers updates, what each costs you in latency and infrastructure, and which one your bot should use.",
     "navWebhook": "Webhook vs polling",
-    "pricingTitle": "IrForge Pricing & Plans | Telegram Bot Builder",
-    "pricingDescription": "IrForge plans and what each one includes: how many bots, which features, and how billing works. Compare tiers before you sign up.",
-    "navPricing": "Pricing"
+    "pricingTitle": "Telegram Bot Pricing & Packages | IrForge",
+    "pricingDescription": "IrForge pricing and packages for Telegram bots: a free 7-day trial bot, Standard and Pro packages, monthly renewal from your wallet, and what each package includes.",
+    "navPricing": "Pricing",
+    "whatIsTitle": "What Is a Telegram Bot? Uses, Types & How to Build One | IrForge",
+    "whatIsDescription": "What is a Telegram bot and what can it do? A plain-language intro to bot types (shop, support, notifications), how bots work and how to build one without code.",
+    "navWhatIs": "What is a Telegram bot?",
+    "chooseBuilderTitle": "How to Choose the Best Telegram Bot Builder | IrForge",
+    "chooseBuilderDescription": "Criteria for choosing a Telegram bot builder: language and support, payments, where your data lives, token security and real cost. A neutral checklist before you decide.",
+    "navChooseBuilder": "Choosing a builder",
+    "menuButtonsTitle": "Telegram Bot Menus & Inline Buttons Without Code | IrForge",
+    "menuButtonsDescription": "Build menus and inline buttons for a Telegram bot: nested panels, button rows, links, forms and back buttons — no programming, with practical examples.",
+    "navMenuButtons": "Menus & buttons",
+    "broadcastTitle": "How to Send a Broadcast Message in a Telegram Bot | IrForge",
+    "broadcastDescription": "Send a Telegram bot broadcast the right way: who receives it, confirmation before sending, the report afterwards, and rules that keep users from blocking your bot.",
+    "navBroadcast": "Broadcast",
+    "aboutTitle": "About IrForge | Telegram Bot Builder",
+    "aboutDescription": "What IrForge is, what it does and how to reach us: a Telegram bot builder with a Persian-first panel, how tokens and data are handled, costs and support channels.",
+    "navAbout": "About"
   },
   "faq": {
     "title": "Frequently asked questions",
     "subtitle": "What you need to know about building a Telegram bot on IrForge.",
     "q1": "How do I make a Telegram bot without coding?",
-    "a1": "Get a token from BotFather and paste it into IrForge. The webhook, profile and hosting are handled for you, so you can create a Telegram bot without writing a line of code. If you do write code, you can drop down to it for command logic whenever you want.",
+    "a1": "Get a token from BotFather and paste it into IrForge. The webhook, profile and hosting are handled for you, so you can create a Telegram bot without writing a line of code. You set up menus, commands, forms, a shop and tickets from the admin panel; technical documentation is there for developers.",
     "q2": "Is it free to create a Telegram bot here?",
-    "a2": "Yes — you can start free and build and test your first bot without a credit card. Paid plans add more bots and more capacity.",
+    "a2": "Every account gets one free 7-day trial bot — no credit card needed to build and test your first bot. After that, the Standard and Pro packages (monthly, renewed from your wallet) keep a bot running. Telegram itself charges nothing for creating a bot or using the Bot API.",
     "q3": "How long does it take to set up the bot builder?",
     "a3": "Usually a few minutes. Your bot goes live as soon as the token is in; after that you add commands, install plugins, and publish changes with no downtime.",
     "q4": "Can I build a store or support bot?",
-    "a4": "Yes. Custom commands plus payment, moderation and AI-reply plugins cover shop bots, customer-support bots and most other workflows.",
+    "a4": "Yes. A shop bot (catalog, plans and stock, receipt checking and order approval) and a support bot (a ticket system) come as ready-made plugins. Panels and buttons build the menu, forms collect information, and there are plugins for appointment booking, giveaways and surveys too.",
     "q5": "Where do I learn how to build a Telegram bot?",
-    "a5": "Start with the documentation: quick start, defining commands with arguments, and writing a plugin are all covered with working examples.",
+    "a5": "Start with the guides: building a bot from zero to launch, getting a token, shop and support bots, menus and buttons, and broadcasts each have their own page. Technical documentation is also available for developers.",
     "q6": "Where is my bot's data stored?",
-    "a6": "Your bot's data goes into a Google Sheet in your own Google account. IrForge reads and writes it through the Google Sheets API, so you can open the spreadsheet at any time and the records stay yours even if you stop using the platform.",
+    "a6": "Each bot gets its own Google Sheet, with orders, tickets, forms and settings each in their own tab — you can see it in the panel and open it in Google. If you outgrow a sheet, a bot can be moved to a dedicated SQL database.",
     "q7": "Is it safe to give IrForge my Telegram bot token?",
     "a7": "The token is stored server-side and used only to call Telegram's API on your bot's behalf. It never appears in a URL — the bot's avatar, for example, is served through a proxy route specifically so the token can't leak in an image link. If you ever want to cut access, /revoke in BotFather invalidates it instantly.",
     "q8": "What happens when the trial ends?",
@@ -515,7 +555,13 @@
     "q10": "Should I buy a ready-made bot or build a custom one?",
     "a10": "IrForge's Standard/Pro packages activate in minutes and cover most businesses out of the box. If you need something specific, customize that same bot with plugins and custom commands — no code, so it's never really \"buy\" versus \"build\".",
     "q11": "Can parents see grades and attendance on Telegram?",
-    "a11": "Yes — schools use the bot's broadcast tool to send grades, absences and announcements straight to parents on Telegram, something most school-management software doesn't offer, since it requires installing a separate app."
+    "a11": "Yes — a school can use the bot's broadcast to send grades, absences and announcements straight to parents on Telegram, without asking families to install yet another app.",
+    "q12": "What's the difference between a bot builder and coding a bot?",
+    "a12": "With a coded bot, a developer writes everything from scratch and also runs the server and maintenance. With a builder, the common logic (menus, forms, selling, tickets…) is ready, the service runs it, and you configure it from a panel. Truly unusual logic, or integrations with systems that have no connector, still needs custom development.",
+    "q13": "How much does a Telegram bot cost on IrForge?",
+    "a13": "Creating a bot on Telegram is free. On IrForge your account's first bot is free for 7 days; after that the Standard and Pro packages are monthly and renew from your wallet. Current plan prices and what each package includes are on the pricing page.",
+    "q14": "How do my customers pay?",
+    "a14": "In a shop bot you show payment details (for example a card number or a wallet address); the customer sends a receipt and you approve or reject the order from the admin panel. If you switch on the wallet plugin, users can also hold a balance inside the bot."
   },
   "database": {
     "readOnlyBadge": "Read-only",
@@ -667,7 +713,7 @@
   },
   "learn": {
     "hubTitle": "Telegram bot guides",
-    "hubIntro": "Straightforward guides to building and running a Telegram bot — from getting your first token to shop bots, support bots and what the whole thing costs.",
+    "hubIntro": "Clear, no-fluff guides to building and running a Telegram bot — from \"what is a Telegram bot?\" and getting your first token to shop bots, support bots, menus and buttons, broadcasts and what it really costs.",
     "hubListHeading": "All guides",
     "breadcrumbLabel": "Breadcrumb",
     "readingTime": "{n} min read",
@@ -825,7 +871,30 @@
           }
         ],
         "nextTitle": "Next step",
-        "next": "Pick the shape that matches your goal: a shop bot if you're selling, a support bot if you're answering questions. If you want the bot to remember what people send it, the Google Sheets guide shows the simplest possible database."
+        "next": "Pick the shape that matches your goal: a [shop bot](/learn/telegram-shop-bot) if you're selling, a [support bot](/learn/telegram-support-bot) if you're answering questions. If you're still unsure what a Telegram bot does, read [what is a Telegram bot?](/learn/what-is-a-telegram-bot).",
+        "sections": [
+          {
+            "h2": "On IrForge this path takes minutes",
+            "items": [
+              "Create the bot in BotFather and copy the token — [getting a bot token](/learn/telegram-bot-token).",
+              "Enter the token in IrForge; the webhook and the bot's profile are set up for you and no server is needed.",
+              "Build the bot's menu from the Panels section — [menus and inline buttons](/learn/telegram-bot-menu-buttons).",
+              "From Plugins, switch on what you need: a storefront, tickets, booking and more."
+            ],
+            "body": [
+              "Every account's first bot is free for 7 days, so you can practise on a trial bot right now."
+            ]
+          },
+          {
+            "h2": "What to add after your first bot",
+            "items": [
+              "To sell: [building a Telegram shop bot](/learn/telegram-shop-bot).",
+              "To answer people: [support bot and ticket system](/learn/telegram-support-bot).",
+              "To announce things: [sending a broadcast](/learn/telegram-bot-broadcast).",
+              "To understand where your data goes: [Telegram bot and Google Sheets](/learn/telegram-bot-google-sheets)."
+            ]
+          }
+        ]
       },
       "botfather-commands": {
         "h1": "BotFather commands: the complete reference",
@@ -905,7 +974,7 @@
         "prereqs": [
           "A product list with names and prices. Ten items is plenty to start.",
           "A decision about payment: inside Telegram, by bank transfer, or on delivery.",
-          "Somewhere orders should land — a Google Sheet is the simplest option."
+          "Somewhere orders should be recorded — on IrForge the bot's own sheet does this for you."
         ],
         "stepsTitle": "The steps",
         "steps": [
@@ -926,8 +995,8 @@
             "text": "Bank transfer with a receipt upload is the lowest-friction option in many markets and needs no payment integration; you confirm manually and the bot tells the customer."
           },
           {
-            "name": "Write the order down",
-            "text": "Push each completed order to a sheet as a row. That row is your order book — searchable, sortable and shareable with whoever packs the parcels."
+            "name": "Orders get recorded",
+            "text": "Each completed order is written as a row in the bot's own sheet. That row is your order book — searchable, sortable and visible in the Orders and Database sections of the panel."
           }
         ],
         "mistakesTitle": "Where shop bots go wrong",
@@ -940,19 +1009,58 @@
         "faq": [
           {
             "q": "Can it take payments inside Telegram?",
-            "a": "Telegram supports payments through providers, but many shops start with bank transfer plus a receipt photo, which needs no integration at all."
+            "a": "Telegram supports payments through providers, but many shops start with bank transfer plus a receipt, which needs no gateway: the bot shows the payment details, the customer sends a receipt and you approve it from the panel."
           },
           {
             "q": "How many products can it handle?",
-            "a": "Technically a lot; practically, keep browsing to two taps. Beyond a few dozen items, add a search command."
+            "a": "Technically a lot; practically, keep browsing to two taps. Use categories and keep each category short."
           },
           {
             "q": "Where is the order data stored?",
-            "a": "With IrForge it goes into your own Google Sheet, so you own it and can open it without the platform."
+            "a": "In the bot's own sheet; you can see it in the Orders and Database sections of the panel and open it in Google. If volume grows, it can move to a dedicated SQL database."
+          },
+          {
+            "q": "What if a customer sends the same receipt twice?",
+            "a": "A receipt already used for another order is flagged in the Orders section so you can see it before approving."
           }
         ],
         "nextTitle": "Next step",
-        "next": "The Google Sheets guide explains how orders become rows and what a sheet is and isn't good at. If you also need to answer questions after the sale, the support bot guide is the natural companion."
+        "next": "For the shop's menu, see [menus and inline buttons](/learn/telegram-bot-menu-buttons); to tell customers about new products, [broadcasts](/learn/telegram-bot-broadcast). If you also need to answer questions after the sale, the [support bot guide](/learn/telegram-support-bot) is the natural companion.",
+        "sections": [
+          {
+            "h2": "What does a shop bot on IrForge include?",
+            "items": [
+              "Catalog: goods and services with optional categories, photos and formatted text.",
+              "Plans and options: each option has its own price and stock; tiered discounts by quantity can be defined too (for example, from 10 units each costs less).",
+              "Pre-payment fields: if the customer must give an address, phone number or location, you ask for those fields before payment.",
+              "Payment methods: per item, you can say which methods are allowed.",
+              "Order notifications: per item, a group or specific admins can be set to see the order.",
+              "Discount codes and a wallet: customers can hold a balance, and admins can credit, debit or refund."
+            ]
+          },
+          {
+            "h2": "Payment and order approval",
+            "body": [
+              "The bot shows the customer payment details — a card number or a wallet address, for example. The customer sends a receipt and the order lands in the \"Orders\" section; you approve or reject it from the panel (a reason is required to reject) and the bot tells the customer. A duplicate receipt that was already used for another order is flagged, and you can set your own message and buttons for each stage."
+            ]
+          },
+          {
+            "h2": "Delivery: digital, physical or manual",
+            "items": [
+              "Manual delivery: an approved order lands in the admin's \"pending deliveries\" queue.",
+              "Template message: after approval, a pre-written message and file go to the customer.",
+              "Pool: each purchase gets a different item from stock (a link or a code, say), and you are warned when stock runs low.",
+              "Shipped goods: once the item is posted you enter the tracking code and its message goes to the buyer.",
+              "Pickup: after approval, a \"ready for collection\" message with the time and address is sent."
+            ]
+          },
+          {
+            "h2": "Next: menu, broadcasts and data",
+            "body": [
+              "A shop does not sell without a good menu: see [menus and inline buttons](/learn/telegram-bot-menu-buttons). To announce a new product or discount, a [broadcast](/learn/telegram-bot-broadcast) works well, and if you wonder where orders are stored, read [Telegram bot and Google Sheets](/learn/telegram-bot-google-sheets)."
+            ]
+          }
+        ]
       },
       "telegram-support-bot": {
         "h1": "How to build a Telegram support bot",
@@ -1006,7 +1114,27 @@
           }
         ],
         "nextTitle": "Next step",
-        "next": "If tickets should land in a spreadsheet your team can work from, the Google Sheets guide shows how. To build the bot itself first, start with the full beginner walkthrough."
+        "next": "If tickets should land in a spreadsheet your team can work from, [Telegram bot and Google Sheets](/learn/telegram-bot-google-sheets) shows how. To build the bot itself first, start with the [full beginner walkthrough](/learn/how-to-make-a-telegram-bot).",
+        "sections": [
+          {
+            "h2": "The ticket system in IrForge",
+            "body": [
+              "Basic support already works inside your bot. Switching on the \"Ticket\" plugin adds a prioritised queue, assignment to admins and reminders for unanswered tickets in the admin panel."
+            ],
+            "items": [
+              "Every ticket has a number, subject, sender and message history, and is searchable by number, user or subject.",
+              "Status: open, assigned, closed, reopened and escalated.",
+              "Priority: urgent, high, normal and low.",
+              "You reply to the customer straight from the panel and can see whether the reply reached them or was only saved."
+            ]
+          },
+          {
+            "h2": "Where should the ticket button go?",
+            "body": [
+              "Users should always be able to reach support. Put a \"Support ticket\" button on the home panel or at the bottom of each sub-menu — [menus and inline buttons](/learn/telegram-bot-menu-buttons) shows how."
+            ]
+          }
+        ]
       },
       "telegram-bot-without-coding": {
         "h1": "How to build a Telegram bot without coding",
@@ -1022,19 +1150,19 @@
         "steps": [
           {
             "name": "Write the commands, not the code",
-            "text": "Each command is a trigger and a response. Start with /start and the three questions you answer most often."
+            "text": "Each command is a trigger and a reply. Start with /start and the three questions you answer most."
           },
           {
             "name": "Use plugins for behaviour you can't type",
-            "text": "Anything beyond a fixed reply — collecting a form, writing to a sheet, notifying you — is a plugin you enable rather than logic you write."
+            "text": "Anything beyond a fixed reply — collecting a form, taking an order, booking an appointment — is a plugin you switch on, not logic you write."
           },
           {
-            "name": "Connect your data",
-            "text": "Point the bot at a spreadsheet and its answers can reflect real, changing information instead of hardcoded text."
+            "name": "See your data",
+            "text": "Each bot has its own Google Sheet where answers and orders are recorded; check them from the panel or in the sheet itself whenever you like."
           },
           {
             "name": "Test with someone who hasn't seen it",
-            "text": "A no-code bot fails the same way a coded one does: the author knows the magic words and the user doesn't."
+            "text": "A no-code bot fails exactly where a coded one does: the builder knows the magic words and the user doesn't."
           }
         ],
         "mistakesTitle": "Where no-code stops",
@@ -1051,45 +1179,44 @@
           },
           {
             "q": "Can I move to custom code later?",
-            "a": "Yes. The bot and its token belong to you; pointing them at something else is a configuration change, not a rebuild."
+            "a": "Yes. The bot and its token are yours in BotFather and the data is visible in the sheet or database; moving means pointing the same token at a new program and taking the data with you, not rebuilding the bot."
           },
           {
             "q": "Do I need to host anything?",
             "a": "No. The platform receives Telegram's updates through a webhook and runs the bot for you."
+          },
+          {
+            "q": "Is a no-code bot builder free?",
+            "a": "Creating a bot on Telegram is free; the service that runs it costs money. IrForge gives every account one free 7-day trial bot, after which a monthly package is needed."
           }
         ],
         "nextTitle": "Next step",
-        "next": "The full beginner walkthrough shows the same build end to end. If cost is what's driving the no-code question, the pricing breakdown compares it against paying a developer."
+        "next": "The [full beginner walkthrough](/learn/how-to-make-a-telegram-bot) shows the same build end to end. If cost is what's driving the no-code question, [what a Telegram bot costs](/learn/telegram-bot-cost) compares it against paying a developer.",
+        "sections": [
+          {
+            "h2": "What is ready without code in IrForge?",
+            "items": [
+              "Menus and buttons: nested panels with inline buttons — [menus and inline buttons](/learn/telegram-bot-menu-buttons).",
+              "Step-by-step forms to collect information, sign-ups and requests.",
+              "A storefront: catalog, plans and stock, receipts and order approval — [shop bot](/learn/telegram-shop-bot).",
+              "Support tickets with priority and status — [support bot](/learn/telegram-support-bot).",
+              "Broadcasts and scheduled messages — [broadcasts](/learn/telegram-bot-broadcast).",
+              "Appointment booking, giveaways, surveys and CRM as plugins you switch on."
+            ]
+          },
+          {
+            "h2": "How do I choose the right builder?",
+            "body": [
+              "Before paying, test a few criteria on a trial account: a Persian-friendly panel, payment method, where data lives, support and the real cost. The full checklist is in [how to choose a Telegram bot builder](/learn/choose-a-telegram-bot-builder)."
+            ]
+          }
+        ]
       },
       "telegram-bot-google-sheets": {
-        "h1": "Using Google Sheets as your Telegram bot's database",
-        "lead": "Pairing a Telegram bot with Google Sheets gives you a database you can already read. Every order, ticket or form submission becomes a row; you open the sheet and see exactly what the bot has been doing. For a small operation that is not a compromise — it is usually the right answer, because the alternative is a real database nobody on the team can open. This guide covers what a sheet is good at, what it is bad at, and how the two connect.",
-        "outcomeTitle": "What you'll end up with",
-        "outcome": "A spreadsheet you own, in your own Google account, filling up with structured rows as people use your bot.",
-        "prereqTitle": "Before you start",
-        "prereqs": [
-          "A Google account and a blank spreadsheet.",
-          "A clear idea of your columns. Changing them later is possible but annoying once there is data."
-        ],
-        "stepsTitle": "The steps",
-        "steps": [
-          {
-            "name": "Design the columns before the bot",
-            "text": "One row per event, one column per fact. Always include a timestamp and who it came from — you will want both within a week."
-          },
-          {
-            "name": "Give each purpose its own tab",
-            "text": "Orders in one tab, support tickets in another. Mixing them into one sheet is the mistake that makes the data unusable later."
-          },
-          {
-            "name": "Connect the sheet",
-            "text": "IrForge reads and writes your spreadsheet through the Google Sheets API, appending a row per event and reading back where the bot needs to answer with live data."
-          },
-          {
-            "name": "Use the sheet as a sheet",
-            "text": "Once data is arriving, the ordinary spreadsheet tools — filters, sorting, a pivot table — are your reporting layer. This is the real payoff."
-          }
-        ],
+        "h1": "Telegram bot and Google Sheets: where your bot's data lives",
+        "lead": "When a Telegram bot takes an order, a ticket or a form, it has to write it somewhere. On IrForge that place is, by default, a Google Sheet dedicated to that bot: every order, ticket or form answer becomes a row, each purpose in its own tab, and you can see the data in the panel or open the sheet in Google. For a small operation that is usually the right answer, because the alternative is a real database nobody on the team can open. This guide says what a sheet is good at, what it is bad at, and when to move to a dedicated SQL database.",
+        "outcomeTitle": "What you have at the end",
+        "outcome": "A clear picture of where your bot's data is written, how you can see it, and when to move from a sheet to a SQL database.",
         "mistakesTitle": "What a sheet is bad at",
         "mistakes": [
           "Very high write volumes. A sheet is fine for hundreds of rows a day, not thousands per minute.",
@@ -1099,8 +1226,8 @@
         "faqTitle": "Questions people ask",
         "faq": [
           {
-            "q": "Who owns the data?",
-            "a": "You do. The spreadsheet lives in your Google account; the platform writes to it. You can revoke access and still have every row."
+            "q": "Where do I see my bot's data?",
+            "a": "In the admin panel, the Orders, Tickets and Database sections show it, and you can open the bot's dedicated sheet in Google as well."
           },
           {
             "q": "What if I edit the sheet by hand?",
@@ -1108,11 +1235,34 @@
           },
           {
             "q": "When should I move to a real database?",
-            "a": "When you notice writes lagging, or when correctness under concurrency starts to matter. Most bots never get there."
+            "a": "When you notice writes lagging, or when correctness under concurrency starts to matter. Most bots never get there; and if you do, IrForge moves the data automatically."
           }
         ],
         "nextTitle": "Next step",
-        "next": "The shop bot guide shows what those rows look like for orders, and the support bot guide does the same for tickets."
+        "next": "The [shop bot guide](/learn/telegram-shop-bot) shows what those rows look like for orders, and the [support bot guide](/learn/telegram-support-bot) does the same for tickets.",
+        "sections": [
+          {
+            "h2": "Where does a bot's data sit on IrForge?",
+            "body": [
+              "Each bot has its own sheet, and the different parts of it — orders, tickets, forms, panels, settings — are each written to their own tab. Until a sheet has been assigned to a bot, features such as the storefront and orders are inactive and the panel tells you so.",
+              "The panel's \"Database\" section shows the data read-only; to change it directly, you open the sheet in Google."
+            ]
+          },
+          {
+            "h2": "What is Google Sheets good at?",
+            "items": [
+              "It is readable and familiar: nobody needs SQL to see what the bot did.",
+              "Filters, sorting and pivot tables are your reporting layer.",
+              "For hundreds of rows a day — most small businesses — it is perfectly enough."
+            ]
+          },
+          {
+            "h2": "A dedicated SQL database — when?",
+            "body": [
+              "In each bot's \"Database\" section you choose where its data lives: Google Sheets (the default, free) or a dedicated SQL database. SQL is paid, as a one-time charge from your wallet, and all the bot's data is moved from the sheet automatically. You can return to Sheets, but the SQL subscription is cancelled without a refund. So move to SQL when a sheet stops keeping up — writes lag, or correctness under concurrent writes starts to matter."
+            ]
+          }
+        ]
       },
       "telegram-bot-cost": {
         "h1": "What a Telegram bot actually costs",
@@ -1164,7 +1314,22 @@
           }
         ],
         "nextTitle": "Next step",
-        "next": "See the current plans on the pricing page, and read the no-code guide to judge whether your requirements sit inside or outside what a platform covers."
+        "next": "See the current plans on the [pricing page](/pricing), and read [building a bot without coding](/learn/telegram-bot-without-coding) and [how to choose a bot builder](/learn/choose-a-telegram-bot-builder) to judge whether your requirements sit inside or outside what a platform covers.",
+        "sections": [
+          {
+            "h2": "How cost works on IrForge",
+            "items": [
+              "Telegram: free — you pay nothing for creating a bot or for the Bot API.",
+              "Trial: every account gets one free 7-day bot.",
+              "Monthly packages: Standard (1 active bot) and Pro (up to 3 active bots), each with set resources and user limits; they renew monthly from your wallet, and a bot stays off until you renew if the balance is too low.",
+              "Plugins: each package includes some free plugins (your choice); more are bought separately.",
+              "SQL database: optional and a one-time charge; the default sheet is free."
+            ],
+            "body": [
+              "What each package includes and the current price are on the [pricing page](/pricing); this guide deliberately gives no fixed figure, because prices are edited from the admin panel."
+            ]
+          }
+        ]
       },
       "telegram-bot-webhook-vs-polling": {
         "h1": "Telegram webhook vs polling: which should your bot use",
@@ -1217,6 +1382,307 @@
         ],
         "nextTitle": "Next step",
         "next": "If you're not writing the code yourself, none of this needs a decision — the beginner walkthrough covers the whole setup. The BotFather reference lists what else you can configure once updates are flowing."
+      },
+      "what-is-a-telegram-bot": {
+        "h1": "What is a Telegram bot? A plain-language guide",
+        "lead": "A Telegram bot is an automated account that receives messages and replies in place of a person — like an always-online employee who takes orders, answers questions or sends announcements. You do not need to be a developer to have one: Telegram creates the bot, a service runs it, and you decide what it says and does. This guide explains what a Telegram bot is, what it is good for and where to start.",
+        "sections": [
+          {
+            "h2": "What does a Telegram bot actually do?",
+            "body": [
+              "Every bot has a username ending in bot (like @my_shop_bot). When someone messages it or taps one of its buttons, Telegram passes that event to the service running the bot; the service decides what to answer and replies through the same bot. The user just sees a chat with one account, but behind it there can be menus, forms, payments, a database and an admin panel."
+            ]
+          },
+          {
+            "h2": "What is a Telegram bot used for? Common examples",
+            "items": [
+              "Shop bots: show a catalog, take orders and receipts, report order status — [building a Telegram shop bot](/learn/telegram-shop-bot).",
+              "Support bots: collect tickets, hand them to admins and keep a history — [support bot and ticket system](/learn/telegram-support-bot).",
+              "Notification bots: send news, discounts or reminders to every user of the bot — [sending a broadcast](/learn/telegram-bot-broadcast).",
+              "Forms and appointments: sign-ups, surveys, bookings and requests collected as a question-by-question chat.",
+              "School and education bots: send grades, absences and announcements straight to families' Telegram."
+            ]
+          },
+          {
+            "h2": "How does a bot work? Three players",
+            "items": [
+              "Telegram and BotFather: they create the bot and give you a token — the bot's private key. See [getting a Telegram bot token](/learn/telegram-bot-token).",
+              "The service that runs it: the program that receives messages and replies. You can write code and run it on a server yourself, or use a bot builder that runs it for you.",
+              "You, the bot's owner: you decide what the bot says, which menu it shows and where the data is stored."
+            ],
+            "body": [
+              "Telegram delivers messages either by webhook or the service polls for them; the difference is covered in [webhook vs polling](/learn/telegram-bot-webhook-vs-polling), but with a builder you do not have to choose."
+            ]
+          },
+          {
+            "h2": "Do I have to be a programmer?",
+            "body": [
+              "No. There are two routes: writing code (total flexibility, but you need a developer, a server and upkeep) or using a no-code bot builder where you configure menus, commands, forms and payments from a panel. Most businesses selling, supporting or announcing things need the second route; it is described in [building a Telegram bot without coding](/learn/telegram-bot-without-coding), and if you are unsure which builder fits you, see [how to choose a bot builder](/learn/choose-a-telegram-bot-builder)."
+            ]
+          },
+          {
+            "h2": "How much does a Telegram bot cost?",
+            "body": [
+              "Creating a bot on Telegram is free, and Telegram charges nothing for the Bot API. The real cost is running and maintaining the bot, or a developer's fee; with a builder that becomes a monthly package. The factors are in [what a Telegram bot costs](/learn/telegram-bot-cost) and current prices are on the [pricing](/pricing) page."
+            ]
+          },
+          {
+            "h2": "Where do I start?",
+            "body": [
+              "The shortest path is four steps: create a bot in BotFather and get a token, enter the token in IrForge, build your first menu and commands, and test with a few people. The same path, step by step, is in [how to make a Telegram bot](/learn/how-to-make-a-telegram-bot). IrForge gives every account one free 7-day trial bot."
+            ]
+          }
+        ],
+        "faqTitle": "Frequently asked questions",
+        "faq": [
+          {
+            "q": "Is a Telegram bot different from a normal Telegram account?",
+            "a": "Yes. A normal account is controlled by a person; a bot is controlled by a program. A bot has no phone number, its username ends in bot, and it is managed with a token rather than a login."
+          },
+          {
+            "q": "Can bots read my private messages?",
+            "a": "A bot only sees messages sent directly to it or posted in groups it has been added to (and by default, even there, mostly commands and messages that mention it). It has no access to your other chats."
+          },
+          {
+            "q": "Is a Telegram bot free?",
+            "a": "Creating one is free; running it is not. If you write the code and host it yourself the cash cost is small but it takes time. With a bot builder you pay a monthly package and the service handles running and upkeep."
+          },
+          {
+            "q": "How is a bot different from a channel or group?",
+            "a": "Channels and groups broadcast or host group conversation; a bot answers each user individually and automatically, and can take orders, fill in forms and store data. Many businesses use all three together."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "To start right now, follow [how to make a Telegram bot](/learn/how-to-make-a-telegram-bot); if you want to sell, [building a Telegram shop bot](/learn/telegram-shop-bot) goes into product structure and orders."
+      },
+      "choose-a-telegram-bot-builder": {
+        "h1": "How to choose the best Telegram bot builder",
+        "lead": "There is no single best Telegram bot builder — there is the builder that fits the job you want done. A shop, a support desk, broadcasts and bookings each need different things, and the price on the front page is only part of the real cost. This guide is a neutral checklist for comparing any Telegram bot builder — IrForge included — and says where and how to test each criterion.",
+        "sections": [
+          {
+            "h2": "First, decide what the bot is for",
+            "body": [
+              "Write a short list of what the bot must do in its first month: show products and take orders? answer repeat questions? send news to customers? book appointments? A builder that is excellent at one may fall short at another. If the concept is still new to you, read [what is a Telegram bot](/learn/what-is-a-telegram-bot) first."
+            ]
+          },
+          {
+            "h2": "Criteria to compare",
+            "items": [
+              "Language and support: are the admin panel, tutorials and support in your language, and does right-to-left layout actually work? The easiest test is to open a trial account and build a bot.",
+              "Payments that fit your market: in Iran most customers prefer card-to-card or a wallet. See how the builder collects receipts, how approval and rejection work, and whether duplicate receipts are caught.",
+              "Where your data lives: where are orders and users stored, how do you see them, and what happens if you leave? [Telegram bot and Google Sheets](/learn/telegram-bot-google-sheets) covers this.",
+              "Coding needed: selling, tickets and forms should work without code; for unusual needs, find out what the route is.",
+              "Real cost: put the monthly price, add-on plugins and bot and user limits side by side. Details in [what a Telegram bot costs](/learn/telegram-bot-cost).",
+              "Token security: the token should stay on the server and never appear in a link or message — and you should be able to revoke it any time with /revoke in BotFather.",
+              "Real features versus marketing: match the feature page against a trial account. Treat words like \"AI\", \"unlimited\" or \"full automation\" as unproven until you have seen them run.",
+              "Trial and renewal terms: can you try before paying? Is renewal automatic? What happens if your balance is too low?",
+              "Support: when your shop bot breaks at eleven at night, who answers and through what channel?"
+            ]
+          },
+          {
+            "h2": "Where does IrForge stand on these?",
+            "body": [
+              "We make IrForge, so we wrote the list above to work for any builder: test each criterion on that builder's own trial, not on its marketing page. For IrForge the picture is:"
+            ],
+            "items": [
+              "A Persian-first admin panel and guides, with support through tickets.",
+              "Payments: show card or wallet details to the customer, collect a receipt, and approve or reject by hand from the panel; plus a wallet inside the bot.",
+              "Data: a dedicated sheet per bot (default, free) or a dedicated SQL database for a one-time fee.",
+              "No code for the common cases (shop, tickets, forms, booking, giveaways, broadcasts) and no server to run.",
+              "Cost: one free 7-day trial bot, then a monthly package renewed from your wallet. What each package includes is on the [pricing](/pricing) page.",
+              "Limits: IrForge is a platform, not a free-form coding tool; truly unusual logic, or integrations with systems that have no connector, call for custom development."
+            ]
+          },
+          {
+            "h2": "A thirty-minute test before you pay",
+            "items": [
+              "Create a bot and connect the token — note how long it takes and where you get stuck.",
+              "Run a test order from start to finish: pick a product, see the payment details, send a receipt, approve it.",
+              "Open the bot from a second Telegram account and see whether a stranger gets confused.",
+              "Find out where the data is written and whether you can see it.",
+              "Ask support one question and judge the speed and quality of the answer."
+            ]
+          }
+        ],
+        "faqTitle": "Frequently asked questions",
+        "faq": [
+          {
+            "q": "Is there a free Telegram bot builder?",
+            "a": "Some tools have a limited free plan, and IrForge gives every account one free 7-day trial bot. Read the limits (users, plugins, duration) before you build and see what was restricted in exchange for free."
+          },
+          {
+            "q": "What is the difference between a builder and coding a bot?",
+            "a": "With a builder the common logic is ready and the service runs and maintains it; with a coded bot a developer writes everything and you run the server. The first starts faster and cheaper, the second is more flexible for unusual logic."
+          },
+          {
+            "q": "If I switch builders, do I lose my data?",
+            "a": "The bot and its token are yours in BotFather and can be pointed at another service; the data you must export from the sheet or database. Ask how to export before you choose."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "If price matters most, see [what a Telegram bot costs](/learn/telegram-bot-cost); if you want a worked example, [building a Telegram shop bot](/learn/telegram-shop-bot) builds a complete bot step by step."
+      },
+      "telegram-bot-menu-buttons": {
+        "h1": "How to build Telegram bot menus and inline buttons without code",
+        "lead": "Menus and inline buttons are what turn a Telegram bot from a text chat into a small app: instead of typing, the user taps an option and the bot shows the next screen. In IrForge these menus are built from panels and buttons, with no coding. This guide explains panels, the kinds of button, how to design a good main menu, and ends by building a complete menu step by step.",
+        "sections": [
+          {
+            "h2": "What is a panel?",
+            "body": [
+              "A panel is one \"screen\" of the bot: a message (text, photo, video, audio or file) with buttons under it. Panels nest: one of them is the home panel and the rest branch from it. For every child panel, the bot adds the \"back\" button to its parent itself."
+            ]
+          },
+          {
+            "h2": "How are buttons laid out?",
+            "body": [
+              "Buttons are defined row by row, exactly as they appear in Telegram. The editor adds new rows, moves a button to the row above or below, and warns you when a row has too many. Each button can also have a colour: primary (blue), success (green) or danger (red)."
+            ]
+          },
+          {
+            "h2": "What can a button do?",
+            "items": [
+              "Open another panel — how you build a nested menu.",
+              "Open an external link (the address must start with https://) or a mini app.",
+              "Open a step-by-step form to collect information from the user.",
+              "Order a product, open the store or a sell panel — [building a Telegram shop bot](/learn/telegram-shop-bot).",
+              "Support ticket, appointment booking, giveaway, survey, loyalty points, discount code, subscription and showing an address.",
+              "Ask for the user's phone number, or run a custom command."
+            ],
+            "body": [
+              "Some of these actions only work when the matching plugin is switched on for the bot; the editor tells you when that is the case."
+            ]
+          },
+          {
+            "h2": "Advanced settings for each panel",
+            "items": [
+              "Auto-delete the message after a number of seconds (for temporary messages).",
+              "A password the user must enter to open the panel.",
+              "A capacity that limits how many times the panel can be used.",
+              "Forwarding what the user sends to specific groups."
+            ]
+          },
+          {
+            "h2": "What does a good main menu look like?",
+            "items": [
+              "Four to six options on the home panel; more than that confuses people, so push the rest into sub-panels.",
+              "The most-used action first (say, \"Products\") and \"Support\" last.",
+              "Short, verb-first button names: \"Order now\", \"Contact us\".",
+              "Two buttons per row for options of equal weight, a single button for the main action.",
+              "Always a way to reach a human: a ticket or contact button."
+            ]
+          }
+        ],
+        "stepsTitle": "Build your first menu in IrForge",
+        "steps": [
+          {
+            "name": "Open the Panels section",
+            "text": "In the bot's admin panel, open \"Panels\" and choose \"New panel\"."
+          },
+          {
+            "name": "Write the home panel",
+            "text": "Pick the \"Media\" type and write the welcome text; a photo or video is optional."
+          },
+          {
+            "name": "Create the destination panels",
+            "text": "Make one panel per option — for example \"Products\" and \"Contact us\" — each with its own content."
+          },
+          {
+            "name": "Arrange buttons in rows",
+            "text": "In the Buttons tab, add rows, write each button's label and choose the \"Link to panel\" action with the destination panel."
+          },
+          {
+            "name": "Set the home panel",
+            "text": "Choose \"Set as home\" so this panel is the root of the bot's menu."
+          },
+          {
+            "name": "Add a command and try it in Telegram",
+            "text": "In the Commands section, create a command such as menu that opens the home panel and add it to Telegram's command menu. Then open the bot from a second account and try the menu."
+          }
+        ],
+        "mistakesTitle": "Common menu-design mistakes",
+        "mistakes": [
+          "Crowded rows: several long buttons side by side get cut off on a phone — keep rows short.",
+          "Deleting a panel that buttons link to. Before deleting, check the References tab; IrForge shows what points at the panel and asks what to do with the buttons and child panels.",
+          "An external link without https:// — Telegram will not accept it.",
+          "A menu that is too deep: if reaching one task takes more than three taps, simplify the structure."
+        ],
+        "faqTitle": "Frequently asked questions",
+        "faq": [
+          {
+            "q": "Is an inline button different from a bot's normal keyboard?",
+            "a": "Yes. An inline button sits under the message itself and can open a link or run a command; a normal (reply) keyboard replaces the phone's keyboard and sends fixed text. The buttons on IrForge's panels are inline buttons."
+          },
+          {
+            "q": "How many buttons can I put in a row?",
+            "a": "The editor warns you when a row has too many, because Telegram does not display such a layout correctly. For readability on a phone, two or three per row is usually enough."
+          },
+          {
+            "q": "Can I build a menu without any plugin?",
+            "a": "Yes. Text panels, photo panels, links and nested menus need no plugin; only actions such as booking or giveaways need their plugin."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "With the menu ready, connect a [shop bot](/learn/telegram-shop-bot) or a [support bot](/learn/telegram-support-bot) to it, and see [broadcast messages](/learn/telegram-bot-broadcast) for telling users about news."
+      },
+      "telegram-bot-broadcast": {
+        "h1": "How to send a broadcast message in a Telegram bot",
+        "lead": "A broadcast means sending one message — an announcement, a discount, a reminder — to every user of your bot. It is a powerful tool, and exactly the one that makes users block a bot when it is misused. This guide explains how broadcasting works in IrForge, what to check before pressing send, and which other tool to use for repeated or targeted messages.",
+        "sections": [
+          {
+            "h2": "How does broadcasting work in IrForge?",
+            "body": [
+              "In the bot's \"Broadcast\" section you write the message, or send it to the bot from Telegram right there. The bot first shows that message in your own chat and then copies it to every recipient, so what you see in the preview is exactly what users get — with its own formatting and media.",
+              "To confirm, you type the number of recipients, and after the run a delivery report arrives in your chat. The bot itself (through its job queue) does the sending, not the website; that is why the sending rate and the report are the bot's responsibility, and recent broadcasts are read from that same queue."
+            ]
+          },
+          {
+            "h2": "Who receives it?",
+            "body": [
+              "Every user of the bot who has not been banned. That set is fixed at the moment the job runs, so the number you see before sending is an estimate."
+            ]
+          },
+          {
+            "h2": "Notes and limits",
+            "items": [
+              "Inline buttons are not supported in broadcasts: the bot copies the message without its keyboard. Put any link inside the text.",
+              "The \"Forwarded from\" label does not appear, because the bot itself sends the message.",
+              "You can register several messages (text and media) one after another and finish by tapping \"Done\" in Telegram.",
+              "If the bot's job queue is not configured, broadcasting cannot run and the panel tells you so."
+            ]
+          },
+          {
+            "h2": "Rules for a broadcast users will not resent",
+            "items": [
+              "Only send when the message is worth reading for everyone; frequent broadcasts mean blocked bots.",
+              "Keep it short and ask for one clear action (\"See it now\" with a link).",
+              "Choose a sensible hour — not midnight.",
+              "Read the preview carefully: once sent there is no taking it back."
+            ]
+          },
+          {
+            "h2": "Broadcast or scheduled messages?",
+            "body": [
+              "For a one-off announcement, a broadcast is enough. If you want to message by event, on a set date or weekly, and only to a defined group of users (for example a CRM tag), the \"scheduled messages\" plugin has quiet hours and a per-user hourly message cap. To publish one post to several channels, there is also the \"post maker\" plugin."
+            ]
+          }
+        ],
+        "faqTitle": "Frequently asked questions",
+        "faq": [
+          {
+            "q": "Can broadcasting cause problems for my bot?",
+            "a": "The bot manages the sending rate itself so Telegram's limits are not exceeded. The main risk is too many or irrelevant messages: users block or report the bot. Send few, and make them worth it."
+          },
+          {
+            "q": "Can I send to only a certain group of users?",
+            "a": "A broadcast goes to all users. For a targeted audience use the \"scheduled messages\" plugin with CRM tags."
+          },
+          {
+            "q": "Can I see the message before it goes out?",
+            "a": "Yes. The bot first sends the message to your own chat and then copies it to users; to start the send you must also type the number of recipients."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "If you have no bot yet, follow [how to make a Telegram bot](/learn/how-to-make-a-telegram-bot). For a menu that brings users back to the bot, see [menus and inline buttons](/learn/telegram-bot-menu-buttons); and if you sell, a [shop bot](/learn/telegram-shop-bot) is the natural home for discount messages."
       }
     }
   },
@@ -1225,7 +1691,7 @@
     "intro": "Plans, what each one includes, and how billing works. Every plan is for one hosted Telegram bot builder account; bots are added per package.",
     "breadcrumbLabel": "Breadcrumb",
     "tiersTitle": "The plans",
-    "priceNote": "These are the current, live plan prices — the same ones shown once you sign in. Real figures for the Standard and Pro bot packages are shown on the home page.",
+    "priceNote": "These are the real, current prices of the account plans — exactly what you see after signing in.",
     "faqTitle": "Billing questions",
     "faq": [
       {
@@ -1242,7 +1708,17 @@
       }
     ],
     "cta": "Get started",
-    "learnLink": "Read the guides"
+    "learnLink": "Read the guides",
+    "packagesTitle": "Bot packages",
+    "packagesIntro": "Your account plan sets your limits and each bot runs on a package. These are what the packages include; the current price of each package is shown in the bot store after you sign in.",
+    "billingTitle": "How package billing works",
+    "billingItems": [
+      "Every account gets one free 7-day trial bot — once per account.",
+      "Standard and Pro are monthly. You get a warning notification a few days before the period ends, and at the end the renewal is charged from your wallet.",
+      "Renewal is charged at the package's current price. If your wallet balance is too low, that bot stays off until you renew.",
+      "The package fee is for owning the package, not for the bot being switched on — so turning a bot off by hand does not stop renewal.",
+      "Telegram charges nothing for creating a bot or using the Bot API. What you pay for is running and supporting your bot."
+    ]
   },
   "footer": {
     "productTitle": "Product",
@@ -3105,7 +3581,7 @@
     "popular": "Most popular",
     "choose": "Choose this plan",
     "allPlans": "Compare every plan",
-    "oneOff": "one-off, per bot",
+    "oneOff": "per month, per bot",
     "custom": {
       "name": "Custom",
       "tagline": "Pick your own RAM, CPU and plugins."
@@ -3545,12 +4021,10 @@
     "contentSubjectFilterAll": "All subjects",
     "editContentButton": "Edit",
     "deleteContentButton": "Delete",
-
     "navAnnouncements": "Announcements",
     "openButton": "Open",
     "cancelButton": "Cancel",
     "addButton": "Add",
-
     "role_admin": "Admin",
     "role_deputy": "Deputy",
     "role_deputy_discipline": "Discipline deputy",
@@ -3558,7 +4032,6 @@
     "role_teacher": "Teacher",
     "role_student": "Student",
     "role_parent": "Parent",
-
     "membersPageDescription": "See this school's members, change their role, or remove them.",
     "membersListTitle": "Member list",
     "membersEmpty": "No members yet",
@@ -3588,7 +4061,6 @@
     "guardianshipLinked": "Parent link created",
     "fieldUserId": "User ID",
     "testAccountBadge": "Test",
-
     "classesPageDescription": "Manage this school's classes — name, grade and academic year.",
     "addClassButton": "New class",
     "fieldClassName": "Class name",
@@ -3606,7 +4078,6 @@
     "rosterEmpty": "No one has been added to this class yet",
     "classMemberAdded": "Added to the roster",
     "classMemberRemoved": "Removed from the roster",
-
     "programsPageDescription": "Manage weekly schedule slots or term program announcements.",
     "addProgramButton": "New program",
     "fieldProgramTitle": "Program title",
@@ -3619,7 +4090,6 @@
     "programsEmpty": "No programs yet",
     "programSaved": "Program saved",
     "programSaveError": "Failed to save",
-
     "announcementsTitle": "Announcements",
     "announcementsDescription": "The school's broadcast messages and closure notices.",
     "addAnnouncementButton": "New announcement",
@@ -3629,7 +4099,6 @@
     "announcementsEmpty": "No announcements yet",
     "announcementSaved": "Announcement posted",
     "announcementSaveError": "Failed to post",
-
     "inviteCodesTitle": "Invite codes",
     "inviteCodesDescription": "Generate a code so people can join this school with it.",
     "generateInviteCodeButton": "Generate code",
@@ -3641,14 +4110,11 @@
     "fieldInviteCodeExpiresAt": "Expires on (optional)",
     "fieldInviteCodeMaxUses": "Max uses (optional)",
     "inviteCodeUsesOf": "{used} of {max} used",
-
     "statClassesCount": "Classes",
     "statMembersCount": "Members",
-
     "teacherClassesDescription": "The classes you teach.",
     "postToClassTitle": "Post to class",
     "postButton": "Post",
-
     "counselorStudentsDescription": "This school's students and your confidential notes on them.",
     "confidentialNotesTitle": "Confidential notes",
     "fieldNote": "Note",
@@ -3656,20 +4122,16 @@
     "noteSaved": "Note saved",
     "noteSaveError": "Failed to save the note",
     "noNotesYet": "No notes yet",
-
     "parentChildrenDescription": "The children linked to your account.",
     "noChildrenLinked": "No child is linked to your account yet — ask the school admin to create the link.",
-
     "fieldSchoolPhotoPlaceholder": "Photo URL",
     "grantAdminTitle": "Add another admin",
     "grantAdminDescription": "Give one of this school's members admin access — they'll see this school in their \"My Schools\" switcher too.",
     "grantAdminSelectLabel": "Member",
     "grantAdminButton": "Add as admin",
     "adminGranted": "Admin access granted",
-
     "contentImageUrlField": "Image URL (optional)",
     "contentImageUrlPlaceholder": "https://...",
-
     "cancel": "Cancel",
     "addLessonButton": "Add Lesson",
     "lessonTitleField": "Lesson title",
@@ -3683,10 +4145,8 @@
     "lessonDeleteNonCascadeHint": "Deleting this lesson will not delete its items; they will just be removed from this lesson.",
     "addItemToLessonButton": "Add item to this lesson",
     "contentTypeField": "Content type",
-
     "teacherTodayDescription": "The latest announcements from your classes.",
     "teacherTodayEmpty": "No announcements for this class yet.",
-
     "assignmentsPageDescription": "Create assignments for each class and grade student submissions.",
     "assignmentsListTitle": "Assignments for this class",
     "addAssignmentButton": "New assignment",
@@ -3699,13 +4159,11 @@
     "viewSubmissionsButton": "View submissions",
     "noSubmissionsYet": "No student has submitted yet.",
     "gradeSaved": "Grade saved",
-
     "studentAssignmentsDescription": "Your classes' assignments — submit your work and see your grade.",
     "assignmentSubmissionPlaceholder": "Write your answer…",
     "submitAssignmentButton": "Submit",
     "assignmentSubmitted": "Submission sent",
     "fieldFeedback": "Feedback",
-
     "counselorReportsDescription": "Reports the school's admin/deputy can also see — for confidential notes, use \"Students\".",
     "addReportButton": "Add report",
     "fieldReportStudent": "Student",
@@ -3717,21 +4175,17 @@
     "reportsListTitle": "Reports",
     "reportsEmpty": "No reports yet.",
     "adminCounselorReportsDescription": "The school's counselors' latest reports (read-only).",
-
     "counselorScheduleDescription": "Your weekly availability slots — students can see this schedule.",
     "addScheduleSlotButton": "Add slot",
     "scheduleSaved": "Slot saved",
     "scheduleSaveError": "Error saving slot",
     "scheduleListTitle": "Weekly schedule",
     "scheduleEmpty": "No slots yet.",
-
     "counselorChatDescription": "Pick a student to open the conversation.",
     "chatEmpty": "No messages yet.",
     "chatMessagePlaceholder": "Write your message…",
-
     "studentCounselorDescription": "The counselor's weekly schedule and a direct conversation with them.",
     "noCounselorYet": "Your school has no counselor yet.",
-
     "questionsPageDescription": "Your question bank — these questions can be reused across exams.",
     "addQuestionButton": "Add question",
     "fieldQuestionText": "Question text",
@@ -3742,7 +4196,6 @@
     "questionSaveError": "Error saving question",
     "questionsListTitle": "Your questions",
     "questionsEmpty": "You haven't created any questions yet.",
-
     "examsPageDescription": "Your exams — built from the question bank, for one class.",
     "addExamButton": "Create exam",
     "examsListTitle": "Exams",
@@ -3769,13 +4222,11 @@
     "questionResultCorrect": "Correct",
     "questionResultWrong": "Wrong",
     "questionResultPending": "Awaiting teacher grading",
-
     "studentExamsDescription": "Your classes' exams — each exam can only be taken once.",
     "startExamButton": "Start exam",
     "submitExamButton": "Submit answers",
     "examSubmitted": "Answers submitted",
     "examAlreadySubmitted": "You have already taken this exam.",
-
     "navMessages": "Messages",
     "studentAdminChatDescription": "Message the school's admins — all admins of the school can see this thread and reply.",
     "studentTeacherChatDescription": "Pick one of your class teachers to chat with.",
@@ -3789,7 +4240,6 @@
     "resetAttemptButton": "Reset attempt",
     "resetAttemptConfirm": "Delete this student's attempt so they can start the exam again?",
     "attemptReset": "Attempt reset",
-
     "navAttendance": "Attendance",
     "navGradebook": "Gradebook",
     "navGrades": "My Grades",
@@ -3808,7 +4258,6 @@
     "attendanceSaveError": "Failed to save attendance",
     "attendanceEmpty": "No attendance records yet.",
     "studentAttendanceDescription": "Your attendance history across all classes.",
-
     "markAllPresentButton": "Mark all as present",
     "copyPreviousDayButton": "Copy from previous day",
     "copyPreviousDayNoneFound": "No earlier day with recorded attendance was found.",
@@ -3843,7 +4292,6 @@
     "alertSaveError": "Failed to save alert",
     "alertsListTitle": "Alerts",
     "alertsEmpty": "No alerts yet.",
-
     "schoolBotPoolNavLabel": "School Bot Pool",
     "botCardTitle": "Notification Bot",
     "botCardDescription": "A Telegram bot renamed to your school that sends exam/assignment/attendance/alert notifications straight to members.",
@@ -3864,17 +4312,14 @@
     "botConnectButton": "Connect with Telegram",
     "botConnected": "Connected",
     "botConnectNotAvailable": "This school doesn't have a notification bot yet.",
-
     "absenceSummaryTitle": "Today's Absence Summary",
     "absenceSummaryAbsent": "Absent",
     "absenceSummaryLate": "Late",
     "absenceSummaryClasses": "Classes",
-
     "checkUnmarkedAttendanceButton": "Check unmarked attendance",
     "checkUnmarkedAttendanceRunning": "Checking...",
     "checkUnmarkedAttendanceAllMarked": "All classes have recorded attendance today.",
     "checkUnmarkedAttendanceFound": "The following classes haven't recorded attendance today, and staff were notified:",
-
     "navAuditLog": "Audit Log",
     "auditLogDescription": "Administrative events for this school — role changes, member removals, admin grants, invite codes, alerts — newest first.",
     "auditLogEmpty": "No events yet.",
@@ -3885,5 +4330,54 @@
     "auditAction_invite_code.created": "Invite code created",
     "auditAction_invite_code.toggled": "Invite code status changed",
     "auditAction_alert.issued": "Alert issued"
+  },
+  "about": {
+    "breadcrumbLabel": "Breadcrumb",
+    "h1": "About IrForge",
+    "lead": "IrForge is a Persian-first Telegram bot builder: paste your BotFather token and, with no server and no coding, build and run a shop bot, support bot, booking bot, broadcast tool or any other practical bot from one admin panel.",
+    "sections": [
+      {
+        "h2": "What we do",
+        "body": [
+          "IrForge runs the bot for you — receiving Telegram messages, replying and storing data — and puts the tools for building and managing it side by side in one panel: menus and buttons, forms, storefront and wallet, support tickets, appointment booking, giveaways, surveys, CRM and broadcasts. You decide what the bot says and does."
+        ]
+      },
+      {
+        "h2": "Who it is for",
+        "items": [
+          "Sellers and small businesses who want to show a catalog and take orders and receipts on Telegram. [Shop bot guide](/learn/telegram-shop-bot)",
+          "Teams that handle customer support on Telegram and want tickets and history. [Support bot guide](/learn/telegram-support-bot)",
+          "Schools and training centres that want to send grades, absences and announcements straight to families' Telegram.",
+          "People who would rather build a bot themselves than hire a developer. [Building a bot without coding](/learn/telegram-bot-without-coding)"
+        ]
+      },
+      {
+        "h2": "Your token and your data",
+        "body": [
+          "Your bot token is kept on the server only and never appears in a link; you can revoke it any time with /revoke in BotFather.",
+          "By default each bot's data lives in a dedicated Google Sheet for that bot (visible in the panel and in Google), and you can move it to a dedicated SQL database when you need to. Details in [Telegram bot & Google Sheets](/learn/telegram-bot-google-sheets)."
+        ]
+      },
+      {
+        "h2": "Clear costs",
+        "body": [
+          "Every account gets one free 7-day trial bot. After that, the Standard and Pro packages are monthly and renew from your wallet; what they include and the plan prices are on the [pricing](/pricing) page. Telegram itself charges nothing for creating a bot or using the Bot API."
+        ]
+      },
+      {
+        "h2": "Languages and learning",
+        "body": [
+          "IrForge's interface is available in five languages (Persian, English, Arabic, Turkish and Russian), with Persian as our main one. You can read the [guides](/learn) without signing up, and our education channel on Telegram has video walkthroughs of the same steps. The electronic trust seal (Enamad) is shown at the bottom of every page."
+        ]
+      }
+    ],
+    "contactTitle": "Contact",
+    "contactBody": "For questions about the product, our education channel on Telegram and our Instagram page are active. If you have an account, you can also open a support ticket from inside the panel.",
+    "contactChannel": "Education channel on Telegram",
+    "contactInstagram": "Instagram",
+    "ctaTitle": "Ready to build your first bot?",
+    "ctaBody": "Try it free for 7 days — no coding, no servers.",
+    "ctaButton": "Get started",
+    "ctaPricing": "See pricing"
   }
 }

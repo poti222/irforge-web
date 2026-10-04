@@ -84,6 +84,8 @@ function organization() {
     "@type": "Organization",
     "@id": ORG_ID,
     name: "IrForge",
+    // The Persian rendering people actually type into a search box.
+    alternateName: ["ایرفورج"],
     url: `${SITE_ORIGIN}/`,
     logo: LOGO,
     ...(SOCIAL_PROFILES.length ? { sameAs: SOCIAL_PROFILES } : {}),
@@ -117,7 +119,9 @@ function softwareApplication(lang: Lang, s: SchemaStrings) {
     "@id": `${SITE_ORIGIN}/#software`,
     name: "IrForge",
     description: s.description,
-    applicationCategory: "DeveloperApplication",
+    // What it is for the people searching for it: a service for running a
+    // business on Telegram, not a developer toolchain.
+    applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     url: absoluteUrl(lang, "/"),
     inLanguage: lang,
@@ -145,6 +149,7 @@ function breadcrumbs(lang: Lang, route: string, s: SchemaStrings) {
   }
   return {
     "@type": "BreadcrumbList",
+    "@id": `${absoluteUrl(lang, route)}#breadcrumb`,
     itemListElement: items.map((it, i) => ({
       "@type": "ListItem",
       position: i + 1,
@@ -155,18 +160,45 @@ function breadcrumbs(lang: Lang, route: string, s: SchemaStrings) {
 }
 
 /**
- * Only genuinely public destinations belong here. Everything else in the app
- * is behind auth and noindex'd, and advertising those as site navigation
- * would point crawlers straight at pages robots.txt tells them to skip.
+ * The primary navigation, not a sitemap: SiteNavigationElement describes the
+ * site's main menu, and listing every article there would say "these thirteen
+ * guides are top-level navigation", which they are not (the sitemap and the
+ * /learn hub are where they are enumerated). Only genuinely public
+ * destinations belong; everything else in the app is behind auth and noindex'd,
+ * and advertising those would point crawlers at pages they must not index.
  */
+const PRIMARY_NAV_ROUTES = ["/", "/learn", "/pricing", "/docs", "/about"] as const;
+
 function siteNavigation(lang: Lang, s: SchemaStrings) {
-  return PUBLIC_ROUTES.map((route) => ({
-    "@type": "SiteNavigationElement",
-    name: s.routeLabels[route] ?? route,
-    url: absoluteUrl(lang, route),
-  }));
+  return PRIMARY_NAV_ROUTES.filter((route) => (PUBLIC_ROUTES as readonly string[]).includes(route)).map(
+    (route) => ({
+      "@type": "SiteNavigationElement",
+      name: s.routeLabels[route] ?? route,
+      url: absoluteUrl(lang, route),
+    }),
+  );
 }
 
+/**
+ * `WebPage` (or `AboutPage`) for a page, tied to the WebSite and its
+ * breadcrumb by @id. `/learn` has its own CollectionPage and an article is
+ * described by its Article node, so they don't get a second page-level node.
+ */
+function webPage(lang: Lang, route: string, s: SchemaStrings) {
+  const canonical = absoluteUrl(lang, route);
+  return {
+    "@type": route === "/about" ? "AboutPage" : "WebPage",
+    "@id": `${canonical}#webpage`,
+    url: canonical,
+    name: s.title,
+    description: s.description,
+    inLanguage: lang,
+    isPartOf: { "@id": SITE_ID },
+    breadcrumb: { "@id": `${canonical}#breadcrumb` },
+    ...(route === "/" ? { about: { "@id": `${SITE_ORIGIN}/#software` } } : {}),
+    ...(route === "/about" ? { about: { "@id": ORG_ID } } : {}),
+  };
+}
 
 /** Slug for a `/learn/<slug>` route, or null for anything else. */
 function articleSlugFor(route: string): ArticleSlug | null {
@@ -284,6 +316,7 @@ export function structuredData(
   ];
 
   const slug = articleSlugFor(route);
+  if (!slug && route !== "/learn") graph.push(webPage(lang, route, s));
   if (slug) {
     graph.push(articleNode(lang, route, slug, s));
     if (HOWTO_SLUGS.includes(slug)) {

@@ -66,6 +66,34 @@ open `irforge/scripts/og-generator.html` in a browser and click **Download
 all**, then drop the PNGs back into `public/og/`. Replacing them with proper
 artwork needs nothing but the same filenames.
 
+## 2026-10 audit — what changed (full write-up: `docs/seo_strategy.md`)
+
+- **Server answers for crawlers** (`api-server/src/lib/seoRouting.ts`, mounted in `app.ts`):
+  one canonical URL per page (301 for `/en` → `/en/`, `/docs/` → `/docs`,
+  `/docs/index.html`, `/fa/…`, and the legacy `/learn/bot-token`); real **404** for
+  unknown URLs; every response served from the app shell carries
+  `X-Robots-Tag: noindex, follow`. The shell (`dist/app-shell.html`) is neutral —
+  no canonical, description, OG or hreflang — instead of impersonating the homepage.
+- **`/dashboard` is `noindex, follow` and deliberately NOT disallowed** (see
+  `CRAWLABLE_NOINDEX_ROUTES` in `lang-routing.ts`): a URL robots.txt blocks can never
+  show a crawler its noindex. `scripts/ssg.mjs` enforces both directions.
+- `PRIVATE_ROUTES` / `APP_SEGMENTS` now include `/schools`, `/tutorials`, `/auth`,
+  `/complete-profile`, `/super`; `api-server/test/seoRouting.test.mjs` compares
+  them with the real `<Route>`s in `App.tsx`.
+- **Copy policy: no claim the code can't back.** Removed from all five languages:
+  "thousands of developers", "unlimited bots", AI-reply / group-moderation plugins,
+  "build Mini Apps", "v2.0", "sheet in your own Google account", "one-time price, no
+  monthly subscription" (packages are monthly — `lib/tierExpiry.ts`). Re-introducing
+  them fails `irforge/test/seoContent.test.mjs`.
+- New pages (all five languages): `/learn/what-is-a-telegram-bot`,
+  `/learn/choose-a-telegram-bot-builder`, `/learn/telegram-bot-menu-buttons`,
+  `/learn/telegram-bot-broadcast`, `/about`. `/pricing` now has a static packages +
+  billing section (no prices on purpose). Articles can use `sections` (free-form
+  chapters) and inline links `[text](/learn/slug)` — see `ArticleLayout.tsx`; the
+  `sections` key never falls back to English.
+- Sitemap `lastmod` is per article (`ARTICLE_DATES[slug].modified`); bump it by hand
+  when an article's copy really changes.
+
 ## Manual steps — these cannot be done from code
 
 1. **Request reindexing.** After deploying, open Google Search Console →
@@ -81,6 +109,8 @@ artwork needs nothing but the same filenames.
    Validator, and check hreflang with an international-targeting report once
    Search Console has re-crawled.
 4. **Fill in `SOCIAL_PROFILES`** once the real IrForge channels are confirmed.
+5. **After the 2026-10 deploy:** request indexing for the new pages, and for `/dashboard` use Search Console's temporary removal if it is still listed — the `noindex` takes effect on its next crawl.
+6. **`Organization.alternateName: ["ایرفورج"]`** is a Persian rendering added for entity matching; remove it if the brand does not use that spelling.
 
 ## Known follow-ups
 

@@ -11,6 +11,14 @@ Allow: /tr/
 Allow: /ru/
 Allow: /ar/
 
+# NOT disallowed on purpose: /dashboard, /login, /register, /forgot-password,
+# /reset-password. A page robots.txt blocks can't show a crawler its `noindex`,
+# and Google may keep a blocked-but-linked URL in the index as a bare result.
+# For these the server answers with `X-Robots-Tag: noindex, follow` (and the app
+# shell carries the same <meta name="robots">), so a crawler may fetch them and
+# will drop them. See CRAWLABLE_NOINDEX_ROUTES in src/lib/lang-routing.ts —
+# scripts/ssg.mjs fails the build if one of them gets a Disallow here.
+#
 # Everything below is behind auth or is an auth screen. Each path is listed
 # twice: bare, and under any language prefix — /en/dashboard became a real
 # URL when the site moved to per-language routes, and "Disallow: /dashboard"
@@ -18,8 +26,6 @@ Allow: /ar/
 #
 # This list is checked against PRIVATE_ROUTES in src/lib/lang-routing.ts at
 # build time; scripts/ssg.mjs fails the build if the two drift apart.
-Disallow: /dashboard
-Disallow: /*/dashboard
 Disallow: /bots
 Disallow: /*/bots
 Disallow: /marketplace
@@ -54,13 +60,15 @@ Disallow: /admin
 Disallow: /*/admin
 Disallow: /admin/users
 Disallow: /*/admin/users
-Disallow: /login
-Disallow: /*/login
-Disallow: /register
-Disallow: /*/register
-Disallow: /forgot-password
-Disallow: /*/forgot-password
-Disallow: /reset-password
-Disallow: /*/reset-password
+Disallow: /schools
+Disallow: /*/schools
+Disallow: /tutorials
+Disallow: /*/tutorials
+Disallow: /auth
+Disallow: /*/auth
+Disallow: /complete-profile
+Disallow: /*/complete-profile
+Disallow: /super
+Disallow: /*/super
 
 Sitemap: https://irforge.ir/sitemap.xml

@@ -31,16 +31,21 @@ export const PUBLIC_ROUTES = [
   "/",
   "/docs",
   "/learn",
-  "/learn/telegram-bot-token",
+  "/learn/what-is-a-telegram-bot",
   "/learn/how-to-make-a-telegram-bot",
+  "/learn/telegram-bot-token",
+  "/learn/telegram-bot-without-coding",
+  "/learn/choose-a-telegram-bot-builder",
   "/learn/telegram-shop-bot",
   "/learn/telegram-support-bot",
-  "/learn/telegram-bot-without-coding",
+  "/learn/telegram-bot-menu-buttons",
+  "/learn/telegram-bot-broadcast",
   "/learn/telegram-bot-google-sheets",
   "/learn/telegram-bot-cost",
   "/learn/botfather-commands",
   "/learn/telegram-bot-webhook-vs-polling",
   "/pricing",
+  "/about",
 ] as const;
 
 /**
@@ -103,6 +108,11 @@ export const ROUTE_SEO: Record<string, RouteSeo> = {
     descKey: "learnHubDescription",
     navKey: "navLearnHub",
   },
+  "/learn/what-is-a-telegram-bot": {
+    titleKey: "whatIsTitle",
+    descKey: "whatIsDescription",
+    navKey: "navWhatIs",
+  },
   "/learn/telegram-bot-token": {
     titleKey: "botTokenTitle",
     descKey: "botTokenDescription",
@@ -113,6 +123,11 @@ export const ROUTE_SEO: Record<string, RouteSeo> = {
     descKey: "howToMakeDescription",
     navKey: "navHowToMake",
   },
+  "/learn/choose-a-telegram-bot-builder": {
+    titleKey: "chooseBuilderTitle",
+    descKey: "chooseBuilderDescription",
+    navKey: "navChooseBuilder",
+  },
   "/learn/telegram-shop-bot": {
     titleKey: "shopBotTitle",
     descKey: "shopBotDescription",
@@ -122,6 +137,16 @@ export const ROUTE_SEO: Record<string, RouteSeo> = {
     titleKey: "supportBotTitle",
     descKey: "supportBotDescription",
     navKey: "navSupportBot",
+  },
+  "/learn/telegram-bot-menu-buttons": {
+    titleKey: "menuButtonsTitle",
+    descKey: "menuButtonsDescription",
+    navKey: "navMenuButtons",
+  },
+  "/learn/telegram-bot-broadcast": {
+    titleKey: "broadcastTitle",
+    descKey: "broadcastDescription",
+    navKey: "navBroadcast",
   },
   "/learn/telegram-bot-without-coding": {
     titleKey: "withoutCodingTitle",
@@ -152,6 +177,11 @@ export const ROUTE_SEO: Record<string, RouteSeo> = {
     titleKey: "pricingTitle",
     descKey: "pricingDescription",
     navKey: "navPricing",
+  },
+  "/about": {
+    titleKey: "aboutTitle",
+    descKey: "aboutDescription",
+    navKey: "navAbout",
   },
 };
 
@@ -235,6 +265,76 @@ export const PRIVATE_ROUTES = [
   "/register",
   "/forgot-password",
   "/reset-password",
+  // SEO audit (2026-10): these are real, authenticated or auth-flow routes in
+  // App.tsx that were in no list at all, so robots.txt let crawlers in and the
+  // shell they got back said `index, follow` + a canonical pointing at the
+  // homepage. `scripts/ssg.mjs` and `api-server/test/seoRouting.test.mjs` now compare this
+  // list with App.tsx's real routes, so the next one can't be forgotten.
+  "/schools",
+  "/tutorials",
+  "/auth",
+  "/complete-profile",
+  "/super",
+] as const;
+
+/**
+ * The private routes that robots.txt must deliberately leave **crawlable**.
+ *
+ * `Disallow` and `noindex` fight each other: a crawler that is not allowed to
+ * fetch a URL never sees the `noindex` on it, and Google may keep the bare URL
+ * in its index ("indexed, though blocked by robots.txt") if anything links to
+ * it. These are exactly the routes that ARE linked from public pages (the
+ * header's login/register buttons) or that people share and search for
+ * (/dashboard), so for them the only reliable de-indexing is: let the crawler
+ * in, answer 200 with `X-Robots-Tag: noindex, follow` and a matching
+ * `<meta name="robots">` (the server and the app shell both do — see
+ * api-server/src/lib/seoRouting.ts and scripts/ssg.mjs).
+ *
+ * Every other private route stays `Disallow`ed (nothing public links to it, and
+ * the server sends the same noindex header if one is ever fetched).
+ * `assertRobotsCoverage()` enforces both directions at build time.
+ */
+export const CRAWLABLE_NOINDEX_ROUTES = [
+  "/dashboard",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+] as const;
+
+/**
+ * Every top-level path segment that App.tsx renders and that is NOT a public
+ * marketing page. The server answers these with the app shell (HTTP 200,
+ * `X-Robots-Tag: noindex, follow`); any other unknown path gets a real 404.
+ *
+ * Keep in step with `APP_SEGMENTS` in api-server/src/lib/seoRouting.ts and with
+ * the `<Route>` list in App.tsx — `api-server/test/seoRouting.test.mjs` fails if they drift.
+ */
+export const APP_SEGMENTS = [
+  "login",
+  "register",
+  "forgot-password",
+  "reset-password",
+  "complete-profile",
+  "auth",
+  "dashboard",
+  "bots",
+  "products",
+  "buy-bot",
+  "tutorials",
+  "marketplace",
+  "invoices",
+  "tickets",
+  "wallet",
+  "plans",
+  "support",
+  "notifications",
+  "updates",
+  "database",
+  "profile",
+  "schools",
+  "admin",
+  "super",
 ] as const;
 
 /**
@@ -242,7 +342,7 @@ export const PRIVATE_ROUTES = [
  * build date — rebuilding without a content change shouldn't tell crawlers
  * the page was modified.
  */
-export const SITEMAP_LASTMOD = "2026-08-10";
+export const SITEMAP_LASTMOD = "2026-10-04";
 
 export const ALL_LANGS: readonly Lang[] = LANGUAGES.map((l) => l.code);
 

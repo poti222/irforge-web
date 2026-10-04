@@ -58,40 +58,40 @@
     "dashboard": "Panel",
     "startBuilding": "Hemen Oluşturmaya Başlayın",
     "viewDocs": "Dokümantasyonu Görüntüle",
-    "tagline": "Profesyonel Telegram Bot Platformu",
-    "taglineSub": "Gelişmiş Telegram botları ve Mini Uygulamaları oluşturun, dağıtın ve ölçeklendirin. Kodun gücü, no-code'un hızı, geliştirici odaklı bir deneyimde.",
-    "engineeredForScale": "Ölçek İçin Tasarlandı",
-    "engineeredSub": "Production botlarınızı çalıştırmak için ihtiyacınız olan her şey, kutudan çıktığı gibi hazır.",
+    "tagline": "Telegram bot oluşturucu — kodsuz, sunucusuz",
+    "taglineSub": "IrForge ile mağaza botu, destek botu, randevu botu veya toplu mesaj aracı oluşturun: BotFather token'ınızı yapıştırın, botunuz dakikalar içinde yayında — sunucu yok, kod yok. İlk botunuzu 7 gün ücretsiz deneyin.",
+    "engineeredForScale": "İşe yarar bir botun ihtiyacı olan her şey",
+    "engineeredSub": "Mağaza ve ödemeden destek ve toplu mesaja kadar — tek yönetim paneli, kurulum yok, yönetilecek sunucu yok.",
     "readyToForge": "Botlarınızı oluşturmaya hazır mısınız?",
-    "readyToForgeSub": "Telegram deneyimlerinin yeni neslini inşa eden binlerce İranlı geliştiriciye katılın.",
+    "readyToForgeSub": "Bot token'ınızı girin ve ilk botunuzu 7 gün ücretsiz deneyin.",
     "createFreeAccount": "Ücretsiz Hesap Oluştur",
-    "madeWith": "İranlı geliştiriciler için gururla üretildi.",
+    "madeWith": "İranlı işletmeler için gururla geliştirildi.",
     "toggleTheme": "Temayı Değiştir",
     "toggleLang": "Dil",
     "language": "Dil",
-    "advancedCommands": "Gelişmiş Komutlar",
-    "advancedCommandsDesc": "Görsel oluşturucu kodla buluşuyor. Karmaşık mantığı, argüman ayrıştırmayı ve izinleri kolayca tanımlayın.",
-    "pluginMarketplace": "Eklenti Mağazası",
-    "pluginMarketplaceDesc": "Tek tıkla eklenti kurulumu. Analitik, moderasyon, ödemeler, yapay zeka entegrasyonları ve daha fazlası.",
-    "instantDeploy": "Anında Dağıtım",
-    "instantDeployDesc": "Kesinti olmadan değişiklikleri anında yayınlayın. Gerçek zamanlı günlükleme ve performans izleme.",
-    "enterpriseSecurity": "Kurumsal Güvenlik",
-    "enterpriseSecurityDesc": "Rol tabanlı izinler, token yönetimi ve ekibiniz için tam denetim günlükleri.",
-    "analyticsDashboard": "Analitik Paneli",
-    "analyticsDashboardDesc": "Kullanıcıları, mesajları, çalışma süresini ve geliri güzel gerçek zamanlı grafiklerle takip edin.",
-    "multiBotManagement": "Çoklu Bot Yönetimi",
-    "multiBotManagementDesc": "Sınırsız botu tek bir panelden kontrol edin. Bağlamlar arasında saniyeler içinde geçiş yapın.",
-    "heroBadge": "Sürüm 2.0 — İran'ın geliştiricileri için üretildi",
-    "heroTitleLine1": "Profesyonel",
-    "heroTitleGradient": "Telegram Bot Platformu",
+    "advancedCommands": "Menüler, komutlar ve formlar",
+    "advancedCommandsDesc": "Botunuzun menüsünü paneller ve satır içi düğmelerle kurun, komut tanımlayın ve talepleri adım adım formlarla toplayın.",
+    "pluginMarketplace": "Eklenti pazarı",
+    "pluginMarketplaceDesc": "Her bot için mağaza, cüzdan, destek talepleri, randevu rezervasyonu, çekilişler, anketler ve CRM'i açın.",
+    "instantDeploy": "Sunucusuz kurulum",
+    "instantDeployDesc": "Barındırma gerekmez; token'ı girin, IrForge webhook'u ve bot profilini sizin için ayarlar.",
+    "enterpriseSecurity": "Yöneticiler ve güvenlik",
+    "enterpriseSecurityDesc": "Ayrı rollere sahip birden fazla yönetici. Bot token'ınız yalnızca sunucuda tutulur ve hiçbir bağlantıda görünmez.",
+    "analyticsDashboard": "İstatistik ve raporlar",
+    "analyticsDashboardDesc": "Botunuzun kullanıcılarını, siparişlerini ve ödemelerini yönetim panelinden izleyin.",
+    "multiBotManagement": "Tek hesap, birden fazla bot",
+    "multiBotManagementDesc": "Botlarınızı tek panelden yönetin ve aralarında geçiş yapın; kaç bot çalıştırabileceğiniz pakete bağlıdır.",
+    "heroBadge": "İranlı işletmeler için geliştirildi — Farsça öncelikli panel ve destek",
+    "heroTitleLine1": "Telegram bot oluşturucu: bot yapın veya satın alın",
+    "heroTitleGradient": "kod yazmadan",
     "howItWorks": "Fikirden çalışan bota, üç adımda",
     "howItWorksSub": "Kiralanacak sunucu, yazılacak tekrar eden kod yok. Token'ı bağlayın ve yayına alın.",
     "step1Title": "Botunuzu oluşturun",
     "step1Desc": "BotFather token'ınızı yapıştırın — webhook ve profil ayarlarını IrForge halleder.",
-    "step2Title": "Komut ve eklenti ekleyin",
-    "step2Desc": "Komut akışlarını görsel olarak kurun, mağaza eklentilerini tek tıkla yükleyin.",
-    "step3Title": "Dağıtın ve izleyin",
-    "step3Desc": "Kesintisiz biçimde anında yayınlayın, ardından canlı kayıtları ve analitiği takip edin.",
+    "step2Title": "Menü ve eklenti ekleyin",
+    "step2Desc": "Komutları, panelleri ve düğmeleri tanımlayın; ihtiyacınız olan eklentileri — mağaza, cüzdan, randevu ve daha fazlası — açın.",
+    "step3Title": "Yayınlayın ve yönetin",
+    "step3Desc": "Botu müşterilerinizle paylaşın; siparişleri, kullanıcıları ve istatistikleri yönetim panelinden izleyin.",
     "previewBadge": "Önizleme",
     "demoBotStatus": "çevrimiçi",
     "demoBotReply1": "Merhaba! Ben mağaza botunuzum. Günün özeti için /report gönderin.",
@@ -102,18 +102,10 @@
     "pluginInstalled": "Yüklendi",
     "pluginNameAnalytics": "Analitik",
     "pluginNamePayments": "Ödemeler",
-    "pluginNameAi": "Yapay zeka yanıtları",
-    "pluginNameModeration": "Moderasyon",
     "analyticsPreviewLabel": "Mesajlar · son 7 gün",
     "ctaPointFree": "Ücretsiz başlayın",
     "ctaPointNoCard": "Kredi kartı gerekmez",
     "ctaPointSupport": "Farsça destek",
-    "plansTitle": "Bir plan seçin, botunuz yayında",
-    "plansSub": "Bot başına tek seferlik ücret ve üzerinde çalıştığı kaynaklar baştan belli. Abonelik yok, sürpriz yok — sonradan yükseltebilirsiniz.",
-    "plansCustomTitle": "Başka bir şey mi gerekiyor?",
-    "plansCustomDesc": "Kendiniz kurun: RAM, CPU çekirdeği ve istediğiniz eklentileri seçin, fiyatın anında değiştiğini görün.",
-    "plansCustomCta": "Özel bot oluştur",
-    "plansNote": "Fiyatlar Riyal cinsindendir ve bir botu kapsar. Eklentiler ayrı satın alınır, her satın alma bir bot içindir.",
     "schoolSectionTitle": "Neden okulunuzu Telegram ile yönetin?",
     "schoolSectionSubtitle": "Veliler zaten Telegram'a sahip — yeni bir uygulama kurmalarına gerek yok.",
     "schoolPoint1Title": "Yeni uygulama gerekmez",
@@ -122,7 +114,40 @@
     "schoolPoint2Desc": "IrForge'un toplu mesaj aracıyla notları, devamsızlığı ve önemli duyuruları doğrudan velilerin Telegram'ına gönderin.",
     "schoolPoint3Title": "Ailelerle çift yönlü iletişim",
     "schoolPoint3Desc": "Özel komutlar ve özel mesajlar, okul-veli iletişimini kalabalık ve dağınık gruplardan uzak tutar.",
-    "schoolCta": "Şimdi okul botunu oluştur"
+    "schoolCta": "Şimdi okul botunu oluştur",
+    "pluginNameBooking": "Randevu rezervasyonu",
+    "pluginNameGiveaway": "Çekilişler",
+    "useCasesTitle": "Telegram botuyla neler yapabilirsiniz?",
+    "useCasesSub": "Kod yazmadan yayına alabileceğiniz yaygın kullanımlar — her birinin adım adım rehberi var.",
+    "useCases": {
+      "shop": {
+        "title": "Mağaza botu",
+        "desc": "Kategorili ve planlı katalog, stok, dekont kontrolü ve sipariş onayı, cüzdan, otomatik veya manuel teslimat."
+      },
+      "support": {
+        "title": "Destek botu ve talepler",
+        "desc": "Öncelik ve durumlu talepler, yöneticilere atama ve müşteriye yönetim panelinden yanıt."
+      },
+      "menu": {
+        "title": "Menüler ve satır içi düğmeler",
+        "desc": "Çok satırlı düğmelerle iç içe paneller: bağlantılar, formlar, mini uygulamalar, ürün siparişi ve fazlası."
+      },
+      "broadcast": {
+        "title": "Toplu mesaj",
+        "desc": "Botun tüm kullanıcılarına fotoğraf ve videolu duyurular — önizleme, göndermeden önce onay ve sonrasında rapor ile."
+      },
+      "services": {
+        "title": "Randevu, form ve anket",
+        "desc": "Rezervasyon takvimi, adım adım formlar, anketler ve çekilişler botun içinde."
+      },
+      "data": {
+        "title": "Veri Google Sheets'te veya SQL'de",
+        "desc": "Her botun kendi tablosu var; gerektiğinde özel bir SQL veritabanına geçebilirsiniz."
+      }
+    },
+    "useCasesMore": "Telegram botu nedir ve nereden başlamalıyım?",
+    "guidesTitle": "Telegram bot rehberleri",
+    "guidesSub": "Ücretsiz, adım adım rehberler — üyelik gerekmez."
   },
   "auth": {
     "signInAccount": "Hesabınıza giriş yapın",
@@ -450,33 +475,33 @@
   "admin": {},
   "botLanguageSettings": {},
   "seo": {
-    "homeTitle": "Telegram Botu Yapın veya Satın Alın | IrForge",
-    "homeDescription": "Kod yazmadan Telegram botu oluşturun ya da hazır paketten başlayın. Eklenti kurun, okul iletişimini Telegram üzerinden yönetin ve botunuzu dakikalar içinde yayınlayın.",
+    "homeTitle": "Telegram Bot Oluşturucu | Kod Yazmadan Bot Yapın | IrForge",
+    "homeDescription": "IrForge ile kod yazmadan Telegram botu yapın: mağaza botu, destek talepleri, toplu mesaj, randevu ve Farsça yönetim paneli. Token'ı girin, 7 gün ücretsiz deneyin.",
     "docsTitle": "IrForge Dokümantasyon | Telegram Bot Yapma Rehberi",
     "docsDescription": "Eksiksiz IrForge dokümantasyonu: hızlı başlangıç, argümanlı komut tanımlama, eklenti yazma ve yönetim paneli rehberi.",
     "navHome": "Ana sayfa",
     "navDocs": "Dokümantasyon",
-    "keywords": "telegram bot yapma, telegram bot oluşturma, kodsuz telegram botu, telegram bot satın al, hazır telegram botu, telegram bot nasıl yapılır, telegram mağaza botu, okul yönetim botu, telegram ile okul yönetimi, telegram otomasyonu, IrForge",
+    "keywords": "telegram bot oluşturucu, telegram botu yapmak, kodsuz telegram botu, telegram mağaza botu, telegram destek botu, telegram toplu mesaj, telegram botu satın al, hazır telegram botu, telegram bot yönetim paneli, okul yönetim botu, IrForge",
     "botTokenTitle": "BotFather'dan Telegram Bot Token'ı Alma | IrForge",
     "botTokenDescription": "Telegram bot token alma işlemi yedi adımda: BotFather ile token oluşturma, token'ın ne olduğu, nasıl güvende tutulacağı ve sızan bir token'ın nasıl iptal edileceği.",
     "navBotToken": "Bot token'ı",
     "learnHubTitle": "Telegram Bot Rehberleri ve Eğitimleri | IrForge",
-    "learnHubDescription": "Telegram botu yapmak için adım adım rehberler: token alma, mağaza ve destek botları, veritabanı olarak Google Sheets, maliyetler ve BotFather komutları.",
+    "learnHubDescription": "Adım adım Telegram bot rehberleri: bot nedir, token alma, mağaza ve destek botları, menüler ve düğmeler, toplu mesaj, maliyetler ve oluşturucu seçimi.",
     "navLearnHub": "Öğren",
     "howToMakeTitle": "Telegram Bot Nasıl Yapılır: Baştan Sona Rehber | IrForge",
     "howToMakeDescription": "Telegram bot nasıl yapılır: BotFather'da oluşturma, bağlama, ilk komutları ekleme, test etme ve gerçek kullanıcılara açma adımları.",
     "navHowToMake": "Bot yapımı",
     "shopBotTitle": "Telegram Mağaza Botu Nasıl Yapılır | IrForge",
-    "shopBotDescription": "Katalog gösteren, sipariş alan ve kaydeden bir Telegram mağaza botu yapın: ürün yapısı, ödeme akışı ve sipariş takibi.",
+    "shopBotDescription": "Katalog gösteren, sipariş alan ve dekont kontrol eden bir Telegram mağaza botu yapın: ürün yapısı, planlar ve stok, ödeme, teslimat ve sipariş takibi.",
     "navShopBot": "Mağaza botu",
     "supportBotTitle": "Telegram Destek Botu Nasıl Yapılır | IrForge",
-    "supportBotDescription": "Talepleri toplayan, ekibinize yönlendiren ve geçmişi saklayan bir Telegram destek botu kurun; müşteriler kalabalık bir gelen kutusunda beklemesin.",
+    "supportBotDescription": "Talep sistemli bir Telegram destek botu yapın: öncelik ve durum, yöneticilere atama ve panelden yanıt — müşteri okunmamış mesajlar arasında kaybolmasın.",
     "navSupportBot": "Destek botu",
     "withoutCodingTitle": "Kodsuz Telegram Botu Nasıl Yapılır | IrForge",
     "withoutCodingDescription": "Kodsuz telegram botu: kod yazmadan bot kurucusunun neler yapabildiği, komut ve eklentilerin script'lerin yerini nasıl aldığı.",
     "navWithoutCoding": "Kodsuz bot",
-    "googleSheetsTitle": "Telegram Bot ve Google Sheets Veritabanı | IrForge",
-    "googleSheetsDescription": "Telegram bot google sheets kullanımı: satırların kayıtlara nasıl karşılık geldiği, bir tablonun neyi iyi neyi kötü yaptığı.",
+    "googleSheetsTitle": "Telegram Botu ve Google Sheets: Bot Verisi Nerede Durur | IrForge",
+    "googleSheetsDescription": "Bir Telegram botunun verisi nerede durur? Her bota ayrı tablo, kendi sekmelerinde siparişler ve talepler, Google Sheets'in sınırları ve SQL veritabanına ne zaman geçileceği.",
     "navGoogleSheets": "Google Sheets",
     "botCostTitle": "Telegram Bot Fiyatı: Gerçekte Ne Ödersiniz | IrForge",
     "botCostDescription": "Telegram bot fiyat kalemleri: sıfırdan geliştirme mi hazır platform mu, barındırma, bakım ve bunlardan hangisinden kurtulursunuz.",
@@ -487,25 +512,40 @@
     "webhookTitle": "Telegram Webhook mu Polling mi? | IrForge",
     "webhookDescription": "Telegram webhook vs polling: güncellemelerin nasıl ulaştığı, gecikme ve altyapı maliyeti, hangisini seçmeniz gerektiği.",
     "navWebhook": "Webhook / polling",
-    "pricingTitle": "IrForge Fiyatlandırma ve Planlar | Telegram Bot Kurucu",
-    "pricingDescription": "IrForge planları ve her birinin içeriği: kaç bot, hangi özellikler ve faturalama nasıl işler. Kaydolmadan önce karşılaştırın.",
-    "navPricing": "Fiyatlar"
+    "pricingTitle": "Telegram Bot Fiyatları ve Paketleri | IrForge",
+    "pricingDescription": "Telegram botları için IrForge fiyatları ve paketleri: 7 günlük ücretsiz deneme botu, Standard ve Pro paketleri, cüzdandan aylık yenileme ve her paketin içeriği.",
+    "navPricing": "Fiyatlar",
+    "whatIsTitle": "Telegram Botu Nedir? Kullanım Alanları, Türleri ve Nasıl Yapılır | IrForge",
+    "whatIsDescription": "Telegram botu nedir ve ne yapar? Bot türlerine (mağaza, destek, bildirim), botların nasıl çalıştığına ve kod yazmadan nasıl yapılacağına sade bir giriş.",
+    "navWhatIs": "Telegram botu nedir?",
+    "chooseBuilderTitle": "En İyi Telegram Bot Oluşturucu Nasıl Seçilir | IrForge",
+    "chooseBuilderDescription": "Telegram bot oluşturucu seçme ölçütleri: dil ve destek, ödeme, verinizin nerede durduğu, token güvenliği ve gerçek maliyet. Karar vermeden önce tarafsız bir kontrol listesi.",
+    "navChooseBuilder": "Oluşturucu seçimi",
+    "menuButtonsTitle": "Kodsuz Telegram Bot Menüleri ve Satır İçi Düğmeler | IrForge",
+    "menuButtonsDescription": "Telegram botu için menü ve satır içi düğmeler yapın: iç içe paneller, düğme satırları, bağlantılar, formlar ve geri düğmesi — kodsuz ve uygulamalı örneklerle.",
+    "navMenuButtons": "Menü ve düğmeler",
+    "broadcastTitle": "Telegram Botunda Toplu Mesaj Nasıl Gönderilir | IrForge",
+    "broadcastDescription": "Telegram botunda toplu mesajı doğru gönderin: kimlerin alacağı, göndermeden önce onay, sonrasında rapor ve kullanıcıların botu engellemesini önleyen kurallar.",
+    "navBroadcast": "Toplu mesaj",
+    "aboutTitle": "IrForge Hakkında | Telegram Bot Oluşturucu",
+    "aboutDescription": "IrForge nedir, ne yapar ve bize nasıl ulaşırsınız: Farsça öncelikli panelli Telegram bot oluşturucu, token ve verinin nasıl ele alındığı, maliyetler ve destek kanalları.",
+    "navAbout": "Hakkında"
   },
   "faq": {
     "title": "Sık sorulan sorular",
     "subtitle": "IrForge ile Telegram bot yapma hakkında bilmeniz gerekenler.",
     "q1": "Kod yazmadan Telegram botu nasıl yapılır?",
-    "a1": "BotFather'dan aldığınız token'ı IrForge'a yapıştırmanız yeterli. Webhook, profil ve çalıştırma sizin için halledilir; böylece tek satır kod yazmadan Telegram bot oluşturma mümkün olur. Kod yazmak isterseniz komut mantığına istediğiniz zaman inebilirsiniz.",
+    "a1": "BotFather'dan token alın ve IrForge'a yapıştırın. Webhook, profil ve barındırma sizin yerinize halledilir; yani tek satır kod yazmadan Telegram botu oluşturabilirsiniz. Menüleri, komutları, formları, mağazayı ve talepleri yönetim panelinden ayarlarsınız; geliştiriciler için teknik dokümantasyon da var.",
     "q2": "Telegram bot yapmak ücretsiz mi?",
-    "a2": "Evet, ücretsiz başlayabilir ve ilk botunuzu kredi kartı olmadan kurup test edebilirsiniz. Ücretli planlar daha fazla bot ve kapasite sunar.",
+    "a2": "Her hesap bir adet 7 günlük ücretsiz deneme botu alır — ilk botunuzu kurmak ve denemek için kredi kartı gerekmez. Sonrasında Standard ve Pro paketleri (aylık, cüzdanınızdan yenilenir) botu açık tutar. Telegram bot oluşturmak veya Bot API kullanmak için hiçbir ücret almaz.",
     "q3": "Bot kurulumu ne kadar sürer?",
     "a3": "Genellikle birkaç dakika. Token girildiği anda bot yayına girer; sonrasında komut ekler, eklenti kurar ve değişiklikleri kesintisiz yayınlarsınız.",
     "q4": "Mağaza veya destek botu yapabilir miyim?",
-    "a4": "Evet. Özel komutlar ile ödeme, moderasyon ve yapay zeka yanıt eklentileri; mağaza botlarını, müşteri destek botlarını ve çoğu iş akışını kapsar.",
+    "a4": "Evet. Mağaza botu (katalog, planlar ve stok, dekont kontrolü ve sipariş onayı) ile destek botu (talep sistemi) hazır eklentiler olarak gelir. Menüyü paneller ve düğmelerle kurar, bilgileri formlarla toplarsınız; randevu rezervasyonu, çekiliş ve anket eklentileri de var.",
     "q5": "Telegram bot yapımını nereden öğrenirim?",
-    "a5": "Dokümantasyondan başlayın: hızlı başlangıç, argümanlı komut tanımlama ve eklenti yazma, çalışan örneklerle anlatılıyor.",
+    "a5": "Rehberlerle başlayın: sıfırdan yayına bot yapımı, token alma, mağaza ve destek botları, menüler ve düğmeler ile toplu mesaj için ayrı sayfalar var. Geliştiriciler için teknik dokümantasyon da mevcut.",
     "q6": "Botumun verileri nerede saklanıyor?",
-    "a6": "Botunuzun verileri kendi Google hesabınızdaki bir E-Tabloya gider. IrForge bunu Google Sheets API üzerinden okur ve yazar; tabloyu istediğiniz an açabilirsiniz ve platformu kullanmayı bıraksanız bile kayıtlar sizde kalır.",
+    "a6": "Her botun kendi Google Sheets tablosu vardır; siparişler, talepler, formlar ve ayarlar kendi sekmelerine yazılır — panelde görür, Google'da açabilirsiniz. Tablo yetmemeye başlarsa bot özel bir SQL veritabanına taşınabilir.",
     "q7": "Telegram bot token'ımı IrForge'a vermek güvenli mi?",
     "a7": "Token sunucu tarafında saklanır ve yalnızca botunuz adına Telegram API'sini çağırmak için kullanılır. Hiçbir URL'de görünmez — bot avatarı, token bir görsel bağlantısında sızmasın diye vekil bir yol üzerinden sunulur. Erişimi kesmek isterseniz BotFather'daki /revoke onu anında geçersiz kılar.",
     "q8": "Deneme süresi bitince ne olur?",
@@ -515,7 +555,13 @@
     "q10": "Hazır bot mu almalıyım, özel bot mu yaptırmalıyım?",
     "a10": "IrForge'un hazır paketleri (Standard/Pro) dakikalar içinde aktif olur ve çoğu işletme için yeterlidir. Özel bir ihtiyacın varsa aynı botu eklentiler ve özel komutlarla, kod yazmadan özelleştirirsin — yani \"satın alma\" ile \"yapma\" arasında seçim yapman gerekmez.",
     "q11": "Notlar ve devamsızlık Telegram'dan görülebilir mi?",
-    "a11": "Evet; okul, botun toplu mesaj aracıyla notları, devamsızlığı ve duyuruları doğrudan velilerin Telegram'ına gönderir — çoğu okul yönetim yazılımının sunmadığı bir şey, çünkü onlar aileleri yeni bir uygulama kurmaya zorlar."
+    "a11": "Evet — okul, botun toplu mesajını kullanarak notları, devamsızlıkları ve duyuruları doğrudan velilerin Telegram'ına gönderebilir; ailelerden yeni bir uygulama kurmalarını istemez.",
+    "q12": "Bot oluşturucu ile kodla bot yazmak arasındaki fark nedir?",
+    "a12": "Kodlu botta geliştirici her şeyi sıfırdan yazar, sunucuyu ve bakımı da üstlenir; oluşturucuda yaygın mantık (menüler, formlar, satış, talepler…) hazırdır, hizmet çalıştırır ve siz panelden ayarlarsınız. Gerçekten alışılmadık mantık veya hazır bağlayıcısı olmayan sistemlerle entegrasyon hâlâ özel geliştirme ister.",
+    "q13": "IrForge'ta Telegram botu ne kadar tutar?",
+    "a13": "Telegram'da bot oluşturmak ücretsizdir. IrForge'ta hesabınızın ilk botu 7 gün ücretsizdir; sonrasında Standard ve Pro paketleri aylıktır ve cüzdanınızdan yenilenir. Güncel plan fiyatları ve her paketin neleri içerdiği fiyatlar sayfasındadır.",
+    "q14": "Müşterilerim nasıl ödeme yapar?",
+    "a14": "Mağaza botunda ödeme bilgilerini (örneğin kart numarası veya cüzdan adresi) gösterirsiniz; müşteri dekontu gönderir, siz de siparişi yönetim panelinden onaylar veya reddedersiniz. Cüzdan eklentisini açarsanız kullanıcılar bot içinde bakiye de tutabilir."
   },
   "database": {
     "readOnlyBadge": "Salt okunur",
@@ -667,7 +713,7 @@
   },
   "learn": {
     "hubTitle": "Telegram bot rehberleri",
-    "hubIntro": "Telegram botu kurmak ve işletmek için sade rehberler — ilk token'ı almaktan mağaza botlarına, destek botlarına ve işin gerçek maliyetine kadar.",
+    "hubIntro": "Telegram botu yapmak ve işletmek için net, lafı dolandırmayan rehberler — \"Telegram botu nedir?\" ve ilk token'ı almaktan mağaza botlarına, destek botlarına, menü ve düğmelere, toplu mesaja ve işin gerçek maliyetine kadar.",
     "hubListHeading": "Tüm rehberler",
     "breadcrumbLabel": "Sayfa yolu",
     "readingTime": "{n} dk okuma",
@@ -825,7 +871,30 @@
           }
         ],
         "nextTitle": "Sonraki adım",
-        "next": "Hedefinize uyan biçimi seçin: satış yapıyorsanız mağaza botu, soru yanıtlıyorsanız destek botu. Botun gönderilenleri hatırlamasını istiyorsanız Google Sheets rehberi mümkün olan en basit veritabanını gösteriyor."
+        "next": "Hedefinize uyan şekli seçin: satıyorsanız bir [mağaza botu](/learn/telegram-shop-bot), soruları yanıtlıyorsanız bir [destek botu](/learn/telegram-support-bot). Bir Telegram botunun tam olarak ne yaptığından hâlâ emin değilseniz [Telegram botu nedir?](/learn/what-is-a-telegram-bot) yazısını okuyun.",
+        "sections": [
+          {
+            "h2": "IrForge'ta bu yol dakikalar sürer",
+            "items": [
+              "BotFather'da botu oluşturun ve token'ı kopyalayın — [bot token'ı almak](/learn/telegram-bot-token).",
+              "Token'ı IrForge'a girin; webhook ve bot profili sizin için ayarlanır, sunucu gerekmez.",
+              "Botun menüsünü Paneller bölümünden kurun — [menüler ve satır içi düğmeler](/learn/telegram-bot-menu-buttons).",
+              "Eklentilerden ihtiyacınız olanları açın: mağaza, talepler, rezervasyon ve daha fazlası."
+            ],
+            "body": [
+              "Her hesabın ilk botu 7 gün ücretsizdir; yani şimdi bir deneme botuyla pratik yapabilirsiniz."
+            ]
+          },
+          {
+            "h2": "İlk bottan sonra neler eklenir?",
+            "items": [
+              "Satmak için: [Telegram mağaza botu yapmak](/learn/telegram-shop-bot).",
+              "İnsanlara yanıt vermek için: [destek botu ve talep sistemi](/learn/telegram-support-bot).",
+              "Duyuru yapmak için: [toplu mesaj göndermek](/learn/telegram-bot-broadcast).",
+              "Verinizin nereye gittiğini anlamak için: [Telegram botu ve Google Sheets](/learn/telegram-bot-google-sheets)."
+            ]
+          }
+        ]
       },
       "botfather-commands": {
         "h1": "BotFather komutları: tam referans",
@@ -905,7 +974,7 @@
         "prereqs": [
           "Ad ve fiyatlarıyla bir ürün listesi. Başlangıç için on kalem yeter.",
           "Ödeme kararı: Telegram içinde, havale ile ya da teslimatta.",
-          "Siparişlerin düşeceği bir yer — en basiti bir Google E-Tablosu."
+          "Siparişlerin kaydedileceği bir yer — IrForge'ta botun kendi tablosu bunu sizin yerinize yapar."
         ],
         "stepsTitle": "Adımlar",
         "steps": [
@@ -926,8 +995,8 @@
             "text": "Dekont yüklemeli havale birçok pazarda en az sürtünmeli seçenektir ve hiçbir ödeme entegrasyonu gerektirmez; siz elle onaylarsınız, bot müşteriye haber verir."
           },
           {
-            "name": "Siparişi kaydedin",
-            "text": "Tamamlanan her siparişi tabloya bir satır olarak ekleyin. O satır sizin sipariş defterinizdir: aranabilir, sıralanabilir ve paketleri hazırlayan kişiyle paylaşılabilir."
+            "name": "Siparişler kaydedilir",
+            "text": "Tamamlanan her sipariş botun kendi tablosuna bir satır olarak yazılır. O satır sizin sipariş defterinizdir: aranabilir, sıralanabilir ve panelin Siparişler ile Veritabanı bölümlerinde görülebilir."
           }
         ],
         "mistakesTitle": "Mağaza botları nerede tökezler",
@@ -940,19 +1009,58 @@
         "faq": [
           {
             "q": "Ödemeyi Telegram içinde alabilir mi?",
-            "a": "Telegram sağlayıcılar üzerinden ödemeyi destekler, ama birçok mağaza hiçbir entegrasyon gerektirmeyen havale artı dekont fotoğrafıyla başlar."
+            "a": "Telegram sağlayıcılar üzerinden ödemeyi destekler, ama birçok mağaza ağ geçidi gerektirmeyen havale artı dekontla başlar: bot ödeme bilgisini gösterir, müşteri dekont gönderir, siz panelden onaylarsınız."
           },
           {
             "q": "Kaç ürünü kaldırır?",
-            "a": "Teknik olarak çok; pratikte gezinmeyi iki dokunuşta tutun. Birkaç düzineyi aşınca bir arama komutu ekleyin."
+            "a": "Teknik olarak çok; pratikte gezinmeyi iki dokunuşta tutun. Kategorileri kullanın ve her kategoriyi kısa tutun."
           },
           {
             "q": "Sipariş verisi nerede saklanır?",
-            "a": "IrForge ile kendi Google E-Tablonuza gider; veri sizindir ve platform olmadan da açabilirsiniz."
+            "a": "Botun kendi tablosunda; panelin Siparişler ve Veritabanı bölümlerinde görür, Google'da da açabilirsiniz. Hacim büyürse özel bir SQL veritabanına taşınabilir."
+          },
+          {
+            "q": "Müşteri aynı dekontu iki kez gönderirse?",
+            "a": "Başka bir sipariş için zaten kullanılmış dekont, onaylamadan önce görmeniz için Siparişler bölümünde işaretlenir."
           }
         ],
         "nextTitle": "Sonraki adım",
-        "next": "Google Sheets rehberi siparişlerin nasıl satıra dönüştüğünü ve bir tablonun neyi iyi neyi kötü yaptığını anlatıyor. Satış sonrası soru da yanıtlayacaksanız destek botu rehberi doğal tamamlayıcıdır."
+        "next": "Mağazanın menüsü için [menüler ve satır içi düğmeler](/learn/telegram-bot-menu-buttons), müşterilere yeni ürünleri duyurmak için [toplu mesaj](/learn/telegram-bot-broadcast) yazısına bakın. Satıştan sonra da yanıt vermeniz gerekiyorsa [destek botu rehberi](/learn/telegram-support-bot) doğal tamamlayıcıdır.",
+        "sections": [
+          {
+            "h2": "IrForge'taki mağaza botunda neler var?",
+            "items": [
+              "Katalog: isteğe bağlı kategorili, fotoğraflı ve biçimlendirilmiş metinli ürün ve hizmetler.",
+              "Planlar ve seçenekler: her seçeneğin kendi fiyatı ve stoku var; miktara göre kademeli indirim de tanımlanabilir (örneğin 10 adetten sonra her biri daha ucuz).",
+              "Ödeme öncesi alanlar: müşterinin adres, telefon veya konum vermesi gerekiyorsa bu alanları ödemeden önce sorarsınız.",
+              "Ödeme yöntemleri: her ürün için hangi yöntemlere izin verildiğini belirleyebilirsiniz.",
+              "Sipariş bildirimleri: her ürün için siparişi görecek bir grup veya belirli yöneticiler atanabilir.",
+              "İndirim kodları ve cüzdan: müşteri bakiye tutar, yönetici para yatırabilir, çekebilir veya iade edebilir."
+            ]
+          },
+          {
+            "h2": "Ödeme ve sipariş onayı",
+            "body": [
+              "Bot müşteriye ödeme bilgisini — örneğin bir kart numarası veya cüzdan adresi — gösterir. Müşteri dekontu gönderir ve sipariş \"Siparişler\" bölümüne düşer; siz panelden onaylar veya reddedersiniz (ret için gerekçe zorunludur) ve bot müşteriye haber verir. Başka bir sipariş için zaten kullanılmış tekrarlanan dekont işaretlenir ve her aşama için kendi mesajınızı ve düğmelerinizi koyabilirsiniz."
+            ]
+          },
+          {
+            "h2": "Teslimat: dijital, fiziksel veya elle",
+            "items": [
+              "Manuel teslimat: onaylanan sipariş yöneticinin \"bekleyen teslimatlar\" kuyruğuna düşer.",
+              "Hazır mesaj (şablon): onaydan sonra önceden yazılmış mesaj ve dosya müşteriye gider.",
+              "Havuz: her satın alma stoktan farklı bir öğe alır (örneğin bir bağlantı veya kod) ve stok azalınca uyarılırsınız.",
+              "Kargo: ürün gönderilince takip kodunu girersiniz ve mesajı alıcıya gider.",
+              "Gel-al: onaydan sonra zaman ve adresle \"teslime hazır\" mesajı gönderilir."
+            ]
+          },
+          {
+            "h2": "Sırada: menü, toplu mesaj ve veri",
+            "body": [
+              "İyi bir menü olmadan mağaza satmaz: [menüler ve satır içi düğmeler](/learn/telegram-bot-menu-buttons) yazısına bakın. Yeni ürün veya indirimi duyurmak için [toplu mesaj](/learn/telegram-bot-broadcast) işe yarar; siparişlerin nerede saklandığını merak ediyorsanız [Telegram botu ve Google Sheets](/learn/telegram-bot-google-sheets) yazısını okuyun."
+            ]
+          }
+        ]
       },
       "telegram-support-bot": {
         "h1": "Telegram destek botu nasıl yapılır",
@@ -1006,7 +1114,27 @@
           }
         ],
         "nextTitle": "Sonraki adım",
-        "next": "Talepler ekibinizin çalışacağı bir tabloya düşecekse Google Sheets rehberi bunu anlatıyor. Önce botun kendisini kurmak isterseniz kapsamlı başlangıç rehberiyle başlayın."
+        "next": "Talepler ekibinizin çalışacağı bir tabloya düşecekse [Telegram botu ve Google Sheets](/learn/telegram-bot-google-sheets) bunu anlatıyor. Önce botun kendisini kurmak isterseniz [kapsamlı başlangıç rehberi](/learn/how-to-make-a-telegram-bot) ile başlayın.",
+        "sections": [
+          {
+            "h2": "IrForge'ta talep sistemi",
+            "body": [
+              "Temel destek şu anda botunuzun içinde çalışıyor. \"Talep\" eklentisini açmak, yönetim paneline öncelik sıralı bir kuyruk, yöneticilere atama ve yanıtsız taleplere hatırlatma ekler."
+            ],
+            "items": [
+              "Her talebin numarası, konusu, göndereni ve mesaj geçmişi vardır; numara, kullanıcı veya konuya göre aranabilir.",
+              "Durum: açık, atanmış, kapalı, yeniden açılmış ve üst düzeye yükseltilmiş.",
+              "Öncelik: acil, yüksek, normal ve düşük.",
+              "Müşteriye doğrudan panelden yanıt verir ve yanıtın ona ulaşıp ulaşmadığını ya da yalnızca kaydedildiğini görürsünüz."
+            ]
+          },
+          {
+            "h2": "Talep düğmesi menünün neresine konmalı?",
+            "body": [
+              "Kullanıcı desteğe her zaman ulaşabilmeli. Ana panele ya da her alt menünün sonuna bir \"Destek talebi\" düğmesi koyun — [menüler ve satır içi düğmeler](/learn/telegram-bot-menu-buttons) nasıl yapılacağını gösteriyor."
+            ]
+          }
+        ]
       },
       "telegram-bot-without-coding": {
         "h1": "Kodsuz Telegram botu nasıl yapılır",
@@ -1029,8 +1157,8 @@
             "text": "Sabit bir yanıtın ötesindeki her şey — form toplama, tabloya yazma, size bildirim — yazdığınız mantık değil, etkinleştirdiğiniz bir eklentidir."
           },
           {
-            "name": "Verinizi bağlayın",
-            "text": "Botu bir elektronik tabloya yönlendirin; yanıtları sabit metin yerine gerçek ve değişen bilgiyi yansıtsın."
+            "name": "Verinizi görün",
+            "text": "Her botun yanıtların ve siparişlerin kaydedildiği kendi Google Sheets tablosu vardır; istediğiniz zaman panelden ya da tablonun kendisinden inceleyin."
           },
           {
             "name": "Botu hiç görmemiş biriyle test edin",
@@ -1046,50 +1174,49 @@
         "faqTitle": "Sık sorulanlar",
         "faq": [
           {
-            "q": "Kodsuz bot, kodlu bottan kötü müdür?",
-            "a": "Yaygın durumlarda hayır; kullanıcı farkı anlayamaz. Fark günlük yanıtlarda değil, sıra dışı mantıkta ortaya çıkar."
+            "q": "Kodsuz bot, kodlu bottan daha mı kötü?",
+            "a": "Yaygın durumlarda hayır — kullanıcı farkı anlayamaz. Fark, günlük yanıtlarda değil alışılmadık mantıkta ortaya çıkar."
           },
           {
             "q": "Sonradan özel koda geçebilir miyim?",
-            "a": "Evet. Bot ve token'ı size aittir; başka bir yere yönlendirmek yeniden kurulum değil, bir yapılandırma değişikliğidir."
+            "a": "Evet. Bot ve token'ı BotFather'da sizindir, veri de tabloda veya veritabanında görünür; geçmek aynı token'ı yeni bir programa yönlendirmek ve veriyi yanınıza almaktır, botu yeniden kurmak değil."
           },
           {
             "q": "Bir şey barındırmam gerekir mi?",
-            "a": "Hayır. Platform Telegram güncellemelerini webhook üzerinden alır ve botu sizin için çalıştırır."
+            "a": "Hayır. Platform Telegram'ın güncellemelerini webhook ile alır ve botu sizin yerinize çalıştırır."
+          },
+          {
+            "q": "Kodsuz bot oluşturucu ücretsiz mi?",
+            "a": "Telegram'da bot oluşturmak ücretsizdir; onu çalıştıran hizmet ücretlidir. IrForge her hesaba bir adet 7 günlük ücretsiz deneme botu verir, sonrasında aylık bir paket gerekir."
           }
         ],
         "nextTitle": "Sonraki adım",
-        "next": "Kapsamlı başlangıç rehberi aynı kurulumu baştan sona gösteriyor. Sizi kodsuz seçeneğe iten şey maliyetse, Telegram bot fiyatı analizi bunu bir geliştiriciye ödemekle karşılaştırıyor."
+        "next": "[Kapsamlı başlangıç rehberi](/learn/how-to-make-a-telegram-bot) aynı kurulumu baştan sona gösteriyor. Kodsuz sorusunu maliyet doğuruyorsa [Telegram botunun maliyeti](/learn/telegram-bot-cost) yazısı bunu geliştirici ücretiyle karşılaştırır.",
+        "sections": [
+          {
+            "h2": "IrForge'ta kodsuz neler hazır?",
+            "items": [
+              "Menü ve düğmeler: satır içi düğmeli iç içe paneller — [menüler ve satır içi düğmeler](/learn/telegram-bot-menu-buttons).",
+              "Bilgi, kayıt ve talep toplamak için adım adım formlar.",
+              "Mağaza: katalog, planlar ve stok, dekont ve sipariş onayı — [mağaza botu](/learn/telegram-shop-bot).",
+              "Öncelik ve durumlu destek talepleri — [destek botu](/learn/telegram-support-bot).",
+              "Toplu ve zamanlanmış mesajlar — [toplu mesaj](/learn/telegram-bot-broadcast).",
+              "Randevu rezervasyonu, çekilişler, anketler ve CRM, açtığınız eklentiler olarak."
+            ]
+          },
+          {
+            "h2": "Doğru oluşturucuyu nasıl seçerim?",
+            "body": [
+              "Ödemeden önce birkaç ölçütü deneme hesabında sınayın: Farsça arayüzlü panel, ödeme yöntemi, verinin durduğu yer, destek ve gerçek maliyet. Tam kontrol listesi [Telegram bot oluşturucu nasıl seçilir](/learn/choose-a-telegram-bot-builder) yazısında."
+            ]
+          }
+        ]
       },
       "telegram-bot-google-sheets": {
-        "h1": "Telegram botunuzun veritabanı olarak Google Sheets",
-        "lead": "Telegram bot google sheets ile eşleştiğinde, hâlihazırda okuyabildiğiniz bir veritabanınız olur. Her sipariş, talep veya form gönderimi bir satıra dönüşür; tabloyu açar ve botun ne yaptığını olduğu gibi görürsünüz. Küçük bir işletme için bu bir taviz değil, çoğu zaman doğru cevaptır; çünkü alternatif, ekipten kimsenin açamadığı gerçek bir veritabanıdır. Bu rehber tablonun neyi iyi, neyi kötü yaptığını ve ikisinin nasıl bağlandığını anlatır.",
-        "outcomeTitle": "Elde edeceğiniz sonuç",
-        "outcome": "Kendi Google hesabınızdaki, insanlar botu kullandıkça yapılandırılmış satırlarla dolan, size ait bir elektronik tablo.",
-        "prereqTitle": "Başlamadan önce",
-        "prereqs": [
-          "Bir Google hesabı ve boş bir tablo.",
-          "Sütunlarınıza dair net bir fikir. Sonradan değiştirmek mümkün ama veri geldikten sonra can sıkıcı."
-        ],
-        "stepsTitle": "Adımlar",
-        "steps": [
-          {
-            "name": "Sütunları bottan önce tasarlayın",
-            "text": "Her olay için bir satır, her bilgi için bir sütun. Zaman damgasını ve kimden geldiğini mutlaka ekleyin; bir hafta içinde ikisine de ihtiyaç duyacaksınız."
-          },
-          {
-            "name": "Her amaca ayrı sekme verin",
-            "text": "Siparişler bir sekmede, destek talepleri başka bir sekmede. Hepsini tek tabloda karıştırmak, veriyi sonradan kullanılamaz kılan hatadır."
-          },
-          {
-            "name": "Tabloyu bağlayın",
-            "text": "IrForge tablonuzu Google Sheets API üzerinden okur ve yazar; her olay için bir satır ekler ve bot canlı veriyle yanıt vermesi gerektiğinde geri okur."
-          },
-          {
-            "name": "Tabloyu tablo gibi kullanın",
-            "text": "Veri akmaya başlayınca sıradan tablo araçları — filtreler, sıralama, pivot tablo — raporlama katmanınız olur. Asıl kazanç budur."
-          }
-        ],
+        "h1": "Telegram botu ve Google Sheets: bot verisi nerede durur",
+        "lead": "Bir Telegram botu sipariş, talep veya form aldığında bunu bir yere yazmak zorundadır. IrForge'ta bu yer varsayılan olarak o bota ait özel bir Google Sheets tablosudur: her sipariş, talep veya form yanıtı bir satır olur, her amaç kendi sekmesinde durur ve veriyi panelde görebilir ya da tabloyu Google'da açabilirsiniz. Küçük bir işletme için bu genellikle doğru cevaptır, çünkü alternatif ekipte kimsenin açamayacağı gerçek bir veritabanıdır. Bu rehber tablonun neyde iyi, neyde kötü olduğunu ve özel bir SQL veritabanına ne zaman geçileceğini anlatır.",
+        "outcomeTitle": "Sonunda elinizde ne olur",
+        "outcome": "Botunuzun verisinin nereye yazıldığına, nasıl görebileceğinize ve tablodan SQL veritabanına ne zaman geçmeniz gerektiğine dair net bir tablo.",
         "mistakesTitle": "Tablo neyi kötü yapar",
         "mistakes": [
           "Çok yüksek yazma hacimleri. Tablo günde yüzlerce satır için uygundur, dakikada binlerce için değil.",
@@ -1099,8 +1226,8 @@
         "faqTitle": "Sık sorulanlar",
         "faq": [
           {
-            "q": "Veriyi kim sahiplenir?",
-            "a": "Siz. Tablo sizin Google hesabınızdadır, platform ona yazar. Erişimi iptal etseniz de tüm satırlar sizde kalır."
+            "q": "Botumun verisini nerede görürüm?",
+            "a": "Yönetim panelinde Siparişler, Talepler ve Veritabanı bölümleri gösterir; botun özel tablosunu Google'da da açabilirsiniz."
           },
           {
             "q": "Tabloyu elle düzenlersem?",
@@ -1108,11 +1235,34 @@
           },
           {
             "q": "Ne zaman gerçek veritabanına geçmeliyim?",
-            "a": "Yazmaların geciktiğini fark ettiğinizde ya da eşzamanlılık altında doğruluk önem kazandığında. Botların çoğu oraya hiç ulaşmaz."
+            "a": "Yazmaların geciktiğini fark ettiğinizde ya da eşzamanlılık altında doğruluk önem kazandığında. Botların çoğu oraya hiç ulaşmaz; ulaşırsanız IrForge veriyi otomatik taşır."
           }
         ],
         "nextTitle": "Sonraki adım",
-        "next": "Mağaza botu rehberi bu satırların siparişler için nasıl göründüğünü, destek botu rehberi ise aynısını talepler için gösteriyor."
+        "next": "[Mağaza botu](/learn/telegram-shop-bot) rehberi bu satırların siparişler için nasıl göründüğünü, [destek botu](/learn/telegram-support-bot) rehberi ise aynısını talepler için gösteriyor.",
+        "sections": [
+          {
+            "h2": "IrForge'ta bot verisi nerede durur?",
+            "body": [
+              "Her botun kendi tablosu vardır ve parçaları — siparişler, talepler, formlar, paneller, ayarlar — kendi sekmelerine yazılır. Bir bota tablo atanana kadar mağaza ve siparişler gibi özellikler etkin değildir ve panel bunu size söyler.",
+              "Panelin \"Veritabanı\" bölümü veriyi salt okunur gösterir; doğrudan değiştirmek için tabloyu Google'da açarsınız."
+            ]
+          },
+          {
+            "h2": "Google Sheets neyde iyidir?",
+            "items": [
+              "Okunaklı ve tanıdıktır: botun ne yaptığını görmek için kimsenin SQL bilmesi gerekmez.",
+              "Filtre, sıralama ve pivot tablo raporlama katmanınızdır.",
+              "Günde yüzlerce satır için — çoğu küçük işletme — fazlasıyla yeterlidir."
+            ]
+          },
+          {
+            "h2": "Özel SQL veritabanı — ne zaman?",
+            "body": [
+              "Her botun \"Veritabanı\" bölümünde verinin nerede duracağını seçersiniz: Google Sheets (varsayılan ve ücretsiz) ya da özel bir SQL veritabanı. SQL ücretlidir ve tek seferlik olarak cüzdanınızdan düşülür; botun tüm verisi tablodan otomatik taşınır. Tabloya geri dönmek de mümkündür, ama SQL aboneliği iade edilmeden iptal olur. Bu yüzden tablo yetişemediğinde — yazmalar gecikiyor ya da eşzamanlılık altında doğruluk önem kazanıyor — SQL'e geçin."
+            ]
+          }
+        ]
       },
       "telegram-bot-cost": {
         "h1": "Bir Telegram botu gerçekte ne kadara mal olur",
@@ -1164,7 +1314,22 @@
           }
         ],
         "nextTitle": "Sonraki adım",
-        "next": "Güncel planları fiyatlandırma sayfasında görebilir, kodsuz rehberini okuyarak gereksinimlerinizin bir platformun kapsamı içinde mi dışında mı olduğunu değerlendirebilirsiniz."
+        "next": "Güncel planları [fiyatlar sayfasında](/pricing) görün; gereksinimlerinizin bir platformun kapsamına girip girmediğini anlamak için [kodsuz bot yapmak](/learn/telegram-bot-without-coding) ve [bot oluşturucu nasıl seçilir](/learn/choose-a-telegram-bot-builder) yazılarını okuyun.",
+        "sections": [
+          {
+            "h2": "IrForge'ta maliyet nasıl hesaplanır?",
+            "items": [
+              "Telegram: ücretsiz — bot oluşturmak veya Bot API için bir şey ödemezsiniz.",
+              "Deneme: her hesap bir adet 7 günlük ücretsiz bot alır.",
+              "Aylık paketler: Standard (1 aktif bot) ve Pro (en fazla 3 aktif bot), belirli kaynak ve kullanıcı sınırlarıyla; her ay cüzdanınızdan yenilenir ve bakiye azsa bot yenileyene kadar kapalı kalır.",
+              "Eklentiler: her pakette bazı ücretsiz eklentiler vardır (sizin seçiminiz); fazlası ayrıca satın alınır.",
+              "SQL veritabanı: isteğe bağlı ve tek seferlik ücretli; varsayılan tablo ücretsizdir."
+            ],
+            "body": [
+              "Her paketin içeriği ve güncel fiyatı [fiyatlar sayfasında](/pricing); bu rehber bilerek sabit bir rakam yazmaz, çünkü fiyatlar yönetim panelinden değiştirilir."
+            ]
+          }
+        ]
       },
       "telegram-bot-webhook-vs-polling": {
         "h1": "Telegram webhook mu polling mi: botunuz hangisini kullanmalı",
@@ -1217,6 +1382,307 @@
         ],
         "nextTitle": "Sonraki adım",
         "next": "Kodu kendiniz yazmıyorsanız burada karar vermeniz gereken bir şey yok — başlangıç rehberi kurulumun tamamını anlatıyor. BotFather referansı ise güncellemeler akmaya başladıktan sonra başka neleri ayarlayabileceğinizi listeliyor."
+      },
+      "what-is-a-telegram-bot": {
+        "h1": "Telegram botu nedir? Yeni başlayanlar için sade rehber",
+        "lead": "Telegram botu, mesajları alıp bir insanın yerine yanıt veren otomatik bir hesaptır — sipariş alan, soruları yanıtlayan ya da duyuru gönderen, her zaman çevrimiçi bir çalışan gibi. Bir botunuz olması için yazılımcı olmanız gerekmez: Telegram botu oluşturur, bir hizmet onu çalıştırır, ne söyleyeceğine ve ne yapacağına siz karar verirsiniz. Bu rehber Telegram botunun tam olarak ne olduğunu, ne işe yaradığını ve nereden başlanacağını anlatır.",
+        "sections": [
+          {
+            "h2": "Telegram botu tam olarak ne yapar?",
+            "body": [
+              "Her botun bot ile biten bir kullanıcı adı vardır (örneğin @my_shop_bot). Biri ona mesaj yazdığında ya da düğmelerinden birine bastığında Telegram bu olayı botu çalıştıran hizmete iletir; hizmet ne yanıt vereceğine karar verir ve aynı bot üzerinden cevaplar. Kullanıcı yalnızca tek bir hesapla sohbet ettiğini görür, ama arkasında menüler, formlar, ödemeler, bir veritabanı ve bir yönetim paneli olabilir."
+            ]
+          },
+          {
+            "h2": "Telegram botu ne işe yarar? Yaygın örnekler",
+            "items": [
+              "Mağaza botları: katalog gösterir, sipariş ve dekont alır, sipariş durumunu bildirir — [Telegram mağaza botu yapmak](/learn/telegram-shop-bot).",
+              "Destek botları: talepleri toplar, yöneticilere iletir ve geçmişi tutar — [destek botu ve talep sistemi](/learn/telegram-support-bot).",
+              "Bildirim botları: botun tüm kullanıcılarına haber, indirim veya hatırlatma gönderir — [toplu mesaj göndermek](/learn/telegram-bot-broadcast).",
+              "Form ve randevu: kayıt, anket, rezervasyon ve talepleri soru soru ilerleyen bir sohbet olarak toplar.",
+              "Okul ve eğitim botları: not, devamsızlık ve duyuruları doğrudan ailelerin Telegram'ına gönderir."
+            ]
+          },
+          {
+            "h2": "Bot nasıl çalışır? Üç oyuncu",
+            "items": [
+              "Telegram ve BotFather: botu oluşturur ve size bir token verir — botun özel anahtarı. Bkz. [Telegram bot token'ı almak](/learn/telegram-bot-token).",
+              "Botu çalıştıran hizmet: mesajları alıp yanıtlayan program. Kendiniz kod yazıp bir sunucuda çalıştırabilir ya da onu sizin yerinize çalıştıran bir bot oluşturucu kullanabilirsiniz.",
+              "Siz, botun sahibi: botun ne söyleyeceğine, hangi menüyü göstereceğine ve verinin nerede saklanacağına siz karar verirsiniz."
+            ],
+            "body": [
+              "Telegram mesajları ya webhook ile iletir ya da hizmet polling ile çeker; aradaki fark [webhook mu polling mi](/learn/telegram-bot-webhook-vs-polling) yazısında anlatılıyor, ama bir oluşturucuyla seçim yapmanız gerekmez."
+            ]
+          },
+          {
+            "h2": "Yazılımcı olmam gerekir mi?",
+            "body": [
+              "Hayır. İki yol var: kod yazmak (tam esneklik, ama yazılımcı, sunucu ve bakım gerekir) ya da menüleri, komutları, formları ve ödemeyi bir panelden ayarladığınız kodsuz bir bot oluşturucu kullanmak. Satış, destek ve duyuru yapan işletmelerin çoğu için ikinci yol yeterlidir; ayrıntısı [kodsuz Telegram botu yapmak](/learn/telegram-bot-without-coding) yazısında, hangi oluşturucunun size uyduğundan emin değilseniz [bot oluşturucu nasıl seçilir](/learn/choose-a-telegram-bot-builder) yazısına bakın."
+            ]
+          },
+          {
+            "h2": "Telegram botu ne kadar tutar?",
+            "body": [
+              "Telegram'da bot oluşturmak ücretsizdir ve Telegram Bot API için ücret almaz. Asıl maliyet botu çalıştırmak ve bakımını yapmak ya da bir geliştiricinin ücretidir; oluşturucuyla bu aylık bir pakete dönüşür. Etkenler [Telegram botunun maliyeti](/learn/telegram-bot-cost) yazısında, güncel fiyatlar [fiyatlar](/pricing) sayfasında."
+            ]
+          },
+          {
+            "h2": "Nereden başlamalıyım?",
+            "body": [
+              "En kısa yol dört adımdır: BotFather'da bot oluşturup token alın, token'ı IrForge'a girin, ilk menü ve komutlarınızı kurun, birkaç kişiyle deneyin. Aynı yol adım adım [Telegram botu nasıl yapılır](/learn/how-to-make-a-telegram-bot) yazısında. IrForge her hesaba bir adet 7 günlük ücretsiz deneme botu verir."
+            ]
+          }
+        ],
+        "faqTitle": "Sık sorulan sorular",
+        "faq": [
+          {
+            "q": "Telegram botu normal bir Telegram hesabından farklı mı?",
+            "a": "Evet. Normal hesabı bir insan, botu bir program yönetir. Botun telefon numarası yoktur, kullanıcı adı bot ile biter ve oturum açma yerine token ile yönetilir."
+          },
+          {
+            "q": "Botlar özel mesajlarımı okur mu?",
+            "a": "Bot yalnızca kendisine doğrudan gönderilen ya da eklendiği gruplardaki mesajları görür (varsayılan olarak orada da çoğunlukla komutları ve kendisinden bahseden mesajları). Diğer sohbetlerinize erişemez."
+          },
+          {
+            "q": "Telegram botu ücretsiz mi?",
+            "a": "Oluşturmak ücretsiz, çalıştırmak değil. Kodu kendiniz yazıp barındırırsanız nakit maliyet küçüktür ama zaman alır. Bot oluşturucuyla aylık paket ödersiniz; çalıştırma ve bakım hizmetin işidir."
+          },
+          {
+            "q": "Bot kanal ve gruptan nasıl farklıdır?",
+            "a": "Kanallar ve gruplar yayın ya da toplu sohbet içindir; bot her kullanıcıya ayrı ayrı ve otomatik yanıt verir, sipariş alabilir, form doldurabilir ve veri saklayabilir. Birçok işletme üçünü birlikte kullanır."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Hemen başlamak için [Telegram botu nasıl yapılır](/learn/how-to-make-a-telegram-bot) rehberini izleyin; satış yapmak istiyorsanız [Telegram mağaza botu yapmak](/learn/telegram-shop-bot) ürün yapısına ve siparişe geçer."
+      },
+      "choose-a-telegram-bot-builder": {
+        "h1": "En iyi Telegram bot oluşturucu nasıl seçilir",
+        "lead": "Tek bir \"en iyi\" Telegram bot oluşturucu yoktur; yapmak istediğiniz işe uyan oluşturucu vardır. Mağaza, destek, toplu mesaj ve randevu farklı şeyler ister ve ana sayfadaki fiyat gerçek maliyetin yalnızca bir kısmıdır. Bu rehber, IrForge dahil her Telegram bot oluşturucuyu karşılaştırmak için tarafsız bir kontrol listesidir ve her ölçütü nerede, nasıl deneyeceğinizi söyler.",
+        "sections": [
+          {
+            "h2": "Önce botun ne için olduğuna karar verin",
+            "body": [
+              "Botun ilk ayında ne yapması gerektiğini kısa bir listeye yazın: ürün gösterip sipariş almak mı? Tekrarlayan soruları yanıtlamak mı? Müşterilere haber göndermek mi? Randevu vermek mi? Birinde mükemmel olan oluşturucu başka birinde yetersiz kalabilir. Kavram size yeniyse önce [Telegram botu nedir](/learn/what-is-a-telegram-bot) yazısını okuyun."
+            ]
+          },
+          {
+            "h2": "Karşılaştırma ölçütleri",
+            "items": [
+              "Dil ve destek: yönetim paneli, öğreticiler ve destek sizin dilinizde mi, sağdan sola yerleşim gerçekten çalışıyor mu? En kolay sınama, deneme hesabı açıp bir bot kurmaktır.",
+              "Pazarınıza uygun ödeme: İran'da müşterilerin çoğu karttan karta transfer veya cüzdanı tercih eder. Oluşturucunun dekontu nasıl aldığına, onay ve reddin nasıl işlediğine, tekrarlanan dekontu yakalayıp yakalamadığına bakın.",
+              "Verinizin durduğu yer: sipariş ve kullanıcı verisi nerede tutuluyor, nasıl görüyorsunuz ve ayrılırsanız ne olur? [Telegram botu ve Google Sheets](/learn/telegram-bot-google-sheets) bunu ele alıyor.",
+              "Kod gerekliliği: satış, talep ve form kodsuz çalışmalı; alışılmadık ihtiyaçlar için yolun ne olduğunu öğrenin.",
+              "Gerçek maliyet: aylık fiyatı, ek eklentileri ve bot ile kullanıcı sınırlarını yan yana koyun. Ayrıntılar [Telegram botunun maliyeti](/learn/telegram-bot-cost) yazısında.",
+              "Token güvenliği: token yalnızca sunucuda kalmalı, hiçbir bağlantıda veya mesajda görünmemeli ve BotFather'da /revoke ile istediğiniz an iptal edebilmelisiniz.",
+              "Gerçek özellikler ve pazarlama: özellik sayfasını bir deneme hesabıyla karşılaştırın. \"Yapay zekâ\", \"sınırsız\" veya \"tam otomasyon\" gibi ifadeleri çalıştığını görene kadar kanıtlanmamış sayın.",
+              "Deneme ve yenileme koşulları: ödemeden önce deneyebiliyor musunuz? Yenileme otomatik mi? Bakiye azsa ne olur?",
+              "Destek: mağaza botunuz gece on birde bozulduğunda kim, hangi kanaldan yanıt veriyor?"
+            ]
+          },
+          {
+            "h2": "IrForge bu ölçütlerde nerede duruyor?",
+            "body": [
+              "IrForge'u biz yapıyoruz; bu yüzden yukarıdaki listeyi her oluşturucuya uyacak şekilde yazdık: her ölçütü o oluşturucunun kendi deneme hesabında sınayın, pazarlama sayfasında değil. IrForge için tablo şöyle:"
+            ],
+            "items": [
+              "Farsça öncelikli yönetim paneli ve rehberler; destek talepler üzerinden.",
+              "Ödeme: müşteriye kart veya cüzdan bilgisini gösterme, dekont alma ve panelden elle onaylama veya reddetme; ayrıca bot içinde cüzdan.",
+              "Veri: her bota ayrı tablo (varsayılan ve ücretsiz) ya da tek seferlik ücretle özel SQL veritabanı.",
+              "Yaygın durumlar (mağaza, talepler, formlar, rezervasyon, çekilişler, toplu mesaj) için kodsuz ve yönetilecek sunucu yok.",
+              "Maliyet: 7 günlük ücretsiz deneme botu, sonra cüzdandan yenilenen aylık paket. Her paketin içeriği [fiyatlar](/pricing) sayfasında.",
+              "Sınırlar: IrForge bir platformdur, serbest bir kodlama aracı değil; gerçekten alışılmadık mantık veya hazır bağlayıcısı olmayan sistemlerle entegrasyon özel geliştirme gerektirir."
+            ]
+          },
+          {
+            "h2": "Ödemeden önce otuz dakikalık sınama",
+            "items": [
+              "Bir bot oluşturup token'ı bağlayın; ne kadar sürdüğünü ve nerede takıldığınızı not edin.",
+              "Baştan sona bir deneme siparişi verin: ürün seçin, ödeme bilgisini görün, dekont gönderin, onaylayın.",
+              "Botu ikinci bir Telegram hesabından açın ve bir yabancının şaşırıp şaşırmadığına bakın.",
+              "Verinin nereye yazıldığını ve görüp göremediğinizi öğrenin.",
+              "Destek ekibine bir soru sorun ve yanıtın hızını ve kalitesini değerlendirin."
+            ]
+          }
+        ],
+        "faqTitle": "Sık sorulan sorular",
+        "faq": [
+          {
+            "q": "Ücretsiz Telegram bot oluşturucu var mı?",
+            "a": "Bazı araçların sınırlı ücretsiz planı vardır, IrForge da her hesaba bir adet 7 günlük ücretsiz deneme botu verir. Oluşturmadan önce sınırları (kullanıcı, eklenti, süre) okuyun ve ücretsiz olmanın karşılığında neyin kısıtlandığına bakın."
+          },
+          {
+            "q": "Oluşturucu ile kodla bot yazmak arasındaki fark nedir?",
+            "a": "Oluşturucuda yaygın mantık hazırdır, çalıştırma ve bakımı hizmet üstlenir; kodlu botta her şeyi geliştirici yazar ve sunucu sizde kalır. Birincisi daha hızlı ve ucuz başlar, ikincisi alışılmadık mantık için daha esnektir."
+          },
+          {
+            "q": "Oluşturucu değiştirirsem verimi kaybeder miyim?",
+            "a": "Bot ve token'ı BotFather'da sizindir ve başka bir hizmete yönlendirilebilir; veriyi ise tablodan veya veritabanından dışa aktarmanız gerekir. Seçmeden önce nasıl dışa aktarıldığını sorun."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Fiyat sizin için en önemliyse [Telegram botunun maliyeti](/learn/telegram-bot-cost) yazısına bakın; uygulamalı örnek isterseniz [Telegram mağaza botu yapmak](/learn/telegram-shop-bot) eksiksiz bir botu adım adım kurar."
+      },
+      "telegram-bot-menu-buttons": {
+        "h1": "Kodsuz Telegram bot menüleri ve satır içi düğmeler nasıl yapılır",
+        "lead": "Menüler ve satır içi düğmeler, bir Telegram botunu metin sohbetinden küçük bir uygulamaya çeviren şeydir: kullanıcı yazmak yerine bir seçeneğe dokunur ve bot sonraki ekranı gösterir. IrForge'ta bu menüler panellerden ve düğmelerden kurulur, kod gerekmez. Bu rehber panelleri, düğme türlerini ve iyi bir ana menünün nasıl tasarlanacağını anlatır; sonunda eksiksiz bir menüyü adım adım kurar.",
+        "sections": [
+          {
+            "h2": "Panel nedir?",
+            "body": [
+              "Panel, botun bir \"ekranı\"dır: bir mesaj (metin, fotoğraf, video, ses veya dosya) ve altında düğmeler. Paneller iç içedir: biri ana paneldir, diğerleri ondan dallanır. Her alt panel için \"geri\" düğmesini bot kendisi ekler."
+            ]
+          },
+          {
+            "h2": "Düğmeler nasıl dizilir?",
+            "body": [
+              "Düğmeler satır satır tanımlanır, tam Telegram'da göründükleri gibi. Düzenleyici yeni satır ekler, düğmeyi üst ya da alt satıra taşır ve bir satır fazla dolarsa uyarır. Her düğmeye bir renk de verebilirsiniz: ana (mavi), başarı (yeşil) veya tehlike (kırmızı)."
+            ]
+          },
+          {
+            "h2": "Bir düğme ne yapabilir?",
+            "items": [
+              "Başka bir paneli açmak — iç içe menüyü bu şekilde kurarsınız.",
+              "Harici bir bağlantıyı (adres https:// ile başlamalı) ya da mini uygulamayı açmak.",
+              "Kullanıcıdan bilgi toplamak için adım adım bir formu açmak.",
+              "Bir ürün sipariş etmek, mağazayı veya satış panelini açmak — [mağaza botu yapmak](/learn/telegram-shop-bot).",
+              "Destek talebi, randevu, çekiliş, anket, sadakat puanı, indirim kodu, abonelik ve adres gösterme.",
+              "Kullanıcının telefon numarasını istemek ya da özel bir komut çalıştırmak."
+            ],
+            "body": [
+              "Bu eylemlerin bazıları yalnızca ilgili eklenti botta açıksa çalışır; düzenleyici böyle bir durumda sizi uyarır."
+            ]
+          },
+          {
+            "h2": "Her panel için gelişmiş ayarlar",
+            "items": [
+              "Mesajı birkaç saniye sonra otomatik silmek (geçici mesajlar için).",
+              "Paneli açmak için kullanıcının girmesi gereken bir parola.",
+              "Panelin kaç kez kullanılabileceğini sınırlayan bir kapasite.",
+              "Kullanıcının gönderdiklerini belirli gruplara iletmek."
+            ]
+          },
+          {
+            "h2": "İyi bir ana menü nasıl görünür?",
+            "items": [
+              "Ana panelde dört ila altı seçenek; fazlası kafa karıştırır, gerisini alt panellere taşıyın.",
+              "En çok kullanılan eylem önce (örneğin \"Ürünler\"), \"Destek\" en sonda.",
+              "Kısa, fiille başlayan düğme adları: \"Şimdi sipariş ver\", \"Bize ulaşın\".",
+              "Eşit ağırlıklı seçenekler için satırda iki düğme, ana eylem için tek düğme.",
+              "Her zaman bir insana ulaşma yolu: bir talep veya iletişim düğmesi."
+            ]
+          }
+        ],
+        "stepsTitle": "IrForge'ta ilk menünüzü kurun",
+        "steps": [
+          {
+            "name": "Paneller bölümünü açın",
+            "text": "Botun yönetim panelinde \"Paneller\" bölümünü açın ve \"Yeni panel\"i seçin."
+          },
+          {
+            "name": "Ana paneli yazın",
+            "text": "\"Medya\" türünü seçin ve karşılama metnini yazın; fotoğraf veya video isteğe bağlıdır."
+          },
+          {
+            "name": "Hedef panelleri oluşturun",
+            "text": "Her seçenek için bir panel yapın — örneğin \"Ürünler\" ve \"Bize ulaşın\" — her birinin kendi içeriğiyle."
+          },
+          {
+            "name": "Düğmeleri satırlara dizin",
+            "text": "Düğmeler sekmesinde satır ekleyin, her düğmenin etiketini yazın ve hedef panelle \"Panele bağlantı\" eylemini seçin."
+          },
+          {
+            "name": "Ana paneli belirleyin",
+            "text": "Bu panel botun menüsünün kökü olsun diye \"Ana panel yap\"ı seçin."
+          },
+          {
+            "name": "Bir komut ekleyin ve Telegram'da deneyin",
+            "text": "Komutlar bölümünde ana paneli açan menu gibi bir komut oluşturun ve Telegram'ın komut menüsüne ekleyin. Sonra botu başka bir hesaptan açıp menüyü deneyin."
+          }
+        ],
+        "mistakesTitle": "Menü tasarımında sık yapılan hatalar",
+        "mistakes": [
+          "Kalabalık satırlar: yan yana birkaç uzun düğme telefonda kesilir — satırı kısa tutun.",
+          "Düğmelerin bağlandığı bir paneli silmek. Silmeden önce Başvurular sekmesine bakın; IrForge o panele neyin işaret ettiğini gösterir ve düğmelerle alt panellere ne yapılacağını sorar.",
+          "https:// olmayan harici bağlantı — Telegram kabul etmez.",
+          "Gereğinden derin menü: bir işe varmak üç dokunuştan fazla sürüyorsa yapıyı sadeleştirin."
+        ],
+        "faqTitle": "Sık sorulan sorular",
+        "faq": [
+          {
+            "q": "Satır içi düğme botun normal klavyesinden farklı mı?",
+            "a": "Evet. Satır içi (inline) düğme mesajın hemen altında durur ve bağlantı açabilir ya da komut çalıştırabilir; normal (reply) klavye telefonun klavyesinin yerini alır ve sabit metin gönderir. IrForge panellerindeki düğmeler satır içi düğmelerdir."
+          },
+          {
+            "q": "Bir satıra kaç düğme koyabilirim?",
+            "a": "Bir satır fazla dolarsa düzenleyici uyarır, çünkü Telegram böyle bir yerleşimi doğru göstermez. Telefonda okunabilirlik için satırda iki veya üç düğme genellikle yeterlidir."
+          },
+          {
+            "q": "Hiçbir eklenti olmadan menü yapabilir miyim?",
+            "a": "Evet. Metin panelleri, fotoğraflı paneller, bağlantılar ve iç içe menüler eklenti gerektirmez; yalnızca rezervasyon veya çekiliş gibi eylemler ilgili eklentiyi ister."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Menü hazır olunca ona bir [mağaza botu](/learn/telegram-shop-bot) ya da [destek botu](/learn/telegram-support-bot) bağlayın; kullanıcılara yeniliklerden haber vermek için [toplu mesaj](/learn/telegram-bot-broadcast) yazısına bakın."
+      },
+      "telegram-bot-broadcast": {
+        "h1": "Telegram botunda toplu mesaj nasıl gönderilir",
+        "lead": "Toplu mesaj, botunuzun tüm kullanıcılarına tek bir mesaj — duyuru, indirim, hatırlatma — göndermek demektir. Güçlü bir araçtır ve kötü kullanılırsa kullanıcıların botu engellemesine yol açan tam da o araçtır. Bu rehber IrForge'ta toplu mesajın nasıl çalıştığını, gönder düğmesine basmadan önce neleri kontrol etmeniz gerektiğini ve tekrarlayan ya da hedefli mesajlar için hangi başka aracı kullanacağınızı anlatır.",
+        "sections": [
+          {
+            "h2": "IrForge'ta toplu mesaj nasıl çalışır?",
+            "body": [
+              "Botun \"Toplu mesaj\" bölümünde mesajı yazarsınız ya da orada Telegram'dan bota gönderirsiniz. Bot önce bu mesajı sizin sohbetinizde gösterir, sonra aynısını her alıcıya kopyalar; yani önizlemede gördüğünüz, kullanıcıların aldığıyla birebir aynıdır — kendi biçimlendirmesi ve medyasıyla.",
+              "Onay için alıcı sayısını yazarsınız ve çalıştıktan sonra gönderim raporu sohbetinize gelir. Gönderimi site değil, botun kendisi (iş kuyruğu üzerinden) yapar; bu yüzden gönderim hızı ve rapor botun sorumluluğundadır ve son gönderimler de aynı kuyruktan okunur."
+            ]
+          },
+          {
+            "h2": "Kimler alır?",
+            "body": [
+              "Engellenmemiş tüm bot kullanıcıları. Bu küme iş çalıştığı anda belirlenir, bu yüzden göndermeden önce gördüğünüz sayı bir tahmindir."
+            ]
+          },
+          {
+            "h2": "Notlar ve sınırlar",
+            "items": [
+              "Toplu mesajda satır içi düğmeler desteklenmez: bot mesajı klavyesi olmadan kopyalar. Bağlantı gerekiyorsa metnin içine koyun.",
+              "\"Forwarded from\" etiketi görünmez, çünkü mesajı botun kendisi gönderir.",
+              "Birkaç mesajı (metin ve medya) art arda kaydedip Telegram'da \"Bitti\"ye basarak tamamlayabilirsiniz.",
+              "Botun iş kuyruğu yapılandırılmamışsa toplu mesaj çalışmaz ve panel bunu size söyler."
+            ]
+          },
+          {
+            "h2": "Kullanıcıların kızmayacağı bir toplu mesajın kuralları",
+            "items": [
+              "Yalnızca mesaj herkes için okumaya değerse gönderin; sık toplu mesaj, engellenen bot demektir.",
+              "Kısa yazın ve tek bir net eylem isteyin (bağlantıyla \"Şimdi görün\").",
+              "Uygun bir saat seçin — gece yarısı değil.",
+              "Önizlemeyi dikkatle okuyun: gönderildikten sonra geri dönüş yok."
+            ]
+          },
+          {
+            "h2": "Toplu mesaj mı, zamanlanmış mesaj mı?",
+            "body": [
+              "Tek seferlik bir duyuru için toplu mesaj yeterlidir. Olaya göre, belirli bir tarihte ya da haftalık ve yalnızca belirli bir kullanıcı grubuna (örneğin bir CRM etiketi) mesaj göndermek isterseniz, \"zamanlanmış mesaj\" eklentisinde sessiz saatler ve kullanıcı başına saatlik mesaj sınırı vardır. Tek bir gönderiyi birkaç kanalda yayınlamak için de \"gönderi oluşturucu\" eklentisi var."
+            ]
+          }
+        ],
+        "faqTitle": "Sık sorulan sorular",
+        "faq": [
+          {
+            "q": "Toplu mesaj botum için sorun çıkarır mı?",
+            "a": "Bot, Telegram'ın sınırları aşılmasın diye gönderim hızını kendisi yönetir. Asıl risk çok fazla ya da alakasız mesajdır: kullanıcı botu engeller veya şikâyet eder. Az ve değerli gönderin."
+          },
+          {
+            "q": "Yalnızca belirli bir kullanıcı grubuna gönderebilir miyim?",
+            "a": "Toplu mesaj tüm kullanıcılara gider. Hedefli kitle için CRM etiketleriyle \"zamanlanmış mesaj\" eklentisini kullanın."
+          },
+          {
+            "q": "Mesajı çıkmadan önce görebilir miyim?",
+            "a": "Evet. Bot mesajı önce sizin sohbetinize gönderir, sonra kullanıcılara kopyalar; gönderimi başlatmak için ayrıca alıcı sayısını yazmanız gerekir."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Henüz botunuz yoksa [Telegram botu nasıl yapılır](/learn/how-to-make-a-telegram-bot) rehberini izleyin. Kullanıcıları bota geri getiren bir menü için [menüler ve satır içi düğmeler](/learn/telegram-bot-menu-buttons) yazısına bakın; satış yapıyorsanız indirim mesajlarının doğal yeri [mağaza botu](/learn/telegram-shop-bot)."
       }
     }
   },
@@ -1225,7 +1691,7 @@
     "intro": "Planlar, her birinin içeriği ve faturalamanın işleyişi. Her plan tek bir hesap içindir; botlar paketlerle eklenir.",
     "breadcrumbLabel": "Sayfa yolu",
     "tiersTitle": "Planlar",
-    "priceNote": "Bunlar güncel, gerçek plan fiyatları — giriş yaptıktan sonra görülenlerle aynı. Standart ve Pro paketlerinin gerçek fiyatları da ana sayfada yazılıdır.",
+    "priceNote": "Bunlar hesap planlarının gerçek ve güncel fiyatlarıdır — giriş yaptıktan sonra gördüğünüzle birebir aynıdır.",
     "faqTitle": "Faturalama soruları",
     "faq": [
       {
@@ -1242,7 +1708,17 @@
       }
     ],
     "cta": "Hemen başlayın",
-    "learnLink": "Rehberleri okuyun"
+    "learnLink": "Rehberleri okuyun",
+    "packagesTitle": "Bot paketleri",
+    "packagesIntro": "Hesap planı sınırlarınızı belirler ve her bot bir paketle çalışır. Paketlerin içerdikleri aşağıda; her paketin güncel fiyatı giriş yaptıktan sonra bot mağazasında gösterilir.",
+    "billingTitle": "Paket faturalandırması nasıl işler?",
+    "billingItems": [
+      "Her hesap bir adet 7 günlük ücretsiz deneme botu alır — hesap başına bir kez.",
+      "Standard ve Pro aylıktır. Dönem bitmeden birkaç gün önce uyarı bildirimi alırsınız; dönem bitince yenileme ücreti cüzdanınızdan düşülür.",
+      "Yenileme, paketin o günkü fiyatıyla yapılır. Cüzdan bakiyesi yetersizse o bot siz yenileyene kadar kapalı kalır.",
+      "Paket ücreti, paketin sahibi olmanız içindir; botun açık olması için değil — bu yüzden botu elle kapatmak yenilemeyi durdurmaz.",
+      "Telegram, bot oluşturmak veya Bot API kullanmak için ücret almaz. Ödediğiniz şey botunuzun çalıştırılması ve desteğidir."
+    ]
   },
   "footer": {
     "productTitle": "Ürün",
@@ -3105,7 +3581,7 @@
     "popular": "En çok seçilen",
     "choose": "Bu planı seç",
     "allPlans": "Tüm planları karşılaştır",
-    "oneOff": "tek seferlik, bot başına",
+    "oneOff": "aylık, bot başına",
     "custom": {
       "name": "Özel",
       "tagline": "RAM, CPU ve eklentileri kendiniz seçin."
@@ -3439,5 +3915,54 @@
     "fieldRconPasswordPlaceholder": "••••••••",
     "statusActive": "Aktif",
     "statusInactive": "Pasif"
+  },
+  "about": {
+    "breadcrumbLabel": "Sayfa yolu",
+    "h1": "IrForge hakkında",
+    "lead": "IrForge, Farsça öncelikli bir Telegram bot oluşturucudur: BotFather token'ınızı yapıştırın; sunucu ve kod olmadan mağaza botu, destek botu, randevu botu, toplu mesaj aracı veya başka bir işe yarar botu tek yönetim panelinden kurup yönetin.",
+    "sections": [
+      {
+        "h2": "Ne yapıyoruz?",
+        "body": [
+          "IrForge botu sizin yerinize çalıştırır — Telegram mesajlarını alır, yanıtlar ve veriyi saklar — ve kurma ile yönetme araçlarını tek panelde bir araya getirir: menüler ve düğmeler, formlar, mağaza ve cüzdan, destek talepleri, randevu rezervasyonu, çekilişler, anketler, CRM ve toplu mesaj. Botun ne söyleyeceğine ve ne yapacağına siz karar verirsiniz."
+        ]
+      },
+      {
+        "h2": "Kimler için?",
+        "items": [
+          "Telegram'da katalog gösterip sipariş ve dekont almak isteyen satıcılar ve küçük işletmeler. [Mağaza botu rehberi](/learn/telegram-shop-bot)",
+          "Müşteri desteğini Telegram'dan yürüten ve talep ile geçmiş isteyen ekipler. [Destek botu rehberi](/learn/telegram-support-bot)",
+          "Not, devamsızlık ve duyuruları doğrudan ailelerin Telegram'ına göndermek isteyen okullar ve eğitim merkezleri.",
+          "Geliştirici tutmak yerine botu kendisi yapmak isteyenler. [Kodsuz Telegram botu yapmak](/learn/telegram-bot-without-coding)"
+        ]
+      },
+      {
+        "h2": "Token'ınız ve verileriniz",
+        "body": [
+          "Bot token'ınız yalnızca sunucuda tutulur ve hiçbir bağlantıda görünmez; istediğiniz zaman BotFather'da /revoke ile iptal edebilirsiniz.",
+          "Her botun verisi varsayılan olarak o bota ait özel bir Google Sheets tablosunda tutulur (panelde ve Google'da görünür); gerektiğinde özel bir SQL veritabanına taşıyabilirsiniz. Ayrıntılar [Telegram botu ve Google Sheets](/learn/telegram-bot-google-sheets) yazısında."
+        ]
+      },
+      {
+        "h2": "Net maliyetler",
+        "body": [
+          "Her hesap bir adet 7 günlük ücretsiz deneme botu alır. Sonrasında Standard ve Pro paketleri aylıktır ve cüzdanınızdan yenilenir; içerikleri ve plan fiyatları [fiyatlar](/pricing) sayfasında. Telegram bot oluşturmak veya Bot API kullanmak için ücret almaz."
+        ]
+      },
+      {
+        "h2": "Diller ve öğrenme",
+        "body": [
+          "IrForge arayüzü beş dilde (Farsça, İngilizce, Arapça, Türkçe ve Rusça) mevcuttur; ana dilimiz Farsçadır. [Rehberleri](/learn) üye olmadan okuyabilirsiniz; Telegram eğitim kanalımızda aynı adımların videoları var. Elektronik güven mührü (Enamad) her sayfanın altında gösterilir."
+        ]
+      }
+    ],
+    "contactTitle": "İletişim",
+    "contactBody": "Ürünle ilgili sorular için Telegram eğitim kanalımız ve Instagram sayfamız aktif. Hesabınız varsa panelin içinden destek talebi de açabilirsiniz.",
+    "contactChannel": "Telegram eğitim kanalı",
+    "contactInstagram": "Instagram",
+    "ctaTitle": "İlk botunuzu yapmaya hazır mısınız?",
+    "ctaBody": "7 gün ücretsiz deneyin — kodsuz, sunucusuz.",
+    "ctaButton": "Başlayın",
+    "ctaPricing": "Fiyatları gör"
   }
 }

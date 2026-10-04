@@ -28,6 +28,11 @@ import LearnGoogleSheets from "@/pages/learn/telegram-bot-google-sheets";
 import LearnBotCost from "@/pages/learn/telegram-bot-cost";
 import LearnBotFather from "@/pages/learn/botfather-commands";
 import LearnWebhook from "@/pages/learn/telegram-bot-webhook-vs-polling";
+import LearnWhatIs from "@/pages/learn/what-is-a-telegram-bot";
+import LearnChooseBuilder from "@/pages/learn/choose-a-telegram-bot-builder";
+import LearnMenuButtons from "@/pages/learn/telegram-bot-menu-buttons";
+import LearnBroadcast from "@/pages/learn/telegram-bot-broadcast";
+import About from "@/pages/about";
 import Pricing from "@/pages/pricing";
 
 /**
@@ -349,7 +354,12 @@ function Router() {
       <Route path="/learn/telegram-bot-cost" component={LearnBotCost} />
       <Route path="/learn/botfather-commands" component={LearnBotFather} />
       <Route path="/learn/telegram-bot-webhook-vs-polling" component={LearnWebhook} />
+      <Route path="/learn/what-is-a-telegram-bot" component={LearnWhatIs} />
+      <Route path="/learn/choose-a-telegram-bot-builder" component={LearnChooseBuilder} />
+      <Route path="/learn/telegram-bot-menu-buttons" component={LearnMenuButtons} />
+      <Route path="/learn/telegram-bot-broadcast" component={LearnBroadcast} />
       <Route path="/pricing" component={Pricing} />
+      <Route path="/about" component={About} />
       {/* The guide used to live at /learn/bot-token and that URL was public and
           prerendered, so it must not simply 404. wouter can only redirect once
           the SPA has booted — a real 301 has to be configured at the host.

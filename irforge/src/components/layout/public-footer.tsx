@@ -56,6 +56,7 @@ export function PublicFooter() {
         <div className="space-y-3">
           <h2 className="text-sm font-semibold">{t.companyTitle}</h2>
           <ul className="space-y-2 text-sm text-muted-foreground">
+            <li><Link href="/about" className="hover:text-foreground">{seo.navAbout}</Link></li>
             <li>
               <a
                 href={educationChannelUrl}

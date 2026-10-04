@@ -45,6 +45,7 @@ function byPriceAscending(a: Plan, b: Plan) {
 export default function Pricing() {
   const t = useT("pricing") as Record<string, any>;
   const tPlans = useT("plans");
+  const tTiers = useT("botTiers") as Record<string, any>;
   const seo = useT("seo") as Record<string, string>;
   const { lang } = useLanguage();
   const { activeRate } = useCurrency();
@@ -122,6 +123,43 @@ export default function Pricing() {
           <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
             {t.priceNote}
           </p>
+        </section>
+
+        {/* Bot packages. Static copy from the same `botTiers` strings the purchase
+            flow uses, so the prerendered HTML has real, crawlable content — the
+            plan cards above are fetched client-side. No prices on purpose: the
+            current price lives in the admin-editable product table and is shown
+            after sign-in; a number written here would go stale. */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold">{t.packagesTitle}</h2>
+          <p className="leading-relaxed text-muted-foreground">{t.packagesIntro}</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {(["standard", "pro"] as const).map((tier) => (
+              <Card key={tier} className="h-full">
+                <CardHeader className="space-y-1 pb-3">
+                  <h3 className="text-lg font-semibold leading-none tracking-tight">{tTiers[tier].name}</h3>
+                  <CardDescription>{tTiers[tier].tagline}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-1.5 text-sm text-muted-foreground">
+                    {(tTiers[tier].features as string[]).map((f) => (
+                      <li key={f} className="flex gap-2">
+                        <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold">{t.billingTitle}</h2>
+          <ul className="list-disc space-y-2 ps-6 leading-relaxed text-muted-foreground">
+            {(t.billingItems as string[]).map((item) => <li key={item}>{item}</li>)}
+          </ul>
         </section>
 
         <section className="space-y-3">

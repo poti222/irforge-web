@@ -12,6 +12,7 @@ import { DEFAULT_LANG, isRtlLang, type Lang } from "./lib/i18n";
 import {
   ALL_LANGS,
   PRIVATE_ROUTES,
+  CRAWLABLE_NOINDEX_ROUTES,
   PUBLIC_ROUTES,
   ROUTE_SEO,
   SITE_ORIGIN,
@@ -24,6 +25,7 @@ import {
 import { structuredData } from "./lib/structured-data";
 import { faqEntries } from "./lib/faq-content";
 import {
+  ARTICLE_DATES,
   ARTICLE_SLUGS,
   articleFor,
   articleRoute,
@@ -31,7 +33,7 @@ import {
   type ArticleSlug,
 } from "./lib/learn-content";
 
-export { PRIVATE_ROUTES, ALL_LANGS };
+export { PRIVATE_ROUTES, CRAWLABLE_NOINDEX_ROUTES, ALL_LANGS };
 
 /**
  * Build-time render entry. `scripts/ssg.mjs` imports this from the SSR bundle
@@ -199,11 +201,15 @@ export function sitemapEntries(): SitemapEntry[] {
   const entries: SitemapEntry[] = [];
   for (const route of PUBLIC_ROUTES) {
     const isHome = route === "/";
+    // an article's lastmod is its own hand-maintained `modified` date, so editing
+    // one guide doesn't claim the other twelve changed too
+    const slug = ARTICLE_SLUGS.find((s) => articleRoute(s) === route);
+    const lastmod = slug ? ARTICLE_DATES[slug].modified : SITEMAP_LASTMOD;
     for (const lang of ALL_LANGS) {
       const root = lang === DEFAULT_LANG;
       entries.push({
         loc: absoluteUrl(lang, route),
-        lastmod: SITEMAP_LASTMOD,
+        lastmod,
         changefreq: isHome ? "weekly" : "monthly",
         // the root language is the primary market, the rest sit just below it
         priority: isHome ? (root ? "1.0" : "0.9") : root ? "0.8" : "0.7",

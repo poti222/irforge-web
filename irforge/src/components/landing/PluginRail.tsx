@@ -1,4 +1,4 @@
-import { BarChart3, Bot, CreditCard, ShieldCheck, type LucideIcon } from "lucide-react";
+import { BarChart3, CalendarCheck, CreditCard, Gift, type LucideIcon } from "lucide-react";
 import { useT } from "@/hooks/use-translation";
 
 /**
@@ -12,8 +12,8 @@ export function PluginRail() {
   const plugins: { icon: LucideIcon; name: string; installed?: boolean }[] = [
     { icon: BarChart3, name: tr.pluginNameAnalytics, installed: true },
     { icon: CreditCard, name: tr.pluginNamePayments },
-    { icon: Bot, name: tr.pluginNameAi },
-    { icon: ShieldCheck, name: tr.pluginNameModeration },
+    { icon: CalendarCheck, name: tr.pluginNameBooking },
+    { icon: Gift, name: tr.pluginNameGiveaway },
   ];
 
   return (
