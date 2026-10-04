@@ -8,6 +8,7 @@ import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
 import {
   listMyChildren, listCounselorReports, listChildAlerts, listChildAttendance, getChildGradebook,
+  childGradebookExportUrl,
   type CounselorReport, type MyChild,
 } from "@/lib/schools-api";
 import { AdminChatThread } from "@/components/schools/AdminChatThread";
@@ -118,7 +119,12 @@ export default function ParentReportsPage() {
               </TabsContent>
 
               <TabsContent value="grades" className="mt-3">
-                <GradesList items={grades?.items} average={grades?.average ?? null} isLoading={gradesLoading} />
+                <GradesList
+                  items={grades?.items}
+                  average={grades?.average ?? null}
+                  isLoading={gradesLoading}
+                  exportUrl={childSchoolId && selectedChildId ? childGradebookExportUrl(childSchoolId, selectedChildId) : undefined}
+                />
               </TabsContent>
 
               <TabsContent value="attendance" className="mt-3">

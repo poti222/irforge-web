@@ -4296,6 +4296,7 @@
     "attendanceSummaryLateCount": "تأخیر",
     "attendanceSummaryRate": "درصدِ حضور",
     "exportCsvButton": "دانلودِ CSV",
+    "exportCsvFailedToast": "دانلودِ فایل با خطا مواجه شد.",
     "fieldAbsenceAlertThreshold": "آستانه‌ی اخطارِ غیبتِ پیاپی",
     "fieldAbsenceAlertThresholdHint": "وقتی دانش‌آموزی به این تعداد روزِ پیاپی غایب/دیرحاضر بماند، به‌طورِ خودکار اخطار صادر می‌شود.",
     "gradebookPageDescription": "نمره‌های ترکیبیِ تکلیف و آزمونِ دانش‌آموزانِ یک کلاس.",
