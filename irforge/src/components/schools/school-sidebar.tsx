@@ -85,6 +85,10 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
         // لایه‌یِ «درس» — type جدیدِ «شعر» (طبقِ گزارشِ کاربر: «شعر یا لغت»)
         { key: "poems", href: "/schools/content/poem", icon: Feather, label: t.navPoems },
         { key: "announcements", href: "/schools/announcements", icon: Megaphone, label: t.navAnnouncements },
+        // باگِ همان‌خانواده‌ی موردِ معلم (بالا): «تکالیف» فقط به‌صورتِ تایل در
+        // صفحه‌ی خانه‌ی دانش‌آموز بود، نه آیتمِ سایدبار — یعنی از هر زیرصفحه‌ی
+        // دیگر (مثلاً «آزمون‌ها») راهی به تکالیف جز برگشتن به خانه نبود.
+        { key: "assignments", href: "/schools/student/assignments", icon: ClipboardList, label: t.navAssignments },
         { key: "attendance", href: "/schools/student/attendance", icon: ClipboardCheck, label: t.navAttendance },
         { key: "grades", href: "/schools/student/grades", icon: GraduationCap, label: t.navGrades },
         { key: "exams", href: "/schools/student/exams", icon: FileQuestion, label: t.navExams },
