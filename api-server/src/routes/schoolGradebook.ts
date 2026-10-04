@@ -15,6 +15,7 @@ import {
   db, schoolAssignmentsTable, schoolAssignmentSubmissionsTable,
   schoolExamsTable, schoolExamAttemptsTable,
   schoolClassMembersTable, schoolMembersTable, schoolGuardianshipsTable,
+  usersTable, schoolsTable,
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { requireAuth } from "./auth";
@@ -189,6 +190,68 @@ router.get("/schools/:schoolId/gradebook/child/:studentMemberId", requireAuth, a
     res.json(result);
   } catch (err) {
     logger.error({ err }, "Get child gradebook error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * «کارنامه»یِ CSV — همان الگویِ CSVِ موجودِ attendance/export، فقط رویِ
+ * خروجیِ buildStudentGrades. نسخه‌ی اول برایِ این بخش («بهترِ ۱۰٬۰۰۰٬۰۰۰٪»):
+ * دانش‌آموز/والد تا این‌جا هیچ راهِ دانلود/چاپِ نمره‌ها را نداشتند، فقط دیدنِ
+ * آن‌ها در صفحه — برخلافِ حضور و غیاب که از فازِ ۱۰ اکسپورت دارد.
+ */
+function escCsv(v: string): string {
+  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+function buildGradebookCsv(studentName: string, schoolName: string, items: GradeItem[], average: number | null): string {
+  const header = ["type", "title", "value"].join(",");
+  const typeLabel = (t: GradeItem["itemType"]) => (t === "assignment" ? "تکلیف" : "آزمون");
+  const lines = items.map((i) => [escCsv(typeLabel(i.itemType)), escCsv(i.itemTitle), escCsv(i.value ?? "")].join(","));
+  const meta = [
+    `# ${escCsv(studentName)} — ${escCsv(schoolName)}`,
+    `# میانگین: ${average !== null ? average.toFixed(1) : "—"}`,
+  ];
+  return "﻿" + [...meta, header, ...lines].join("\n");
+}
+
+async function sendGradebookCsv(res: any, studentMemberId: string, schoolId: string) {
+  const [member] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.id, studentMemberId)).limit(1);
+  const [user] = member ? await db.select().from(usersTable).where(eq(usersTable.id, member.userId)).limit(1) : [null];
+  const [school] = await db.select().from(schoolsTable).where(eq(schoolsTable.id, schoolId)).limit(1);
+  const { items, average } = await buildStudentGrades(studentMemberId);
+  const csv = buildGradebookCsv(user?.name ?? user?.email ?? studentMemberId, school?.name ?? "", items, average);
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="gradebook-${studentMemberId}.csv"`);
+  res.status(200).send(csv);
+}
+
+// GET /api/schools/:schoolId/gradebook/my/export — دانش‌آموز: کارنامه‌ی CSVِ خودش.
+router.get("/schools/:schoolId/gradebook/my/export", requireAuth, async (req: any, res) => {
+  try {
+    const member = await getMember(req.userId);
+    if (!member || member.schoolId !== req.params.schoolId || member.role !== "student") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    await sendGradebookCsv(res, member.id, req.params.schoolId);
+  } catch (err) {
+    logger.error({ err }, "Export my gradebook CSV error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/schools/:schoolId/gradebook/child/:studentMemberId/export — والد: کارنامه‌ی CSVِ فرزندِ خودش.
+router.get("/schools/:schoolId/gradebook/child/:studentMemberId/export", requireAuth, async (req: any, res) => {
+  try {
+    const childIds = await myChildrenMemberIdsInSchool(req.userId, req.params.schoolId);
+    if (!childIds.includes(req.params.studentMemberId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    await sendGradebookCsv(res, req.params.studentMemberId, req.params.schoolId);
+  } catch (err) {
+    logger.error({ err }, "Export child gradebook CSV error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

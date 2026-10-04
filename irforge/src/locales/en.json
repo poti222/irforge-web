@@ -3780,6 +3780,7 @@
     "attendanceSummaryLateCount": "Late",
     "attendanceSummaryRate": "Attendance rate",
     "exportCsvButton": "Download CSV",
+    "exportCsvFailedToast": "The file could not be downloaded.",
     "fieldAbsenceAlertThreshold": "Consecutive-absence alert threshold",
     "fieldAbsenceAlertThresholdHint": "When a student is absent/late this many days in a row, an alert is issued automatically.",
     "gradebookPageDescription": "Combined assignment + exam grades for a class's students.",
