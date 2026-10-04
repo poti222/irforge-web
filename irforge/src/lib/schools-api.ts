@@ -210,6 +210,17 @@ export function createContentLesson(schoolId: string, input: { subject: string; 
   });
 }
 
+/**
+ * افزودنِ دسته‌ای — طبقِ گزارشِ مستقیمِ کاربر («به‌جایِ یکی‌یکی، چند خط با هم»).
+ * فقط برایِ یک درسِ واقعی (subject از خودِ درس می‌آید، همان قاعده‌ی POSTِ تکی).
+ */
+export function bulkCreateSchoolContentItems(schoolId: string, input: { lessonId: string; type: SchoolContentType; entries: { title: string; body: string }[] }) {
+  return customFetch<SchoolContentItem[]>(`/api/schools/${schoolId}/content/bulk`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export function updateContentLesson(schoolId: string, lessonId: string, patch: Partial<{ title: string; subject: string }>) {
   return customFetch<SchoolContentLesson>(`/api/schools/${schoolId}/content-lessons/${lessonId}`, {
     method: "PATCH",
@@ -219,6 +230,35 @@ export function updateContentLesson(schoolId: string, lessonId: string, patch: P
 
 export function deleteContentLesson(schoolId: string, lessonId: string) {
   return customFetch<void>(`/api/schools/${schoolId}/content-lessons/${lessonId}`, { method: "DELETE" });
+}
+
+/**
+ * حالتِ مطالعه/فلش‌کارت — پیشرفتِ سرور-محورِ هر کاربر رویِ آیتم‌هایِ یک درس
+ * (ببینید schema/schoolContentProgress.ts در بک‌اند برایِ توضیحِ کاملِ طراحی:
+ * این همان جایی است که نسخه‌ی قدیمیِ dars فقط localStorage داشت).
+ */
+export const SCHOOL_CONTENT_RATINGS = ["know", "practice"] as const;
+export type SchoolContentRating = (typeof SCHOOL_CONTENT_RATINGS)[number];
+
+export interface SchoolContentProgress {
+  id: string;
+  contentItemId: string;
+  lastRating: SchoolContentRating;
+  reviewCount: number;
+  intervalDays: number;
+  nextReviewAt: string;
+  updatedAt: string;
+}
+
+export function listMyContentProgress(schoolId: string, lessonId: string) {
+  return customFetch<SchoolContentProgress[]>(`/api/schools/${schoolId}/content-progress/my?lessonId=${encodeURIComponent(lessonId)}`);
+}
+
+export function rateContentProgress(schoolId: string, contentItemId: string, rating: SchoolContentRating) {
+  return customFetch<SchoolContentProgress>(`/api/schools/${schoolId}/content-progress/rate`, {
+    method: "POST",
+    body: JSON.stringify({ contentItemId, rating }),
+  });
 }
 
 /**

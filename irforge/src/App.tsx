@@ -74,6 +74,7 @@ const SchoolsStudentHome = lazy(() => import("@/pages/schools/student/index"));
 const SchoolsRoleHome = lazy(() => import("@/pages/schools/role-home"));
 const SchoolContentList = lazy(() => import("@/pages/schools/content-list"));
 const SchoolContentLesson = lazy(() => import("@/pages/schools/content-lesson"));
+const SchoolContentStudy = lazy(() => import("@/pages/schools/content-study"));
 const SchoolContentDetail = lazy(() => import("@/pages/schools/content-detail"));
 const SchoolsStub = lazy(() => import("@/pages/schools/stub"));
 const SchoolShell = lazy(() => import("@/components/layout/SchoolShell"));
@@ -414,6 +415,7 @@ function Router() {
       <Route path="/schools/parent"><SchoolProtectedRoute component={SchoolsRoleHome} role="parent" /></Route>
       <Route path="/schools/content/:type"><SchoolProtectedRoute component={SchoolContentList} /></Route>
       <Route path="/schools/content/:type/lesson/:lessonId"><SchoolProtectedRoute component={SchoolContentLesson} /></Route>
+      <Route path="/schools/content/study/:type/:lessonId/:section"><SchoolProtectedRoute component={SchoolContentStudy} /></Route>
       <Route path="/schools/content/:type/:id"><SchoolProtectedRoute component={SchoolContentDetail} /></Route>
       {/* بخش "/schools" فاز ۲ — مدیریتِ اعضا/کلاس‌ها/برنامه‌ها/اعلامیه‌ها + صفحاتِ واقعیِ معلم/مشاور/والد */}
       <Route path="/schools/admin/members"><SchoolProtectedRoute component={SchoolMembersPage} /></Route>
