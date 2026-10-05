@@ -249,3 +249,37 @@ test("app.ts gives POST /bots/:botId/media its own larger body-size tier, scoped
   // exactly what the original 10mb-cap comment was written to avoid.
   assert.match(appSource, /LARGE_BODY_LIMIT\s*=\s*"10mb"/, "the general large-body tier must stay at its original, tighter cap");
 });
+
+// ── لایوباگ ۲۰۲۶-۱۰-۰۵ (لاگِ Railway): «can't use file of type Photo as Document» ──
+//   نوعِ ذخیره‌شده‌ی آیتمِ مدیا از Content-Typeِ پروکسی می‌آید؛ باید نوعِ واقعیِ
+//   تلگرامی (پوشه‌ی file_path) را بدهد، نه حدسِ بالادست.
+
+const { contentTypeForTelegramPath } = await import("../src/routes/botMedia.ts");
+const kindOf = (mime) =>
+  mime.startsWith("image/") ? "photo" : mime.startsWith("video/") ? "video" : mime.startsWith("audio/") ? "audio" : "document";
+
+test("a photo whose upstream Content-Type is generic is still reported as an image", () => {
+  assert.equal(kindOf(contentTypeForTelegramPath("photos/file_12.jpg", "application/octet-stream")), "photo");
+  assert.equal(kindOf(contentTypeForTelegramPath("photos/file_12.jpg", null)), "photo");
+  assert.equal(contentTypeForTelegramPath("photos/file_12.jpg", "image/jpeg"), "image/jpeg");
+});
+
+test("a file sent as a DOCUMENT stays a document even when it is an image/video/audio file", () => {
+  assert.equal(kindOf(contentTypeForTelegramPath("documents/file_3.png", "image/png")), "document");
+  assert.equal(kindOf(contentTypeForTelegramPath("documents/file_4.mp4", "video/mp4")), "document");
+  assert.equal(kindOf(contentTypeForTelegramPath("documents/file_5.mp3", "audio/mpeg")), "document");
+  assert.equal(contentTypeForTelegramPath("documents/file_6.pdf", "application/pdf"), "application/pdf");
+});
+
+test("videos/animations/video notes and music/voice map to video/ and audio/", () => {
+  for (const dir of ["videos", "animations", "video_notes"]) {
+    assert.equal(kindOf(contentTypeForTelegramPath(`${dir}/file_1.mp4`, "application/octet-stream")), "video");
+  }
+  assert.equal(kindOf(contentTypeForTelegramPath("music/file_1.mp3", "application/octet-stream")), "audio");
+  assert.equal(kindOf(contentTypeForTelegramPath("voice/file_1.oga", null)), "audio");
+});
+
+test("an unknown Telegram folder leaves the upstream Content-Type untouched", () => {
+  assert.equal(contentTypeForTelegramPath("stickers/file_1.webp", "image/webp"), "image/webp");
+  assert.equal(contentTypeForTelegramPath("weird/file", null), null);
+});

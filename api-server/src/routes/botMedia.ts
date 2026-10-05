@@ -173,6 +173,45 @@ export async function uploadBufferToBotChat(
   return { fileId, type: usedResultKey, duration };
 }
 
+/**
+ * Content-Type که پروکسی به UI می‌دهد — نوعِ **واقعیِ** تلگرامی، نه حدسِ سرور.
+ *
+ * ویرایشگر نوعِ هر آیتمِ مدیا (عکس/ویدیو/صوت/فایل) را از همین Content-Type
+ * می‌خواند (`mediaKindFromMimeType`، سمتِ سایت) و روی رکورد ذخیره می‌کند؛ بات
+ * همان را به‌عنوانِ «کدام متدِ ارسال» به کار می‌برد و اگر با نوعِ واقعیِ
+ * `file_id` نخواند تلگرام «can't use file of type Photo as Document» می‌دهد و
+ * مدیا نمی‌رسد (لایوباگ ۲۰۲۶-۱۰-۰۵، لاگِ Railway). هیچ‌جا نوعِ واقعی به‌اندازه‌ی
+ * پوشه‌ی `file_path` خودِ تلگرام قابل‌اعتماد نیست (`photos/…`, `documents/…`) —
+ * پس وقتی Content-Type بالادستی با آن نخواند (مثلاً `application/octet-stream`
+ * برای یک عکس، یا `image/png` برای فایلی که **به‌عنوانِ document** فرستاده شده)
+ * آن را طوری عوض می‌کنیم که `mediaKindFromMimeType` همان نوعِ واقعی را بدهد.
+ * یک document که تصویر است دیگر «عکس» دیده نمی‌شود (پیش‌نمایشش را از دست
+ * می‌دهد، ولی درست ذخیره می‌شود).
+ */
+export function contentTypeForTelegramPath(filePath: string, upstream: string | null): string | null {
+  const dir = filePath.split("/")[0] ?? "";
+  const up = (upstream ?? "").toLowerCase();
+  const startsWith = (prefix: string) => up.startsWith(prefix);
+  switch (dir) {
+    case "photos":
+      return startsWith("image/") ? upstream : "image/jpeg";
+    case "videos":
+    case "video_notes":
+    case "animations":
+      return startsWith("video/") ? upstream : "video/mp4";
+    case "music":
+      return startsWith("audio/") ? upstream : "audio/mpeg";
+    case "voice":
+      return startsWith("audio/") ? upstream : "audio/ogg";
+    case "documents":
+      return startsWith("image/") || startsWith("video/") || startsWith("audio/")
+        ? "application/octet-stream"
+        : upstream;
+    default:
+      return upstream;
+  }
+}
+
 export async function botToken(botId: string): Promise<string> {
   const [bot] = await db.select({ token: botsTable.token }).from(botsTable).where(eq(botsTable.id, botId)).limit(1);
   try {
@@ -266,7 +305,7 @@ router.get("/bots/:botId/media/:fileId", requireAuth, async (req: any, res) => {
     if (!upstream.ok || !upstream.body)
       throw new BotConfigError(502, "دریافت فایل از تلگرام ناموفق بود.");
 
-    const contentType = upstream.headers.get("content-type");
+    const contentType = contentTypeForTelegramPath(filePath, upstream.headers.get("content-type"));
     if (contentType) res.setHeader("Content-Type", contentType);
     // کش کوتاه و خصوصی: file_path تلگرام عمر کوتاهی دارد و محتوا هم عمومی نیست.
     res.setHeader("Cache-Control", "private, max-age=300");
