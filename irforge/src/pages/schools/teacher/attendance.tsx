@@ -13,7 +13,7 @@ import { useT } from "@/hooks/use-translation";
 import {
   getSchoolMe, listSchoolClasses, listClassMembers, listSchoolMembers,
   listClassAttendance, markAttendance, ATTENDANCE_STATUSES, type AttendanceStatus,
-  getPreviousAttendanceDate, attendanceExportUrl,
+  getPreviousAttendanceDate, attendanceExportUrl, downloadAuthedCsv,
 } from "@/lib/schools-api";
 
 function todayIso() {
@@ -191,7 +191,11 @@ export default function TeacherAttendancePage() {
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} dir="ltr" />
             </div>
             {selectedClassId && (
-              <Button variant="outline" size="sm" onClick={() => window.open(attendanceExportUrl(schoolId!, selectedClassId), "_blank")}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => downloadAuthedCsv(attendanceExportUrl(schoolId!, selectedClassId), `attendance-${selectedClassId}.csv`).catch(() => toast({ title: t.exportCsvFailedToast, variant: "destructive" }))}
+              >
                 <Download className="me-1 size-4" /> {t.exportCsvButton}
               </Button>
             )}

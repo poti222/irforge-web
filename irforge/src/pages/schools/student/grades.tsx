@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, GraduationCap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, GraduationCap, Download } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
-import { getSchoolMe, getMyGradebook, type GradeItem } from "@/lib/schools-api";
+import { getSchoolMe, getMyGradebook, downloadAuthedCsv, myGradebookExportUrl, type GradeItem } from "@/lib/schools-api";
 
 /**
  * pages/schools/student/grades.tsx — «نمره‌های من» (فاز ۶، بندِ ۲): فهرستِ
@@ -31,20 +33,32 @@ export default function StudentGradesPage() {
         <h1 className="text-xl font-bold">{t.navGrades}</h1>
         <p className="text-sm text-muted-foreground">{t.studentGradesDescription}</p>
       </div>
-      <GradesList items={data?.items} average={data?.average ?? null} isLoading={isLoading} />
+      <GradesList items={data?.items} average={data?.average ?? null} isLoading={isLoading} exportUrl={schoolId ? myGradebookExportUrl(schoolId) : undefined} />
     </div>
   );
 }
 
-export function GradesList({ items, average, isLoading }: { items: GradeItem[] | undefined; average: number | null; isLoading: boolean }) {
+export function GradesList({ items, average, isLoading, exportUrl }: { items: GradeItem[] | undefined; average: number | null; isLoading: boolean; exportUrl?: string }) {
   const t = useT("schools") as any;
+  const { toast } = useToast();
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="flex items-center gap-2 text-base"><GraduationCap className="size-4" /> {t.navGrades}</CardTitle>
-        {average !== null && (
-          <Badge className="text-sm" dir="ltr">{t.gradebookAverageColumn}: {average.toFixed(1)}</Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {average !== null && (
+            <Badge className="text-sm" dir="ltr">{t.gradebookAverageColumn}: {average.toFixed(1)}</Badge>
+          )}
+          {exportUrl && items && items.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadAuthedCsv(exportUrl, "gradebook.csv").catch(() => toast({ title: t.exportCsvFailedToast, variant: "destructive" }))}
+            >
+              <Download className="me-1 size-4" /> {t.exportCsvButton}
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         {isLoading ? (

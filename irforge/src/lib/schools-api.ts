@@ -210,6 +210,17 @@ export function createContentLesson(schoolId: string, input: { subject: string; 
   });
 }
 
+/**
+ * افزودنِ دسته‌ای — طبقِ گزارشِ مستقیمِ کاربر («به‌جایِ یکی‌یکی، چند خط با هم»).
+ * فقط برایِ یک درسِ واقعی (subject از خودِ درس می‌آید، همان قاعده‌ی POSTِ تکی).
+ */
+export function bulkCreateSchoolContentItems(schoolId: string, input: { lessonId: string; type: SchoolContentType; entries: { title: string; body: string }[] }) {
+  return customFetch<SchoolContentItem[]>(`/api/schools/${schoolId}/content/bulk`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export function updateContentLesson(schoolId: string, lessonId: string, patch: Partial<{ title: string; subject: string }>) {
   return customFetch<SchoolContentLesson>(`/api/schools/${schoolId}/content-lessons/${lessonId}`, {
     method: "PATCH",
@@ -219,6 +230,35 @@ export function updateContentLesson(schoolId: string, lessonId: string, patch: P
 
 export function deleteContentLesson(schoolId: string, lessonId: string) {
   return customFetch<void>(`/api/schools/${schoolId}/content-lessons/${lessonId}`, { method: "DELETE" });
+}
+
+/**
+ * حالتِ مطالعه/فلش‌کارت — پیشرفتِ سرور-محورِ هر کاربر رویِ آیتم‌هایِ یک درس
+ * (ببینید schema/schoolContentProgress.ts در بک‌اند برایِ توضیحِ کاملِ طراحی:
+ * این همان جایی است که نسخه‌ی قدیمیِ dars فقط localStorage داشت).
+ */
+export const SCHOOL_CONTENT_RATINGS = ["know", "practice"] as const;
+export type SchoolContentRating = (typeof SCHOOL_CONTENT_RATINGS)[number];
+
+export interface SchoolContentProgress {
+  id: string;
+  contentItemId: string;
+  lastRating: SchoolContentRating;
+  reviewCount: number;
+  intervalDays: number;
+  nextReviewAt: string;
+  updatedAt: string;
+}
+
+export function listMyContentProgress(schoolId: string, lessonId: string) {
+  return customFetch<SchoolContentProgress[]>(`/api/schools/${schoolId}/content-progress/my?lessonId=${encodeURIComponent(lessonId)}`);
+}
+
+export function rateContentProgress(schoolId: string, contentItemId: string, rating: SchoolContentRating) {
+  return customFetch<SchoolContentProgress>(`/api/schools/${schoolId}/content-progress/rate`, {
+    method: "POST",
+    body: JSON.stringify({ contentItemId, rating }),
+  });
 }
 
 /**
@@ -928,10 +968,34 @@ export function getPreviousAttendanceDate(schoolId: string, classId: string, bef
   );
 }
 
-/** فازِ ۱۰ (بندِ ۱.۴): لینکِ دانلودِ CSV — مستقیماً در Input یا window.open باز می‌شود، نه customFetch (پاسخ JSON نیست). */
+/** فازِ ۱۰ (بندِ ۱.۴): لینکِ دانلودِ CSV. */
 export function attendanceExportUrl(schoolId: string, classId: string, params?: { from?: string; to?: string }) {
   const qs = new URLSearchParams({ classId, ...(params?.from ? { from: params.from } : {}), ...(params?.to ? { to: params.to } : {}) });
   return `/api/schools/${schoolId}/attendance/export?${qs.toString()}`;
+}
+
+/**
+ * دانلودِ یک فایلِ پشتِ‌auth (CSV/…) — دقیقاً همان باگی که قبلاً در
+ * use-authed-media.ts پیدا و رفع شد («زنده دیده شد … روی همین مسیر»):
+ * این اندپوینت‌ها پشتِ requireAuth‌اند که فقط هدرِ `Authorization: Bearer`
+ * قبول می‌کند (توکن در localStorage، نه کوکی — ببینید lib/auth-token.ts)،
+ * ولی `window.open(url)`/`<a href=url>` یک ناوبریِ خامِ مرورگر است و هیچ‌وقت
+ * هدرِ دلخواه نمی‌فرستد. دکمه‌ی «دانلودِ CSV» حضور و غیاب دقیقاً همین‌جا
+ * می‌شکست: کلیک یک تبِ تازه با متنِ خامِ `{"error":"Unauthorized"}` باز
+ * می‌کرد، نه فایلِ CSV — با curl بدونِ هدر روی سروِر واقعی تأیید شد (۴۰۱).
+ * این هِلپر بایت‌ها را با customFetch (که توکن را خودش اضافه می‌کند) می‌گیرد
+ * و خودش دانلود را با یک <a download> موقت می‌سازد.
+ */
+export async function downloadAuthedCsv(apiUrl: string, filename: string): Promise<void> {
+  const blob = await customFetch<Blob>(apiUrl, { responseType: "blob" });
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
 }
 
 export interface GradeItem {
@@ -963,6 +1027,15 @@ export function getMyGradebook(schoolId: string) {
 
 export function getChildGradebook(schoolId: string, studentMemberId: string) {
   return customFetch<GradebookResult>(`/api/schools/${schoolId}/gradebook/child/${studentMemberId}`);
+}
+
+/** کارنامه‌ی CSV — دانش‌آموز/والد، همان الگویِ attendanceExportUrl + downloadAuthedCsv بالا. */
+export function myGradebookExportUrl(schoolId: string) {
+  return `/api/schools/${schoolId}/gradebook/my/export`;
+}
+
+export function childGradebookExportUrl(schoolId: string, studentMemberId: string) {
+  return `/api/schools/${schoolId}/gradebook/child/${studentMemberId}/export`;
 }
 
 export const ALERT_SEVERITIES = ["notice", "warning", "serious"] as const;

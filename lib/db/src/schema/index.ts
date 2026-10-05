@@ -69,3 +69,5 @@ export * from "./schoolAuditLog";
 export * from "./schoolTeacherSubjects";
 // لایه‌یِ «درس» رویِ کتابخانه‌ی محتوا — گروه‌بندیِ آیتم‌های لغت‌نامه/شعر/جزوه/... داخلِ یک درسِ واحد
 export * from "./schoolContentLessons";
+// پیشرفتِ مطالعه‌یِ دانش‌آموز (فلش‌کارت/SRSِ سرور-محور) رویِ آیتم‌های کتابخانه‌ی محتوا
+export * from "./schoolContentProgress";
