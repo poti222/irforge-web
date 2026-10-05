@@ -62,9 +62,11 @@ test("createAddress persists a valid address and rounds coordinates to 5 decimal
   assert.equal(fetched.title, "شعبه مرکزی");
 });
 
-test("createAddress rejects a missing title", async () => {
+test("createAddress accepts a missing title — it is only an internal label", async () => {
   installSheet();
-  await assert.rejects(() => store.createAddress(SID, { ...VALID, title: "" }));
+  const created = await store.createAddress(SID, { ...VALID, title: "" });
+  assert.equal(created.title, "");
+  assert.equal((await store.getAddress(SID, created.id)).title, "");
 });
 
 test("createAddress rejects an out-of-range latitude", async () => {
@@ -185,9 +187,20 @@ test("contact_entries rejects an unknown kind", async () => {
   await assert.rejects(() => store.createAddress(SID, { ...VALID, contact_entries: [entry({ kind: "fax" })] }));
 });
 
-test("contact_entries rejects an empty label", async () => {
+test("contact_entries: the label is optional — the bot prints just the value", async () => {
   installSheet();
-  await assert.rejects(() => store.createAddress(SID, { ...VALID, contact_entries: [entry({ label: "  " })] }));
+  const created = await store.createAddress(SID, { ...VALID, contact_entries: [entry({ label: "  " })] });
+  assert.equal(created.contact_entries.length, 1);
+  assert.equal(created.contact_entries[0].label, "");
+});
+
+test("contact_entries: a row left empty after \"add\" is dropped instead of failing the whole save", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, {
+    ...VALID,
+    contact_entries: [entry({ label: "", value: "  " }), entry({ id: "ce2", kind: "phone", label: "", value: "021-1" })],
+  });
+  assert.deepEqual(created.contact_entries.map((e) => e.value), ["021-1"]);
 });
 
 test("contact_entries kind=link with https:// is accepted", async () => {
@@ -214,7 +227,64 @@ test("contact_entries kind=phone has no https:// requirement — any text is acc
   assert.equal(created.contact_entries[0].value, "021-12345678");
 });
 
-// ── User report: "همه‌ی فیلدها اجباریه" — فقط title باید اجباری بمونه ────────
+// ── User reports: "همه‌ی فیلدها اجباریه" (+ ۲۰۲۶-۱۰-۰۵: «نمی‌خوام متن و لوکیشن
+// داشته باشه ولی نمی‌ذاره») — هیچ فیلدی اجباری نیست؛ «آدرس» یک ظرفِ آزاد است ──
+
+test("createAddress with NO fields at all is accepted (the bot says 'no content yet')", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, {});
+  assert.equal(created.title, "");
+  assert.equal(created.text, "");
+  assert.equal(created.latitude, null);
+  assert.equal(created.longitude, null);
+  assert.deepEqual(created.media_items, []);
+  assert.deepEqual(created.buttons, []);
+});
+
+test("createAddress with only media — no title, no text, no location", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, { media_items: [{ type: "video", file_id: "BAAD_vid" }] });
+  assert.deepEqual(created.media_items, [{ type: "video", file_id: "BAAD_vid" }]);
+  assert.equal(created.latitude, null);
+});
+
+test("createAddress with only buttons — no title, no text, no location", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, {
+    buttons: [{ label: "سایت", action: "url", value: "https://example.com", row: 0, col: 0 }],
+  });
+  assert.equal(created.buttons.length, 1);
+  assert.equal(created.text, "");
+});
+
+test("updateAddress can blank the title, the text and the location, one after another", async () => {
+  installSheet();
+  const created = await store.createAddress(SID, VALID);
+  const a = await store.updateAddress(SID, created.id, { title: "" });
+  assert.equal(a.title, "");
+  const b = await store.updateAddress(SID, created.id, { text: "" });
+  assert.equal(b.text, "");
+  const c = await store.updateAddress(SID, created.id, { latitude: null, longitude: null });
+  assert.equal(c.latitude, null);
+  assert.equal(c.text, "");
+  assert.equal((await store.getAddress(SID, created.id)).title, "");
+});
+
+test("addressLabel falls back title → text → phone → first contact entry → placeholder", () => {
+  assert.equal(store.addressLabel({ title: "شعبه", text: "x" }), "شعبه");
+  assert.equal(store.addressLabel({ title: "", text: "تهران، ولیعصر" }), "تهران، ولیعصر");
+  assert.equal(store.addressLabel({ phone: "0211" }), "0211");
+  assert.equal(store.addressLabel({ contact_entries: [{ id: "a", kind: "link", label: "", value: "https://t.me/x" }] }), "https://t.me/x");
+  assert.equal(store.addressLabel({}), "بدون عنوان");
+});
+
+test("a title-less address is listed (sorted by its label), not hidden", async () => {
+  installSheet();
+  await store.createAddress(SID, { title: "ب" });
+  await store.createAddress(SID, { text: "الف" });
+  await store.createAddress(SID, {});
+  assert.equal((await store.listAddresses(SID)).length, 3);
+});
 
 test("createAddress only requires a title — text and location are optional", async () => {
   installSheet();

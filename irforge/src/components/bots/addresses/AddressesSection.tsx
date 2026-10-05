@@ -37,6 +37,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
+import { addressLabel } from "@/lib/address-label";
 import { useToast } from "@/hooks/use-toast";
 import { MediaList, type MediaMeta } from "../panels/MediaList";
 import { ButtonBuilder } from "../panels/ButtonBuilder";
@@ -243,6 +244,12 @@ function AddressEditor({
     );
   }
 
+  // هیچ فیلدی اجباری نیست؛ فقط یادآوری می‌کنیم که ربات برای آدرسِ کاملاً خالی
+  // «هنوز محتوایی ندارد» می‌گوید.
+  const isEmptyAddress =
+    !text.trim() && !hasLocation && !phone.trim() && !hoursNote.trim() && !plusCode.trim() &&
+    media.length === 0 && rowsToButtons(rows).length === 0 && !contactEntries.some((e) => e.value.trim());
+
   const save = useMutation({
     mutationFn: () => {
       const body = {
@@ -254,7 +261,8 @@ function AddressEditor({
           type: mediaMeta[fileId]?.kind && mediaMeta[fileId].kind !== "unknown" ? mediaMeta[fileId].kind : "photo",
           file_id: fileId,
         })),
-        contact_entries: contactEntries,
+        // ردیفِ «افزودن»ی که پر نشده نباید ذخیره را خراب کند
+        contact_entries: contactEntries.filter((e) => e.value.trim()),
         buttons: rowsToButtons(rows),
       };
       return address
@@ -276,6 +284,7 @@ function AddressEditor({
           <DialogTitle>{address ? t.editAddress : t.newAddress}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          <p className="rounded-md bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">{t.allOptionalHint}</p>
           <div className="space-y-1">
             <Label>{t.fieldTitle}</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
@@ -408,10 +417,11 @@ function AddressEditor({
             <span>{t.fieldIsDefault}</span>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="items-center gap-2 sm:justify-between">
+          {isEmptyAddress && <p className="text-xs text-muted-foreground">{t.emptyAddressNotice}</p>}
           <Button
             onClick={() => save.mutate()}
-            disabled={save.isPending || !title.trim() || (hasLocation && !locationTouched)}
+            disabled={save.isPending || (hasLocation && !locationTouched)}
           >
             {save.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
             {t.save}
@@ -528,10 +538,10 @@ export function AddressesSection({ bot }: { bot: Bot }) {
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 font-medium">
                       <MapPin className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{addr.title}</span>
+                      <span className="truncate">{addressLabel(addr, t.untitledAddress)}</span>
                       {addr.is_default && <Badge variant="outline"><Star className="me-1 size-3" />{t.defaultBadge}</Badge>}
                     </div>
-                    {addr.text && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{addr.text}</p>}
+                    {addr.text && addr.title?.trim() && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{addr.text}</p>}
                     {addr.phone && (
                       <p dir="ltr" className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                         <Phone className="size-3" /> {addr.phone}

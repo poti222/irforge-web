@@ -19,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
+import { addressLabel } from "@/lib/address-label";
 import { useLanguage } from "@/hooks/use-language";
 import {
   addButton, addRow, emptyButton, moveButtonHorizontally, moveButtonVertically,
@@ -45,7 +46,7 @@ function useCatalogItemsForPicker(botId: string, enabled: boolean) {
 function useAddressesForPicker(botId: string, enabled: boolean) {
   return useQuery({
     queryKey: ["bot-addresses", botId],
-    queryFn: () => customFetch<{ addresses: Array<{ id: string; title: string }> }>(`/api/bots/${botId}/addresses`),
+    queryFn: () => customFetch<{ addresses: Array<{ id: string; title: string; text?: string; phone?: string; contact_entries?: Array<{ value?: string }> }> }>(`/api/bots/${botId}/addresses`),
     enabled,
   });
 }
@@ -130,7 +131,7 @@ function ValueField({
         <SelectContent>
           <SelectItem value="__none__">{t.pickAddress}</SelectItem>
           {addresses.map((a) => (
-            <SelectItem key={a.id} value={a.id}>{a.title || a.id}</SelectItem>
+            <SelectItem key={a.id} value={a.id}>{addressLabel(a, t.untitledAddress)}</SelectItem>
           ))}
         </SelectContent>
       </Select>

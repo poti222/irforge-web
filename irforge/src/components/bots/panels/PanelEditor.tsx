@@ -27,6 +27,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useT } from "@/hooks/use-translation";
+import { addressLabel } from "@/lib/address-label";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
 import { useUnsavedGuard } from "@/lib/unsaved-changes";
@@ -87,7 +88,7 @@ function useSellCatalogItems(botId: string, enabled: boolean) {
 function useAddressOptions(botId: string, enabled: boolean) {
   return useQuery({
     queryKey: ["bot-addresses", botId],
-    queryFn: () => customFetch<{ addresses: Array<{ id: string; title: string }> }>(`/api/bots/${botId}/addresses`),
+    queryFn: () => customFetch<{ addresses: Array<{ id: string; title: string; text?: string; phone?: string; contact_entries?: Array<{ value?: string }> }> }>(`/api/bots/${botId}/addresses`),
     enabled,
     staleTime: 60_000,
   });
@@ -693,7 +694,7 @@ export function PanelEditor({
                         <SelectContent>
                           <SelectItem value="__all__">{t.settingAddressShowAll}</SelectItem>
                           {addressOptions.map((a) => (
-                            <SelectItem key={a.id} value={a.id}>{a.title || a.id}</SelectItem>
+                            <SelectItem key={a.id} value={a.id}>{addressLabel(a, t.untitledAddress)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

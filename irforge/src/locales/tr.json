@@ -2243,7 +2243,8 @@
     "settingGameServerPick": "Hangi sunucu yönetilsin?",
     "settingGameServerPickHint": "\"Hepsini yönet\" yönetici hızlı bağlantısının gösterdiği aynı listeyi açar — kullanıcı sunucuyu kendisi seçer.",
     "settingGameServerShowAll": "🗂 Hepsini yönet (varsayılan)",
-    "settingGameServerNoneYet": "Henüz sunucu yok — \"CS2 Sunucuları\" bölümünden ekleyin."
+    "settingGameServerNoneYet": "Henüz sunucu yok — \"CS2 Sunucuları\" bölümünden ekleyin.",
+    "untitledAddress": "Başlıksız"
   },
   "botForms": {
     "loading": "Formlar yükleniyor…",
@@ -2968,8 +2969,8 @@
     "addressCreated": "Adres oluşturuldu",
     "addressUpdated": "Adres güncellendi",
     "addressDeleted": "Adres silindi",
-    "fieldTitle": "Başlık",
-    "fieldTitleHint": "Yalnızca bu panelde kendi referansınız içindir — son kullanıcı bunu asla görmez.",
+    "fieldTitle": "Dahili başlık (isteğe bağlı)",
+    "fieldTitleHint": "Yalnızca bu panelde kendi ayrımınız içindir, boş bırakabilirsiniz — son kullanıcı bunu asla görmez.",
     "fieldText": "Adres metni",
     "fieldLocationToggle": "Bu adresin harita konumu da var",
     "fieldMap": "Konum",
@@ -2989,7 +2990,7 @@
     "contactEntryKind_email": "✉️ E-posta",
     "contactEntryKind_link": "🔗 Bağlantı (WhatsApp/Telegram/site)",
     "contactEntryKind_text": "📝 Diğer metin",
-    "contactEntryLabelPlaceholder": "Etiket (örn. \"Satış hattı\")",
+    "contactEntryLabelPlaceholder": "Etiket (isteğe bağlı, örn. \"Satış hattı\")",
     "contactEntryValuePlaceholder": "Değer",
     "contactEntryAddCta": "Öğe ekle",
     "contactEntryRemove": "Bu öğeyi kaldır",
@@ -3003,7 +3004,10 @@
     "mapProviderLabel": "Yol tarifi",
     "mapProvider_google": "Google Haritalar",
     "mapProvider_neshan": "Neshan",
-    "mapProvider_balad": "Balad"
+    "mapProvider_balad": "Balad",
+    "untitledAddress": "Başlıksız",
+    "allOptionalHint": "Tüm alanlar isteğe bağlıdır: botun göndermesini istediğiniz her şeyi (metin, konum, fotoğraf/video/dosya, numaralar, düğmeler) doldurun, gerisini boş bırakın — konumlu ya da konumsuz.",
+    "emptyAddressNotice": "Hiçbir içerik girmediniz; bot kullanıcıya \"bu adresin henüz içeriği yok\" der."
   },
   "botDrip": {
     "loading": "Kampanyalar yükleniyor…",

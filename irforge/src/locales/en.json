@@ -2243,7 +2243,8 @@
     "settingGameServerPick": "Which server should this manage?",
     "settingGameServerPickHint": "\"Manage all\" opens the same picker the admin quick link shows — the user picks a server themselves.",
     "settingGameServerShowAll": "🗂 Manage all (default)",
-    "settingGameServerNoneYet": "No servers yet — add one in the \"CS2 Servers\" section."
+    "settingGameServerNoneYet": "No servers yet — add one in the \"CS2 Servers\" section.",
+    "untitledAddress": "Untitled"
   },
   "botForms": {
     "loading": "Loading forms…",
@@ -2968,8 +2969,8 @@
     "addressCreated": "Address created",
     "addressUpdated": "Address updated",
     "addressDeleted": "Address deleted",
-    "fieldTitle": "Title",
-    "fieldTitleHint": "Only for your own reference in this panel — end users never see this.",
+    "fieldTitle": "Internal title (optional)",
+    "fieldTitleHint": "Only for your own reference in this panel — you can leave it empty. End users never see it.",
     "fieldText": "Address text",
     "fieldLocationToggle": "This address also has a map location",
     "fieldMap": "Location",
@@ -2989,7 +2990,7 @@
     "contactEntryKind_email": "✉️ Email",
     "contactEntryKind_link": "🔗 Link (WhatsApp/Telegram/website)",
     "contactEntryKind_text": "📝 Other text",
-    "contactEntryLabelPlaceholder": "Label (e.g. \"Sales line\")",
+    "contactEntryLabelPlaceholder": "Label (optional, e.g. \"Sales line\")",
     "contactEntryValuePlaceholder": "Value",
     "contactEntryAddCta": "Add entry",
     "contactEntryRemove": "Remove this entry",
@@ -3003,7 +3004,10 @@
     "mapProviderLabel": "Directions via",
     "mapProvider_google": "Google Maps",
     "mapProvider_neshan": "Neshan",
-    "mapProvider_balad": "Balad"
+    "mapProvider_balad": "Balad",
+    "untitledAddress": "Untitled",
+    "allOptionalHint": "Every field is optional: fill in whatever you want the bot to send (text, location, photo/video/file, numbers, buttons) and leave the rest empty — with or without a location.",
+    "emptyAddressNotice": "Nothing is filled in; the bot will tell the user \"this address has no content yet\"."
   },
   "botDrip": {
     "loading": "Loading campaigns…",

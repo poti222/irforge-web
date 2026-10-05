@@ -48,9 +48,10 @@ export type ContactEntry = { id: string; kind: ContactEntryKind; label: string; 
 
 export interface Address {
   id: string;
-  /** تنها فیلدِ اجباری — برچسبِ داخلیِ ادمین برای شناساییِ رکورد (لیستِ
-   * آدرس‌ها، انتخاب‌گرِ نوعِ پنل/دکمه). هرگز به کاربرِ نهایی فرستاده نمی‌شود
-   * (`plugins/address/handlers.py::send_address`، سمتِ بات). */
+  /** برچسبِ داخلیِ ادمین برای شناساییِ رکورد (لیستِ آدرس‌ها، انتخاب‌گرِ نوعِ
+   * پنل/دکمه) — **اختیاری** است و هرگز به کاربرِ نهایی فرستاده نمی‌شود
+   * (`plugins/address/handlers.py::send_address`، سمتِ بات). خالی بود، لیست‌ها
+   * برچسب را از محتوای واقعیِ آدرس می‌سازند (`addressLabel` پایین). */
   title: string;
   text?: string;
   latitude?: number | null;
@@ -90,20 +91,18 @@ function bad(message: string, code?: string): BotConfigError {
 
 const MAX_PHOTOS = 10;
 
-/** User report: "همه‌ی فیلدها اجباریه" — `title` تنها فیلدِ اجباری است، یک
- * برچسبِ داخلیِ ادمین برای شناساییِ رکورد که هرگز به کاربرِ نهایی فرستاده
- * نمی‌شود. ادمین می‌تواند آدرسی بسازد که فقط شماره‌تماس باشد، فقط متن، یا
- * فقط یک پینِ نقشه — هر فیلدِ دیگری کاملاً اختیاری است. عرض/طولِ جغرافیایی
+/** «آدرس» یک ظرفِ آزاد است — هر چیزی که ادمین بخواهد می‌تواند داخلش باشد و
+ * **هیچ فیلدی اجباری نیست** (گزارشِ کاربر ۲۰۲۶-۱۰-۰۵: «نمی‌خوام متن و لوکیشن
+ * داشته باشه ولی نمی‌ذاره» — عنوان تنها فیلدِ اجباریِ باقی‌مانده بود). فقط
+ * مدیا، فقط دکمه، فقط شماره، فقط متن، فقط پین، هر ترکیبی، یا حتی هیچ‌چیز (ربات
+ * در آن حالت «هنوز محتوایی ندارد» می‌گوید). عنوان فقط یک برچسبِ داخلی است و
+ * خالی‌اش با `addressLabel` از محتوا ساخته می‌شود. عرض/طولِ جغرافیایی
  * یک‌جفتی هستند: یا هر دو ست می‌شوند یا (برای پاک‌کردنِ موقعیت) هر دو
  * صریحاً `null`. */
 export function parseAddressInput(body: any, { partial }: { partial: boolean }): Partial<Address> {
   const out: Partial<Address> = {};
 
-  if (!partial || body.title !== undefined) {
-    const title = String(body.title ?? "").trim();
-    if (!title) throw bad("عنوان آدرس نمی‌تواند خالی باشد.", "bad_title");
-    out.title = title.slice(0, 120);
-  }
+  if (body.title !== undefined) out.title = String(body.title ?? "").trim().slice(0, 120);
   if (body.text !== undefined) out.text = String(body.text || "").trim().slice(0, 500);
 
   const touchesLocation = body.latitude !== undefined || body.longitude !== undefined;
@@ -158,26 +157,30 @@ function parseMediaItems(value: unknown): PanelMediaItem[] {
 
 const MAX_CONTACT_ENTRIES = 20;
 
-/** آینه‌ی دقیقِ `routes/botPanels.ts::validateContactEntries` که برای نوعِ
- * پنلِ core `contact_info` نوشته شده بود — همان قاعده، حالا اینجا. */
+/** آینه‌ی `routes/botPanels.ts::validateContactEntries` با یک تفاوتِ عمدی:
+ * **برچسب اختیاری است** (بات بدونِ برچسب فقط «📞 مقدار» می‌نویسد) و ردیفِ
+ * بی‌مقدار — همان «افزودن»ی که ادمین زده و پر نکرده — بی‌صدا کنار گذاشته می‌شود،
+ * نه اینکه کلِ ذخیره با ۴۰۰ رد شود. تنها قاعده‌ی سخت: لینکِ دکمه باید https:// باشد
+ * (تلگرام غیر از آن را قبول نمی‌کند و کلِ پیام fail می‌شود). */
 function parseContactEntries(value: unknown): ContactEntry[] {
   if (!Array.isArray(value)) throw bad("فهرستِ موارد باید آرایه باشد.", "bad_contact_entries");
-  if (value.length > MAX_CONTACT_ENTRIES) throw bad(`حداکثر ${MAX_CONTACT_ENTRIES} مورد مجاز است.`, "bad_contact_entries");
-  return value.map((raw: any, i: number) => {
+  const out: ContactEntry[] = [];
+  value.forEach((raw: any, i: number) => {
     if (!raw || typeof raw !== "object") throw bad(`موردِ شماره ${i + 1} معتبر نیست.`, "bad_contact_entries");
     const kind = String(raw.kind ?? "text");
     if (!(CONTACT_ENTRY_KINDS as readonly string[]).includes(kind))
       throw bad(`نوعِ موردِ شماره ${i + 1} معتبر نیست.`, "bad_contact_entries");
     const label = String(raw.label ?? "").trim();
-    if (!label) throw bad(`برچسبِ موردِ شماره ${i + 1} خالی است.`, "bad_contact_entries");
     if (label.length > 80) throw bad(`برچسبِ موردِ شماره ${i + 1} بیش از ۸۰ کاراکتر است.`, "bad_contact_entries");
     const entryValue = String(raw.value ?? "").trim();
-    if (!entryValue) throw bad(`مقدارِ موردِ «${label}» خالی است.`, "bad_contact_entries");
-    if (entryValue.length > 300) throw bad(`مقدارِ موردِ «${label}» بیش از ۳۰۰ کاراکتر است.`, "bad_contact_entries");
+    if (!entryValue) return; // ردیفِ خالی — چیزی برای نمایش ندارد
+    if (entryValue.length > 300) throw bad(`مقدارِ موردِ «${label || i + 1}» بیش از ۳۰۰ کاراکتر است.`, "bad_contact_entries");
     if (kind === "link" && !/^https:\/\//i.test(entryValue))
-      throw bad(`لینکِ موردِ «${label}» باید با https:// شروع شود — برایِ شماره‌تلفن نوعِ «شماره تماس» را انتخاب کنید.`, "bad_contact_entries");
-    return { id: String(raw.id ?? `ce${i + 1}`), kind: kind as ContactEntryKind, label, value: entryValue };
+      throw bad(`لینکِ موردِ «${label || i + 1}» باید با https:// شروع شود — برایِ شماره‌تلفن نوعِ «شماره تماس» را انتخاب کنید.`, "bad_contact_entries");
+    out.push({ id: String(raw.id ?? `ce${i + 1}`), kind: kind as ContactEntryKind, label, value: entryValue });
   });
+  if (out.length > MAX_CONTACT_ENTRIES) throw bad(`حداکثر ${MAX_CONTACT_ENTRIES} مورد مجاز است.`, "bad_contact_entries");
+  return out;
 }
 
 /**
@@ -197,12 +200,36 @@ function withMediaFallback(addr: Address): Address {
   return { ...withPhotos, media_items: legacyIds.map((file_id) => ({ type: "photo" as const, file_id })) };
 }
 
+/**
+ * برچسبِ نمایشی برای لیست‌ها و انتخاب‌گرها (پنل ادمین، انتخاب‌گرِ نوعِ پنل/دکمه).
+ * عنوان اختیاری است؛ خالی بود از محتوایِ واقعی ساخته می‌شود: متن ← شماره ←
+ * اولین موردِ تماس ← «بدون عنوان». هرگز به کاربرِ نهاییِ بات نمی‌رسد.
+ * آینه‌ی `plugins/address/domain.py::display_label` سمتِ بات و
+ * `irforge/src/lib/address-label.ts` سمتِ UI.
+ */
+export function addressLabel(addr: Partial<Address>, fallback = "بدون عنوان"): string {
+  const clip = (v: unknown) => {
+    const t = String(v ?? "").replace(/\s+/g, " ").trim();
+    return t.length > 40 ? `${t.slice(0, 40)}…` : t;
+  };
+  return (
+    clip(addr.title) ||
+    clip(addr.text) ||
+    clip(addr.phone) ||
+    clip((addr.contact_entries ?? []).find((e) => e?.value)?.value) ||
+    fallback
+  );
+}
+
 export async function listAddresses(spreadsheetId: string): Promise<Address[]> {
   const rows = await listEntity<Address>(spreadsheetId, ADDRESSES_TAB);
   return rows
     .filter((r) => r.value && typeof r.value === "object")
     .map((r) => withMediaFallback({ ...(r.value as Address), id: r.key }))
-    .sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")));
+    .sort(
+      (a, b) =>
+        addressLabel(a).localeCompare(addressLabel(b)) || String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")),
+    );
 }
 
 export async function getAddress(spreadsheetId: string, id: string): Promise<Address | null> {
@@ -225,7 +252,7 @@ export async function createAddress(spreadsheetId: string, body: any): Promise<A
   const id = newRecordId("addr");
   const record: Address = {
     id,
-    title: parsed.title!,
+    title: parsed.title ?? "",
     text: parsed.text ?? "",
     latitude: parsed.latitude ?? null,
     longitude: parsed.longitude ?? null,

@@ -2243,7 +2243,8 @@
     "settingGameServerPick": "أي خادم يُدار؟",
     "settingGameServerPickHint": "«إدارة الكل» تفتح نفس القائمة التي يعرضها رابط الإدارة السريع — يختار المستخدم خادماً بنفسه.",
     "settingGameServerShowAll": "🗂 إدارة الكل (افتراضي)",
-    "settingGameServerNoneYet": "لا توجد خوادم بعد — أضف واحداً من قسم «خوادم CS2»."
+    "settingGameServerNoneYet": "لا توجد خوادم بعد — أضف واحداً من قسم «خوادم CS2».",
+    "untitledAddress": "بدون عنوان"
   },
   "botForms": {
     "loading": "جارٍ تحميل النماذج…",
@@ -2968,8 +2969,8 @@
     "addressCreated": "تم إنشاء العنوان",
     "addressUpdated": "تم تحديث العنوان",
     "addressDeleted": "تم حذف العنوان",
-    "fieldTitle": "العنوان",
-    "fieldTitleHint": "فقط لمرجعك الخاص في هذه اللوحة — لا يراه المستخدم النهائي أبدًا.",
+    "fieldTitle": "العنوان الداخلي (اختياري)",
+    "fieldTitleHint": "لتمييز السجل في هذه اللوحة فقط ويمكنك تركه فارغًا — لا يراه المستخدم النهائي أبدًا.",
     "fieldText": "نص العنوان",
     "fieldLocationToggle": "لهذا العنوان أيضًا موقع على الخريطة",
     "fieldMap": "الموقع",
@@ -2989,7 +2990,7 @@
     "contactEntryKind_email": "✉️ البريد الإلكتروني",
     "contactEntryKind_link": "🔗 رابط (واتساب/تيليجرام/الموقع)",
     "contactEntryKind_text": "📝 نص آخر",
-    "contactEntryLabelPlaceholder": "التسمية (مثلاً «خط المبيعات»)",
+    "contactEntryLabelPlaceholder": "تسمية (اختيارية، مثل «خط المبيعات»)",
     "contactEntryValuePlaceholder": "القيمة",
     "contactEntryAddCta": "إضافة عنصر",
     "contactEntryRemove": "حذف هذا العنصر",
@@ -3003,7 +3004,10 @@
     "mapProviderLabel": "الاتجاهات عبر",
     "mapProvider_google": "خرائط جوجل",
     "mapProvider_neshan": "نشان",
-    "mapProvider_balad": "بلد"
+    "mapProvider_balad": "بلد",
+    "untitledAddress": "بدون عنوان",
+    "allOptionalHint": "كل الحقول اختيارية: املأ ما تريد أن يرسله البوت (نص، موقع، صورة/فيديو/ملف، أرقام، أزرار) واترك الباقي فارغًا — مع موقع أو بدونه.",
+    "emptyAddressNotice": "لم تُدخل أي محتوى؛ سيخبر البوت المستخدم أن «هذا العنوان بلا محتوى بعد»."
   },
   "botDrip": {
     "loading": "جارٍ تحميل الحملات…",

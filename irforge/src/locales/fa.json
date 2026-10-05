@@ -2243,7 +2243,8 @@
     "settingGameServerPick": "کدام سرور مدیریت شود؟",
     "settingGameServerPickHint": "«مدیریتِ همه» یعنی همان فهرستی که کوییک‌لینکِ ادمین نشان می‌دهد — خودِ کاربر یک سرور انتخاب می‌کند.",
     "settingGameServerShowAll": "🗂 مدیریتِ همه (پیش‌فرض)",
-    "settingGameServerNoneYet": "هنوز سروری ثبت نشده — از بخش «سرورهایِ CS2» اضافه کنید."
+    "settingGameServerNoneYet": "هنوز سروری ثبت نشده — از بخش «سرورهایِ CS2» اضافه کنید.",
+    "untitledAddress": "بدون عنوان"
   },
   "botForms": {
     "loading": "در حال بارگذاری فرم‌ها…",
@@ -2968,8 +2969,8 @@
     "addressCreated": "آدرس ساخته شد",
     "addressUpdated": "آدرس به‌روزرسانی شد",
     "addressDeleted": "آدرس حذف شد",
-    "fieldTitle": "عنوان",
-    "fieldTitleHint": "فقط برای شناساییِ خودتان در این پنل — کاربرِ نهایی هرگز این را نمی‌بیند.",
+    "fieldTitle": "عنوان داخلی (اختیاری)",
+    "fieldTitleHint": "فقط برای شناسایی خودتان در این پنل است و می‌توانید خالی بگذارید — کاربرِ نهایی هرگز این را نمی‌بیند.",
     "fieldText": "متن آدرس",
     "fieldLocationToggle": "این آدرس روی نقشه هم مشخص شود",
     "fieldMap": "موقعیت مکانی",
@@ -2989,7 +2990,7 @@
     "contactEntryKind_email": "✉️ ایمیل",
     "contactEntryKind_link": "🔗 لینک (واتساپ/تلگرام/سایت)",
     "contactEntryKind_text": "📝 متنِ دیگر",
-    "contactEntryLabelPlaceholder": "برچسب (مثلاً «شماره‌یِ فروش»)",
+    "contactEntryLabelPlaceholder": "برچسب (اختیاری، مثلاً «شماره‌یِ فروش»)",
     "contactEntryValuePlaceholder": "مقدار",
     "contactEntryAddCta": "افزودنِ مورد",
     "contactEntryRemove": "حذفِ این مورد",
@@ -3003,7 +3004,10 @@
     "mapProviderLabel": "مسیریابی با",
     "mapProvider_google": "گوگل‌مپ",
     "mapProvider_neshan": "نشان",
-    "mapProvider_balad": "بلد"
+    "mapProvider_balad": "بلد",
+    "untitledAddress": "بدون عنوان",
+    "allOptionalHint": "همه‌ی فیلدها اختیاری‌اند: هر چیزی را که می‌خواهید ربات بفرستد پر کنید (متن، موقعیت، عکس/ویدیو/فایل، شماره‌ها، دکمه‌ها) و بقیه را خالی بگذارید — با موقعیت یا بدون موقعیت.",
+    "emptyAddressNotice": "هیچ محتوایی وارد نکرده‌اید؛ ربات به کاربر می‌گوید «این آدرس هنوز محتوایی ندارد»."
   },
   "botDrip": {
     "loading": "در حال بارگذاری کمپین‌ها…",
