@@ -178,7 +178,7 @@ export function SchoolSidebar({ role, schoolName }: { role: SchoolMemberRole | n
     <Sidebar side={isRtlLang(lang) ? "right" : "left"} variant="inset" collapsible="icon">
       <SidebarHeader className="p-0">
         <SidebarBrandHeader
-          href="/schools"
+          href="/"
           data-testid="nav-schools-brand"
           className="group-data-[collapsible=icon]:px-0"
           logoClassName="group-data-[collapsible=icon]:[&>span]:hidden"
