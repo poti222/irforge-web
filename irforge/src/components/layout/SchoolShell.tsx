@@ -9,7 +9,7 @@ import { HeaderControls } from "@/components/layout/header-controls";
 import ErrorBoundary from "@/components/error-boundary";
 import { Spinner } from "@/components/ui/spinner";
 import { getSchoolMe } from "@/lib/schools-api";
-import { Redirect } from "wouter";
+import { Redirect, useLocation } from "wouter";
 import { ViewedSchoolProvider, useViewedSchoolId } from "@/hooks/use-viewed-school";
 import { TestModeBanner } from "@/components/layout/TestModeBanner";
 
@@ -40,6 +40,7 @@ function ScopedBotConnectWidget({ fallbackSchoolId }: { fallbackSchoolId?: strin
 }
 
 export default function SchoolShell({ children }: { children: ReactNode }) {
+  const [location] = useLocation();
   const { data: me, isLoading } = useQuery({
     queryKey: ["schools", "me"],
     queryFn: getSchoolMe,
@@ -70,7 +71,7 @@ export default function SchoolShell({ children }: { children: ReactNode }) {
           <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
             <div className="mx-auto flex max-w-6xl flex-col gap-4 lg:flex-row lg:items-start">
               <div className="min-w-0 flex-1">
-                <ErrorBoundary inline>{children}</ErrorBoundary>
+                <ErrorBoundary inline resetKey={location}>{children}</ErrorBoundary>
               </div>
               {/* ویجتِ مستقلِ «پیدا کردن/پیوستن به مدرسه» کنارِ سایدبار — روی
                   موبایل زیرِ محتوا می‌افتد، روی دسکتاپ یک ستونِ کناری باریک. */}
