@@ -1464,6 +1464,17 @@ CREATE TABLE IF NOT EXISTS school_content_progress (
 CREATE INDEX IF NOT EXISTS idx_school_content_progress_member_item ON school_content_progress(student_member_id, content_item_id);
 CREATE INDEX IF NOT EXISTS idx_school_content_progress_item ON school_content_progress(content_item_id);
 
+-- ─── آپلودِ تصویر (self-hosted در Postgres؛ مایگریشنِ ۰۰۵۱ همین را تکرار می‌کند) ──
+CREATE TABLE IF NOT EXISTS uploaded_images (
+  id TEXT PRIMARY KEY,
+  uploaded_by_user_id TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  byte_size INTEGER NOT NULL,
+  data BYTEA NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_uploaded_images_user ON uploaded_images(uploaded_by_user_id);
+
 -- ─── «درس‌ها»: موضوعاتِ مدیریت‌شده‌یِ هر مدرسه + روشن/خاموشِ انواعِ محتوا ─────
 -- مایگریشنِ ۰۰۴۷ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
 -- بدونِ FK رویِ schools(id) (مثلِ school_content_lessons.subject، ارجاع‌ها با نام‌اند):
