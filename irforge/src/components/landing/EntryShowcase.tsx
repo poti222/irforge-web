@@ -190,7 +190,7 @@ function SchoolPanelMock({ reduce, pulse, tr }: { reduce: boolean; pulse: boolea
 }
 
 export function EntryShowcase() {
-  const tr = useT("landing") as Record<string, string>;
+  const tr = useT("landing") as unknown as Record<string, string>;
   const { user } = useAuth();
   const reduce = !!useReducedMotion();
   const isMobile = useIsMobileViewport();
