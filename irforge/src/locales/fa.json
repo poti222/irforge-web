@@ -4134,6 +4134,7 @@
     "deleteClassConfirmTitle": "کلاس حذف شود؟",
     "deleteClassConfirmDescription": "همه‌ی اعضای روستر این کلاس هم از آن خارج می‌شوند.",
     "deleteClassButton": "حذف کلاس",
+    "classOpenAria": "باز کردنِ کلاس {name}",
     "addClassMemberTitle": "افزودن به روستر",
     "selectMemberPlaceholder": "یک عضو را انتخاب کنید",
     "rosterTitle": "روستر کلاس",

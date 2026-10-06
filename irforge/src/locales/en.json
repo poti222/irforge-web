@@ -4134,6 +4134,7 @@
     "deleteClassConfirmTitle": "Delete this class?",
     "deleteClassConfirmDescription": "Every roster member is also removed from it.",
     "deleteClassButton": "Delete class",
+    "classOpenAria": "Open class {name}",
     "addClassMemberTitle": "Add to roster",
     "selectMemberPlaceholder": "Pick a member",
     "rosterTitle": "Class roster",

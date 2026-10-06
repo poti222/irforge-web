@@ -72,7 +72,17 @@ export default function TeacherClassesPage() {
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             {myClasses.map((c) => (
-              <Card key={c.id} className={selectedClassId === c.id ? "border-primary" : ""} onClick={() => setSelectedClassId(c.id)} role="button">
+              <Card
+                key={c.id}
+                className={`cursor-pointer transition hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 ${selectedClassId === c.id ? "border-primary" : ""}`}
+                onClick={() => setSelectedClassId(c.id)}
+                // کلِ کارت انتخاب‌کننده است؛ role=button بدونِ tabIndex/کلیدِ Enter و Space برایِ کیبورد کار نمی‌کرد.
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedClassId === c.id}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedClassId(c.id); } }}
+                data-testid={`card-teacher-class-${c.id}`}
+              >
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Presentation className="size-4" /> {c.name}
