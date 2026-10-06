@@ -52,6 +52,7 @@ export function TestIdentitiesManager() {
   const [grade, setGrade] = useState("");
   const [subject, setSubject] = useState("");
   const [schoolChoice, setSchoolChoice] = useState<string>(""); // schoolId یا "__new__"
+  const [classChoice, setClassChoice] = useState<string>("__auto__"); // classId یا "__auto__" (اولین کلاس / «کلاس تست»)
   const [newSchoolName, setNewSchoolName] = useState("");
   const [creating, setCreating] = useState(false);
   const [busyRow, setBusyRow] = useState<string | null>(null);
@@ -74,6 +75,12 @@ export function TestIdentitiesManager() {
     queryKey: ["super", "test-identities", "school-subjects", realSchoolId],
     queryFn: () => customFetch<string[]>(`/api/super/test-identities/schools/${realSchoolId}/subjects`, { credentials: "include" as any }),
     enabled: !!realSchoolId,
+  });
+  // کلاس‌هایِ مدرسه‌یِ انتخاب‌شده — انتخابش اختیاری است؛ بدونِ انتخاب سرور خودش اولین کلاس را می‌دهد (یا «کلاس تست» می‌سازد).
+  const { data: schoolClasses } = useQuery({
+    queryKey: ["super", "test-identities", "school-classes", realSchoolId],
+    queryFn: () => customFetch<{ id: string; name: string; grade: string | null }[]>(`/api/schools/${realSchoolId}/classes`, { credentials: "include" as any }),
+    enabled: !!realSchoolId && (role === "student" || role === "teacher"),
   });
   const subjectOptions: string[] = realSchoolId ? (schoolSubjectNames ?? []) : [...DEFAULT_SCHOOL_SUBJECTS];
 
@@ -110,6 +117,7 @@ export function TestIdentitiesManager() {
           subject: role === "teacher" ? subject : undefined,
           schoolId: isNew ? undefined : schoolChoice,
           newSchoolName: isNew ? newSchoolName.trim() : undefined,
+          classId: !isNew && (role === "student" || role === "teacher") && classChoice !== "__auto__" ? classChoice : undefined,
         }),
       });
       toast({ title: fa ? "هویتِ آزمایشی ساخته شد" : "Test identity created" });
@@ -117,6 +125,7 @@ export function TestIdentitiesManager() {
       setGrade("");
       setSubject("");
       setSchoolChoice("");
+      setClassChoice("__auto__");
       setNewSchoolName("");
       queryClient.invalidateQueries({ queryKey: ["super", "test-identities"] });
       queryClient.invalidateQueries({ queryKey: ["super", "test-identities", "schools"] });
@@ -223,7 +232,7 @@ export function TestIdentitiesManager() {
             )}
           </div>
 
-          <Select value={schoolChoice} onValueChange={(v) => { setSchoolChoice(v); setSubject(""); }}>
+          <Select value={schoolChoice} onValueChange={(v) => { setSchoolChoice(v); setSubject(""); setClassChoice("__auto__"); }}>
             <SelectTrigger>
               <SelectValue placeholder={fa ? "یک مدرسه‌ی واقعی یا ساختِ مدرسه‌ی آزمایشیِ تازه" : "An existing school, or create a fresh test school"} />
             </SelectTrigger>
@@ -236,6 +245,19 @@ export function TestIdentitiesManager() {
               ))}
             </SelectContent>
           </Select>
+          {realSchoolId && (role === "student" || role === "teacher") && (
+            <Select value={classChoice} onValueChange={setClassChoice}>
+              <SelectTrigger data-testid="test-identity-class-select">
+                <SelectValue placeholder={fa ? "کلاس (اختیاری)" : "Class (optional)"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__auto__">{fa ? "خودکار (اولین کلاسِ مدرسه، یا «کلاس تست»)" : "Automatic (the school's first class, or “Test class”)"}</SelectItem>
+                {(schoolClasses ?? []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}{c.grade ? ` · ${c.grade}` : ""}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {schoolChoice === "__new__" && (
             <Input value={newSchoolName} onChange={(e) => setNewSchoolName(e.target.value)} placeholder={fa ? "نامِ مدرسه‌ی آزمایشی" : "Test school name"} />
           )}

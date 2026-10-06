@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { ImageUploadField, imageSrc } from "@/components/schools/ImageUploadField";
+import { useActiveSchoolId } from "@/hooks/use-viewed-school";
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,7 +83,7 @@ export default function SchoolContentLesson() {
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
   const canWrite = me?.role === "admin" || me?.role === "teacher";
   const isAdmin = me?.role === "admin";
-  const schoolId = me?.schoolId ?? undefined;
+  const schoolId = useActiveSchoolId(me);
 
   const { data: lesson, isLoading: lessonLoading } = useQuery({
     queryKey: ["schools", "content-lesson", schoolId, lessonId],
@@ -329,14 +331,7 @@ export default function SchoolContentLesson() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>{t.contentImageUrlField}</Label>
-              <div className="flex items-center gap-3">
-                {imageUrl.trim() && (
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
-                    <img src={imageUrl.trim()} alt="" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
-                  </div>
-                )}
-                <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder={t.contentImageUrlPlaceholder} dir="ltr" />
-              </div>
+              <ImageUploadField value={imageUrl} onChange={setImageUrl} size="sm" testId="content-image-upload" />
             </div>
             <Button onClick={handleCreate} disabled={saving || !title.trim() || (!isGrouped && !isAdmin && !subject)} className="w-fit">
               {saving && <Loader2 className="me-2 size-4 animate-spin" />}
@@ -540,7 +535,7 @@ function ContentItemsBlock({
                 <CardContent className="flex items-start gap-3">
                   {item.imageUrl && (
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
-                      <img src={item.imageUrl} alt="" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
+                      <img src={imageSrc(item.imageUrl)} alt="" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
                     </div>
                   )}
                   <p className="line-clamp-2 text-sm text-muted-foreground">{item.body || "—"}</p>

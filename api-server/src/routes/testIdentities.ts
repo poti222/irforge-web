@@ -31,6 +31,8 @@ import {
   schoolsTable,
   schoolMembersTable,
   schoolTeacherSubjectsTable,
+  schoolClassesTable,
+  schoolClassMembersTable,
   schoolSubjectsTable,
   schoolContentLessonsTable,
   schoolContentItemsTable,
@@ -40,6 +42,7 @@ import {
   computeSchoolProfileComplete,
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
+import { ensureTestIdentityClass } from "../lib/testIdentityClass";
 import { requireSuperAdmin } from "./auth";
 import { requireSuperGate } from "../middleware/superGate";
 import { hashPassword } from "../lib/password";
@@ -150,7 +153,7 @@ router.get("/super/test-identities/schools/:schoolId/subjects", requireSuperAdmi
  */
 router.post("/super/test-identities", requireSuperAdmin, requireSuperGate, async (req: any, res) => {
   try {
-    const { role, grade, schoolId, newSchoolName, subject } = req.body ?? {};
+    const { role, grade, schoolId, newSchoolName, subject, classId } = req.body ?? {};
     if (!role || !(SCHOOL_MEMBER_ROLES as readonly string[]).includes(role)) {
       res.status(400).json({ error: "نقش نامعتبر است", code: "invalid_role" });
       return;
@@ -206,6 +209,17 @@ router.post("/super/test-identities", requireSuperAdmin, requireSuperGate, async
       targetSchoolId = school.id;
       // مدرسه‌یِ تازه هم باید «درس‌هایِ پیش‌فرض» را داشته باشد (وگرنه subject بی‌مرجع می‌ماند).
       await ensureSchoolSubjectsSeeded(school.id);
+    }
+
+    if (classId !== undefined && classId !== null && classId !== "") {
+      const [cls] = typeof classId === "string"
+        ? await db.select({ id: schoolClassesTable.id }).from(schoolClassesTable)
+            .where(and(eq(schoolClassesTable.id, classId), eq(schoolClassesTable.schoolId, targetSchoolId))).limit(1)
+        : [];
+      if (!cls) {
+        res.status(400).json({ error: "کلاس به این مدرسه تعلق ندارد", code: "invalid_class" });
+        return;
+      }
     }
 
     const random = crypto.randomBytes(8).toString("hex");
@@ -266,6 +280,15 @@ router.post("/super/test-identities", requireSuperAdmin, requireSuperGate, async
       });
     }
 
+    // کلاس: دانش‌آموز/معلمِ آزمایشی همان لحظه در یک کلاس است تا ورود مستقیم به داشبورد برود و هیچ انتخابگری نخواهد
+    // (انتخابِ کلاس را باید خودِ کاربرِ واقعی بکند؛ این‌جا خودکار است — lib/testIdentityClass.ts).
+    if (role === "student" || role === "teacher") {
+      await ensureTestIdentityClass({
+        schoolId: targetSchoolId, memberId: member.id, role, grade: member.grade,
+        preferredClassId: typeof classId === "string" ? classId : null,
+      });
+    }
+
     const [school] = await db.select().from(schoolsTable).where(eq(schoolsTable.id, targetSchoolId)).limit(1);
 
     await writeAudit({
@@ -319,6 +342,11 @@ router.delete("/super/test-identities/:userId", requireSuperAdmin, requireSuperG
       res.status(404).json({ error: "Not found" });
       return;
     }
+    const ownMembers = await db.select({ id: schoolMembersTable.id }).from(schoolMembersTable).where(eq(schoolMembersTable.userId, user.id));
+    if (ownMembers.length) {
+      await db.delete(schoolClassMembersTable).where(inArray(schoolClassMembersTable.schoolMemberId, ownMembers.map((m: { id: string }) => m.id)));
+    }
+    await db.delete(schoolTeacherSubjectsTable).where(eq(schoolTeacherSubjectsTable.teacherUserId, user.id));
     await db.delete(schoolMembersTable).where(eq(schoolMembersTable.userId, user.id));
     await db.delete(sessionsTable).where(eq(sessionsTable.userId, user.id));
     await db.delete(usersTable).where(eq(usersTable.id, user.id));
@@ -354,6 +382,10 @@ router.post("/super/test-schools/cleanup", requireSuperAdmin, requireSuperGate, 
       : [];
     const testUserIds = testUsers.map((u: typeof testUsers[number]) => u.id);
 
+    // روستر و کلاس‌هایِ این مدارس (کلاسِ خودکارِ «کلاس تست» هم): اول روستر، بعد teacher_subjects (پایین)، بعد کلاس.
+    const classRows = await db.select({ id: schoolClassesTable.id }).from(schoolClassesTable).where(inArray(schoolClassesTable.schoolId, schoolIds));
+    const classIds = classRows.map((c: { id: string }) => c.id);
+    if (classIds.length) await db.delete(schoolClassMembersTable).where(inArray(schoolClassMembersTable.classId, classIds));
     await db.delete(schoolMembersTable).where(inArray(schoolMembersTable.schoolId, schoolIds));
     // محتوایِ کتابخانه/درس‌ها/تخصیصِ معلم‌هایِ این مدارس هم پاک شود (school_content_lessons و
     // school_teacher_subjects به schools(id) FK دارند — وگرنه حذفِ مدرسه در پایین شکست می‌خورد).
@@ -361,6 +393,7 @@ router.post("/super/test-schools/cleanup", requireSuperAdmin, requireSuperGate, 
     await db.delete(schoolContentLessonsTable).where(inArray(schoolContentLessonsTable.schoolId, schoolIds));
     await db.delete(schoolTeacherSubjectsTable).where(inArray(schoolTeacherSubjectsTable.schoolId, schoolIds));
     await db.delete(schoolSubjectsTable).where(inArray(schoolSubjectsTable.schoolId, schoolIds));
+    if (classIds.length) await db.delete(schoolClassesTable).where(inArray(schoolClassesTable.id, classIds));
     if (testUserIds.length) {
       await db.delete(sessionsTable).where(inArray(sessionsTable.userId, testUserIds));
       await db.delete(usersTable).where(inArray(usersTable.id, testUserIds));

@@ -63,6 +63,37 @@ function formatSubject(
   };
 }
 
+/**
+ * کلیدِ مقایسه‌یِ نامِ درس: «ادبیاتِ فارسی» / «ادبیات فارسی» / «ادبیات‌فارسی» / «ادبيات فارسي» (ي و ك عربی،
+ * اِعراب، کشیده، فاصله و نیم‌فاصله) را یکی می‌گیرد. قیدِ unique در دیتابیس فقط تطابقِ دقیقِ رشته را می‌گیرد؛
+ * بدونِ این کلید کاربر «ادبیات فارسی» را کنارِ seedشده‌یِ «ادبیاتِ فارسی» می‌ساخت و یک بار موفق، بار بعد ۴۰۹ می‌دید
+ * که انگار «همان درس» را هم نمی‌بیند. این‌جا قبل از درج می‌سنجیم و به کاربر می‌گوییم کدام درس مانعِ اوست.
+ */
+export function subjectNameKey(name: string): string {
+  return name
+    .normalize("NFKC")
+    .replace(/[\u064A\u0649]/g, "\u06CC")
+    .replace(/\u0643/g, "\u06A9")
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+    .replace(/[\u200C\u200D\u200E\u200F\s]+/g, "")
+    .toLowerCase();
+}
+
+async function findNameConflict(schoolId: string, name: string, exceptId?: string) {
+  const key = subjectNameKey(name);
+  const rows = await db.select({ id: schoolSubjectsTable.id, name: schoolSubjectsTable.name })
+    .from(schoolSubjectsTable).where(eq(schoolSubjectsTable.schoolId, schoolId));
+  return rows.find((r: { id: string; name: string }) => r.id !== exceptId && subjectNameKey(r.name) === key) ?? null;
+}
+
+function duplicateBody(existing: { id: string; name: string } | null, schoolId: string) {
+  return {
+    error: existing ? `A subject named "${existing.name}" already exists in this school` : "A subject with this name already exists",
+    code: "duplicate_name",
+    existing: existing ? { id: existing.id, name: existing.name, schoolId } : undefined,
+  };
+}
+
 function isUniqueViolation(err: any) {
   return err?.code === "23505" || err?.cause?.code === "23505";
 }
@@ -152,6 +183,11 @@ router.post("/schools/:schoolId/subjects", requireAuth, async (req: any, res) =>
     // قبل از اولین درجِ دستی، seedِ پیش‌فرض‌ها انجام شده باشد؛ وگرنه lazy-seedِ بعدی
     // کنارِ درسِ تازه می‌نشست (ایمن است ولی ترتیبِ sortOrder را بی‌ربط می‌کند).
     await ensureSchoolSubjectsSeeded(req.params.schoolId);
+    const conflict = await findNameConflict(req.params.schoolId, cleanName);
+    if (conflict) {
+      res.status(409).json(duplicateBody(conflict, req.params.schoolId));
+      return;
+    }
     const [{ max }] = await db.select({ max: sql<number>`coalesce(max(${schoolSubjectsTable.sortOrder}), -1)::int` })
       .from(schoolSubjectsTable).where(eq(schoolSubjectsTable.schoolId, req.params.schoolId));
     const [row] = await db.insert(schoolSubjectsTable).values({
@@ -166,7 +202,8 @@ router.post("/schools/:schoolId/subjects", requireAuth, async (req: any, res) =>
     res.status(201).json(formatSubject(row, { lessonCount: 0, progress: { mastered: 0, total: 0 }, canManage: true }));
   } catch (err) {
     if (isUniqueViolation(err)) {
-      res.status(409).json({ error: "A subject with this name already exists", code: "duplicate_name" });
+      const existing = await findNameConflict(req.params.schoolId, String(req.body?.name ?? "").trim().replace(/\s+/g, " ")).catch(() => null);
+      res.status(409).json(duplicateBody(existing, req.params.schoolId));
       return;
     }
     logger.error({ err }, "Create school subject error");
@@ -208,6 +245,11 @@ router.patch("/schools/:schoolId/subjects/:id", requireAuth, async (req: any, re
         return;
       }
       patch.name = newName;
+      const conflict = await findNameConflict(schoolId, newName, id);
+      if (conflict) {
+        res.status(409).json(duplicateBody(conflict, schoolId));
+        return;
+      }
     }
     if (icon !== undefined) {
       if (icon !== null && !STYLE_KEY_RE.test(icon)) { res.status(400).json({ error: "Invalid icon" }); return; }
@@ -246,7 +288,7 @@ router.patch("/schools/:schoolId/subjects/:id", requireAuth, async (req: any, re
     res.json(view?.[0]);
   } catch (err) {
     if (isUniqueViolation(err)) {
-      res.status(409).json({ error: "A subject with this name already exists", code: "duplicate_name" });
+      res.status(409).json(duplicateBody(null, req.params.schoolId));
       return;
     }
     logger.error({ err }, "Update school subject error");

@@ -85,6 +85,7 @@ const SchoolContentLesson = lazy(() => import("@/pages/schools/content-lesson"))
 const SchoolContentStudy = lazy(() => import("@/pages/schools/content-study"));
 const SchoolContentDetail = lazy(() => import("@/pages/schools/content-detail"));
 const SchoolsStub = lazy(() => import("@/pages/schools/stub"));
+const SchoolClassSelection = lazy(() => import("@/pages/schools/class-selection"));
 const SchoolShell = lazy(() => import("@/components/layout/SchoolShell"));
 // بخش "/schools" فاز ۲
 const SchoolMembersPage = lazy(() => import("@/pages/schools/admin/members"));
@@ -419,6 +420,7 @@ function Router() {
       {/* بخش "/schools" فاز ۱ — نقطه‌ی ورود (آنبوردینگ یا ریدایرکت به نقش)
           هنوز نقشی معلوم نیست، پس هنوز از SchoolShell استفاده نمی‌کند. */}
       <Route path="/schools"><ProtectedRoute component={SchoolsEntry} /></Route>
+      <Route path="/schools/class-selection"><SchoolProtectedRoute component={SchoolClassSelection} /></Route>
       <Route path="/schools/admin"><SchoolProtectedRoute component={SchoolsAdminHome} /></Route>
       <Route path="/schools/student"><SchoolProtectedRoute component={SchoolsStudentHome} /></Route>
       <Route path="/schools/teacher"><SchoolProtectedRoute component={SchoolsRoleHome} role="teacher" /></Route>

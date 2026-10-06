@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Presentation, Send } from "lucide-react";
+import { Loader2, Pencil, Presentation, Send } from "lucide-react";
+import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
@@ -61,9 +62,14 @@ export default function TeacherClassesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-bold">{t.navClassrooms}</h1>
-        <p className="text-sm text-muted-foreground">{t.teacherClassesDescription}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">{t.navClassrooms}</h1>
+          <p className="text-sm text-muted-foreground">{t.teacherClassesDescription}</p>
+        </div>
+        <Button asChild variant="outline" size="sm" className="min-h-10" data-testid="button-edit-my-classes">
+          <Link href="/schools/class-selection"><Pencil className="me-1 size-4" /> {t.editMyClassesAction}</Link>
+        </Button>
       </div>
 
       {!myClasses || myClasses.length === 0 ? (
@@ -72,7 +78,17 @@ export default function TeacherClassesPage() {
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             {myClasses.map((c) => (
-              <Card key={c.id} className={selectedClassId === c.id ? "border-primary" : ""} onClick={() => setSelectedClassId(c.id)} role="button">
+              <Card
+                key={c.id}
+                className={`cursor-pointer transition hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 ${selectedClassId === c.id ? "border-primary" : ""}`}
+                onClick={() => setSelectedClassId(c.id)}
+                // کلِ کارت انتخاب‌کننده است؛ role=button بدونِ tabIndex/کلیدِ Enter و Space برایِ کیبورد کار نمی‌کرد.
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedClassId === c.id}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedClassId(c.id); } }}
+                data-testid={`card-teacher-class-${c.id}`}
+              >
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Presentation className="size-4" /> {c.name}

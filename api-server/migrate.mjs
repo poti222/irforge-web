@@ -1299,6 +1299,9 @@ CREATE TABLE IF NOT EXISTS school_student_alerts (
 );
 CREATE INDEX IF NOT EXISTS idx_school_student_alerts_student ON school_student_alerts(student_member_id);
 CREATE INDEX IF NOT EXISTS idx_school_student_alerts_school ON school_student_alerts(school_id);
+-- حذفِ نرمِ اخطار (مایگریشنِ ۰۰۵۰ در lib/db/migrations همین را تکرار می‌کند)
+ALTER TABLE school_student_alerts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE school_student_alerts ADD COLUMN IF NOT EXISTS deleted_by_user_id TEXT;
 
 ALTER TABLE school_exam_attempts ADD COLUMN IF NOT EXISTS late_submission BOOLEAN NOT NULL DEFAULT FALSE;
 
@@ -1439,6 +1442,38 @@ CREATE INDEX IF NOT EXISTS idx_school_content_lessons_subject ON school_content_
 
 ALTER TABLE school_content_items ADD COLUMN IF NOT EXISTS lesson_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_school_content_items_lesson ON school_content_items(lesson_id);
+
+-- ─── پیشرفتِ مطالعه (ریشه‌یِ باگِ «درسی که ساختم هیچ‌جا نمایش داده نمی‌شود») ──────
+-- جدولِ school_content_progress در drizzle (schema/schoolContentProgress.ts) بود ولی هیچ‌وقت
+-- در این فایل ساخته نشد؛ loadLessonStats (که GET /subjects و /content-lessons صدا می‌زنند)
+-- LEFT JOIN رویش دارد → در دیتابیسِ واقعی هر فهرستِ درس‌ها ۵۰۰ می‌داد (ولی POSTِ ساخت موفق بود).
+-- مایگریشنِ ۰۰۴۹ در lib/db/migrations همین بلوک را تکرار می‌کند. ایندکسِ unique عمداً نیست
+-- (مسیرِ رتبه‌دادن خودش select-then-update می‌کند؛ ایندکسِ unique در دیتابیسِ قدیمیِ احتمالاً
+-- دارای ردیفِ تکراری بوت را می‌شکست).
+CREATE TABLE IF NOT EXISTS school_content_progress (
+  id TEXT PRIMARY KEY,
+  content_item_id TEXT NOT NULL,
+  student_member_id TEXT NOT NULL,
+  last_rating TEXT NOT NULL,
+  review_count INTEGER NOT NULL DEFAULT 0,
+  interval_days INTEGER NOT NULL DEFAULT 1,
+  next_review_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_content_progress_member_item ON school_content_progress(student_member_id, content_item_id);
+CREATE INDEX IF NOT EXISTS idx_school_content_progress_item ON school_content_progress(content_item_id);
+
+-- ─── آپلودِ تصویر (self-hosted در Postgres؛ مایگریشنِ ۰۰۵۱ همین را تکرار می‌کند) ──
+CREATE TABLE IF NOT EXISTS uploaded_images (
+  id TEXT PRIMARY KEY,
+  uploaded_by_user_id TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  byte_size INTEGER NOT NULL,
+  data BYTEA NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_uploaded_images_user ON uploaded_images(uploaded_by_user_id);
 
 -- ─── «درس‌ها»: موضوعاتِ مدیریت‌شده‌یِ هر مدرسه + روشن/خاموشِ انواعِ محتوا ─────
 -- مایگریشنِ ۰۰۴۷ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
