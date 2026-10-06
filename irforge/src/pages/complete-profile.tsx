@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { EnamadSeal } from "@/components/layout/enamad-seal";
 import { consumePostAuthTarget } from "@/lib/post-auth";
 import { useLocation } from "wouter";
 import { customFetch } from "@workspace/api-client-react";
@@ -253,261 +254,264 @@ export default function CompleteProfile() {
   const onlyUsernameMissing = !telegramDone && user?.onlyUsernameMissing === true;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <PublicPageControls className="fixed end-4 top-4 z-10" />
-      <button
-        type="button"
-        onClick={() => void logout()}
-        className="fixed start-4 top-4 z-10 text-xs text-muted-foreground hover:text-foreground"
-      >
-        {tCommon.logout}
-      </button>
+    <>
+      <div className="flex min-h-[calc(100dvh-5.5rem)] items-center justify-center bg-background px-4 py-10">
+        <PublicPageControls className="fixed end-4 top-4 z-10" />
+        <button
+          type="button"
+          onClick={() => void logout()}
+          className="fixed start-4 top-4 z-10 text-xs text-muted-foreground hover:text-foreground"
+        >
+          {tCommon.logout}
+        </button>
 
-      <div className="w-full max-w-md space-y-6">
-        <div className="flex justify-center">
-          <BrandLogo href="/" />
-        </div>
+        <div className="w-full max-w-md space-y-6">
+          <div className="flex justify-center">
+            <BrandLogo href="/" />
+          </div>
 
-        <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
-          {step === "identity" && (
-            <form className="space-y-4" onSubmit={submitIdentity}>
-              <AuthStepHeader title={t.cpIdentityTitle} description={t.cpIdentityDesc} step={1} total={TOTAL_STEPS} />
+          <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
+            {step === "identity" && (
+              <form className="space-y-4" onSubmit={submitIdentity}>
+                <AuthStepHeader title={t.cpIdentityTitle} description={t.cpIdentityDesc} step={1} total={TOTAL_STEPS} />
 
-              <div className="space-y-1.5">
-                <Label htmlFor="cp-name">{t.cpFullName}</Label>
-                <Input id="cp-name" value={name} onChange={(e) => setName(e.target.value)} required />
-                {fieldErrors.name && <p className="text-xs text-destructive">{t[fieldErrors.name]}</p>}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>{t.cpGender}</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["male", "female"] as const).map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      onClick={() => setGender(g)}
-                      className={cn(
-                        "rounded-md border px-3.5 py-2.5 text-sm font-medium transition-colors",
-                        gender === g
-                          ? "border-primary bg-primary/5 ring-1 ring-primary"
-                          : "border-border hover:border-primary/50",
-                      )}
-                    >
-                      {g === "male" ? t.cpGenderMale : t.cpGenderFemale}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="cp-email">{t.email}</Label>
-                <Input
-                  id="cp-email"
-                  type="email"
-                  dir="ltr"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-                {fieldErrors.email && <p className="text-xs text-destructive">{t[fieldErrors.email]}</p>}
-              </div>
-
-              {phoneMissing && (
-                <div className="space-y-1.5 rounded-md border p-3">
-                  <Label htmlFor="cp-phone">{t.phoneLabel}</Label>
-                  {phoneStep === "verified" ? (
-                    <p className="flex items-center gap-2 text-sm text-emerald-600">
-                      <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />
-                      {phone.trim()}
-                    </p>
-                  ) : (
-                    <>
-                      <div className="flex gap-2">
-                        <Input
-                          id="cp-phone"
-                          dir="ltr"
-                          inputMode="tel"
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
-                          disabled={phoneStep === "code_sent"}
-                        />
-                        {phoneStep === "idle" && (
-                          <Button type="button" variant="outline" disabled={phoneBusy || !phone.trim()} onClick={() => void sendPhoneCode()}>
-                            {phoneBusy && <Loader2 className="me-2 size-4 animate-spin" />}
-                            {t.cpSendCode}
-                          </Button>
-                        )}
-                      </div>
-                      {phoneStep === "code_sent" && (
-                        <div className="space-y-2 pt-1">
-                          <CodeInput
-                            value={phoneCode}
-                            onChange={setPhoneCode}
-                            onComplete={(c) => void verifyPhoneCode(c)}
-                            disabled={phoneBusy}
-                            invalid={phoneCodeInvalid}
-                            webOtp
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="w-full"
-                            disabled={phoneBusy || phoneResendIn > 0}
-                            onClick={() => void sendPhoneCode()}
-                          >
-                            {phoneResendIn > 0 ? (t.resendIn ?? "").replace("{n}", String(phoneResendIn)) : t.resend}
-                          </Button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {fieldErrors.phone && <p className="text-xs text-destructive">{t[fieldErrors.phone]}</p>}
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <Label htmlFor="cp-username">{t.cpUsername}</Label>
-                <Input
-                  id="cp-username"
-                  dir="ltr"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">{t.cpUsernameHint}</p>
-                {fieldErrors.platformUsername && (
-                  <p className="text-xs text-destructive">{t[fieldErrors.platformUsername]}</p>
-                )}
-              </div>
-
-              {/*
-                هر مسیر ثبت‌نامِ واقعی (ایمیل، پیامک — حتی «ثبت‌نام با تلگرام»
-                که همان مسیر پیامکی با یک گامِ اضافه است) از قبل رمز عبور
-                می‌گیرد؛ OAuth هم با رمزِ تصادفی معاف است. یعنی
-                missing.has("password") در عمل هرگز true نمی‌شود مگر برای یک
-                حسابِ واقعاً بدون رمز — پس این فیلد فقط همان‌جا نشان داده
-                می‌شود، نه برای هر کاربرِ غیر-OAuth، وگرنه از هرکسی که همین
-                الان رمز ساخته دوباره می‌خواست.
-              */}
-              {!isOAuth && missing.has("password") && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="cp-password">{t.password}</Label>
-                  <PasswordInput
-                    id="cp-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                  <Label htmlFor="cp-name">{t.cpFullName}</Label>
+                  <Input id="cp-name" value={name} onChange={(e) => setName(e.target.value)} required />
+                  {fieldErrors.name && <p className="text-xs text-destructive">{t[fieldErrors.name]}</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>{t.cpGender}</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["male", "female"] as const).map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setGender(g)}
+                        className={cn(
+                          "rounded-md border px-3.5 py-2.5 text-sm font-medium transition-colors",
+                          gender === g
+                            ? "border-primary bg-primary/5 ring-1 ring-primary"
+                            : "border-border hover:border-primary/50",
+                        )}
+                      >
+                        {g === "male" ? t.cpGenderMale : t.cpGenderFemale}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="cp-email">{t.email}</Label>
+                  <Input
+                    id="cp-email"
+                    type="email"
+                    dir="ltr"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     required
                   />
-                  <p className="text-xs text-muted-foreground">{t.passwordMin}</p>
-                  {fieldErrors.password && <p className="text-xs text-destructive">{t[fieldErrors.password]}</p>}
+                  {fieldErrors.email && <p className="text-xs text-destructive">{t[fieldErrors.email]}</p>}
                 </div>
-              )}
-              {isOAuth && <p className="text-xs text-muted-foreground">{t.cpOauthPasswordNote}</p>}
 
-              <GlowButton type="submit" className="w-full" disabled={busy || !identitySubmittable}>
-                {busy && <Loader2 className="me-2 size-4 animate-spin" />}
-                <UserIcon className="me-2 size-4" aria-hidden="true" />
-                {t.continue}
-              </GlowButton>
-            </form>
-          )}
-
-          {step === "telegram" && (
-            <div className="space-y-5">
-              <AuthStepHeader
-                title={onlyUsernameMissing ? t.cpUsernameMissingTitle : t.cpTelegramTitle}
-                description={onlyUsernameMissing ? t.cpUsernameMissingDesc : t.cpTelegramDesc}
-                step={2}
-                total={TOTAL_STEPS}
-              />
-
-              {onlyUsernameMissing ? (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={checkingTelegram}
-                  onClick={() => void recheckTelegram()}
-                >
-                  {checkingTelegram ? (
-                    <Loader2 className="me-2 size-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="me-2 size-4" aria-hidden="true" />
-                  )}
-                  {t.cpRecheck}
-                </Button>
-              ) : (
-                <TelegramLinkPanel mode="profile" waiting onRefresh={() => void recheckTelegram()} />
-              )}
-            </div>
-          )}
-
-          {step === "security" && (
-            <div className="space-y-5">
-              <AuthStepHeader title={t.cpSecurityTitle} description={t.cpSecurityDesc} step={3} total={TOTAL_STEPS} />
-
-              <button
-                type="button"
-                onClick={() => setTwoFactorEnabled((v) => !v)}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-md border p-3.5 text-start transition-colors",
-                  twoFactorEnabled
-                    ? "border-primary bg-primary/5 ring-1 ring-primary"
-                    : "border-border hover:border-primary/50",
+                {phoneMissing && (
+                  <div className="space-y-1.5 rounded-md border p-3">
+                    <Label htmlFor="cp-phone">{t.phoneLabel}</Label>
+                    {phoneStep === "verified" ? (
+                      <p className="flex items-center gap-2 text-sm text-emerald-600">
+                        <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />
+                        {phone.trim()}
+                      </p>
+                    ) : (
+                      <>
+                        <div className="flex gap-2">
+                          <Input
+                            id="cp-phone"
+                            dir="ltr"
+                            inputMode="tel"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            disabled={phoneStep === "code_sent"}
+                          />
+                          {phoneStep === "idle" && (
+                            <Button type="button" variant="outline" disabled={phoneBusy || !phone.trim()} onClick={() => void sendPhoneCode()}>
+                              {phoneBusy && <Loader2 className="me-2 size-4 animate-spin" />}
+                              {t.cpSendCode}
+                            </Button>
+                          )}
+                        </div>
+                        {phoneStep === "code_sent" && (
+                          <div className="space-y-2 pt-1">
+                            <CodeInput
+                              value={phoneCode}
+                              onChange={setPhoneCode}
+                              onComplete={(c) => void verifyPhoneCode(c)}
+                              disabled={phoneBusy}
+                              invalid={phoneCodeInvalid}
+                              webOtp
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="w-full"
+                              disabled={phoneBusy || phoneResendIn > 0}
+                              onClick={() => void sendPhoneCode()}
+                            >
+                              {phoneResendIn > 0 ? (t.resendIn ?? "").replace("{n}", String(phoneResendIn)) : t.resend}
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {fieldErrors.phone && <p className="text-xs text-destructive">{t[fieldErrors.phone]}</p>}
+                  </div>
                 )}
-              >
-                <ShieldCheck className="size-5 shrink-0 text-primary" aria-hidden="true" />
-                <span className="flex flex-col">
-                  <span className="font-medium">{t.cpTwoFactorEnable}</span>
-                  <span className="text-xs text-muted-foreground">{t.cpSecurityDesc}</span>
-                </span>
-              </button>
 
-              {twoFactorEnabled && (
-                <div className="grid grid-cols-3 gap-2">
-                  {(["email", "sms", "telegram"] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setTwoFactorMethod(m)}
-                      className={cn(
-                        "flex items-center justify-center gap-1.5 rounded-md border px-2 py-2 text-xs font-medium transition-colors",
-                        twoFactorMethod === m
-                          ? "border-primary bg-primary/5 ring-1 ring-primary"
-                          : "border-border hover:border-primary/50",
-                      )}
-                    >
-                      <MessageSquareText className="size-3.5" aria-hidden="true" />
-                      {m === "email" ? t.cpTwoFactorEmail : m === "sms" ? t.cpTwoFactorSms : t.cpTwoFactorTelegram}
-                    </button>
-                  ))}
+                <div className="space-y-1.5">
+                  <Label htmlFor="cp-username">{t.cpUsername}</Label>
+                  <Input
+                    id="cp-username"
+                    dir="ltr"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">{t.cpUsernameHint}</p>
+                  {fieldErrors.platformUsername && (
+                    <p className="text-xs text-destructive">{t[fieldErrors.platformUsername]}</p>
+                  )}
                 </div>
-              )}
 
-              <GlowButton
-                className="w-full"
-                disabled={savingSecurity}
-                onClick={() => void saveSecurityAndFinish(twoFactorEnabled)}
-              >
-                {savingSecurity && <Loader2 className="me-2 size-4 animate-spin" />}
-                {t.cpFinish}
-              </GlowButton>
+                {/*
+                  هر مسیر ثبت‌نامِ واقعی (ایمیل، پیامک — حتی «ثبت‌نام با تلگرام»
+                  که همان مسیر پیامکی با یک گامِ اضافه است) از قبل رمز عبور
+                  می‌گیرد؛ OAuth هم با رمزِ تصادفی معاف است. یعنی
+                  missing.has("password") در عمل هرگز true نمی‌شود مگر برای یک
+                  حسابِ واقعاً بدون رمز — پس این فیلد فقط همان‌جا نشان داده
+                  می‌شود، نه برای هر کاربرِ غیر-OAuth، وگرنه از هرکسی که همین
+                  الان رمز ساخته دوباره می‌خواست.
+                */}
+                {!isOAuth && missing.has("password") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cp-password">{t.password}</Label>
+                    <PasswordInput
+                      id="cp-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">{t.passwordMin}</p>
+                    {fieldErrors.password && <p className="text-xs text-destructive">{t[fieldErrors.password]}</p>}
+                  </div>
+                )}
+                {isOAuth && <p className="text-xs text-muted-foreground">{t.cpOauthPasswordNote}</p>}
 
-              {!twoFactorEnabled && (
-                <Button
-                  variant="ghost"
+                <GlowButton type="submit" className="w-full" disabled={busy || !identitySubmittable}>
+                  {busy && <Loader2 className="me-2 size-4 animate-spin" />}
+                  <UserIcon className="me-2 size-4" aria-hidden="true" />
+                  {t.continue}
+                </GlowButton>
+              </form>
+            )}
+
+            {step === "telegram" && (
+              <div className="space-y-5">
+                <AuthStepHeader
+                  title={onlyUsernameMissing ? t.cpUsernameMissingTitle : t.cpTelegramTitle}
+                  description={onlyUsernameMissing ? t.cpUsernameMissingDesc : t.cpTelegramDesc}
+                  step={2}
+                  total={TOTAL_STEPS}
+                />
+
+                {onlyUsernameMissing ? (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={checkingTelegram}
+                    onClick={() => void recheckTelegram()}
+                  >
+                    {checkingTelegram ? (
+                      <Loader2 className="me-2 size-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="me-2 size-4" aria-hidden="true" />
+                    )}
+                    {t.cpRecheck}
+                  </Button>
+                ) : (
+                  <TelegramLinkPanel mode="profile" waiting onRefresh={() => void recheckTelegram()} />
+                )}
+              </div>
+            )}
+
+            {step === "security" && (
+              <div className="space-y-5">
+                <AuthStepHeader title={t.cpSecurityTitle} description={t.cpSecurityDesc} step={3} total={TOTAL_STEPS} />
+
+                <button
+                  type="button"
+                  onClick={() => setTwoFactorEnabled((v) => !v)}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-md border p-3.5 text-start transition-colors",
+                    twoFactorEnabled
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "border-border hover:border-primary/50",
+                  )}
+                >
+                  <ShieldCheck className="size-5 shrink-0 text-primary" aria-hidden="true" />
+                  <span className="flex flex-col">
+                    <span className="font-medium">{t.cpTwoFactorEnable}</span>
+                    <span className="text-xs text-muted-foreground">{t.cpSecurityDesc}</span>
+                  </span>
+                </button>
+
+                {twoFactorEnabled && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["email", "sms", "telegram"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setTwoFactorMethod(m)}
+                        className={cn(
+                          "flex items-center justify-center gap-1.5 rounded-md border px-2 py-2 text-xs font-medium transition-colors",
+                          twoFactorMethod === m
+                            ? "border-primary bg-primary/5 ring-1 ring-primary"
+                            : "border-border hover:border-primary/50",
+                        )}
+                      >
+                        <MessageSquareText className="size-3.5" aria-hidden="true" />
+                        {m === "email" ? t.cpTwoFactorEmail : m === "sms" ? t.cpTwoFactorSms : t.cpTwoFactorTelegram}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <GlowButton
                   className="w-full"
                   disabled={savingSecurity}
-                  onClick={() => void saveSecurityAndFinish(false)}
+                  onClick={() => void saveSecurityAndFinish(twoFactorEnabled)}
                 >
-                  {t.cpSkip}
-                </Button>
-              )}
-            </div>
-          )}
+                  {savingSecurity && <Loader2 className="me-2 size-4 animate-spin" />}
+                  {t.cpFinish}
+                </GlowButton>
+
+                {!twoFactorEnabled && (
+                  <Button
+                    variant="ghost"
+                    className="w-full"
+                    disabled={savingSecurity}
+                    onClick={() => void saveSecurityAndFinish(false)}
+                  >
+                    {t.cpSkip}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      <EnamadSeal className="bg-background pb-4" />
+    </>
   );
 }
