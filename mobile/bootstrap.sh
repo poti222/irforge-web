@@ -7,6 +7,8 @@ cd "$(dirname "$0")"
 flutter create --org ir.irforge --project-name irforge_pay --platforms=android,ios .
 # flutter create ممکن است lib/main.dart و test/ را با نمونه‌ی خودش عوض کند؛ نسخه‌ی خودمان را برگردان.
 git checkout -- lib test 2>/dev/null || true
+# تستِ نمونه‌ی flutter create به MyApp اشاره می‌کند و analyze را می‌شکند.
+rm -f test/widget_test.dart
 
 # applicationId ثابت (با namespace کدِ Kotlin یکی باشد)
 python3 - <<'PY'
