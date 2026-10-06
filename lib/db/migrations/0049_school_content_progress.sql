@@ -1,4 +1,4 @@
--- 0048_school_content_progress.sql
+-- 0049_school_content_progress.sql
 -- Runtime migration lives in api-server/migrate.mjs; this mirrors it for drizzle-kit parity.
 -- ببینید توضیحِ بلوکِ همنام در migrate.mjs: جدول فقط در drizzle تعریف شده بود و هرگز ساخته نمی‌شد.
 

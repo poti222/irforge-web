@@ -1444,7 +1444,7 @@ CREATE INDEX IF NOT EXISTS idx_school_content_items_lesson ON school_content_ite
 -- جدولِ school_content_progress در drizzle (schema/schoolContentProgress.ts) بود ولی هیچ‌وقت
 -- در این فایل ساخته نشد؛ loadLessonStats (که GET /subjects و /content-lessons صدا می‌زنند)
 -- LEFT JOIN رویش دارد → در دیتابیسِ واقعی هر فهرستِ درس‌ها ۵۰۰ می‌داد (ولی POSTِ ساخت موفق بود).
--- مایگریشنِ ۰۰۴۸ در lib/db/migrations همین بلوک را تکرار می‌کند. ایندکسِ unique عمداً نیست
+-- مایگریشنِ ۰۰۴۹ در lib/db/migrations همین بلوک را تکرار می‌کند. ایندکسِ unique عمداً نیست
 -- (مسیرِ رتبه‌دادن خودش select-then-update می‌کند؛ ایندکسِ unique در دیتابیسِ قدیمیِ احتمالاً
 -- دارای ردیفِ تکراری بوت را می‌شکست).
 CREATE TABLE IF NOT EXISTS school_content_progress (
