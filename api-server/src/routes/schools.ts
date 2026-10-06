@@ -18,6 +18,7 @@
  * می‌کند.
  */
 import { logger } from "../lib/logger";
+import { normalizeImageUrl } from "../lib/imageUrl";
 import { Router } from "express";
 import {
   db,
@@ -335,8 +336,14 @@ router.patch("/schools/:id", requireAuth, async (req: any, res) => {
   try {
     const allowed = await requireSchoolAdmin(req, res, req.params.id);
     if (!allowed) return;
-    const { name, address, city, licenseInfo, consecutiveAbsenceAlertThreshold } = req.body ?? {};
+    const { name, address, city, licenseInfo, consecutiveAbsenceAlertThreshold, photoUrl } = req.body ?? {};
     const patch: Record<string, unknown> = {};
+    // قبلاً photoUrl نادیده گرفته می‌شد (فرمِ مدیر «ذخیره شد» می‌گفت ولی عکس هرگز ذخیره نمی‌شد).
+    if (photoUrl !== undefined) {
+      const clean = normalizeImageUrl(photoUrl);
+      if (clean === undefined) { res.status(400).json({ error: "Invalid photoUrl", code: "invalid_image_url" }); return; }
+      patch.photoUrl = clean;
+    }
     if (name !== undefined) patch.name = name;
     if (address !== undefined) patch.address = address;
     if (city !== undefined) patch.city = city;

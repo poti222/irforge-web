@@ -113,16 +113,37 @@ export default function SchoolClassesPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {classes.map((c) => (
-            <Card key={c.id} className="transition hover:border-primary/50">
+            // «لینکِ کشیده» (stretched link): لینکِ نام با ::after کلِ کارت را می‌پوشاند — کلِ کارت کلیک‌پذیر و
+            // با کیبورد فوکوس‌پذیر است، ولی دکمه‌یِ حذف *داخلِ* <a> نیست (دکمه در لینک نامعتبر است و کلیکش ناوبری
+            // می‌کرد)؛ آن با z-10 بالای پوشش می‌نشیند و کلیکش هرگز به لینک نمی‌رسد.
+            <Card
+              key={c.id}
+              className="group relative transition hover:border-primary/60 hover:shadow-md focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/40"
+              data-testid={`card-class-${c.id}`}
+            >
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center justify-between text-base">
-                  <Link href={`/schools/admin/classes/${c.id}`} className="flex items-center gap-2 hover:underline">
-                    <LayoutGrid className="size-4" /> {c.name}
+                <CardTitle className="flex items-center justify-between gap-2 text-base">
+                  <Link
+                    href={`/schools/admin/classes/${c.id}`}
+                    aria-label={t.classOpenAria.replace("{name}", c.name)}
+                    className="flex min-w-0 items-center gap-2 outline-none after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] group-hover:underline"
+                    data-testid={`link-class-${c.id}`}
+                  >
+                    <LayoutGrid className="size-4 shrink-0" /> <span className="truncate">{c.name}</span>
                   </Link>
                   {canWrite && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button size="icon" variant="ghost"><Trash2 className="size-4 text-destructive" /></Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="relative z-10 shrink-0"
+                          aria-label={t.deleteClassButton}
+                          data-testid={`button-delete-class-${c.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Trash2 className="size-4 text-destructive" />
+                        </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>

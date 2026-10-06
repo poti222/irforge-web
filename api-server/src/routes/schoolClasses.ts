@@ -6,7 +6,7 @@
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, schoolClassesTable, schoolClassMembersTable, SCHOOL_MEMBER_ROLES } from "@workspace/db";
+import { db, schoolClassesTable, schoolClassMembersTable, schoolMembersTable, SCHOOL_MEMBER_ROLES } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
@@ -160,11 +160,30 @@ router.post("/schools/:schoolId/classes/:classId/members", requireAuth, async (r
       res.status(400).json({ error: "schoolMemberId is required" });
       return;
     }
+    // کلاس و عضو هر دو باید مالِ همین مدرسه باشند (قبلاً هیچ‌کدام چک نمی‌شد).
+    const [cls] = await db.select().from(schoolClassesTable)
+      .where(and(eq(schoolClassesTable.id, req.params.classId), eq(schoolClassesTable.schoolId, req.params.schoolId))).limit(1);
+    const [target] = await db.select().from(schoolMembersTable)
+      .where(and(eq(schoolMembersTable.id, schoolMemberId.trim()), eq(schoolMembersTable.schoolId, req.params.schoolId))).limit(1);
+    if (!cls || !target) {
+      res.status(404).json({ error: "Class or member not found in this school" });
+      return;
+    }
+    const asRole = roleInClass === "teacher" ? "teacher" : "student";
+    // دانش‌آموز دقیقاً یک کلاس دارد؛ برایِ تغییر ابتدا از کلاسِ قبلی حذفش کنید.
+    if (asRole === "student") {
+      const existing = await db.select().from(schoolClassMembersTable)
+        .where(and(eq(schoolClassMembersTable.schoolMemberId, target.id), eq(schoolClassMembersTable.roleInClass, "student")));
+      if (existing.length > 0) {
+        res.status(409).json({ error: "این دانش‌آموز از قبل در یک کلاس است؛ ابتدا از کلاسِ قبلی حذفش کنید.", code: "student_already_in_class" });
+        return;
+      }
+    }
     const [row] = await db.insert(schoolClassMembersTable).values({
       id: crypto.randomUUID(),
       classId: req.params.classId,
-      schoolMemberId: schoolMemberId.trim(),
-      roleInClass: roleInClass === "teacher" ? "teacher" : "student",
+      schoolMemberId: target.id,
+      roleInClass: asRole,
     }).returning();
     res.status(201).json(formatClassMember(row));
   } catch (err) {

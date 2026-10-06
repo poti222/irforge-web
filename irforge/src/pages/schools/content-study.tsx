@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useActiveSchoolId } from "@/hooks/use-viewed-school";
 import { useParams, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,7 @@ export default function SchoolContentStudy() {
   const { toast } = useToast();
 
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
-  const schoolId = me?.schoolId ?? undefined;
+  const schoolId = useActiveSchoolId(me);
 
   const { data: lesson } = useQuery({
     queryKey: ["schools", "content-lesson", schoolId, lessonId],

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ImageUploadField } from "@/components/schools/ImageUploadField";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -176,24 +177,7 @@ export default function SchoolsAdminHome() {
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>{t.fieldSchoolPhoto}</Label>
-                {/* آپلودِ واقعی خارج از دامنه‌ی فاز ۳ است (این ریپو زیرساختِ
-                    فایل ندارد) — به‌جایش یک فیلدِ URLِ ساده با پیش‌نمایشِ زنده،
-                    که در فازهای بعد جایگزینِ آپلودِ واقعی می‌شود. */}
-                <div className="flex items-center gap-3">
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
-                    {photoUrl.trim() ? (
-                      <img src={photoUrl.trim()} alt="" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
-                    ) : (
-                      <ImageIcon className="size-6 text-muted-foreground" />
-                    )}
-                  </div>
-                  <Input
-                    value={photoUrl}
-                    onChange={(e) => setPhotoUrl(e.target.value)}
-                    placeholder={t.fieldSchoolPhotoPlaceholder}
-                    dir="ltr"
-                  />
-                </div>
+                <ImageUploadField value={photoUrl} onChange={setPhotoUrl} testId="school-photo-upload" />
               </div>
               <div className="flex flex-col gap-1.5 sm:w-56">
                 <Label>{t.fieldAbsenceAlertThreshold}</Label>

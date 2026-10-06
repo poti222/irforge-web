@@ -3,7 +3,7 @@ import { Redirect } from "wouter";
 import { Spinner } from "@/components/ui/spinner";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
-import { getSchoolMe, type SchoolMemberRole } from "@/lib/schools-api";
+import { getSchoolMe, getEnrollmentStatus, type SchoolMemberRole } from "@/lib/schools-api";
 import SchoolsOnboarding from "@/pages/schools/onboarding";
 
 /**
@@ -31,7 +31,18 @@ export default function SchoolsEntry() {
     queryFn: getSchoolMe,
   });
 
-  if (isLoading) {
+  // دروازه‌یِ انتخابِ کلاس: دانش‌آموز/معلمِ عضوِ یک مدرسه که هنوز کلاس ندارد قبل از داشبورد به انتخابگر می‌رود.
+  // (هویت‌هایِ آزمایشیِ /super سمتِ سرور خودکار کلاس می‌گیرند، پس هرگز اینجا نمی‌ایستند.) شکستِ این query ورود را
+  // نمی‌بندد — فقط بدونِ دروازه ادامه می‌دهد؛ پروفایل/خروج هم از SchoolShell همیشه در دسترس‌اند.
+  const needsGate = !!me && me.profileComplete && !!me.schoolId && (me.role === "student" || me.role === "teacher");
+  const { data: enrollment, isLoading: enrollmentLoading } = useQuery({
+    queryKey: ["schools", "enrollment", me?.schoolId],
+    queryFn: () => getEnrollmentStatus(me!.schoolId!),
+    enabled: needsGate,
+    retry: false,
+  });
+
+  if (isLoading || (needsGate && enrollmentLoading)) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Spinner size="lg" />
@@ -48,6 +59,8 @@ export default function SchoolsEntry() {
       />
     );
   }
+
+  if (enrollment?.needsSelection) return <Redirect to="/schools/class-selection" />;
 
   return <Redirect to={ROLE_HOME[me.role]} />;
 }
