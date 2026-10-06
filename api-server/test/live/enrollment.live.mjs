@@ -66,6 +66,16 @@ check("write-gate after edit: Math now 403, Physics 201, تاریخ (admin) 201"
 const aud = await call("GET", `/schools/${a.schoolId}/audit-log`, { token: a.token });
 check("audit log has member.class_selected + teacher.assignments_set", ["member.class_selected", "teacher.assignments_set"].every((x) => aud.json.some((e) => e.action === x)));
 
+// ── جریانِ پایین‌دست: دانش‌آموزی که کلاس را خودش انتخاب کرده، تکلیفِ همان کلاس را می‌گیرد
+const s4 = await joinSchool(a, "student", { grade: "11" });
+await call("POST", `/schools/${a.schoolId}/enrollment/student`, { token: s4.token, body: { classId: cB.id } });
+const asg = await call("POST", `/schools/${a.schoolId}/assignments`, { token: t.token, body: { classId: cB.id, title: "تکلیفِ تست" } });
+check("class teacher (self-assigned to 11B) creates an assignment for 11B", asg.status === 201, asg.text);
+const myClass = (await call("GET", `/schools/${a.schoolId}/classes?mine=true`, { token: s4.token })).json[0];
+const seen = await call("GET", `/schools/${a.schoolId}/assignments?classId=${myClass.id}`, { token: s4.token });
+check("student sees the assignment through his self-chosen class + got the bell notification", seen.json.some((x) => x.title === "تکلیفِ تست") && (await call("GET", "/notifications", { token: s4.token })).text.includes("تکلیفِ «تکلیفِ تست»"));
+check("teacher NOT in 11A can't create assignments there (403)", (await call("POST", `/schools/${a.schoolId}/assignments`, { token: t.token, body: { classId: cA.id, title: "x" } })).status === 403);
+
 // ── هویتِ آزمایشیِ /super: هرگز انتخابگر
 const sup = await newSuper();
 const sc = { token: sup.token, cookie: sup.cookie };

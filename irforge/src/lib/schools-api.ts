@@ -1231,3 +1231,27 @@ export function replaceSchoolBotPoolToken(id: string, botToken: string) {
     body: JSON.stringify({ botToken }),
   });
 }
+
+// ─── انتخابِ کلاس/درسِ خودِ دانش‌آموز و معلم (routes/schoolEnrollment.ts) ───────
+export interface EnrollmentStatus {
+  role: SchoolMemberRole | null;
+  grade: string | null;
+  classes: { id: string; name: string; grade: string | null; academicYear: string | null }[];
+  needsSelection: boolean;
+  studentClassId: string | null;
+  teacherClassIds: string[];
+  teacherAssignments: { classId: string; subject: string }[];
+  subjects: string[];
+}
+
+export function getEnrollmentStatus(schoolId: string) {
+  return customFetch<EnrollmentStatus>(`/api/schools/${schoolId}/enrollment/me`);
+}
+
+export function selectStudentClass(schoolId: string, classId: string) {
+  return customFetch<{ ok: true; classId: string }>(`/api/schools/${schoolId}/enrollment/student`, { method: "POST", body: JSON.stringify({ classId }) });
+}
+
+export function saveTeacherAssignments(schoolId: string, assignments: { classId: string; subjects: string[] }[]) {
+  return customFetch<{ ok: true; classes: number; combos: number }>(`/api/schools/${schoolId}/enrollment/teacher`, { method: "PUT", body: JSON.stringify({ assignments }) });
+}

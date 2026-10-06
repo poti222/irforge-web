@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Presentation, Send } from "lucide-react";
+import { Loader2, Pencil, Presentation, Send } from "lucide-react";
+import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
@@ -61,9 +62,14 @@ export default function TeacherClassesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-bold">{t.navClassrooms}</h1>
-        <p className="text-sm text-muted-foreground">{t.teacherClassesDescription}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">{t.navClassrooms}</h1>
+          <p className="text-sm text-muted-foreground">{t.teacherClassesDescription}</p>
+        </div>
+        <Button asChild variant="outline" size="sm" className="min-h-10" data-testid="button-edit-my-classes">
+          <Link href="/schools/class-selection"><Pencil className="me-1 size-4" /> {t.editMyClassesAction}</Link>
+        </Button>
       </div>
 
       {!myClasses || myClasses.length === 0 ? (
