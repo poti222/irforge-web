@@ -7,7 +7,7 @@
 import { logger } from "../lib/logger";
 import { Router } from "express";
 import { db, schoolAnnouncementsTable, schoolClassMembersTable, schoolMembersTable, SCHOOL_ANNOUNCEMENT_KINDS, SCHOOL_MEMBER_ROLES } from "@workspace/db";
-import { canAccessSchool, SCHOOL_ADMIN_DEPUTY } from "../lib/schoolAuth";
+import { canAccessSchool, SCHOOL_ADMIN_DEPUTY, classBelongsToSchool } from "../lib/schoolAuth";
 import { eq, and, or, isNull, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
@@ -71,6 +71,10 @@ router.post("/schools/:schoolId/announcements", requireAuth, async (req: any, re
     if (kind === "class") {
       if (!classId?.trim()) {
         res.status(400).json({ error: "classId is required for kind=class" });
+        return;
+      }
+      if (!(await classBelongsToSchool(classId, req.params.schoolId))) {
+        res.status(404).json({ error: "Class not found" });
         return;
       }
       const [membership] = requester

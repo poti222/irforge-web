@@ -10,12 +10,12 @@ import { logger } from "../lib/logger";
 import { Router } from "express";
 import {
   db, schoolAssignmentsTable, schoolAssignmentSubmissionsTable,
-  schoolClassMembersTable, schoolMembersTable,
+  schoolClassMembersTable, schoolMembersTable, schoolClassesTable,
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
-import { canAccessSchool, SCHOOL_ADMIN_ONLY } from "../lib/schoolAuth";
+import { canAccessSchool, SCHOOL_ADMIN_ONLY, classBelongsToSchool, findAssignmentInSchool } from "../lib/schoolAuth";
 import { notifySchoolUsers } from "../lib/schoolNotify";
 
 const router = Router();
@@ -72,9 +72,12 @@ router.get("/schools/:schoolId/assignments", requireAuth, async (req: any, res) 
       return;
     }
     const classId = typeof req.query.classId === "string" ? req.query.classId : undefined;
-    const rows = classId
-      ? await db.select().from(schoolAssignmentsTable).where(eq(schoolAssignmentsTable.classId, classId))
-      : await db.select().from(schoolAssignmentsTable);
+    // school_assignments ستونِ schoolId ندارد؛ مرزِ مدرسه از join با کلاس می‌آید (بدونِ classId قبلاً همه‌یِ مدرسه‌ها برمی‌گشت).
+    const rows = (await db.select({ a: schoolAssignmentsTable }).from(schoolAssignmentsTable)
+      .innerJoin(schoolClassesTable, eq(schoolClassesTable.id, schoolAssignmentsTable.classId))
+      .where(classId
+        ? and(eq(schoolClassesTable.schoolId, req.params.schoolId), eq(schoolAssignmentsTable.classId, classId))
+        : eq(schoolClassesTable.schoolId, req.params.schoolId))).map((r) => r.a);
     rows.sort((a: typeof rows[number], b: typeof rows[number]) => b.createdAt.getTime() - a.createdAt.getTime());
     res.json(rows.map(formatAssignment));
   } catch (err) {
@@ -89,6 +92,10 @@ router.post("/schools/:schoolId/assignments", requireAuth, async (req: any, res)
     const { classId, title, description, dueDate } = req.body ?? {};
     if (!classId?.trim() || !title?.trim()) {
       res.status(400).json({ error: "classId and title are required" });
+      return;
+    }
+    if (!(await classBelongsToSchool(classId, req.params.schoolId))) {
+      res.status(404).json({ error: "Class not found" });
       return;
     }
     const { ok } = await isClassTeacherOrAdmin(req.userId, req.params.schoolId, classId);
@@ -133,7 +140,7 @@ router.post("/schools/:schoolId/assignments", requireAuth, async (req: any, res)
 // GET /api/schools/:schoolId/assignments/:id/submissions — فقط معلمِ همان کلاس یا مدیر (همه‌یِ ارسال‌ها).
 router.get("/schools/:schoolId/assignments/:id/submissions", requireAuth, async (req: any, res) => {
   try {
-    const [assignment] = await db.select().from(schoolAssignmentsTable).where(eq(schoolAssignmentsTable.id, req.params.id)).limit(1);
+    const assignment = await findAssignmentInSchool(req.params.id, req.params.schoolId);
     if (!assignment) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -177,7 +184,7 @@ router.post("/schools/:schoolId/assignments/:id/submissions", requireAuth, async
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const [assignment] = await db.select().from(schoolAssignmentsTable).where(eq(schoolAssignmentsTable.id, req.params.id)).limit(1);
+    const assignment = await findAssignmentInSchool(req.params.id, req.params.schoolId);
     if (!assignment) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -218,7 +225,7 @@ router.post("/schools/:schoolId/assignments/:id/submissions", requireAuth, async
 // PATCH /api/schools/:schoolId/assignments/:id/submissions/:submissionId — نمره/بازخوردِ معلم.
 router.patch("/schools/:schoolId/assignments/:id/submissions/:submissionId", requireAuth, async (req: any, res) => {
   try {
-    const [assignment] = await db.select().from(schoolAssignmentsTable).where(eq(schoolAssignmentsTable.id, req.params.id)).limit(1);
+    const assignment = await findAssignmentInSchool(req.params.id, req.params.schoolId);
     if (!assignment) {
       res.status(404).json({ error: "Not found" });
       return;

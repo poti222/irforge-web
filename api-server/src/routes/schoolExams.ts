@@ -21,7 +21,7 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
-import { canAccessSchool, SCHOOL_ADMIN_ONLY } from "../lib/schoolAuth";
+import { canAccessSchool, SCHOOL_ADMIN_ONLY, classBelongsToSchool, findExamInSchool } from "../lib/schoolAuth";
 import { notifySchoolUsers } from "../lib/schoolNotify";
 
 const router = Router();
@@ -119,6 +119,10 @@ router.get("/schools/:schoolId/exams", requireAuth, async (req: any, res) => {
       res.status(400).json({ error: "classId is required" });
       return;
     }
+    if (!(await classBelongsToSchool(classId, req.params.schoolId))) {
+      res.status(404).json({ error: "Class not found" });
+      return;
+    }
     const rows = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.classId, classId));
     rows.sort((a: typeof rows[number], b: typeof rows[number]) => b.createdAt.getTime() - a.createdAt.getTime());
     res.json(rows.map(formatExam));
@@ -136,9 +140,20 @@ router.post("/schools/:schoolId/exams", requireAuth, async (req: any, res) => {
       res.status(400).json({ error: "classId, title and at least one questionId are required" });
       return;
     }
+    if (!(await classBelongsToSchool(classId, req.params.schoolId))) {
+      res.status(404).json({ error: "Class not found" });
+      return;
+    }
     const { ok } = await isClassTeacherOrAdmin(req.userId, req.params.schoolId, classId);
     if (!ok) {
       res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    // سؤال‌ها هم باید از بانکِ همین مدرسه باشند (وگرنه سؤال/پاسخِ صحیحِ مدرسه‌یِ دیگر از راهِ /exams/:id/questions لو می‌رفت).
+    const ownQ = await db.select({ id: schoolQuestionsTable.id }).from(schoolQuestionsTable)
+      .where(and(eq(schoolQuestionsTable.schoolId, req.params.schoolId), inArray(schoolQuestionsTable.id, questionIds)));
+    if (ownQ.length !== new Set(questionIds).size) {
+      res.status(400).json({ error: "Unknown questionIds" });
       return;
     }
     const [row] = await db.insert(schoolExamsTable).values({
@@ -181,7 +196,7 @@ router.post("/schools/:schoolId/exams", requireAuth, async (req: any, res) => {
 // دانش‌آموز correctAnswer حذف می‌شود، برایِ معلم/مدیر کامل برمی‌گردد.
 router.get("/schools/:schoolId/exams/:id/questions", requireAuth, async (req: any, res) => {
   try {
-    const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
+    const exam = await findExamInSchool(req.params.id, req.params.schoolId);
     if (!exam) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -230,7 +245,7 @@ router.get("/schools/:schoolId/exams/:id/questions", requireAuth, async (req: an
 // GET /api/schools/:schoolId/exams/:id/attempts — فقط معلمِ همان کلاس یا مدیر (همه‌یِ تلاش‌ها، برایِ نمره‌دهی).
 router.get("/schools/:schoolId/exams/:id/attempts", requireAuth, async (req: any, res) => {
   try {
-    const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
+    const exam = await findExamInSchool(req.params.id, req.params.schoolId);
     if (!exam) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -282,7 +297,7 @@ router.post("/schools/:schoolId/exams/:id/attempts/start", requireAuth, async (r
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
+    const exam = await findExamInSchool(req.params.id, req.params.schoolId);
     if (!exam) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -338,7 +353,7 @@ router.post("/schools/:schoolId/exams/:id/attempts/submit", requireAuth, async (
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
+    const exam = await findExamInSchool(req.params.id, req.params.schoolId);
     if (!exam) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -398,7 +413,7 @@ router.post("/schools/:schoolId/exams/:id/attempts/submit", requireAuth, async (
 // POST /attempts/start دوباره یک ردیفِ نو می‌سازد.
 router.delete("/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, async (req: any, res) => {
   try {
-    const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
+    const exam = await findExamInSchool(req.params.id, req.params.schoolId);
     if (!exam) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -428,7 +443,7 @@ router.delete("/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, a
 // بیاید، همیشه برنده است — score دیگر هرگز مستقیم ست نمی‌شود وقتی breakdown موجود است.
 router.patch("/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, async (req: any, res) => {
   try {
-    const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
+    const exam = await findExamInSchool(req.params.id, req.params.schoolId);
     if (!exam) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -483,7 +498,7 @@ router.patch("/schools/:schoolId/exams/:id/attempts/:attemptId", requireAuth, as
 // GET /api/schools/:schoolId/exams/:id/analytics — معلمِ همان کلاس یا مدیر: میانگین/بالاترین/پایین‌ترین/توزیعِ نمره‌ها (فازِ ۱۰، بندِ ۲.۴).
 router.get("/schools/:schoolId/exams/:id/analytics", requireAuth, async (req: any, res) => {
   try {
-    const [exam] = await db.select().from(schoolExamsTable).where(eq(schoolExamsTable.id, req.params.id)).limit(1);
+    const exam = await findExamInSchool(req.params.id, req.params.schoolId);
     if (!exam) {
       res.status(404).json({ error: "Not found" });
       return;

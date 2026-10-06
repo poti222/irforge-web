@@ -10,7 +10,7 @@
  * ۴۰۳ مواجه می‌شد، با این‌که واقعاً مدیرِ همان مدرسه بود. این فایل آن دو منبع
  * را یک‌جا چک می‌کند.
  */
-import { db, schoolMembersTable, schoolAdminsTable, usersTable } from "@workspace/db";
+import { db, schoolMembersTable, schoolAdminsTable, usersTable, schoolClassesTable, schoolExamsTable, schoolAssignmentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
 /**
@@ -61,3 +61,27 @@ export const SCHOOL_ADMIN_DEPUTY = ["admin", "deputy"] as const;
 /** خواندنِ اعضا/برنامه‌ها + نوشتنِ برنامه‌ها (فاز ۳، بخشِ ۵): معاون‌انضباطی هم اضافه شد. */
 export const SCHOOL_ADMIN_DEPUTY_DISCIPLINE = ["admin", "deputy", "deputy_discipline"] as const;
 export const SCHOOL_MEMBERS_READ_ROLES = ["admin", "deputy", "deputy_discipline", "counselor"] as const;
+
+
+// ─── مرزِ مدرسه برایِ منابعی که فقط classId دارند (آزمون/تکلیف) ─────────────────
+// school_exams/school_assignments ستونِ schoolId ندارند؛ فقط از راهِ کلاس به مدرسه وصل‌اند. بدونِ این چک‌ها
+// یک عضو/مدیرِ مدرسه‌یِ A با دادنِ classId/idِ مدرسه‌یِ B به دادهٔ B دسترسی می‌گرفت.
+export async function classBelongsToSchool(classId: string, schoolId: string): Promise<boolean> {
+  const [c] = await db.select({ id: schoolClassesTable.id }).from(schoolClassesTable)
+    .where(and(eq(schoolClassesTable.id, classId), eq(schoolClassesTable.schoolId, schoolId))).limit(1);
+  return !!c;
+}
+
+export async function findExamInSchool(examId: string, schoolId: string) {
+  const [row] = await db.select({ exam: schoolExamsTable }).from(schoolExamsTable)
+    .innerJoin(schoolClassesTable, eq(schoolClassesTable.id, schoolExamsTable.classId))
+    .where(and(eq(schoolExamsTable.id, examId), eq(schoolClassesTable.schoolId, schoolId))).limit(1);
+  return row?.exam;
+}
+
+export async function findAssignmentInSchool(assignmentId: string, schoolId: string) {
+  const [row] = await db.select({ a: schoolAssignmentsTable }).from(schoolAssignmentsTable)
+    .innerJoin(schoolClassesTable, eq(schoolClassesTable.id, schoolAssignmentsTable.classId))
+    .where(and(eq(schoolAssignmentsTable.id, assignmentId), eq(schoolClassesTable.schoolId, schoolId))).limit(1);
+  return row?.a;
+}
