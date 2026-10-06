@@ -215,6 +215,10 @@ export interface Bot {
   tierExpiresAt?: string | null;
   /** روزهای باقی‌مانده تا پایانِ دوره‌ی پکیج؛ برای بات‌های بدون tierExpiresAt همیشه null. @nullable */
   tierDaysLeft?: number | null;
+  /** لحظه‌ی حذفِ نهایی (باتِ منقضی‌شده: تریال ۷ روزه / پکیج ۳۰ روزه‌یِ تمدید‌نشده)؛ برای باتِ سالم null. @nullable */
+  purgeAt?: string | null;
+  /** روزهای باقی‌مانده تا حذفِ نهایی؛ فقط برای باتِ منقضی‌شده، وگرنه null. @nullable */
+  purgeDaysLeft?: number | null;
   createdAt: string;
   updatedAt: string;
 }

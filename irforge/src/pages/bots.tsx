@@ -9,6 +9,7 @@ import { useT } from "@/hooks/use-translation";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useListMyPurchases } from "@/hooks/use-products";
 import { productIcon } from "@/lib/product-icons";
+import { botLifetime, LIFETIME_TONE } from "@/lib/bot-lifetime";
 
 /**
  * IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section A — this page (still `/bots`,
@@ -134,18 +135,17 @@ export default function Bots() {
                     </div>
                   </div>
                   <Badge variant={bot.status === "active" ? "default" : "secondary"}>
-                    {bot.status === "expired" ? (lang === "fa" ? "منقضی‌شده" : "expired") : bot.status}
+                    {bot.status === "expired" || bot.status === "tier_expired" ? (lang === "fa" ? "منقضی‌شده" : "expired") : bot.status}
                   </Badge>
                 </div>
-                {bot.isTrial && (
+                {botLifetime(bot, lang) && (
                   <Badge
                     variant="outline"
-                    className={`mt-2 flex w-fit items-center gap-1 ${bot.status === "expired" ? "border-red-500/40 text-red-500" : "border-amber-500/40 text-amber-600 dark:text-amber-400"}`}
+                    data-testid="bot-lifetime-badge"
+                    className={`mt-2 flex w-fit items-center gap-1 ${LIFETIME_TONE[botLifetime(bot, lang)!.tone]}`}
                   >
                     <Gift className="size-3" />
-                    {bot.status === "expired"
-                      ? (lang === "fa" ? "تریال تمام شده" : "Trial ended")
-                      : (lang === "fa" ? `تریال · ${bot.trialDaysLeft ?? 0} روز مانده` : `Trial · ${bot.trialDaysLeft ?? 0}d left`)}
+                    {botLifetime(bot, lang)!.text}
                   </Badge>
                 )}
               </CardHeader>

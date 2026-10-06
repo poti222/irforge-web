@@ -105,6 +105,19 @@ export function BotPlanCard({ bot }: { bot: Bot }) {
         {tier && <CardDescription>{tt[tier]?.tagline}</CardDescription>}
       </CardHeader>
 
+      {/* انقضا ⇒ حذفِ نهایی: بعد از قطعِ سرویس ۷ روز مهلت است، بعد بات و داده‌هایش برای همیشه پاک می‌شود. */}
+      {bot.purgeDaysLeft != null && (
+        <CardContent>
+          <p
+            data-testid="bot-purge-warning"
+            className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300"
+          >
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>{(bot.isTrial ? t.purgeTrial : t.purgeTier).replace("{n}", String(bot.purgeDaysLeft))}</span>
+          </p>
+        </CardContent>
+      )}
+
       {bot.isTrial && (
         <CardContent>
           <p className="text-sm text-muted-foreground">

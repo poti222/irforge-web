@@ -829,7 +829,7 @@ ALTER TABLE bots ADD COLUMN IF NOT EXISTS tier TEXT;
 -- نمی‌شدند چون این ستون NULL می‌ماند (لوپِ sweep فقط رویِ NOT NULL کار
 -- می‌کند، پایین‌تر در tierExpiry.ts).
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS tier_expires_at TIMESTAMPTZ;
-UPDATE bots SET tier_expires_at = NOW() + INTERVAL '1 month'
+UPDATE bots SET tier_expires_at = NOW() + INTERVAL '30 days'
   WHERE tier IN ('standard', 'pro') AND tier_expires_at IS NULL;
 
 -- ─── WALLET_TOPUPS (BluBank open-amount link + auto SMS matching) ─────────
@@ -1779,6 +1779,13 @@ CREATE INDEX IF NOT EXISTS idx_payment_events_at ON payment_events(at);
 CREATE INDEX IF NOT EXISTS idx_payment_events_request ON payment_events(request_id) WHERE request_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_payment_events_channel ON payment_events(channel_id, at);
 CREATE INDEX IF NOT EXISTS idx_payment_events_problems ON payment_events(at) WHERE level <> 'info';
+
+-- ─── BOT_PURGE_AFTER (انقضا ⇒ حذفِ نهایی: لحظه‌یِ حذفِ باتِ منقضی‌شده؛ lib/botLifecycle.ts) ───
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS purge_after TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_bots_purge_after ON bots(purge_after) WHERE purge_after IS NOT NULL;
+-- پکیجِ استاندارد/پرو همیشه زمان دارد: ۳۰ روز از همین لحظه برایِ هر باتِ بی‌تاریخ (قدیمی/ستِ دستی). تکرارِ اجرا بی‌اثر است.
+UPDATE bots SET tier_expires_at = NOW() + INTERVAL '30 days'
+  WHERE tier IN ('standard', 'pro') AND tier_expires_at IS NULL;
 
 -- ─── CARD_AUTOCONFIRM_DESC (توضیحاتِ کانال: متنی که کنارِ کارت به مشتری نشان داده می‌شود) ───
 ALTER TABLE payment_channels ADD COLUMN IF NOT EXISTS description TEXT;
