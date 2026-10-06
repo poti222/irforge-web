@@ -118,6 +118,14 @@ export const botsTable = pgTable("bots", {
    */
   databaseSqlExpiresAt: timestamp("database_sql_expires_at", { withTimezone: true }),
 
+  /**
+   * لحظه‌ای که این باتِ **منقضی‌شده** (تریالِ ۷ روزه یا پکیجِ ۳۰ روزه‌یِ تمدید‌نشده) برای همیشه پاک می‌شود
+   * (`lib/botLifecycle.ts`). `null` = منقضی نیست / هنوز زمانی برایش گذاشته نشده. جاروی انقضا وقتی اولین‌بار بات را
+   * منقضی می‌بیند ست‌اش می‌کند: `max(تاریخِ انقضا, الان) + ۷ روز` — یعنی باتی که از قبل مدت‌ها پیش منقضی شده هم
+   * ۷ روزِ کامل مهلتِ تمدید می‌گیرد، نه حذفِ ناگهانی. تمدید/ارتقا آن را دوباره null می‌کند.
+   */
+  purgeAfter: timestamp("purge_after", { withTimezone: true }),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

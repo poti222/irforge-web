@@ -381,7 +381,9 @@
     "attentionPendingPayment": "Awaiting payment approval",
     "yourBots": "Your Bots",
     "viewAllBots": "View all bots",
-    "noUsername": "No username"
+    "noUsername": "No username",
+    "attentionTierExpired": "Package period ended — the bot is off",
+    "attentionTierEndingSoon": "Package ends in {n} days"
   },
   "bots": {
     "title": "My Products",
@@ -3575,7 +3577,9 @@
     "tierExpired": "This package has expired — the bot is off until you renew.",
     "renewCta": "Renew",
     "renewed": "Package renewed",
-    "renewFailed": "Renewal failed"
+    "renewFailed": "Renewal failed",
+    "purgeTrial": "Unless you buy a package within {n} days, this bot and all its data will be permanently deleted. This cannot be undone.",
+    "purgeTier": "Unless you renew within {n} days, this bot and all its data will be permanently deleted. This cannot be undone."
   },
   "plans": {
     "title": "Plans",

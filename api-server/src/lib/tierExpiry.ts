@@ -3,7 +3,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Standard/Pro bot packages used to be a one-time forever purchase (no expiry
  * concept existed at all — see `bots.tierExpiresAt`'s own doc comment in
- * schema/bots.ts). Now they're monthly: this sweep runs periodically
+ * schema/bots.ts). Now they're monthly (now: a fixed 30-day period, `TIER_PERIOD_DAYS`): this sweep runs periodically
  * (wired into `index.ts` via `setInterval`, same no-cron-infra pattern every
  * other periodic job in this codebase already uses — `sweepPaymentRequests`,
  * `refreshExchangeRateFromApi`) and, for every bot with a tier and an expiry
@@ -42,6 +42,7 @@ import { createNotification, formatTomanFa } from "./notify.js";
 import { syncTenantUpsert } from "./sheetsSync.js";
 import { decryptToken } from "./tokenCrypto.js";
 import { logger } from "./logger.js";
+import { addTierPeriod, PURGE_RETENTION_DAYS } from "./botLifetime.js";
 
 export const TIER_EXPIRED_STATUS = "tier_expired";
 /** How many days ahead of the deadline the owner gets warned. */
@@ -104,7 +105,7 @@ async function handleExpiredBot(bot: BotRow): Promise<void> {
   const renewed = product ? await deductWallet(bot.userId, tomanToRial(product.priceToman), `Auto-renew: ${bot.tier} plan for ${bot.name}`) : false;
 
   if (renewed && product) {
-    const nextExpiry = addOneMonth(bot.tierExpiresAt!);
+    const nextExpiry = addTierPeriod(bot.tierExpiresAt!);
     const wasExpired = bot.status === TIER_EXPIRED_STATUS;
     const [updated] = await db.update(botsTable)
       .set({ tierExpiresAt: nextExpiry, status: wasExpired ? "active" : bot.status })
@@ -135,7 +136,7 @@ async function handleExpiredBot(bot: BotRow): Promise<void> {
     type: "tier_expired",
     severity: "critical",
     title: "بات شما خاموش شد",
-    message: `دوره‌ی پکیج بات «${bot.name}» به پایان رسید و موجودی کیف پول برای تمدیدِ خودکار کافی نبود. بات دیگر به کاربرانش پاسخ نمی‌دهد تا تمدید کنید.`,
+    message: `دوره‌ی پکیج بات «${bot.name}» به پایان رسید و موجودی کیف پول برای تمدیدِ خودکار کافی نبود. بات دیگر به کاربرانش پاسخ نمی‌دهد؛ اگر تا ${PURGE_RETENTION_DAYS} روز دیگر تمدید نکنید، بات و همه‌ی داده‌هایش برای همیشه حذف می‌شود.`,
     dedupeKey: `tier-expired:${bot.id}:${bot.tierExpiresAt!.toISOString().slice(0, 10)}`,
   });
 }

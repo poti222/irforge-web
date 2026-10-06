@@ -17,6 +17,8 @@ import type { Bot } from "@workspace/api-client-react";
 export type AttentionReason =
   | "expired"
   | "trialEndingSoon"
+  | "tierExpired"
+  | "tierEndingSoon"
   | "error"
   | "paymentRejected"
   | "pendingPayment";
@@ -24,10 +26,14 @@ export type AttentionReason =
 /** Trial bots with this many days or fewer left surface as "ending soon". */
 const TRIAL_WARNING_DAYS = 3;
 
-export function attentionReason(bot: Pick<Bot, "status" | "isTrial" | "trialDaysLeft">): AttentionReason | null {
+type AttentionBot = Pick<Bot, "status" | "isTrial" | "trialDaysLeft"> & Partial<Pick<Bot, "tierExpiresAt" | "tierDaysLeft">>;
+
+export function attentionReason(bot: AttentionBot): AttentionReason | null {
   switch (bot.status) {
     case "expired":
       return "expired";
+    case "tier_expired":
+      return "tierExpired";
     case "error":
       return "error";
     case "payment_rejected":
@@ -40,10 +46,14 @@ export function attentionReason(bot: Pick<Bot, "status" | "isTrial" | "trialDays
   if (bot.isTrial && bot.trialDaysLeft != null && bot.trialDaysLeft <= TRIAL_WARNING_DAYS) {
     return "trialEndingSoon";
   }
+  // استاندارد/پرو ۳۰ روزه‌اند: نزدیکِ پایان باید در داشبورد دیده شود (نه فقط داخلِ صفحه‌یِ بات).
+  if (bot.tierExpiresAt && bot.tierDaysLeft != null && bot.tierDaysLeft >= 0 && bot.tierDaysLeft <= TRIAL_WARNING_DAYS) {
+    return "tierEndingSoon";
+  }
   return null;
 }
 
-export function botsNeedingAttention<T extends Pick<Bot, "status" | "isTrial" | "trialDaysLeft">>(
+export function botsNeedingAttention<T extends AttentionBot>(
   bots: readonly T[]
 ): { bot: T; reason: AttentionReason }[] {
   const out: { bot: T; reason: AttentionReason }[] = [];

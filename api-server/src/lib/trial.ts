@@ -10,14 +10,15 @@
  *   - اگر تریال تمام شده باشد → status بات به "expired" تغییر می‌کند و یک
  *     اعلان نهایی ساخته می‌شود.
  *
- * حذف واقعی داده‌ها بعد از انقضا فعلاً پیاده‌سازی نشده (تصمیم محصولی: فعلاً
- * فقط قطع سرویس + اعلان، حذف دیتا بعداً).
+ * حذفِ دائمیِ بات ۷ روز بعد از انقضا توسطِ lib/botLifecycle.ts (جاروی دوره‌ای) انجام می‌شود؛ این فایل فقط قطعِ سرویس
+ * + اعلان است.
  */
 import crypto from "crypto";
 import { eq, and } from "drizzle-orm";
 import { db, botsTable, notificationsTable, type Bot } from "@workspace/db";
 import { logger } from "./logger";
 import { deliverToTelegramInBackground } from "./notifyTelegram";
+import { PURGE_RETENTION_DAYS } from "./botLifetime";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 /** از این تعداد روز مانده به بعد، هر روز یک اعلان هشدار ساخته می‌شود. */
@@ -91,7 +92,7 @@ export async function evaluateBotTrial(bot: Bot): Promise<Bot> {
       type: "trial_expired",
       severity: "critical",
       title: "دوره تریال به پایان رسید",
-      message: `تریال ۷ روزه‌ی بات «${bot.name}» تمام شد و سرویس آن قطع شد. برای ادامه، یکی از پکیج‌ها را از صفحه‌ی «خرید بات» تهیه کن.`,
+      message: `تریال ۷ روزه‌ی بات «${bot.name}» تمام شد و سرویس آن قطع شد. اگر تا ${PURGE_RETENTION_DAYS} روز دیگر یکی از پکیج‌ها را از صفحه‌ی «خرید بات» تهیه نکنی، بات و همه‌ی داده‌هایش برای همیشه حذف می‌شود.`,
       dedupeKey: `trial:${bot.id}:expired`,
     });
     return { ...bot, status: "expired" };

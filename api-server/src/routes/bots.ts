@@ -55,6 +55,7 @@ import {
 import { renameSpreadsheet, sheetIsAccessible, resetSpreadsheet, ensureAllTenantTabs } from "../lib/sheets";
 import { readTabRows, readTabRowsBatch } from "../lib/tenantSheets.js";
 import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
+import { purgeBotFully, markSheetTitleFreed } from "../lib/botPurge.js";
 import { createNotification, notifySuperAdmins, formatTomanFa } from "../lib/notify";
 import { botUserStats, type BotUserStats } from "../lib/botStats";
 // قیمت خرید از سرور حساب می‌شود، نه از بدنه‌ی درخواست — نگاه کن lib/pluginPricing.ts
@@ -64,7 +65,7 @@ import { marketplaceItemIdFor } from "../lib/marketplaceSync.js";
 import { getUserPlanLimits, countUserBots } from "../lib/planLimits.js";
 import { deductWallet, creditWallet, InsufficientBalanceError } from "../lib/wallet.js";
 import { tomanToRial, rialToToman } from "../lib/currency.js";
-import { addOneMonth } from "../lib/tierExpiry.js";
+import { addTierPeriod, trialEndDate } from "../lib/botLifetime.js";
 import { verifyCaptchaToken } from "../lib/captchaVerify.js";
 import { buildSheetPoolView } from "../lib/sheetPoolView.js";
 import {
@@ -134,19 +135,6 @@ async function syncSheetTitle(sheetId: string | null | undefined, botName: strin
   }
 }
 
-/**
- * وقتی شیتی از یک بات آزاد می‌شه (چه با حذف بات، چه با release دستی توسط
- * سوپرادمین)، عنوانش رو "~" می‌کنیم تا مشخص باشه دیگه هیچ بات فعالی
- * ازش استفاده نمی‌کنه. Best-effort و non-fatal، مثل syncSheetTitle.
- */
-async function markSheetTitleFreed(sheetId: string | null | undefined) {
-  if (!sheetId) return;
-  try {
-    await renameSpreadsheet(sheetId, "~");
-  } catch (err) {
-    logger.warn({ err, sheetId }, "sheet title freed-rename failed (non-fatal)");
-  }
-}
 
 // IRFORGE_MONTHLY_TIER_EXPIRY_PROMPT — "tier_expired" عمداً اینجا نیست: این
 // آرایه یعنی «مقادیری که owner از طریق PATCH .../status خودش اجازه دارد
@@ -156,94 +144,6 @@ async function markSheetTitleFreed(sheetId: string | null | undefined) {
 const VALID_BOT_STATUSES = ["active", "inactive", "error", "pending_payment", "payment_rejected", "expired"] as const;
 type BotStatus = typeof VALID_BOT_STATUSES[number];
 
-// ─── Shared full-purge logic (manual delete + expiry-triggered internal purge) ─
-// See docs/DELETION_POLICY.md. Deletes the bot's site Postgres rows, then
-// fires the registry/sheet-pool/deletion-queue syncs — the two previously
-// written-but-never-called `syncTenantDelete`/`syncSheetPoolUpsert` functions
-// are wired in here, plus the new `syncDeletionQueueAdd`.
-async function purgeBotFully(
-  bot: { id: string; token: string; sheetId: string | null },
-  requestedBy: "manual" | "expiry"
-) {
-  await db.delete(commandsTable).where(eq(commandsTable.botId, bot.id));
-  await db.delete(installedPluginsTable).where(eq(installedPluginsTable.botId, bot.id));
-  await db.delete(botsTable).where(eq(botsTable.id, bot.id));
-
-  syncBotDelete(bot.id);
-
-  const plainToken = decryptToken(bot.token);
-  // Live incident 2026-09-21: this used to be the fire-and-forget
-  // syncTenantDelete(), so the route could (and did) respond 204 before the
-  // registry row was actually gone. The frontend's own onSuccess handler
-  // invalidates the bots-list query immediately, and reconcileBotsFromRegistry()
-  // (run on every GET /bots) can't tell "deleted on purpose, sync just hasn't
-  // landed yet" apart from "never registered" -- it re-imported the tenant
-  // as a brand-new bot row (zero commands/users) the moment that refetch beat
-  // the background write. Awaiting it here closes that race. A failure here
-  // is logged loudly but doesn't fail the whole delete -- the bot's actual
-  // data (commands/plugins/Postgres row, and the sheet reset below) is
-  // already irreversibly gone by this point either way.
-  try {
-    await syncTenantDeleteAwait(plainToken);
-  } catch (err) {
-    logger.error(
-      { err, botId: bot.id },
-      "registry tenant-delete failed during purge -- the bot's Postgres row is gone, but a stale registry " +
-        "row may still resurrect it as an empty duplicate on the next GET /bots reconcile pass"
-    );
-  }
-
-  if (bot.sheetId) {
-    // BUG FIX: pre-existing sheet-pool race conditions (see claimFreeSheet
-    // above) left some sheetIds silently shared by more than one bot row —
-    // sometimes across different users. Wiping/releasing the sheet here used
-    // to assume this bot was its only user; if another bot row still points
-    // at the same sheetId, that would permanently destroy that OTHER bot's
-    // live data and hand its sheet out to a third, unrelated tenant. Check
-    // first, and only touch the real Google Sheet / pool row when this was
-    // truly the sole owner.
-    const [stillInUse] = await db
-      .select({ id: botsTable.id })
-      .from(botsTable)
-      .where(eq(botsTable.sheetId, bot.sheetId))
-      .limit(1);
-
-    if (stillInUse) {
-      logger.error(
-        { sheetId: bot.sheetId, deletedBotId: bot.id, otherBotId: stillInUse.id },
-        "sheetId is still referenced by another bot row after purge — skipping resetSpreadsheet/pool-release " +
-          "to avoid destroying that bot's live data (pre-existing sheet-pool collision, needs manual review)"
-      );
-    } else {
-      // قبلاً فقط رجیستری/وضعیت Postgres آزاد می‌شد ولی خودِ گوگل‌شیت پاک
-      // نمی‌شد، پس بات بعدی که این شیت بهش assign می‌شد تب‌ها و دیتای بات
-      // قبلی رو می‌دید. حالا قبل از available کردن، خودِ شیت کاملاً ریست
-      // می‌شه (انگار تازه ساخته شده).
-      try {
-        await resetSpreadsheet(bot.sheetId);
-      } catch (err) {
-        logger.error(
-          { err, sheetId: bot.sheetId },
-          "resetSpreadsheet failed during bot purge — sheet may still contain previous tenant's data, do NOT reassign without manual check"
-        );
-      }
-
-      await db
-        .update(sheetPoolTable)
-        .set({ status: "available", assignedBotId: null })
-        .where(eq(sheetPoolTable.sheetId, bot.sheetId));
-
-      syncSheetPoolUpsert({ sheet_id: bot.sheetId, assigned_to: null, status: "available" });
-      await markSheetTitleFreed(bot.sheetId);
-    }
-  }
-
-  syncDeletionQueueAdd({
-    bot_token: plainToken,
-    tenant_sheet_id: bot.sheetId ?? null,
-    requested_by: requestedBy,
-  });
-}
 
 // ─── requireSuperAdmin ───────────────────────────────────────────────────────
 
@@ -368,6 +268,9 @@ function formatBot(bot: any) {
     // می‌آید؛ تابعِ جدا لازم نبود.
     tierExpiresAt: bot.tierExpiresAt ? bot.tierExpiresAt.toISOString() : null,
     tierDaysLeft: bot.tierExpiresAt ? trialDaysLeft(bot.tierExpiresAt) : null,
+    // انقضا ⇒ حذفِ نهایی (lib/botLifecycle.ts): فقط وقتی بات منقضی است و زمانِ حذفش ثبت شده.
+    purgeAt: bot.purgeAfter ? bot.purgeAfter.toISOString() : null,
+    purgeDaysLeft: bot.purgeAfter ? trialDaysLeft(bot.purgeAfter) : null,
     createdAt: bot.createdAt.toISOString(),
     updatedAt: bot.updatedAt.toISOString(),
   };
@@ -1164,7 +1067,7 @@ router.post("/bots/trial", requireAuth, perUserRateLimit("bot_create", 10, 60 * 
       return;
     }
 
-    const trialExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const trialExpiresAt = trialEndDate();
     const botId = crypto.randomUUID();
 
     // ۱. یک شیت آزاد از Pool بگیر — بدون این، بات هیچ‌وقت spreadsheet_id
@@ -1459,7 +1362,7 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
     // که خودِ sweep/تمدید استفاده می‌کند، تا هر سه‌جا با هم یکی باشند.
     const tierExpiresAt =
       purchasedTier === "standard" || purchasedTier === "pro"
-        ? addOneMonth(new Date())
+        ? addTierPeriod(new Date())
         : null;
 
     // Payment already cleared above (wallet deducted, discount committed) by
@@ -2525,7 +2428,7 @@ router.patch("/admin/bots/:botId/trial-expiry", requireSuperAdmin, async (req: a
     }
     const [bot] = await db
       .update(botsTable)
-      .set({ trialExpiresAt })
+      .set({ trialExpiresAt, purgeAfter: null })
       .where(eq(botsTable.id, req.params.botId))
       .returning();
     if (!bot) {
@@ -3621,7 +3524,7 @@ router.post("/bots/:botId/renew", requireBotOwnership, async (req: any, res) => 
     // (نه از الان) — تا پیش‌خرید حقی از owner نگیرد؛ فقط وقتی از قبل گذشته
     // (یا تمدیدِ خودکار قبلاً ناموفق بوده) از همین لحظه حساب می‌شود.
     const base = bot.tierExpiresAt && bot.tierExpiresAt > new Date() ? bot.tierExpiresAt : new Date();
-    const nextExpiry = addOneMonth(base);
+    const nextExpiry = addTierPeriod(base);
     const wasExpired = bot.status === "tier_expired";
     const [updated] = await db.update(botsTable)
       .set({ tierExpiresAt: nextExpiry, status: wasExpired ? "active" : bot.status })

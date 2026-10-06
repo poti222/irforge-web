@@ -8,6 +8,7 @@ import { defaultPaymentNotifiers } from "./routes/paymentSmsWebhook";
 import { pool as dbPool } from "@workspace/db";
 import { runStartupCryptoSelfCheck } from "./lib/tokenCrypto.js";
 import { sweepTierExpiry } from "./lib/tierExpiry.js";
+import { sweepBotLifecycle } from "./lib/botLifecycle.js";
 import { sweepSqlDatabaseExpiry } from "./lib/sqlDatabaseExpiry.js";
 
 const port = Number(process.env.PORT ?? 3000);
@@ -60,6 +61,15 @@ void migrateLegacyWalletTopups(dbPool as any)
 setInterval(() => {
   void sweepTierExpiry().catch((err) => logger.error({ err }, "sweepTierExpiry failed"));
 }, 10 * 60 * 1000);
+
+// انقضا ⇒ حذفِ نهایی (لایوباگ ۲۰۲۶-۱۰-۰۶: «بات‌ها وقتی زمانشان تمام می‌شود پاک نمی‌شوند»): تریال ۷ روزه / پکیج ۳۰ روزه ←
+// قطعِ سرویس ← ۷ روز مهلتِ تمدید (هشدار روزِ ۰ و ۳ روز مانده) ← حذفِ کامل. اولین اجرا ۲ دقیقه بعد از بوت
+// (تا sweepTierExpiry و خودِ سرور آماده شوند)، بعد هر ۱۰ دقیقه. ببینید lib/botLifetime.ts / lib/botLifecycle.ts.
+const runBotLifecycleSweep = () => {
+  void sweepBotLifecycle().catch((err) => logger.error({ err }, "sweepBotLifecycle failed"));
+};
+setTimeout(runBotLifecycleSweep, 2 * 60 * 1000);
+setInterval(runBotLifecycleSweep, 10 * 60 * 1000);
 
 // IRFORGE_PAID_SQL_DATABASE_PROMPT — همان دلیلِ sweepTierExpiry بالا، برایِ
 // اشتراکِ ماهانه‌ی دیتابیسِ SQL هر بات.

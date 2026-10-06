@@ -62,8 +62,12 @@ function attentionReasonText(reason: AttentionReason, bot: BotType, t: LocaleSha
   if (reason === "trialEndingSoon") {
     return t.attentionTrialEndingSoon.replace("{n}", String(bot.trialDaysLeft ?? 0));
   }
+  if (reason === "tierEndingSoon") {
+    return t.attentionTierEndingSoon.replace("{n}", String(bot.tierDaysLeft ?? 0));
+  }
   return {
     expired: t.attentionExpired,
+    tierExpired: t.attentionTierExpired,
     error: t.attentionError,
     paymentRejected: t.attentionPaymentRejected,
     pendingPayment: t.attentionPendingPayment,
@@ -85,6 +89,8 @@ const ANNOUNCEMENT_STYLES: Record<string, string> = {
 const ATTENTION_ICONS: Record<AttentionReason, LucideIcon> = {
   expired: AlertTriangle,
   trialEndingSoon: Clock,
+  tierExpired: AlertTriangle,
+  tierEndingSoon: Clock,
   error: AlertTriangle,
   paymentRejected: CreditCard,
   pendingPayment: CreditCard,
@@ -93,6 +99,8 @@ const ATTENTION_ICONS: Record<AttentionReason, LucideIcon> = {
 const ATTENTION_STYLES: Record<AttentionReason, string> = {
   expired: "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300",
   trialEndingSoon: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  tierExpired: "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300",
+  tierEndingSoon: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
   error: "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300",
   paymentRejected: "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300",
   pendingPayment: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
