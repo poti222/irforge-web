@@ -27,10 +27,58 @@ for name in ("android/app/build.gradle.kts", "android/app/build.gradle"):
     print("patched", name)
 PY
 
+# امضای release با keystore ثابت (فقط اگر android/key.properties موجود باشد — CI آن را از secrets می‌سازد).
+# بدونِ آن، بیلد با کلیدِ debug امضا می‌شود و آپدیتِ داخلِ اپ روی نصب‌های قبلی کار نمی‌کند.
+python3 - <<'PY'
+import pathlib
+kts = pathlib.Path("android/app/build.gradle.kts")
+groovy = pathlib.Path("android/app/build.gradle")
+if kts.exists() and "key.properties" not in kts.read_text():
+    kts.write_text(kts.read_text() + """
+val ksFile = rootProject.file("key.properties")
+if (ksFile.exists()) {
+    val ks = java.util.Properties().apply { ksFile.inputStream().use { load(it) } }
+    android {
+        signingConfigs {
+            create("release") {
+                keyAlias = ks["keyAlias"] as String
+                keyPassword = ks["keyPassword"] as String
+                storeFile = file(ks["storeFile"] as String)
+                storePassword = ks["storePassword"] as String
+            }
+        }
+        buildTypes { getByName("release") { signingConfig = signingConfigs.getByName("release") } }
+    }
+}
+""")
+    print("signing patched (kts)")
+elif groovy.exists() and "key.properties" not in groovy.read_text():
+    groovy.write_text(groovy.read_text() + """
+def ksFile = rootProject.file("key.properties")
+if (ksFile.exists()) {
+    def ks = new Properties()
+    ksFile.withInputStream { ks.load(it) }
+    android {
+        signingConfigs {
+            release {
+                keyAlias ks["keyAlias"]
+                keyPassword ks["keyPassword"]
+                storeFile file(ks["storeFile"])
+                storePassword ks["storePassword"]
+            }
+        }
+        buildTypes { release { signingConfig signingConfigs.release } }
+    }
+}
+""")
+    print("signing patched (groovy)")
+PY
+
 # جایگزینی کدِ Kotlin و manifest
 rm -rf android/app/src/main/kotlin
 cp -R overlay/android/app/src/main/kotlin android/app/src/main/kotlin
 cp overlay/android/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+cp -R overlay/android/app/src/main/res/xml android/app/src/main/res/
 
 # iOS: توضیحِ دسترسیِ دوربین (اسکنِ QR)
 PLIST=ios/Runner/Info.plist

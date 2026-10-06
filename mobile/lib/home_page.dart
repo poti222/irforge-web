@@ -6,8 +6,10 @@ import 'package:flutter/services.dart';
 import 'ios_guide_page.dart';
 import 'manual_page.dart';
 import 'native.dart';
+import 'queue_page.dart';
 import 'scan_page.dart';
 import 'setup_link.dart';
+import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -22,12 +24,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _busy = false;
   String? _msg;
   Timer? _poll;
+  int? _dlPct; // null = دانلود در جریان نیست
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _refresh().then((_) => _askAllPermissions());
+    Native.listen();
+    Native.onUpdateProgress = (p) {
+      if (mounted) setState(() => _dlPct = p);
+    };
+    _refresh().then((_) async {
+      await _askAllPermissions();
+      await Native.checkUpdate(); // نتیجه کش می‌شود و در _st.update می‌آید
+      await _refresh();
+    });
     _poll = Timer.periodic(const Duration(seconds: 5), (_) => _refresh());
   }
 
@@ -135,7 +146,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final cfg = _cfg;
     return Scaffold(
-      appBar: AppBar(title: const Text('IrForge Pay Agent')),
+      appBar: AppBar(title: const Text('IrForge Pay Agent'), actions: [
+        if (Native.isAndroid)
+          IconButton(
+            tooltip: 'صف پیامک‌ها',
+            icon: const Icon(Icons.list_alt),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const QueuePage()))
+                .then((_) => _refresh()),
+          ),
+        IconButton(
+          tooltip: 'تنظیمات',
+          icon: const Icon(Icons.settings),
+          onPressed: () => Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => const SettingsPage())),
+        ),
+      ]),
       body: SafeArea(
           child: Align(
               alignment: Alignment.topCenter,
@@ -143,6 +169,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 constraints: const BoxConstraints(
                     maxWidth: 560), // گوشی/تبلت/وب: عرضِ محتوا ثابتِ خوانا
                 child: ListView(padding: const EdgeInsets.all(16), children: [
+                  if (_st.update != null) _updateCard(_st.update!),
                   _statusCard(cfg),
                   const SizedBox(height: 16),
                   FilledButton.icon(
@@ -199,6 +226,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     ),
                   ],
                   const SizedBox(height: 24),
+                  if (Native.isAndroid && _st.versionName.isNotEmpty)
+                    Center(
+                      child: TextButton(
+                        onPressed: _manualCheckUpdate,
+                        child: Text(
+                            'نسخه ${_st.versionName} (${_st.versionCode}) · بررسی نسخه جدید'),
+                      ),
+                    ),
                   if (cfg != null)
                     TextButton(
                       onPressed: () async {
@@ -209,6 +244,71 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     ),
                 ]),
               ))),
+    );
+  }
+
+  Future<void> _manualCheckUpdate() async {
+    setState(() => _msg = 'در حال بررسی…');
+    final u = await Native.checkUpdate();
+    await _refresh();
+    if (mounted)
+      setState(() => _msg =
+          u == null ? 'شما آخرین نسخه را دارید ✅' : 'نسخه ${u.name} موجود است');
+  }
+
+  Future<void> _doUpdate() async {
+    setState(() {
+      _dlPct = 0;
+      _msg = null;
+    });
+    final ok = await Native.downloadUpdate();
+    if (!mounted) return;
+    setState(() => _dlPct = null);
+    if (!ok) {
+      setState(() => _msg =
+          'دانلود یا تأیید فایل ناموفق بود. اینترنت/VPN را بررسی کنید و دوباره تلاش کنید.');
+      return;
+    }
+    final r = await Native.installUpdate();
+    if (mounted && r == 'need_permission') {
+      setState(() => _msg =
+          'در صفحه‌ی باز‌شده «اجازه نصب از این منبع» را روشن کنید، برگردید و دوباره «دانلود و نصب» را بزنید.');
+    }
+  }
+
+  Widget _updateCard(UpdateInfo u) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      color: scheme.primaryContainer,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.system_update),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Text('نسخه جدید ${u.name} آماده است',
+                    style: Theme.of(context).textTheme.titleMedium)),
+          ]),
+          if (u.notes.isNotEmpty)
+            Padding(
+                padding: const EdgeInsets.only(top: 6), child: Text(u.notes)),
+          const SizedBox(height: 12),
+          if (_dlPct != null)
+            Column(children: [
+              LinearProgressIndicator(
+                  value: _dlPct == 0 ? null : _dlPct! / 100),
+              const SizedBox(height: 4),
+              Text('در حال دانلود… $_dlPct٪')
+            ])
+          else
+            FilledButton.icon(
+                onPressed: _doUpdate,
+                icon: const Icon(Icons.download),
+                label: const Text('دانلود و نصب')),
+        ]),
+      ),
     );
   }
 

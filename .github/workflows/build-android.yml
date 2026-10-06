@@ -6,29 +6,71 @@ on:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "17" }
       - uses: subosito/flutter-action@v2
         with: { channel: stable, cache: true }
+
+      # امضای ثابت: بدونِ آن آپدیتِ داخلِ اپ کار نمی‌کند (راهنما: mobile/tools/make-keystore.sh)
+      - name: Prepare release signing
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: mobile
+        run: |
+          mkdir -p android/app
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.jks
+          echo "KEYSTORE_READY=1" >> "$GITHUB_ENV"
       - name: Bootstrap + test
         working-directory: mobile
         run: |
           ./bootstrap.sh
           flutter analyze
           flutter test
-      # آیکن‌ها/منابع را اندروید خودش بر اساس تراکمِ صفحه‌ی هر گوشی انتخاب می‌کند؛
-      # برای حجم: R8/shrink پیش‌فرضِ release است + نسخه‌ی جداگانه به‌ازای هر معماریِ CPU (کوچک‌تر).
-      - name: Build universal APK (یک فایل برای همه‌ی گوشی‌ها)
+      - name: Write key.properties
+        if: env.HAS_KEYSTORE == 'true'
         working-directory: mobile
-        run: flutter build apk --release
-      - name: Build per-ABI APKs (کوچک‌تر)
+        run: |
+          mv release.jks android/app/release.jks
+          cat > android/key.properties <<EOF
+          storeFile=release.jks
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          EOF
+      - name: Warn if unsigned-by-release-key
+        if: env.HAS_KEYSTORE != 'true'
+        run: echo "::warning::ANDROID_KEYSTORE_BASE64 تنظیم نشده؛ APK با کلید debug امضا شد و آپدیتِ داخلِ اپ روی نصب‌های قبلی کار نمی‌کند."
+
+      # versionCode افزایشی = شماره‌ی اجرا (همان AGENT_VERSION_CODE)
+      - name: Build universal APK (یک فایل برای همه‌ی گوشی‌ها — همین را برای آپدیت استفاده کنید)
         working-directory: mobile
-        run: flutter build apk --release --split-per-abi
-      - name: Report sizes
-        run: ls -lh mobile/build/app/outputs/flutter-apk/*.apk
+        run: |
+          flutter build apk --release --build-number=${{ github.run_number }} --build-name=1.0.${{ github.run_number }}
+          mkdir -p ../dist
+          cp build/app/outputs/flutter-apk/app-release.apk ../dist/irforge-pay-agent.apk
+      - name: Per-ABI APKs (کوچک‌تر)
+        working-directory: mobile
+        run: |
+          flutter build apk --release --split-per-abi --build-number=${{ github.run_number }} --build-name=1.0.${{ github.run_number }}
+          cp build/app/outputs/flutter-apk/app-*-release.apk ../dist/ || true
+      - name: Release values for the server
+        run: |
+          SHA=$(sha256sum dist/irforge-pay-agent.apk | cut -d' ' -f1)
+          ls -lh dist
+          {
+            echo "## مقادیرِ انتشارِ این نسخه"
+            echo '```'
+            echo "AGENT_VERSION_CODE=${{ github.run_number }}"
+            echo "AGENT_VERSION_NAME=1.0.${{ github.run_number }}"
+            echo "AGENT_APK_SHA256=$SHA"
+            echo "AGENT_APK_URL=<لینکِ https مستقیم به فایلِ irforge-pay-agent.apk>"
+            echo '```'
+            echo "این چهار env را روی سرور (Railway) بگذارید؛ اپ‌ها خودشان خبردار می‌شوند."
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: irforge-pay-agent-apk
-          path: mobile/build/app/outputs/flutter-apk/*.apk
+          path: dist/*.apk
