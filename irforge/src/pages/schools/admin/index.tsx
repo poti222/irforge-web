@@ -18,6 +18,7 @@ import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
 import { useViewedSchool } from "@/hooks/use-viewed-school";
 import { formatToman } from "@/lib/format";
+import { SchoolWalletCard, SchoolWalletTopupDialog, useSchoolWallet, schoolWalletKey } from "@/components/schools/SchoolWalletCard";
 import { customFetch } from "@workspace/api-client-react";
 import {
   createSchool, getSchoolMe, updateSchool, listMySchools, listInviteCodes, createInviteCode, toggleInviteCode,
@@ -192,6 +193,7 @@ export default function SchoolsAdminHome() {
           </Card>
 
           <AcademicStatusCard schoolId={school.id} />
+          <SchoolWalletCard schoolId={school.id} />
           <SchoolBotCard schoolId={school.id} />
           <AbsenceOverviewCard schoolId={school.id} />
           <CounselorReportsCard schoolId={school.id} />
@@ -473,12 +475,9 @@ function SchoolBotCard({ schoolId }: { schoolId: string }) {
   const [purchasing, setPurchasing] = useState(false);
   const [showInsufficient, setShowInsufficient] = useState(false);
   const { data: bot } = useQuery({ queryKey: ["schools", "bot", schoolId], queryFn: () => getSchoolBotStatus(schoolId) });
-  // همان کوئری/کلید که pages/wallet.tsx و PluginsManager.tsx استفاده می‌کنند —
-  // کیف‌پول یک جا کش می‌شود، نه یک اندپوینتِ تازه برای همین کارت.
-  const { data: wallet } = useQuery({
-    queryKey: ["wallet"],
-    queryFn: () => customFetch<{ balance: number }>("/api/wallet"),
-  });
+  // موجودیِ «کیف‌پولِ مدرسه» (جدا از /wallet و کیف‌پولِ شخصی) — همان کوئریِ SchoolWalletCard، پس یک‌بار کش می‌شود.
+  const { data: wallet } = useSchoolWallet(schoolId);
+  const [topUpOpen, setTopUpOpen] = useState(false);
 
   async function handlePurchase() {
     setPurchasing(true);
@@ -486,7 +485,7 @@ function SchoolBotCard({ schoolId }: { schoolId: string }) {
     try {
       await purchaseSchoolBot(schoolId);
       await queryClient.invalidateQueries({ queryKey: ["schools", "bot", schoolId] });
-      await queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      await queryClient.invalidateQueries({ queryKey: schoolWalletKey(schoolId) });
       toast({ title: t.botPurchased });
     } catch (err: any) {
       const code = err?.data?.code;
@@ -527,9 +526,12 @@ function SchoolBotCard({ schoolId }: { schoolId: string }) {
                 {wallet && (
                   <span className="flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1 text-xs text-muted-foreground">
                     <Wallet className="size-3.5 text-primary" />
-                    {t.botCardWalletBalance}: <span className="font-semibold text-foreground">{formatToman(wallet.balance, lang)}</span>
+                    {t.botCardSchoolWalletBalance}: <span className="font-semibold text-foreground">{formatToman(wallet.balanceRial / 10, lang)}</span>
                   </span>
                 )}
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setTopUpOpen(true)} data-testid="bot-card-topup-always">
+                  {t.swTopUp}
+                </Button>
               </div>
               <Button onClick={handlePurchase} disabled={purchasing}>
                 {purchasing ? <Loader2 className="me-2 size-4 animate-spin" /> : <UserPlus className="me-2 size-4" />}
@@ -540,12 +542,13 @@ function SchoolBotCard({ schoolId }: { schoolId: string }) {
         </div>
         {showInsufficient && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            <span>{t.botCardInsufficientInline}</span>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/wallet">{t.botCardTopUpLink}</Link>
+            <span>{t.swBotInsufficient}</span>
+            <Button variant="outline" size="sm" onClick={() => setTopUpOpen(true)} data-testid="bot-card-topup">
+              {t.swTopUp}
             </Button>
           </div>
         )}
+        <SchoolWalletTopupDialog schoolId={schoolId} open={topUpOpen} onOpenChange={setTopUpOpen} />
       </CardContent>
     </Card>
   );

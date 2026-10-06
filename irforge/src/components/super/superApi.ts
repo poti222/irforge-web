@@ -119,3 +119,15 @@ export const SCHOOL_ADMIN_LINKS: { path: string; fa: string; en: string }[] = [
   { path: "/schools/admin/alerts", fa: "هشدارهای دانش‌آموز", en: "Student alerts" },
   { path: "/schools/admin/audit-log", fa: "تاریخچه‌یِ رخدادها", en: "Audit log" },
 ];
+
+// ─── کیف‌پولِ مدرسه (جدا از کیف‌پولِ شخصی) ──────────────────────────────────────
+export interface SchoolWalletTxn { id: string; type: "credit" | "spend" | "admin_credit" | "admin_debit"; amountRial: number; balanceAfterRial: number; description: string; refId: string | null; createdAt: string }
+export interface SchoolWalletTopupRequest { id: string; schoolId: string; amountRial: number; note: string | null; status: string; decisionNote: string | null; createdAt: string; decidedAt: string | null; schoolName?: string; requestedByName?: string | null }
+export const getSuperSchoolWallet = (schoolId: string) =>
+  customFetch<{ school: { id: string; name: string }; balanceRial: number; transactions: SchoolWalletTxn[]; hasMore: boolean; pendingRequests: SchoolWalletTopupRequest[] }>(`/api/super/schools/${schoolId}/wallet`, opts);
+export const adjustSuperSchoolWallet = (schoolId: string, body: { direction: "credit" | "debit"; amountRial: number; reason: string }) =>
+  customFetch<{ ok: true; balanceRial: number }>(`/api/super/schools/${schoolId}/wallet/adjust`, { ...opts, method: "POST", body: JSON.stringify(body) });
+export const listSuperSchoolWalletRequests = () =>
+  customFetch<SchoolWalletTopupRequest[]>("/api/super/school-wallet-requests?status=pending", opts);
+export const decideSuperSchoolWalletRequest = (id: string, body: { decision: "approve" | "reject"; note?: string }) =>
+  customFetch<{ ok: true; status: string }>(`/api/super/school-wallet-requests/${id}/decision`, { ...opts, method: "POST", body: JSON.stringify(body) });

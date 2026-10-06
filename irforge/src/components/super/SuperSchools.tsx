@@ -12,10 +12,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RefreshButton } from "@/components/ui/refresh-button";
-import { Bot, ExternalLink, Loader2, Plus, Search, Settings2, UserPlus } from "lucide-react";
+import { Bot, ExternalLink, Loader2, Plus, Search, Settings2, UserPlus, Wallet } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
 import { rememberViewedSchool } from "@/hooks/use-viewed-school";
+import { PendingWalletRequests, SchoolWalletTab } from "./SuperSchoolWallet";
 import {
   SCHOOL_ADMIN_LINKS, SCHOOL_ROLE_LABELS, SCHOOL_ROLE_ORDER, SUPER_QUERY_ROOT, addSuperSchoolMember, createSuperSchool, listSuperSchools,
   updateSuperSchool, type SuperSchool,
@@ -166,7 +167,10 @@ function SchoolDialog({ school, onClose }: { school: SuperSchool; onClose: () =>
             <TabsTrigger value="manage"><ExternalLink className="me-1.5 size-4" />{fa ? "مدیریتِ کامل" : "Full management"}</TabsTrigger>
             <TabsTrigger value="edit"><Settings2 className="me-1.5 size-4" />{fa ? "ویرایش" : "Edit"}</TabsTrigger>
             <TabsTrigger value="member"><UserPlus className="me-1.5 size-4" />{fa ? "افزودنِ عضو" : "Add member"}</TabsTrigger>
+            <TabsTrigger value="wallet" data-testid="ss-tab-wallet"><Wallet className="me-1.5 size-4" />{fa ? "شارژ کیف پول" : "Wallet"}</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="wallet"><SchoolWalletTab school={school} /></TabsContent>
 
           <TabsContent value="manage" className="space-y-3">
             <p className="text-sm text-muted-foreground">
@@ -259,6 +263,7 @@ export function SuperSchools() {
   return (
     <Card>
       <CardContent className="space-y-4 p-4">
+        <PendingWalletRequests />
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="me-auto text-base font-semibold">{fa ? "همه‌یِ مدارس" : "All schools"}{data ? <span className="ms-2 text-sm font-normal text-muted-foreground">({data.length})</span> : null}</h2>
           <div className="relative">
