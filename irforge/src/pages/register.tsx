@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { consumePostAuthTarget } from "@/lib/post-auth";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch, getGetMeQueryKey } from "@workspace/api-client-react";
@@ -509,7 +510,7 @@ export default function Register() {
         setAuthToken(res.token);
         queryClient.setQueryData(getGetMeQueryKey(), res.user);
         sessionStorage.removeItem(STORAGE_KEY);
-        navigate("/dashboard");
+        navigate(consumePostAuthTarget());
         return;
       }
 
@@ -641,7 +642,7 @@ export default function Register() {
       setAuthToken(res.token);
       queryClient.setQueryData(getGetMeQueryKey(), res.user);
       sessionStorage.removeItem(STORAGE_KEY);
-      navigate("/dashboard");
+      navigate(consumePostAuthTarget());
     } catch (err: any) {
       // رکورد عمداً زنده می‌ماند تا کاربر بتواند ایمیل را اصلاح کند.
       if (err?.data?.code === "email_taken") setEditingEmail(true);

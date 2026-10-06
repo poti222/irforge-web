@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { consumePostAuthTarget } from "@/lib/post-auth";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
@@ -191,7 +192,7 @@ export default function Login() {
       // بروند و سرور ۴۰۱ بدهد، در حالی که UI کاربر را واردشده نشان می‌دهد.
       setAuthToken(res.token);
       queryClient.setQueryData(getGetMeQueryKey(), res.user);
-      navigate("/dashboard");
+      navigate(consumePostAuthTarget());
     },
     [navigate, queryClient],
   );

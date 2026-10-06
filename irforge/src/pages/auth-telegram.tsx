@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { consumePostAuthTarget } from "@/lib/post-auth";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch, getGetMeQueryKey } from "@workspace/api-client-react";
@@ -55,7 +56,7 @@ export default function AuthTelegram() {
         // همان کلیدی که main.tsx برای هدر Authorization می‌خواند.
         setAuthToken(res.token);
         queryClient.setQueryData(getGetMeQueryKey(), res.user);
-        navigate("/dashboard", { replace: true });
+        navigate(consumePostAuthTarget(), { replace: true });
       })
       .catch(() => setFailed(true));
     // فقط یک‌بار، موقع mount — تیکت در URL است و عوض نمی‌شود.

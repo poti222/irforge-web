@@ -1,4 +1,5 @@
 import { useEffect, lazy, Suspense } from "react";
+import { consumePostAuthTarget } from "@/lib/post-auth";
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation, useParams } from "wouter";
 import { navigate } from "wouter/use-browser-location";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -318,7 +319,7 @@ function PublicOnlyRoute({ component: Component, ...rest }: { component: any }) 
   }
 
   if (user) {
-    return <Redirect to="/dashboard" />;
+    return <Redirect to={consumePostAuthTarget()} />;
   }
 
   return <Component {...rest} />;

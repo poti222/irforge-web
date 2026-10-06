@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { consumePostAuthTarget } from "@/lib/post-auth";
 import { useLocation } from "wouter";
 import { customFetch } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -241,7 +242,7 @@ export default function CompleteProfile() {
         body: JSON.stringify({ twoFactorEnabled: enable, twoFactorMethod: enable ? twoFactorMethod : undefined }),
       });
       await refreshUser();
-      navigate("/dashboard");
+      navigate(consumePostAuthTarget());
     } catch (err) {
       fail(err);
     } finally {
