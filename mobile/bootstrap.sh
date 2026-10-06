@@ -36,17 +36,19 @@ import pathlib
 kts = pathlib.Path("android/app/build.gradle.kts")
 groovy = pathlib.Path("android/app/build.gradle")
 if kts.exists() and "key.properties" not in kts.read_text():
-    kts.write_text(kts.read_text() + """
+    # توجه: داخلِ build.gradle.kts کلمه‌ی «java» به extensionِ جاوای Gradle اشاره می‌کند، پس java.util.Properties
+    # را نمی‌شود با نامِ کامل نوشت؛ import باید اولِ فایل باشد.
+    kts.write_text("import java.util.Properties\n" + kts.read_text() + """
 val ksFile = rootProject.file("key.properties")
 if (ksFile.exists()) {
-    val ks = java.util.Properties().apply { ksFile.inputStream().use { load(it) } }
+    val ks = Properties().apply { ksFile.inputStream().use { load(it) } }
     android {
         signingConfigs {
             create("release") {
-                keyAlias = ks["keyAlias"] as String
-                keyPassword = ks["keyPassword"] as String
-                storeFile = file(ks["storeFile"] as String)
-                storePassword = ks["storePassword"] as String
+                keyAlias = ks.getProperty("keyAlias")
+                keyPassword = ks.getProperty("keyPassword")
+                storeFile = file(ks.getProperty("storeFile"))
+                storePassword = ks.getProperty("storePassword")
             }
         }
         buildTypes { getByName("release") { signingConfig = signingConfigs.getByName("release") } }
