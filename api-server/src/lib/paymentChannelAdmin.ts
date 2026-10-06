@@ -28,6 +28,8 @@ export const DEFAULT_MIN_TOMAN = 100_000;
 export const MIN_MIN_TOMAN = 10_000;
 export const MAX_MIN_TOMAN = 100_000_000;
 export const MAX_ALLOWLIST = 10;
+/** سقفِ «توضیحات» (متنِ آزادِ فروشنده کنارِ کارت). */
+export const MAX_DESCRIPTION = 300;
 /** بیش از این ساعت بدونِ هیچ پیامکِ احرازشده → «گوشی متصل نیست؟». */
 export const SMS_STALE_HOURS = 12;
 export const SMS_LOG_LIMIT = 50;
@@ -52,6 +54,7 @@ export interface ChannelInput {
   cardNumber?: unknown;
   holderName?: unknown;
   bankName?: unknown;
+  description?: unknown;
   paymentUrl?: unknown;
   minAmountToman?: unknown;
   senderAllowlist?: unknown;
@@ -64,6 +67,7 @@ export interface ChannelFields {
   cardNumber: string | null;
   holderName: string | null;
   bankName: string | null;
+  description: string | null;
   paymentUrl: string | null;
   minAmountRial: number;
   senderAllowlist: string[];
@@ -77,6 +81,7 @@ export interface ChannelView {
   cardMasked: string | null;
   holderName: string | null;
   bankName: string | null;
+  description: string | null;
   paymentUrl: string | null;
   minAmountToman: number;
   senderAllowlist: string[];
@@ -96,6 +101,25 @@ export type ChannelHealth =
 // ─── اعتبارسنجی ─────────────────────────────────────────────────────────────
 
 const str = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
+
+/**
+ * «توضیحات»: متنِ آزادِ فروشنده (چند خط مجاز). نویسه‌های کنترلی (به‌جز خط‌جدید) حذف، خط‌های خالیِ پشت‌سرهم
+ * به یکی کاهش و دو سرِ متن تمیز می‌شود؛ خالی = «بدونِ توضیحات» (null). فقط متنِ ساده است — بات آن را escape می‌کند.
+ */
+export function cleanDescription(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  if (typeof v !== "string") throw new ChannelAdminError("توضیحات باید متن باشد.", "invalid_description");
+  const text = v
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, "")
+    .split("\n").map((l) => l.trim()).join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (text.length > MAX_DESCRIPTION) {
+    throw new ChannelAdminError(`توضیحات حداکثر ${MAX_DESCRIPTION} نویسه می‌تواند باشد.`, "description_too_long");
+  }
+  return text || null;
+}
 
 function httpsUrl(v: unknown): string {
   const s = str(v, 500);
@@ -160,6 +184,7 @@ export function validateNewChannel(input: ChannelInput): ChannelFields {
     cardNumber,
     holderName,
     bankName: str(input.bankName, 60) || null,
+    description: cleanDescription(input.description),
     paymentUrl,
     minAmountRial: minRial(input.minAmountToman),
     senderAllowlist: allowlist(input.senderAllowlist),
@@ -197,6 +222,7 @@ function toView(r: any, activeRequests: number, now: Date): ChannelView {
     cardMasked: safeMask(r.card_number_enc),
     holderName: r.holder_name ?? null,
     bankName: r.bank_name ?? null,
+    description: r.description ?? null,
     paymentUrl: r.payment_url ?? null,
     minAmountToman: Math.round(Number(r.min_amount_rial) / 10),
     senderAllowlist: r.sender_allowlist ?? [],
@@ -274,13 +300,13 @@ export async function createChannel(
       }
       const { rows } = await c.query(
         `INSERT INTO payment_channels
-           (id, scope, bot_id, kind, card_number_enc, holder_name, bank_name, payment_url, sms_secret_hash,
+           (id, scope, bot_id, kind, card_number_enc, holder_name, bank_name, description, payment_url, sms_secret_hash,
             sender_allowlist, bank_parser, min_amount_rial, active, created_at)
-         VALUES ($1,$14,$2,$3,$4,$5,$6,$7,$8,$9::text[],$10,$11::bigint,$12,$13)
+         VALUES ($1,$14,$2,$3,$4,$5,$6,$15,$7,$8,$9::text[],$10,$11::bigint,$12,$13)
          RETURNING *`,
         [id, ownerBot(owner), fields.kind, fields.cardNumber ? encryptToken(fields.cardNumber) : null, fields.holderName,
           fields.bankName, fields.paymentUrl, hashSmsSecret(secret), fields.senderAllowlist, fields.bankParser,
-          fields.minAmountRial, fields.active, now, owner.scope]);
+          fields.minAmountRial, fields.active, now, owner.scope, fields.description]);
       await c.query("COMMIT");
       return { channel: toView(rows[0], 0, now), smsSecret: secret };
     } catch (err) {
@@ -345,6 +371,7 @@ export async function updateChannel(
       set("holder_name", h || null);
     }
     if (patch.bankName !== undefined) set("bank_name", str(patch.bankName, 60) || null);
+    if (patch.description !== undefined) set("description", cleanDescription(patch.description));
     if (patch.minAmountToman !== undefined) set("min_amount_rial", minRial(patch.minAmountToman), "::bigint");
     if (patch.senderAllowlist !== undefined) set("sender_allowlist", allowlist(patch.senderAllowlist), "::text[]");
     if (patch.bankParser !== undefined) {

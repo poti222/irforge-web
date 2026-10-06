@@ -43,6 +43,8 @@ export interface BotChannelInfo {
   kind: "card_manual" | "fixed_link" | "open_link";
   holderName: string | null;
   bankName: string | null;
+  /** توضیحاتِ فروشنده کنارِ کارت (متنِ ساده)؛ null اگر ننوشته. */
+  description: string | null;
   minAmountRial: number;
   active: boolean;
   /** فقط ۴ رقمِ آخرِ کارت (برایِ برچسبِ انتخابِ حساب در بات)؛ null برایِ کانالِ لینکی. */
@@ -75,6 +77,8 @@ export interface BotPaymentView {
     kind: string;
     holderName: string | null;
     bankName: string | null;
+    /** مثلِ cardNumber: فقط وقتی status ∈ {pending, awaiting_review} — وگرنه null. */
+    description: string | null;
     /** فقط وقتی status ∈ {pending, awaiting_review} — وگرنه null. */
     cardNumber: string | null;
     paymentUrl: string | null;
@@ -94,6 +98,7 @@ function last4(enc: string | null): string | null {
 function toChannelInfo(r: any): BotChannelInfo {
   return {
     id: r.id, kind: r.kind, holderName: r.holder_name ?? null, bankName: r.bank_name ?? null,
+    description: r.description ?? null,
     minAmountRial: Number(r.min_amount_rial), active: Boolean(r.active), cardLast4: last4(r.card_number_enc ?? null),
   };
 }
@@ -184,6 +189,7 @@ export async function buildView(pool: PoolLike, row: any, opts: { includePayTarg
     effectDone: row.effect_done_at != null,
     channel: {
       id: r.channelId, kind: r.channelKind, holderName: ch?.holder_name ?? null, bankName: ch?.bank_name ?? null,
+      description: showPay ? (ch?.description ?? null) : null,
       cardNumber: showPay ? decryptCard(ch?.card_number_enc ?? null) : null,
       paymentUrl: showPay ? (ch?.payment_url ?? null) : null,
     },

@@ -8,7 +8,7 @@
  * این کامپوننت هم باید رعایت کند و چیزی جز این ۸ فیلد در body نفرستد.
  */
 import { useState } from "react";
-import { CheckCircle2, CreditCard, Landmark, Loader2, Send, TriangleAlert, XCircle } from "lucide-react";
+import { CheckCircle2, CreditCard, Landmark, Loader2, Send, Smartphone, TriangleAlert, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
 import { SettingsSaveBar, SettingsError, CachePropagationNotice } from "./SettingsSaveBar";
 import { useDraft } from "./useDraft";
-import { CardAutoConfirmSection } from "./CardAutoConfirmSection";
+import { CARD_AUTO_SECTION_ID, CardAutoConfirmSection, type CardSeed } from "./CardAutoConfirmSection";
 import {
   useSavePaymentConfig,
   useTestOrderDelivery,
@@ -58,6 +58,8 @@ export function TabPayment({ botId, data }: { botId: string; data: SettingsEnvel
   // نتیجه‌ی راستی‌آزمایی گروه بعد از آخرین ذخیره + نتیجه‌ی پیام آزمایشی.
   const [groupCheck, setGroupCheck] = useState<OrderGroupCheck | null>(null);
   const [testResults, setTestResults] = useState<DeliveryResult[] | null>(null);
+  // کارتِ دستیِ بالا را با یک کلیک به فرمِ «کارت‌به‌کارت خودکار» منتقل می‌کند (شماره و نام پیش‌پر می‌شود).
+  const [autoSeed, setAutoSeed] = useState<CardSeed | null>(null);
 
   const cfg = draft.value as PaymentConfig;
   const cardNumberError = cfg.card_enabled && cfg.card_number === ""
@@ -102,11 +104,23 @@ export function TabPayment({ botId, data }: { botId: string; data: SettingsEnvel
               onChange={(e) => draft.set("card_owner", e.target.value)}
             />
           </div>
+          <div className="space-y-2 rounded-md border border-dashed bg-muted/30 p-3">
+            <p className="text-xs text-muted-foreground">{t.paymentCardAutoHint}</p>
+            <Button
+              type="button" size="sm" variant="outline" data-testid="manual-card-to-auto"
+              onClick={() => {
+                setAutoSeed({ cardNumber: cfg.card_number, holderName: cfg.card_owner, nonce: Date.now() });
+                document.getElementById(CARD_AUTO_SECTION_ID)?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            >
+              <Smartphone className="me-1.5 size-3.5" /> {t.paymentCardAutoCta}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
       {/* کارت‌به‌کارتِ خودکار: مستقل از پیش‌نویسِ payment_cfg (API و ذخیره‌ی خودش را دارد). */}
-      <CardAutoConfirmSection botId={botId} />
+      <CardAutoConfirmSection botId={botId} seed={autoSeed} />
 
       <Card>
         <CardHeader>

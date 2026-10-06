@@ -32,6 +32,8 @@ export const paymentChannelsTable = pgTable(
     cardNumberEnc: text("card_number_enc"),
     holderName: text("holder_name"),
     bankName: text("bank_name"),
+    /** متنِ آزادِ فروشنده که کنارِ کارت به مشتری نشان داده می‌شود (حداکثر ۳۰۰ نویسه). */
+    description: text("description"),
     paymentUrl: text("payment_url"),
     /** هشِ secretِ webhookِ همین کانال — خودِ secret فقط یک‌بار نمایش داده می‌شود. */
     smsSecretHash: text("sms_secret_hash").notNull(),

@@ -10,6 +10,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 
+/** سقفِ «توضیحات» — باید با `MAX_DESCRIPTION` در `api-server/src/lib/paymentChannelAdmin.ts` یکی باشد. */
+export const MAX_CHANNEL_DESCRIPTION = 300;
+
 export type ChannelKind = "card_manual" | "fixed_link" | "open_link";
 
 export type ChannelHealth =
@@ -22,6 +25,7 @@ export type CardChannel = {
   cardMasked: string | null;
   holderName: string | null;
   bankName: string | null;
+  description: string | null;
   paymentUrl: string | null;
   minAmountToman: number;
   senderAllowlist: string[];
@@ -46,6 +50,7 @@ export type CardChannelForm = {
   cardNumber: string;
   holderName: string;
   bankName: string;
+  description: string;
   paymentUrl: string;
   minAmountToman: number;
   senderAllowlist: string[];

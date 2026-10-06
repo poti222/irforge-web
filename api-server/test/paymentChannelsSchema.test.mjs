@@ -46,6 +46,16 @@ test("مایگریشنِ پروداکشن دقیقاً همان DDLِ آینه�
   assert.ok(migrate.indexOf(ddl32.trimEnd()) > migrate.indexOf(ddl30.trimEnd()), "0041 باید بعد از 0039/0040 اجرا شود");
 });
 
+const mirror46 = fs.readFileSync(new URL("../../lib/db/migrations/0046_payment_channel_description.sql", import.meta.url), "utf8");
+const ddl46 = mirror46.slice(mirror46.indexOf("-- ─── CARD_AUTOCONFIRM_DESC"));
+
+test("مایگریشنِ پروداکشن دقیقاً همان DDLِ آینه‌ی 0046 (ستونِ توضیحاتِ کانال) را دارد و template-safe است", () => {
+  assert.ok(ddl46.includes("ADD COLUMN IF NOT EXISTS description TEXT"));
+  assert.ok(migrate.includes(ddl46.trimEnd()), "migrate.mjs و 0046_payment_channel_description.sql از هم جدا شده‌اند");
+  assert.ok(!ddl46.includes("`") && !ddl46.includes("${"));
+  assert.ok(migrate.indexOf(ddl46.trimEnd()) > migrate.indexOf(ddl32.trimEnd()), "0046 باید بعد از 0041 اجرا شود");
+});
+
 test("DDL امن برای template literalِ migrate.mjs است (بدون backtick و ${})", () => {
   assert.ok(!ddl.includes("`"), "backtick داخل SQL، رشته‌ی template literal را می‌بندد");
   assert.ok(!ddl.includes("${"), "${ داخل SQL به‌عنوان interpolation تعبیر می‌شود");

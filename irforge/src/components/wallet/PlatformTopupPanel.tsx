@@ -47,7 +47,7 @@ export type TopupOrder = {
   queuedAhead: number | null;
   receiptUploadedAt: string | null;
   rejectReason: string | null;
-  channel: { id: string; kind: string; holderName: string | null; bankName: string | null; cardNumber: string | null; paymentUrl: string | null };
+  channel: { id: string; kind: string; holderName: string | null; bankName: string | null; description?: string | null; cardNumber: string | null; paymentUrl: string | null };
   existing?: boolean;
 };
 
@@ -290,6 +290,7 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
                     {ch.bankName && <>{fa ? "بانک " : "Bank: "}{ch.bankName}</>}
                   </p>
                 )}
+                {ch.description && <p className="whitespace-pre-line text-xs text-muted-foreground" data-testid="topup-description">{ch.description}</p>}
               </div>
             )}
 

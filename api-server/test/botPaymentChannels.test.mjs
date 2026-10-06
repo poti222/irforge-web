@@ -68,6 +68,23 @@ test("validateNewChannel: ماتریسِ ورودی‌های معتبر/نامع
     ["Blubank", "+98 912 1234567"], "تکراری‌ها (بعد از canonical) حذف می‌شوند");
 });
 
+test("توضیحات: تمیزکاری، خالی = null، سقفِ ۳۰۰، فقط متن", () => {
+  const d = (description) => A.validateNewChannel({ cardNumber: CARD, holderName: "x", description }).description;
+  assert.equal(d(undefined), null);
+  assert.equal(d(""), null);
+  assert.equal(d("   \n \n "), null);
+  assert.equal(d("  فقط کارت‌به‌کارت  "), "فقط کارت‌به‌کارت");
+  assert.equal(d("خط یک\r\nخط دو"), "خط یک\nخط دو", "CRLF → LF و چندخطی مجاز");
+  assert.equal(d("الف\n\n\n\n\nب"), "الف\n\nب", "خطِ خالیِ پشت‌سرهم به یکی کاهش می‌یابد");
+  assert.equal(d("a\u0000b\u0007c\u001fd"), "abcd", "نویسه‌های کنترلی حذف می‌شوند");
+  assert.equal(d("x".repeat(A.MAX_DESCRIPTION)).length, A.MAX_DESCRIPTION);
+  assert.throws(() => d("x".repeat(A.MAX_DESCRIPTION + 1)), (e) => e.code === "description_too_long");
+  for (const bad of [5, true, {}, ["a"]]) assert.throws(() => d(bad), (e) => e.code === "invalid_description");
+  // کانالِ لینکی هم توضیحات می‌پذیرد
+  assert.equal(A.validateNewChannel({ kind: "fixed_link", paymentUrl: "https://pay.example/x", description: "با لینک" }).description, "با لینک");
+  assert.equal(A.MAX_DESCRIPTION, 300, "باید با MAX_CHANNEL_DESCRIPTION در UI یکی باشد");
+});
+
 test("channelHealth / webhookUrlFor / maskLongDigits / sampleDepositText", () => {
   const now = new Date("2026-09-29T12:00:00Z");
   assert.deepEqual(A.channelHealth(null, now), { status: "never", lastSmsAt: null });
@@ -95,7 +112,7 @@ const readSql = (f) => {
   const t = fs.readFileSync(new URL(`../../lib/db/migrations/${f}`, import.meta.url), "utf8");
   return t.slice(t.indexOf("-- ───"));
 };
-const ddl = ["0038_card_autoconfirm.sql", "0039_card_autoconfirm_effects.sql", "0040_card_autoconfirm_reject.sql"].map(readSql).join("\n");
+const ddl = ["0038_card_autoconfirm.sql", "0039_card_autoconfirm_effects.sql", "0040_card_autoconfirm_reject.sql", "0046_payment_channel_description.sql"].map(readSql).join("\n");
 
 // کاربر → باتی که مجاز است. سوپرادمین همه‌چیز را می‌بیند.
 const ACCESS = { owner_A: "bot_A", owner_B: "bot_B" };
@@ -230,6 +247,47 @@ test("اعتبارسنجیِ route: ورودی‌های بد ۴۰۰ با کد؛ 
       assert.equal(r.json.code, code);
     }
     assert.equal((await pool.query("SELECT count(*)::int n FROM payment_channels")).rows[0].n, 0);
+  }));
+
+test("توضیحات: ساخت/ویرایش/پاک‌کردن؛ بات فقط در صفحه‌ی پرداختِ فعال آن را می‌بیند؛ شماره‌کارت هنوز هرگز برنمی‌گردد", live, () =>
+  withEnv(async ({ pool, call, internal }) => {
+    const DESC = "فقط کارت‌به‌کارت؛ پیش از واریز مبلغ را کپی کنید.\nساعت پاسخ‌گویی ۸ تا ۲۲";
+    const made = await makeChannel(call, { description: `  ${DESC}  ` });
+    assert.equal(made.status, 201);
+    assert.equal(made.json.channel.description, DESC, "trim شده ولی چندخطی سالم");
+    const id = made.json.channel.id;
+    assert.equal((await pool.query("SELECT description FROM payment_channels WHERE id=$1", [id])).rows[0].description, DESC);
+    assert.equal((await call("GET", "/bots/bot_A/payment-channels")).json.channels[0].description, DESC);
+
+    // بات: در فهرستِ حساب‌ها توضیحات هست (برایِ صفحه‌ی انتخابِ حساب)، ولی شماره‌کارتِ کامل نه
+    const chList = await internal("/channel", { spreadsheetId: "sheet_A_12345" });
+    assert.equal(chList.json.channels[0].description, DESC);
+    assert.doesNotMatch(JSON.stringify(chList.json), /6037997000000001/);
+
+    // صفحه‌ی پرداخت (pending): کارت + نام + توضیحات؛ بعد از پایان: توضیحات هم مثلِ کارت پنهان
+    const pay = (await internal("/requests/create", { spreadsheetId: "sheet_A_12345", userId: "1001", purpose: "wallet_topup", baseAmountRial: 2_000_000 })).json.payment;
+    assert.deepEqual([pay.channel.cardNumber, pay.channel.holderName, pay.channel.description], [CARD, "علی احمدی", DESC]);
+    const canceled = (await internal("/requests/cancel", { spreadsheetId: "sheet_A_12345", userId: "1001", requestId: pay.id })).json.payment;
+    assert.equal(canceled.channel.cardNumber, null);
+    assert.equal(canceled.channel.description, null, "بعد از پایانِ درخواست توضیحات نمایش داده نمی‌شود");
+
+    // ویرایش: عوض می‌شود، و با «» پاک می‌شود؛ کارت و secret دست‌نخورده
+    const e1 = await call("PATCH", `/bots/bot_A/payment-channels/${id}`, { body: { description: "تازه" } });
+    assert.equal(e1.status, 200);
+    assert.equal(e1.json.channel.description, "تازه");
+    assert.equal(decryptToken((await pool.query("SELECT card_number_enc FROM payment_channels WHERE id=$1", [id])).rows[0].card_number_enc), CARD);
+    const e2 = await call("PATCH", `/bots/bot_A/payment-channels/${id}`, { body: { description: "   " } });
+    assert.equal(e2.json.channel.description, null);
+    assert.equal((await pool.query("SELECT description FROM payment_channels WHERE id=$1", [id])).rows[0].description, null);
+    // بیش از سقف → ۴۰۰ با کد و چیزی عوض نمی‌شود
+    const tooLong = await call("PATCH", `/bots/bot_A/payment-channels/${id}`, { body: { description: "y".repeat(A.MAX_DESCRIPTION + 1) } });
+    assert.deepEqual([tooLong.status, tooLong.json.code], [400, "description_too_long"]);
+    // ویرایشِ توضیحات «مقصدِ پرداخت» را عوض نمی‌کند → وسطِ درخواستِ فعال هم مجاز است
+    const pay2 = (await internal("/requests/create", { spreadsheetId: "sheet_A_12345", userId: "1002", purpose: "wallet_topup", baseAmountRial: 2_000_000 })).json.payment;
+    const e3 = await call("PATCH", `/bots/bot_A/payment-channels/${id}`, { body: { description: "وسطِ پرداخت" } });
+    assert.equal(e3.status, 200, JSON.stringify(e3.json));
+    const view2 = (await internal("/requests/get", { spreadsheetId: "sheet_A_12345", requestId: pay2.id })).json.payment;
+    assert.equal(view2.channel.description, "وسطِ پرداخت");
   }));
 
 test("سقفِ کانال: سومی مجاز، چهارمی ۴۰۹؛ ۶ ساختِ هم‌زمان فقط تا سقف", live, () =>

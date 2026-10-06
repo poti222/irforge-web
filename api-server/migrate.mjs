@@ -1690,6 +1690,9 @@ CREATE INDEX IF NOT EXISTS idx_payment_events_at ON payment_events(at);
 CREATE INDEX IF NOT EXISTS idx_payment_events_request ON payment_events(request_id) WHERE request_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_payment_events_channel ON payment_events(channel_id, at);
 CREATE INDEX IF NOT EXISTS idx_payment_events_problems ON payment_events(at) WHERE level <> 'info';
+
+-- ─── CARD_AUTOCONFIRM_DESC (توضیحاتِ کانال: متنی که کنارِ کارت به مشتری نشان داده می‌شود) ───
+ALTER TABLE payment_channels ADD COLUMN IF NOT EXISTS description TEXT;
 `;
 
 

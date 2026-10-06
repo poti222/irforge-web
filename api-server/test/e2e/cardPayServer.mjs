@@ -32,7 +32,7 @@ const readSql = (f) => {
   const t = fs.readFileSync(new URL(`../../../lib/db/migrations/${f}`, import.meta.url), "utf8");
   return t.slice(t.indexOf("-- ───"));
 };
-const ddl = ["0038_card_autoconfirm.sql", "0039_card_autoconfirm_effects.sql", "0040_card_autoconfirm_reject.sql", "0041_card_autoconfirm_p8_p9.sql"].map(readSql).join("\n");
+const ddl = ["0038_card_autoconfirm.sql", "0039_card_autoconfirm_effects.sql", "0040_card_autoconfirm_reject.sql", "0041_card_autoconfirm_p8_p9.sql", "0046_payment_channel_description.sql"].map(readSql).join("\n");
 
 const SHEET = "sheet_E2E_12345";
 const admin = new Pool({ connectionString: PG_URL, max: 2 });
