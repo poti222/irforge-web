@@ -42,6 +42,7 @@ const ROLE_ITEMS: Record<string, { key: string; labelKey: string; href?: string 
   ],
   parent: [
     { key: "children", labelKey: "navChildrenOverview", href: "/schools/parent/children" },
+    { key: "link-student", labelKey: "navLinkStudent", href: "/schools/parent/link" },
     { key: "dashboard", labelKey: "navParentDashboard", href: "/schools/parent/reports" },
     { key: "timetable", labelKey: "navTimetable", href: "/schools/timetable" },
   ],

@@ -1305,3 +1305,31 @@ export function copyTimetableDay(schoolId: string, classId: string, fromDay: num
     body: JSON.stringify({ fromDay, toDays }),
   });
 }
+
+// ─── اتصالِ والد↔دانش‌آموز با شماره (درخواست/تأیید) ─────────────────────────────
+export type GuardianRequestStatus = "pending" | "approved" | "rejected" | "expired" | "cancelled";
+export interface MyGuardianRequests {
+  requests: { id: string; phone: string; status: GuardianRequestStatus; createdAt: string; decidedAt: string | null }[];
+  limits: { perPhone: number; dailyPhones: number; dailyPhonesUsed: number; usedByPhone: { phone: string; used: number; remaining: number }[] };
+}
+export function submitGuardianRequest(schoolId: string, phone: string) {
+  return customFetch<{ ok: true; message: string; requestId: string; status: "pending"; remainingForPhone: number }>(`/api/schools/${schoolId}/guardian-requests`, {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+export function getMyGuardianRequests(schoolId: string) {
+  return customFetch<MyGuardianRequests>(`/api/schools/${schoolId}/guardian-requests/mine`);
+}
+export function cancelGuardianRequest(schoolId: string, id: string) {
+  return customFetch<{ ok: true }>(`/api/schools/${schoolId}/guardian-requests/${id}/cancel`, { method: "POST" });
+}
+export function listIncomingGuardianRequests(schoolId: string) {
+  return customFetch<{ id: string; parentName: string; createdAt: string }[]>(`/api/schools/${schoolId}/guardian-requests/incoming`);
+}
+export function decideGuardianRequest(schoolId: string, id: string, decision: "approve" | "reject") {
+  return customFetch<{ ok: true; status: GuardianRequestStatus; idempotent: boolean }>(`/api/schools/${schoolId}/guardian-requests/${id}/decision`, {
+    method: "POST",
+    body: JSON.stringify({ decision }),
+  });
+}

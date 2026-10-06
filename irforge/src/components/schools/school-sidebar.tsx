@@ -41,6 +41,7 @@ import {
   ShieldAlert,
   History,
   Search,
+  Link2,
 } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
@@ -157,6 +158,7 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
       // تکه‌تکه می‌کرد؛ یک لینکِ ناوبریِ واحد («داشبوردِ فرزند»).
       return [
         { key: "children", href: "/schools/parent/children", icon: Eye, label: t.navChildrenOverview },
+        { key: "link-student", href: "/schools/parent/link", icon: Link2, label: t.navLinkStudent },
         { key: "dashboard", href: "/schools/parent/reports", icon: BarChart3, label: t.navParentDashboard },
         { key: "timetable", href: "/schools/timetable", icon: CalendarClock, label: t.navTimetable },
       ];
