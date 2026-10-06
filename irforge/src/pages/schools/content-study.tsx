@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowRight, RotateCcw } from "lucide-react";
+import { Loader2, ArrowRight, RotateCcw, CheckCircle2, BookOpen, PartyPopper } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
+import { useToast } from "@/hooks/use-toast";
 import {
   getContentLesson,
   getSchoolMe,
@@ -39,6 +40,7 @@ export default function SchoolContentStudy() {
   const sectionIndex = Number(section) || 0;
   const t = useT("schools") as any;
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
   const schoolId = me?.schoolId ?? undefined;
@@ -68,9 +70,13 @@ export default function SchoolContentStudy() {
     return sections[sectionIndex] ?? [];
   }, [items, sectionIndex]);
 
+  const progressByItem = useMemo(
+    () => new Map((progress ?? []).map((p) => [p.contentItemId, p])),
+    [progress],
+  );
+
   // ترتیبِ مطالعه: آیتم‌هایِ بدونِ‌پیشرفت یا سررسیده زودتر (ببینید توضیحِ بالایِ فایل).
   const studyQueue = useMemo(() => {
-    const progressByItem = new Map((progress ?? []).map((p) => [p.contentItemId, p]));
     return [...sectionItems].sort((a, b) => {
       const pa = progressByItem.get(a.id);
       const pb = progressByItem.get(b.id);
@@ -83,28 +89,66 @@ export default function SchoolContentStudy() {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [stats, setStats] = useState({ know: 0, practice: 0 });
-  const [rating, setRating] = useState(false);
   const confettiRef = useRef<HTMLDivElement>(null);
 
   const current = studyQueue[currentIdx];
   const done = studyQueue.length > 0 && currentIdx >= studyQueue.length;
 
+  // لهجهٔ رنگیِ کارت: اگر پیشرفتِ قبلی دارد و سررسیدش گذشته یعنی «مرورِ معوقه»
+  // (کهربایی)، اگر پیشرفتی ندارد یعنی کارتِ تازه (رنگِ اصلیِ برند). هر دو فقط
+  // یک جزئیاتِ بصریِ اختیاری‌اند، تأثیری در ترتیب/زمان‌بندیِ واقعی ندارند.
+  const currentProgress = current ? progressByItem.get(current.id) : undefined;
+  const isDue = !!currentProgress && new Date(currentProgress.nextReviewAt).getTime() <= Date.now();
+
   useEffect(() => {
     if (done) spawnConfetti(confettiRef.current);
   }, [done]);
 
-  async function handleRate(r: SchoolContentRating) {
-    if (!current || !schoolId || rating) return;
-    setRating(true);
+  /**
+   * نکتهٔ کلیدی (ریشهٔ گزارشِ «دکمه‌ها کار نمی‌کنند / کُند هستند»): نسخهٔ قبلی
+   * قبل از رفتن به کارتِ بعدی، منتظرِ دو رفت‌وبرگشتِ شبکه‌یِ متوالی می‌ماند
+   * (ابتدا POSTِ رتبه‌بندی، بعد یک invalidateQueries که خودش یک GET کاملِ
+   * دوباره است) — رویِ اینترنتِ ضعیف همین «کند/یخ‌زده» حس می‌شود. بدتر از آن:
+   * هیچ try/catchی رویِ خودِ rateContentProgress نبود، پس اگر آن POST حتی
+   * یک‌بار شکست می‌خورد (قطعیِ موقتِ شبکه، سشنِ منقضی‌شده و ۴۰۱/۴۰۳...)
+   * کلِ تابع throw می‌کرد و setCurrentIdx هرگز اجرا نمی‌شد — یعنی از دیدِ
+   * دانش‌آموز دکمه‌ها واقعاً «کار نمی‌کردند»، نه فقط کند بودند.
+   *
+   * راهِ‌حل: پیشرفتِ محلی (ایندکسِ کارتِ فعلی/آماریِ know/practice) کاملاً
+   * client-side است و نیازی به پاسخِ سرور ندارد؛ پس بلافاصله و همزمان با
+   * کلیک جلو می‌رویم، و POSTِ ذخیره‌سازی را در پس‌زمینه (fire-and-forget)
+   * با یک تلاشِ دوبارهٔ ساده و بدونِ مسدودکردنِ UI انجام می‌دهیم. حتی اگر
+   * ذخیره‌سازی نهایتاً شکست بخورد، فقط یک toastِ غیرمسدودکننده نشان می‌دهیم؛
+   * دانش‌آموز هرگز معطلِ شبکه نمی‌ماند.
+   */
+  function handleRate(r: SchoolContentRating) {
+    if (!current || !schoolId) return;
+    const itemId = current.id;
+
+    // جلوبردنِ فوری و همزمان (optimistic) — بدونِ هیچ await.
+    setStats((s) => (r === "know" ? { ...s, know: s.know + 1 } : { ...s, practice: s.practice + 1 }));
+    setFlipped(false);
+    setCurrentIdx((i) => i + 1);
+
+    // ذخیره‌سازیِ سرور در پس‌زمینه؛ هیچ throwی به اینجا برنمی‌گردد و چیزی را مسدود نمی‌کند.
+    void saveRatingInBackground(schoolId, itemId, r);
+  }
+
+  async function saveRatingInBackground(sId: string, itemId: string, r: SchoolContentRating) {
     try {
-      await rateContentProgress(schoolId, current.id, r);
-      setStats((s) => (r === "know" ? { ...s, know: s.know + 1 } : { ...s, practice: s.practice + 1 }));
-      await queryClient.invalidateQueries({ queryKey: ["schools", "content-progress", schoolId, lessonId] });
-      setFlipped(false);
-      setCurrentIdx((i) => i + 1);
-    } finally {
-      setRating(false);
+      await rateContentProgress(sId, itemId, r);
+    } catch {
+      // یک تلاشِ دوبارهٔ سبک (مثلاً قطعیِ موقتِ شبکه) — بدونِ مسدودکردنِ UI.
+      try {
+        await rateContentProgress(sId, itemId, r);
+      } catch {
+        toast({ variant: "destructive", description: t.studySaveFailed });
+        return;
+      }
     }
+    // کوئریِ پیشرفت را فقط بعدِ موفقیت (و در پس‌زمینه) تازه می‌کنیم؛ صفِ مطالعهٔ
+    // جاری از این refetch مستقل است، پس منتظرش نمی‌مانیم.
+    void queryClient.invalidateQueries({ queryKey: ["schools", "content-progress", schoolId, lessonId] });
   }
 
   function handleRestart() {
@@ -138,44 +182,91 @@ export default function SchoolContentStudy() {
           {t.contentEmpty}
         </div>
       ) : done ? (
-        <div className="relative flex flex-col items-center gap-4 rounded-md border border-dashed p-8 text-center">
+        <div className="relative flex flex-col items-center gap-4 overflow-hidden rounded-xl border bg-gradient-to-b from-primary/5 to-transparent p-8 text-center sm:p-10">
           <div ref={confettiRef} className="pointer-events-none absolute inset-0 overflow-hidden" />
-          <h2 className="text-lg font-bold">{t.studyDoneTitle}</h2>
+          <div className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <PartyPopper className="size-7" />
+          </div>
+          <h2 className="text-xl font-bold sm:text-2xl">{t.studyDoneTitle}</h2>
           <p className="text-sm text-muted-foreground">
             {t.studyDoneSummary.replace("{know}", String(stats.know)).replace("{practice}", String(stats.practice))}
           </p>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleRestart}>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button variant="outline" size="lg" onClick={handleRestart}>
               <RotateCcw className="me-1 size-4" /> {t.studyRestartButton}
             </Button>
-            <Link href={backHref}>
-              <Button>{t.backToLesson}</Button>
+            <Link href={backHref} className="w-full sm:w-auto">
+              <Button size="lg" className="w-full">{t.backToLesson}</Button>
             </Link>
           </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-4">
-          <p className="text-xs text-muted-foreground">
-            {t.studyProgressLabel.replace("{current}", String(currentIdx + 1)).replace("{total}", String(studyQueue.length))}
-          </p>
-          <Card
-            className="flex h-56 w-full max-w-md cursor-pointer select-none items-center justify-center p-6 text-center transition"
+        <div className="flex flex-col items-center gap-5">
+          <div className="w-full max-w-md">
+            <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
+              <span>{t.studyProgressLabel.replace("{current}", String(currentIdx + 1)).replace("{total}", String(studyQueue.length))}</span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{ width: `${((currentIdx + (flipped ? 0.5 : 0)) / studyQueue.length) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          {/* کارتِ فلش — چرخشِ سه‌بعدیِ واقعی (rotateY) به‌جایِ صرفاً عوض‌کردنِ متن؛ طبقِ
+             گزارشِ کاربر برایِ یک حسِّ واقعاً «زیبا». هیچ کتابخانهٔ جدیدی لازم نیست. */}
+          <div
+            className="w-full max-w-md [perspective:1200px]"
             onClick={() => setFlipped((f) => !f)}
           >
-            <CardContent className="flex flex-col items-center gap-2 p-0">
-              <p className="text-xs text-muted-foreground">{flipped ? t.studyMeaningLabel : t.studyWordLabel}</p>
-              <p className="text-2xl font-bold" dir="auto">{flipped ? current.body : current.title}</p>
-              {!flipped && <p className="mt-2 text-xs text-muted-foreground">{t.studyFlipHint}</p>}
-            </CardContent>
-          </Card>
+            <div
+              className={cn(
+                "relative h-64 w-full cursor-pointer select-none transition-transform duration-500 [transform-style:preserve-3d] sm:h-72",
+                flipped && "[transform:rotateY(180deg)]",
+              )}
+            >
+              {/* رو: واژه */}
+              <div
+                className={cn(
+                  "absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl border-2 bg-card p-6 text-center shadow-lg [backface-visibility:hidden]",
+                  isDue ? "border-amber-400/70 dark:border-amber-500/60" : "border-primary/30",
+                )}
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.studyWordLabel}</p>
+                <p className="text-3xl font-extrabold sm:text-4xl" dir="auto">{current.title}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{t.studyFlipHint}</p>
+              </div>
+              {/* پشت: معنی */}
+              <div
+                className={cn(
+                  "absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl border-2 bg-primary/5 p-6 text-center shadow-lg [backface-visibility:hidden] [transform:rotateY(180deg)]",
+                  isDue ? "border-amber-400/70 dark:border-amber-500/60" : "border-primary/30",
+                )}
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.studyMeaningLabel}</p>
+                <p className="text-xl font-semibold sm:text-2xl" dir="auto">{current.body}</p>
+              </div>
+            </div>
+          </div>
 
+          {/* دکمه‌ها: روی موبایل تمام‌عرض و روی هم (انگشت‌پسند)، از sm به بالا کنارِ هم. */}
           {flipped && (
-            <div className="flex gap-2">
-              <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" disabled={rating} onClick={() => handleRate("practice")}>
-                {t.studyRatePractice}
+            <div className="grid w-full max-w-md grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button
+                variant="outline"
+                size="lg"
+                className="h-14 border-2 border-destructive/50 text-base font-semibold text-destructive hover:bg-destructive/10"
+                onClick={() => handleRate("practice")}
+              >
+                <BookOpen className="me-1.5 size-5" /> {t.studyRatePractice}
               </Button>
-              <Button disabled={rating} onClick={() => handleRate("know")}>
-                {t.studyRateKnow}
+              <Button
+                size="lg"
+                className="h-14 bg-green-600 text-base font-semibold text-white hover:bg-green-600 dark:bg-green-600"
+                onClick={() => handleRate("know")}
+              >
+                <CheckCircle2 className="me-1.5 size-5" /> {t.studyRateKnow}
               </Button>
             </div>
           )}
