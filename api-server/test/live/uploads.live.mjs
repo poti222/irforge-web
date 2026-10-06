@@ -1,6 +1,6 @@
 /** آپلودِ تصویر — سرورِ واقعی: بایت‌به‌بایت، هدرها، رد کردنِ SVG/جعلی/بزرگ/بی‌توکن، rate limit. */
 import zlib from "node:zlib";
-import { call, newUser, BASE, done, check } from "./lib.mjs";
+import { call, newUser, newSchoolAdmin, BASE, done, check } from "./lib.mjs";
 import { execFileSync } from "node:child_process";
 execFileSync("node", ["migrate.mjs"], { env: process.env, stdio: "ignore" });
 
@@ -51,4 +51,15 @@ const rl = await newUser("rl"); let last = 0, n = 0;
 for (; n < 40; n++) { last = (await up(rl, P, "image/png")).status; if (last === 429) break; }
 check("rate limit: 429 after 30 uploads", last === 429 && n === 30, { n, last });
 check("another user unaffected", (await up(u, P, "image/png")).status === 201);
+// school photo persists (PATCH used to ignore photoUrl entirely)
+const ad = await newSchoolAdmin();
+const pu = (await up(ad, P, "image/png")).json.url;
+let pr = await call("PATCH", `/schools/${ad.schoolId}`, { token: ad.token, body: { photoUrl: pu } });
+check("PATCH school photoUrl (uploaded) persisted", pr.status === 200 && pr.json.photoUrl === pu, pr.text);
+check("/schools/me returns it", (await call("GET", "/schools/me", { token: ad.token })).json.school.photoUrl === pu);
+pr = await call("PATCH", `/schools/${ad.schoolId}`, { token: ad.token, body: { photoUrl: "https://example.com/a.png" } });
+check("pasted http(s) URL still accepted", pr.status === 200 && pr.json.photoUrl === "https://example.com/a.png");
+check("javascript:/data: URLs rejected", (await call("PATCH", `/schools/${ad.schoolId}`, { token: ad.token, body: { photoUrl: "javascript:alert(1)" } })).status === 400 && (await call("PATCH", `/schools/${ad.schoolId}`, { token: ad.token, body: { photoUrl: "/api/uploads/images/../x" } })).status === 400);
+pr = await call("PATCH", `/schools/${ad.schoolId}`, { token: ad.token, body: { photoUrl: "" } });
+check("empty clears the photo", pr.status === 200 && pr.json.photoUrl === null);
 await done();

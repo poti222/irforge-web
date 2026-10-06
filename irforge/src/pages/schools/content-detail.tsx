@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ImageUploadField, imageSrc } from "@/components/schools/ImageUploadField";
 import { useActiveSchoolId } from "@/hooks/use-viewed-school";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -165,7 +166,7 @@ export default function SchoolContentDetail() {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm text-muted-foreground">{t.contentImageUrlField}</label>
-                <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder={t.contentImageUrlPlaceholder} dir="ltr" />
+                <ImageUploadField value={imageUrl} onChange={setImageUrl} size="sm" testId="content-image-upload" />
               </div>
               <Button onClick={handleSave} disabled={saving} className="w-fit">
                 {saving && <Loader2 className="me-2 size-4 animate-spin" />}
@@ -175,7 +176,7 @@ export default function SchoolContentDetail() {
           ) : (
             <div className="flex flex-col gap-3">
               {item.imageUrl && (
-                <img src={item.imageUrl} alt={item.title} className="max-h-64 w-fit rounded-md border object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
+                <img src={imageSrc(item.imageUrl)} alt={item.title} className="max-h-64 w-fit rounded-md border object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
               )}
               {item.type === "formula" ? (
                 <FormulaBody text={item.body} />
