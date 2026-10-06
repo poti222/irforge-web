@@ -73,3 +73,4 @@ export * from "./schoolSubjects";
 // پیشرفتِ مطالعه‌یِ دانش‌آموز (فلش‌کارت/SRSِ سرور-محور) رویِ آیتم‌های کتابخانه‌ی محتوا
 export * from "./schoolContentProgress";
 export * from "./uploadedImages";
+export * from "./schoolTimetable";
