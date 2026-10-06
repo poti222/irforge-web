@@ -56,7 +56,7 @@ async function setup() {
     dbm.usersTable, dbm.sessionsTable, dbm.schoolsTable, dbm.schoolMembersTable, dbm.schoolAdminsTable,
     dbm.schoolClassesTable, dbm.schoolClassMembersTable, dbm.schoolAuditLogTable, dbm.schoolInviteCodesTable,
     dbm.schoolBotTokenPoolTable, dbm.schoolBotsTable, dbm.adminAuditLogTable, dbm.botsTable, dbm.ticketsTable,
-    dbm.walletTransactionsTable, dbm.pendingRegistrationsTable, dbm.schoolAnnouncementsTable, dbm.notificationsTable,
+    dbm.walletTransactionsTable, dbm.pendingRegistrationsTable, dbm.schoolAnnouncementsTable, dbm.notificationsTable, dbm.schoolSubjectsTable,
   ));
   await pool.query(DDL_ALL);
 
