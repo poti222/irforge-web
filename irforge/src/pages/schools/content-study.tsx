@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, ArrowRight, RotateCcw } from "lucide-react";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
+import { useToast } from "@/hooks/use-toast";
 import {
   getContentLesson,
   getSchoolMe,
@@ -39,6 +40,7 @@ export default function SchoolContentStudy() {
   const sectionIndex = Number(section) || 0;
   const t = useT("schools") as any;
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
   const schoolId = me?.schoolId ?? undefined;
@@ -83,7 +85,6 @@ export default function SchoolContentStudy() {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [stats, setStats] = useState({ know: 0, practice: 0 });
-  const [rating, setRating] = useState(false);
   const confettiRef = useRef<HTMLDivElement>(null);
 
   const current = studyQueue[currentIdx];
@@ -93,18 +94,51 @@ export default function SchoolContentStudy() {
     if (done) spawnConfetti(confettiRef.current);
   }, [done]);
 
-  async function handleRate(r: SchoolContentRating) {
-    if (!current || !schoolId || rating) return;
-    setRating(true);
+  /**
+   * نکتهٔ کلیدی (ریشهٔ گزارشِ «دکمه‌ها کار نمی‌کنند / کُند هستند»): نسخهٔ قبلی
+   * قبل از رفتن به کارتِ بعدی، منتظرِ دو رفت‌وبرگشتِ شبکه‌یِ متوالی می‌ماند
+   * (ابتدا POSTِ رتبه‌بندی، بعد یک invalidateQueries که خودش یک GET کاملِ
+   * دوباره است) — رویِ اینترنتِ ضعیف همین «کند/یخ‌زده» حس می‌شود. بدتر از آن:
+   * هیچ try/catchی رویِ خودِ rateContentProgress نبود، پس اگر آن POST حتی
+   * یک‌بار شکست می‌خورد (قطعیِ موقتِ شبکه، سشنِ منقضی‌شده و ۴۰۱/۴۰۳...)
+   * کلِ تابع throw می‌کرد و setCurrentIdx هرگز اجرا نمی‌شد — یعنی از دیدِ
+   * دانش‌آموز دکمه‌ها واقعاً «کار نمی‌کردند»، نه فقط کند بودند.
+   *
+   * راهِ‌حل: پیشرفتِ محلی (ایندکسِ کارتِ فعلی/آماریِ know/practice) کاملاً
+   * client-side است و نیازی به پاسخِ سرور ندارد؛ پس بلافاصله و همزمان با
+   * کلیک جلو می‌رویم، و POSTِ ذخیره‌سازی را در پس‌زمینه (fire-and-forget)
+   * با یک تلاشِ دوبارهٔ ساده و بدونِ مسدودکردنِ UI انجام می‌دهیم. حتی اگر
+   * ذخیره‌سازی نهایتاً شکست بخورد، فقط یک toastِ غیرمسدودکننده نشان می‌دهیم؛
+   * دانش‌آموز هرگز معطلِ شبکه نمی‌ماند.
+   */
+  function handleRate(r: SchoolContentRating) {
+    if (!current || !schoolId) return;
+    const itemId = current.id;
+
+    // جلوبردنِ فوری و همزمان (optimistic) — بدونِ هیچ await.
+    setStats((s) => (r === "know" ? { ...s, know: s.know + 1 } : { ...s, practice: s.practice + 1 }));
+    setFlipped(false);
+    setCurrentIdx((i) => i + 1);
+
+    // ذخیره‌سازیِ سرور در پس‌زمینه؛ هیچ throwی به اینجا برنمی‌گردد و چیزی را مسدود نمی‌کند.
+    void saveRatingInBackground(schoolId, itemId, r);
+  }
+
+  async function saveRatingInBackground(sId: string, itemId: string, r: SchoolContentRating) {
     try {
-      await rateContentProgress(schoolId, current.id, r);
-      setStats((s) => (r === "know" ? { ...s, know: s.know + 1 } : { ...s, practice: s.practice + 1 }));
-      await queryClient.invalidateQueries({ queryKey: ["schools", "content-progress", schoolId, lessonId] });
-      setFlipped(false);
-      setCurrentIdx((i) => i + 1);
-    } finally {
-      setRating(false);
+      await rateContentProgress(sId, itemId, r);
+    } catch {
+      // یک تلاشِ دوبارهٔ سبک (مثلاً قطعیِ موقتِ شبکه) — بدونِ مسدودکردنِ UI.
+      try {
+        await rateContentProgress(sId, itemId, r);
+      } catch {
+        toast({ variant: "destructive", description: t.studySaveFailed });
+        return;
+      }
     }
+    // کوئریِ پیشرفت را فقط بعدِ موفقیت (و در پس‌زمینه) تازه می‌کنیم؛ صفِ مطالعهٔ
+    // جاری از این refetch مستقل است، پس منتظرش نمی‌مانیم.
+    void queryClient.invalidateQueries({ queryKey: ["schools", "content-progress", schoolId, lessonId] });
   }
 
   function handleRestart() {
@@ -171,10 +205,10 @@ export default function SchoolContentStudy() {
 
           {flipped && (
             <div className="flex gap-2">
-              <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" disabled={rating} onClick={() => handleRate("practice")}>
+              <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => handleRate("practice")}>
                 {t.studyRatePractice}
               </Button>
-              <Button disabled={rating} onClick={() => handleRate("know")}>
+              <Button onClick={() => handleRate("know")}>
                 {t.studyRateKnow}
               </Button>
             </div>

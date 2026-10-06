@@ -3645,6 +3645,7 @@
     "studyDoneTitle": "این بخش تمام شد!",
     "studyDoneSummary": "{know} مورد را بلد بودید و {practice} مورد نیاز به تمرینِ بیشتر دارد.",
     "studyRestartButton": "دوباره مطالعه کن",
+    "studySaveFailed": "رتبه‌بندیِ یک کارت ذخیره نشد. ادامه بدهید، بعداً دوباره تلاش می‌کنیم.",
 
     "teacherTodayDescription": "آخرین اطلاعیه‌های کلاس‌های شما.",
     "teacherTodayEmpty": "هنوز اطلاعیه‌ای برای این کلاس ثبت نشده است.",

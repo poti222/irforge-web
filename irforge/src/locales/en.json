@@ -3645,6 +3645,7 @@
     "studyDoneTitle": "Section complete!",
     "studyDoneSummary": "You knew {know} and need more practice on {practice}.",
     "studyRestartButton": "Study again",
+    "studySaveFailed": "One card's rating failed to save. Keep going, we'll retry it later.",
 
     "teacherTodayDescription": "The latest announcements from your classes.",
     "teacherTodayEmpty": "No announcements for this class yet.",
