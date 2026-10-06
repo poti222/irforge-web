@@ -93,15 +93,48 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
     if (ok != true) return;
     if (!_st.smsPermission) await Native.requestSmsPermission();
+    await _refresh();
+    if (!_st.smsPermission && mounted) await _showRestrictedHelp();
     if (!_st.batteryExempt) await Native.requestBatteryExemption();
     await _refresh();
+  }
+
+  /// اندروید ۱۳+ برای APKِ نصب‌شده بیرون از فروشگاه، مجوزِ پیامک را «Restricted setting» می‌کند؛
+  /// تا کاربر دستی «Allow restricted settings» را نزند، دیالوگِ مجوز کار نمی‌کند.
+  Future<void> _showRestrictedHelp() async {
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('مجوز پیامک مسدود است'),
+        content: const Text(
+          'اندروید برای برنامه‌هایی که از بیرونِ فروشگاه نصب شده‌اند، دسترسی پیامک را قفل می‌کند. یک‌بار این‌ها را انجام دهید:\n\n'
+          '۱) «باز کردن تنظیمات برنامه» را بزنید.\n'
+          '۲) بالا سمت راست روی ⋮ (سه‌نقطه) بزنید ← «Allow restricted settings» (اجازه تنظیمات محدودشده).\n'
+          '۳) به همین صفحه ← «Permissions» ← «SMS» ← «Allow».\n'
+          '۴) برگردید به برنامه.\n\n'
+          'شیائومی/ردمی: «Autostart» را هم روشن کنید و باتری را روی «No restrictions» بگذارید.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('بعداً')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('باز کردن تنظیمات برنامه')),
+        ],
+      ),
+    );
+    if (open == true) await Native.openAppSettings();
   }
 
   Future<void> _applyConfig(AgentConfig c) async {
     await Native.saveConfig(c);
     await _refresh();
-    if (Native.isAndroid && !_st.smsPermission)
+    if (Native.isAndroid && !_st.smsPermission) {
       await Native.requestSmsPermission();
+      await _refresh();
+      if (!_st.smsPermission && mounted) await _showRestrictedHelp();
+    }
     await _run(() => Native.testConnection(c));
   }
 
@@ -398,6 +431,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   onPressed: () async {
                     await Native.requestSmsPermission();
                     await _refresh();
+                    if (!_st.smsPermission && mounted) {
+                      await _showRestrictedHelp();
+                    }
                   },
                   child: const Text('اجازه')),
         ),

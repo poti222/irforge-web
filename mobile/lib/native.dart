@@ -199,7 +199,8 @@ class Native {
           lastError: 'خطای شبکه: UnknownHostException',
           versionCode: 1,
           versionName: '1.0.0',
-          update: UpdateInfo(2, '1.1.0', 'رفعِ باگ‌ها و افزودنِ تنظیمات', false));
+          update:
+              UpdateInfo(2, '1.1.0', 'رفعِ باگ‌ها و افزودنِ تنظیمات', false));
     return AgentStatus.fromMap(
         await _ch.invokeMethod<Map>('status') ?? const {});
   }
@@ -211,6 +212,11 @@ class Native {
 
   static Future<void> requestBatteryExemption() async {
     if (isAndroid && _real) await _ch.invokeMethod('requestBatteryExemption');
+  }
+
+  /// صفحه‌ی «اطلاعات برنامه» در تنظیماتِ اندروید (برای «Allow restricted settings» و مجوزها).
+  static Future<void> openAppSettings() async {
+    if (isAndroid && _real) await _ch.invokeMethod('openAppSettings');
   }
 
   static Future<void> flushNow() async {

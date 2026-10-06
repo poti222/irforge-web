@@ -65,6 +65,10 @@ class MainActivity : FlutterActivity() {
                 "installUpdate" -> result.success(Updater.install(this))
                 "requestSmsPermission" -> requestSms(result)
                 "requestBatteryExemption" -> { openBattery(); result.success(null) }
+                "openAppSettings" -> {
+                    startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+                    result.success(null)
+                }
                 "flushNow" -> { SendWorker.kick(this); result.success(null) }
                 "test" -> {
                     val cfg = cfgFrom(call.arguments as Map<*, *>)
