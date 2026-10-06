@@ -23,11 +23,8 @@ import {
   CalendarClock,
   Megaphone,
   BellRing,
-  BookOpenText,
-  NotebookPen,
+  BookOpen,
   Library,
-  Sigma,
-  Feather,
   MessageCircleQuestion,
   ShieldCheck,
   GraduationCap,
@@ -50,7 +47,20 @@ import { useT } from "@/hooks/use-translation";
 import { isRtlLang } from "@/lib/i18n";
 import type { SchoolMemberRole } from "@/lib/schools-api";
 
-type NavItem = { key: string; href: string; icon: any; label: string };
+type NavItem = {
+  key: string; href: string; icon: any; label: string;
+  /** برایِ آیتمی که چند مسیرِ زیرمجموعه دارد (مثلاً «درس‌ها»)؛ پیش‌فرض: location.startsWith(href). */
+  isActive?: (location: string) => boolean;
+};
+
+/**
+ * «درس‌ها» برایِ همه‌یِ نقش‌ها یک آیتمِ واحد است (جایگزینِ لغت‌نامه/اشعار/فرمول/جزوه/
+ * کتاب). دانش‌آموز: به خانه‌اش `/schools/student` (که خودِ فهرستِ موضوعات است)
+ * می‌رود؛ چون سایرِ صفحاتِ دانش‌آموز هم زیرِ `/schools/student/...` هستند، فعال‌بودنش
+ * فقط وقتی است که دقیقاً روی خانه باشد یا هر جایی زیرِ درختِ `/schools/content`
+ * (موضوع/درس/نوع/مطالعه). location در اینجا بدونِ پیشوندِ زبان است (base در WouterRouter).
+ */
+const lessonsActive = (loc: string) => loc === "/schools/student" || loc.startsWith("/schools/content");
 
 /**
  * ناوبریِ هر نقش — فاز ۱ فقط اسکلت است: هر آیتم به یک مسیرِ واقعی (اگر ساخته
@@ -68,6 +78,8 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
         { key: "members", href: "/schools/admin/members", icon: Users, label: t.navMemberManagement },
         { key: "classes", href: "/schools/admin/classes", icon: LayoutGrid, label: t.navClassManagement },
         { key: "programs", href: "/schools/admin/programs", icon: CalendarClock, label: t.navProgramManagement },
+        // «درس‌ها»: مدیر موضوعات را می‌سازد/تغییرِ نام/حذف می‌کند (قبلاً مدیر آیتمِ محتوا نداشت).
+        { key: "lessons", href: "/schools/content", icon: BookOpen, label: t.navLessons },
         { key: "alerts", href: "/schools/admin/alerts", icon: ShieldAlert, label: t.navAlerts },
         { key: "messages", href: "/schools/admin/messages", icon: Inbox, label: t.navMessages },
         { key: "broadcast", href: "/schools/announcements", icon: Megaphone, label: t.navBroadcast },
@@ -78,12 +90,7 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
     case "student":
       // فاز ۶ (بندِ ۱/۲): «حضور و غیاب» و «نمره‌های من» اضافه شدند.
       return [
-        { key: "dictionary", href: "/schools/content/dictionary", icon: BookOpenText, label: t.navDictionary },
-        { key: "notes", href: "/schools/content/note", icon: NotebookPen, label: t.navNotes },
-        { key: "books", href: "/schools/content/book", icon: Library, label: t.navBooks },
-        { key: "formulas", href: "/schools/content/formula", icon: Sigma, label: t.navFormulas },
-        // لایه‌یِ «درس» — type جدیدِ «شعر» (طبقِ گزارشِ کاربر: «شعر یا لغت»)
-        { key: "poems", href: "/schools/content/poem", icon: Feather, label: t.navPoems },
+        { key: "lessons", href: "/schools/student", icon: BookOpen, label: t.navLessons, isActive: lessonsActive },
         { key: "announcements", href: "/schools/announcements", icon: Megaphone, label: t.navAnnouncements },
         // باگِ همان‌خانواده‌ی موردِ معلم (بالا): «تکالیف» فقط به‌صورتِ تایل در
         // صفحه‌ی خانه‌ی دانش‌آموز بود، نه آیتمِ سایدبار — یعنی از هر زیرصفحه‌ی
@@ -98,18 +105,10 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
       ];
     case "teacher":
       // فاز ۶ (بندِ ۱/۲): «حضور و غیاب» و «نمره‌نامه» اضافه شدند.
-      // لایه‌یِ «درس» — طبقِ گزارشِ کاربر («جایی برای افزودن لغت‌نامه نیست»):
-      // تا این‌جا معلم هیچ لینکِ ناوبریی به‌سمتِ کتابخانه‌ی محتوا (لغت‌نامه/
-      // جزوه/کتاب/فرمول/شعر) نداشت — این صفحات فقط در ناوبریِ دانش‌آموز بودند!
-      // یعنی معلم باید آدرسِ /schools/content/dictionary را حدس می‌زد تا
-      // اصلاً به فرمِ افزودن برسد. این خودِ ریشه‌ی گزارشِ کاربر بود، نه فقط
-      // نبودِ گروه‌بندیِ درس.
+      // «درس‌ها» — یک آیتمِ واحد به‌جایِ پنج آیتمِ جدایِ محتوا (قبلاً معلم اصلاً لینکی به
+      // کتابخانه نداشت؛ حالا هاب موضوعات، و داخلش درس‌هایِ تخصیص‌داده‌شده).
       return [
-        { key: "dictionary", href: "/schools/content/dictionary", icon: BookOpenText, label: t.navDictionary },
-        { key: "notes", href: "/schools/content/note", icon: NotebookPen, label: t.navNotes },
-        { key: "books", href: "/schools/content/book", icon: Library, label: t.navBooks },
-        { key: "formulas", href: "/schools/content/formula", icon: Sigma, label: t.navFormulas },
-        { key: "poems", href: "/schools/content/poem", icon: Feather, label: t.navPoems },
+        { key: "lessons", href: "/schools/content", icon: BookOpen, label: t.navLessons },
         { key: "classrooms", href: "/schools/teacher/classes", icon: Presentation, label: t.navClassrooms },
         { key: "attendance", href: "/schools/teacher/attendance", icon: ClipboardCheck, label: t.navAttendance },
         { key: "assignments", href: "/schools/teacher/assignments", icon: ClipboardList, label: t.navAssignments },
@@ -178,7 +177,7 @@ export function SchoolSidebar({ role, schoolName }: { role: SchoolMemberRole | n
     <Sidebar side={isRtlLang(lang) ? "right" : "left"} variant="inset" collapsible="icon">
       <SidebarHeader className="p-0">
         <SidebarBrandHeader
-          href="/schools"
+          href="/"
           data-testid="nav-schools-brand"
           className="group-data-[collapsible=icon]:px-0"
           logoClassName="group-data-[collapsible=icon]:[&>span]:hidden"
@@ -201,7 +200,7 @@ export function SchoolSidebar({ role, schoolName }: { role: SchoolMemberRole | n
                   {role === "admin" && item.key === "broadcast" && <SidebarSeparator />}
                   {role === "student" && item.key === "contact-counselor" && <SidebarSeparator />}
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={location.startsWith(item.href)} tooltip={item.label}>
+                    <SidebarMenuButton asChild isActive={item.isActive ? item.isActive(location) : location.startsWith(item.href)} tooltip={item.label}>
                       <Link href={item.href} data-testid={`nav-school-${item.key}`}>
                         <item.icon />
                         <span>{item.label}</span>

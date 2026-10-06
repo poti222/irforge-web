@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { EnamadSeal } from "@/components/layout/enamad-seal";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { SupportFab } from "@/components/layout/support-fab";
@@ -71,6 +72,7 @@ export default function DashboardShell({
             </fieldset>
           </ErrorBoundary>
         </main>
+        <EnamadSeal className="border-t py-3" />
         <SupportFab />
       </SidebarInset>
     </SidebarProvider>

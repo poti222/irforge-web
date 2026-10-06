@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { EnamadSeal } from "@/components/layout/enamad-seal";
+import { consumePostAuthTarget } from "@/lib/post-auth";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
@@ -191,7 +193,7 @@ export default function Login() {
       // بروند و سرور ۴۰۱ بدهد، در حالی که UI کاربر را واردشده نشان می‌دهد.
       setAuthToken(res.token);
       queryClient.setQueryData(getGetMeQueryKey(), res.user);
-      navigate("/dashboard");
+      navigate(consumePostAuthTarget());
     },
     [navigate, queryClient],
   );
@@ -472,395 +474,398 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <BackHomeButton className="fixed start-4 top-4 z-10" />
-      <PublicPageControls className="fixed end-4 top-4 z-10" />
-      <div className="w-full max-w-md space-y-6">
-        <div className="flex justify-center">
-          <BrandLogo href="/" />
-        </div>
+    <>
+      <div className="flex min-h-[calc(100dvh-5.5rem)] items-center justify-center bg-background px-4 py-10">
+        <BackHomeButton className="fixed start-4 top-4 z-10" />
+        <PublicPageControls className="fixed end-4 top-4 z-10" />
+        <div className="w-full max-w-md space-y-6">
+          <div className="flex justify-center">
+            <BrandLogo href="/" />
+          </div>
 
-        <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
-        {step === "credentials" && (
-          <form
-            className="space-y-4"
-            onSubmit={(e) => { e.preventDefault(); void submitCredentials(); }}
-          >
-            <AuthStepHeader title={t.signInAccount} step={1} total={TOTAL_STEPS} />
-
-            {/*
-              راه‌های ورودِ یک‌کلیکی (تلگرام، گوگل، گیت‌هاب) از ایمیل/شماره
-              جدا و کوچک‌ترند: این سه هیچ فرمی زیرشان باز نمی‌کنند — همان لحظه
-              کاربر را به مقصد می‌فرستند — پس جای کارت‌های بزرگِ هم‌قواره با
-              فرم پایین نیستند. ایمیل/شماره پایین‌تر، بزرگ و انتخاب‌پذیر
-              می‌مانند چون فرم زیرشان همین‌جا باز می‌شود.
-            */}
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void startTelegramLogin()}
-                className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-2.5 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
-                aria-label={t.tgLoginButton}
-                title={t.tgLoginHint}
-              >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
-                  {busy ? (
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Send className="size-4" aria-hidden="true" />
-                  )}
-                </span>
-                <span className="text-xs font-medium leading-tight">{t.tgLoginButton}</span>
-              </button>
+          <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
+          {step === "credentials" && (
+            <form
+              className="space-y-4"
+              onSubmit={(e) => { e.preventDefault(); void submitCredentials(); }}
+            >
+              <AuthStepHeader title={t.signInAccount} step={1} total={TOTAL_STEPS} />
 
               {/*
-                گوگل و گیت‌هاب هم مثل تلگرام یک‌کلیکی‌اند: navigation کامل (نه
-                fetch) به سرور، که خودش کاربر را به آن سرویس می‌فرستد. توکن
-                نهایی از طریق auth-google-callback.tsx / auth-github-callback.tsx
-                برمی‌گردد.
+                راه‌های ورودِ یک‌کلیکی (تلگرام، گوگل، گیت‌هاب) از ایمیل/شماره
+                جدا و کوچک‌ترند: این سه هیچ فرمی زیرشان باز نمی‌کنند — همان لحظه
+                کاربر را به مقصد می‌فرستند — پس جای کارت‌های بزرگِ هم‌قواره با
+                فرم پایین نیستند. ایمیل/شماره پایین‌تر، بزرگ و انتخاب‌پذیر
+                می‌مانند چون فرم زیرشان همین‌جا باز می‌شود.
               */}
-              <motion.button
-                type="button"
-                {...(reduceMotion ? {} : hoverLiftMotion)}
-                disabled={busy}
-                onClick={() => {
-                  window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/google`;
-                }}
-                className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-2.5 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
-                aria-label={t.googleLoginButton}
-                title={t.googleLoginHint}
-              >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
-                  <GoogleIcon className="size-4" />
-                </span>
-                <span className="text-xs font-medium leading-tight">{t.googleLoginButton}</span>
-              </motion.button>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void startTelegramLogin()}
+                  className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-2.5 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                  aria-label={t.tgLoginButton}
+                  title={t.tgLoginHint}
+                >
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
+                    {busy ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Send className="size-4" aria-hidden="true" />
+                    )}
+                  </span>
+                  <span className="text-xs font-medium leading-tight">{t.tgLoginButton}</span>
+                </button>
 
-              <motion.button
-                type="button"
-                {...(reduceMotion ? {} : hoverLiftMotion)}
-                disabled={busy}
-                onClick={() => {
-                  window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/github`;
-                }}
-                className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-2.5 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
-                aria-label={t.githubLoginButton}
-                title={t.githubLoginHint}
-              >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
-                  <GitHubIcon className="size-4" />
-                </span>
-                <span className="text-xs font-medium leading-tight">{t.githubLoginButton}</span>
-              </motion.button>
-            </div>
-
-            {tgError && (
-              <p className="text-center text-sm text-destructive" role="alert">
-                {tgError}
-              </p>
-            )}
-
-            {/* جداکننده‌ی «یا» — تا فرم پایین یک گزینه دیده شود، نه گام بعدی. */}
-            <div className="flex items-center gap-3 pt-1">
-              <span className="h-px flex-1 bg-border" />
-              <span className="text-xs text-muted-foreground">{t.orDivider}</span>
-              <span className="h-px flex-1 bg-border" />
-            </div>
-
-            {/*
-              ایمیل و شماره: کارت‌های بزرگ و هم‌قواره. هر کارت آیکون +
-              زیرنویسِ «چه چیزی لازم داری» دارد و وقتی انتخاب است یک ring
-              می‌گیرد تا معلوم باشد فرمِ زیرش الان مال کدام‌شان است.
-              اگر EMAIL_AUTH_CLOSED (lib/auth-policy.ts) روشن شود، این
-              انتخاب‌گر کلاً پنهان می‌شود و فرم مستقیم می‌رود سراغ شماره —
-              شرطِ همان پرچم زیرِ گرید هم دقیقاً همین رفتار را تضمین می‌کند.
-            */}
-            {!EMAIL_AUTH_CLOSED && (
-              <div className="space-y-2.5">
+                {/*
+                  گوگل و گیت‌هاب هم مثل تلگرام یک‌کلیکی‌اند: navigation کامل (نه
+                  fetch) به سرور، که خودش کاربر را به آن سرویس می‌فرستد. توکن
+                  نهایی از طریق auth-google-callback.tsx / auth-github-callback.tsx
+                  برمی‌گردد.
+                */}
                 <motion.button
                   type="button"
                   {...(reduceMotion ? {} : hoverLiftMotion)}
                   disabled={busy}
-                  onClick={() => setLoginMethod("email")}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-md border px-3.5 py-3 text-start transition-colors disabled:pointer-events-none disabled:opacity-50",
-                    loginMethod === "email"
-                      ? "border-primary bg-primary/5 ring-1 ring-primary"
-                      : "border-border hover:border-primary/50"
-                  )}
+                  onClick={() => {
+                    window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/google`;
+                  }}
+                  className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-2.5 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                  aria-label={t.googleLoginButton}
+                  title={t.googleLoginHint}
                 >
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
-                    <Mail className="size-5" aria-hidden="true" />
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                    <GoogleIcon className="size-4" />
                   </span>
-                  <span className="flex flex-col">
-                    <span className="font-medium">{t.email}</span>
-                    <span className="text-xs text-muted-foreground">{t.loginPassword}</span>
-                  </span>
+                  <span className="text-xs font-medium leading-tight">{t.googleLoginButton}</span>
                 </motion.button>
 
                 <motion.button
                   type="button"
                   {...(reduceMotion ? {} : hoverLiftMotion)}
                   disabled={busy}
-                  onClick={() => setLoginMethod("phone")}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-md border px-3.5 py-3 text-start transition-colors disabled:pointer-events-none disabled:opacity-50",
-                    loginMethod === "phone"
-                      ? "border-primary bg-primary/5 ring-1 ring-primary"
-                      : "border-border hover:border-primary/50"
-                  )}
+                  onClick={() => {
+                    window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/github`;
+                  }}
+                  className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-2.5 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                  aria-label={t.githubLoginButton}
+                  title={t.githubLoginHint}
                 >
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
-                    <Phone className="size-5" aria-hidden="true" />
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                    <GitHubIcon className="size-4" />
                   </span>
-                  <span className="flex flex-col">
-                    <span className="font-medium">{t.loginPhone}</span>
-                    <span className="text-xs text-muted-foreground">{t.loginPassword}</span>
-                  </span>
+                  <span className="text-xs font-medium leading-tight">{t.githubLoginButton}</span>
                 </motion.button>
               </div>
-            )}
 
-            {/* شناسه (شماره/ایمیل) و رمز عبور: از سایز تبلت به بالا کنار هم، روی موبایل زیر هم — گرید ثابتِ دوستونه اینجا را روی گوشی می‌شکست. */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              {EMAIL_AUTH_CLOSED || loginMethod === "phone" ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="login-phone">{t.loginPhone}</Label>
-                  <Input
-                    id="login-phone"
-                    dir="ltr"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                  />
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  <Label htmlFor="login-email">{t.email}</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    dir="ltr"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
+              {tgError && (
+                <p className="text-center text-sm text-destructive" role="alert">
+                  {tgError}
+                </p>
+              )}
+
+              {/* جداکننده‌ی «یا» — تا فرم پایین یک گزینه دیده شود، نه گام بعدی. */}
+              <div className="flex items-center gap-3 pt-1">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">{t.orDivider}</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+
+              {/*
+                ایمیل و شماره: کارت‌های بزرگ و هم‌قواره. هر کارت آیکون +
+                زیرنویسِ «چه چیزی لازم داری» دارد و وقتی انتخاب است یک ring
+                می‌گیرد تا معلوم باشد فرمِ زیرش الان مال کدام‌شان است.
+                اگر EMAIL_AUTH_CLOSED (lib/auth-policy.ts) روشن شود، این
+                انتخاب‌گر کلاً پنهان می‌شود و فرم مستقیم می‌رود سراغ شماره —
+                شرطِ همان پرچم زیرِ گرید هم دقیقاً همین رفتار را تضمین می‌کند.
+              */}
+              {!EMAIL_AUTH_CLOSED && (
+                <div className="space-y-2.5">
+                  <motion.button
+                    type="button"
+                    {...(reduceMotion ? {} : hoverLiftMotion)}
+                    disabled={busy}
+                    onClick={() => setLoginMethod("email")}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-md border px-3.5 py-3 text-start transition-colors disabled:pointer-events-none disabled:opacity-50",
+                      loginMethod === "email"
+                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
+                      <Mail className="size-5" aria-hidden="true" />
+                    </span>
+                    <span className="flex flex-col">
+                      <span className="font-medium">{t.email}</span>
+                      <span className="text-xs text-muted-foreground">{t.loginPassword}</span>
+                    </span>
+                  </motion.button>
+
+                  <motion.button
+                    type="button"
+                    {...(reduceMotion ? {} : hoverLiftMotion)}
+                    disabled={busy}
+                    onClick={() => setLoginMethod("phone")}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-md border px-3.5 py-3 text-start transition-colors disabled:pointer-events-none disabled:opacity-50",
+                      loginMethod === "phone"
+                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
+                      <Phone className="size-5" aria-hidden="true" />
+                    </span>
+                    <span className="flex flex-col">
+                      <span className="font-medium">{t.loginPhone}</span>
+                      <span className="text-xs text-muted-foreground">{t.loginPassword}</span>
+                    </span>
+                  </motion.button>
                 </div>
               )}
+
+              {/* شناسه (شماره/ایمیل) و رمز عبور: از سایز تبلت به بالا کنار هم، روی موبایل زیر هم — گرید ثابتِ دوستونه اینجا را روی گوشی می‌شکست. */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {EMAIL_AUTH_CLOSED || loginMethod === "phone" ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="login-phone">{t.loginPhone}</Label>
+                    <Input
+                      id="login-phone"
+                      dir="ltr"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      required
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="login-email">{t.email}</Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      dir="ltr"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="login-pass">{t.loginPassword}</Label>
+                  <PasswordInput
+                    id="login-pass"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <GlowButton type="submit" className="w-full" disabled={busy}>
+                {busy && <Loader2 className="me-2 size-4 animate-spin" />}
+                {t.loginContinue}
+              </GlowButton>
+
+              <button
+                type="button"
+                onClick={() => setStep("sms_phone")}
+                className="flex w-full items-center gap-2 rounded-lg border p-3 text-start transition-colors hover:border-primary/60"
+              >
+                <MessageSquareText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="text-sm">{t.smsLoginButton}</span>
+              </button>
+
+              <p className="text-center text-sm text-muted-foreground">
+                {t.noAccount}{" "}
+                <Link href="/register" className="text-primary hover:underline">{t.registerNow}</Link>
+              </p>
+
+              {/* مسیر مشخص به‌جای بن‌بست، برای کسی که تلگرامش را از دست داده. */}
+              <Link
+                href="/support?topic=telegram-lost"
+                className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <LifeBuoy className="size-3.5" aria-hidden="true" />
+                {t.lostTelegram}
+              </Link>
+            </form>
+          )}
+
+          {step === "code" && (
+            <div className="space-y-5">
+              {/* بازگشت، چالش جاری را رها می‌کند و به شماره/رمز برمی‌گردد. */}
+              <AuthStepHeader
+                title={t.loginCodeTitle}
+                description={(t.loginCodeDesc ?? "").replace("{dest}", destination)}
+                step={2}
+                total={TOTAL_STEPS}
+                onBack={goBackToCredentials}
+              />
+
+              <CodeInput
+                value={code}
+                onChange={setCode}
+                onComplete={(c) => void verify(c)}
+                disabled={busy}
+                invalid={codeInvalid}
+                errorMessage={codeErrorMessage}
+              />
+
+              <p className="text-center text-sm text-muted-foreground" aria-live="polite">
+                {secondsLeft > 0
+                  ? (t.codeExpiresIn ?? "").replace(
+                      "{t}",
+                      `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`,
+                    )
+                  : t.codeExpired}
+              </p>
+
+              <GlowButton
+                className="w-full"
+                disabled={busy || code.length !== 6}
+                onClick={() => void verify(code)}
+              >
+                {busy && <Loader2 className="me-2 size-4 animate-spin" />}
+                {t.loginVerify}
+              </GlowButton>
+            </div>
+          )}
+
+          {step === "telegram_waiting" && tgRequest && (
+            <div className="space-y-5">
+              <AuthStepHeader
+                title={t.tgWaitingTitle}
+                description={t.tgWaitingDesc}
+                step={2}
+                total={TOTAL_STEPS}
+                onBack={() => resetTelegram()}
+              />
+
+              {/*
+                همان پنل ثبت‌نام: دکمه‌ی «باز کردن تلگرام» + QR. QR اینجا هم
+                اختیاری نیست — روی دسکتاپ بدون تلگرامِ نصب‌شده، لینک `t.me` تنها
+                کاری که می‌کند باز کردن یک صفحه‌ی وب است.
+              */}
+              <TelegramLinkPanel mode="register" deepLink={tgRequest.deepLink} waiting sameTab />
+
+              <p className="text-center text-sm text-muted-foreground" aria-live="polite">
+                {secondsLeft > 0
+                  ? (t.codeExpiresIn ?? "").replace(
+                      "{t}",
+                      `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`,
+                    )
+                  : t.tgExpired}
+              </p>
+            </div>
+          )}
+
+          {step === "sms_phone" && (
+            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void startSmsLogin(); }}>
+              <AuthStepHeader
+                title={t.smsLoginTitle}
+                description={t.smsLoginDesc}
+                step={1}
+                total={TOTAL_STEPS}
+                onBack={() => setStep("credentials")}
+              />
+
               <div className="space-y-1.5">
-                <Label htmlFor="login-pass">{t.loginPassword}</Label>
-                <PasswordInput
-                  id="login-pass"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                <Label htmlFor="sms-login-phone">{t.loginPhone}</Label>
+                <Input
+                  id="sms-login-phone"
+                  dir="ltr"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={smsLoginPhone}
+                  onChange={(e) => setSmsLoginPhone(e.target.value)}
                   required
                 />
               </div>
-            </div>
 
-            <GlowButton type="submit" className="w-full" disabled={busy}>
-              {busy && <Loader2 className="me-2 size-4 animate-spin" />}
-              {t.loginContinue}
-            </GlowButton>
+              <GlowButton type="submit" className="w-full" disabled={busy || !smsLoginPhone.trim()}>
+                {busy && <Loader2 className="me-2 size-4 animate-spin" />}
+                {t.smsLoginSend}
+              </GlowButton>
+            </form>
+          )}
 
-            <button
-              type="button"
-              onClick={() => setStep("sms_phone")}
-              className="flex w-full items-center gap-2 rounded-lg border p-3 text-start transition-colors hover:border-primary/60"
-            >
-              <MessageSquareText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <span className="text-sm">{t.smsLoginButton}</span>
-            </button>
-
-            <p className="text-center text-sm text-muted-foreground">
-              {t.noAccount}{" "}
-              <Link href="/register" className="text-primary hover:underline">{t.registerNow}</Link>
-            </p>
-
-            {/* مسیر مشخص به‌جای بن‌بست، برای کسی که تلگرامش را از دست داده. */}
-            <Link
-              href="/support?topic=telegram-lost"
-              className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <LifeBuoy className="size-3.5" aria-hidden="true" />
-              {t.lostTelegram}
-            </Link>
-          </form>
-        )}
-
-        {step === "code" && (
-          <div className="space-y-5">
-            {/* بازگشت، چالش جاری را رها می‌کند و به شماره/رمز برمی‌گردد. */}
-            <AuthStepHeader
-              title={t.loginCodeTitle}
-              description={(t.loginCodeDesc ?? "").replace("{dest}", destination)}
-              step={2}
-              total={TOTAL_STEPS}
-              onBack={goBackToCredentials}
-            />
-
-            <CodeInput
-              value={code}
-              onChange={setCode}
-              onComplete={(c) => void verify(c)}
-              disabled={busy}
-              invalid={codeInvalid}
-              errorMessage={codeErrorMessage}
-            />
-
-            <p className="text-center text-sm text-muted-foreground" aria-live="polite">
-              {secondsLeft > 0
-                ? (t.codeExpiresIn ?? "").replace(
-                    "{t}",
-                    `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`,
-                  )
-                : t.codeExpired}
-            </p>
-
-            <GlowButton
-              className="w-full"
-              disabled={busy || code.length !== 6}
-              onClick={() => void verify(code)}
-            >
-              {busy && <Loader2 className="me-2 size-4 animate-spin" />}
-              {t.loginVerify}
-            </GlowButton>
-          </div>
-        )}
-
-        {step === "telegram_waiting" && tgRequest && (
-          <div className="space-y-5">
-            <AuthStepHeader
-              title={t.tgWaitingTitle}
-              description={t.tgWaitingDesc}
-              step={2}
-              total={TOTAL_STEPS}
-              onBack={() => resetTelegram()}
-            />
-
-            {/*
-              همان پنل ثبت‌نام: دکمه‌ی «باز کردن تلگرام» + QR. QR اینجا هم
-              اختیاری نیست — روی دسکتاپ بدون تلگرامِ نصب‌شده، لینک `t.me` تنها
-              کاری که می‌کند باز کردن یک صفحه‌ی وب است.
-            */}
-            <TelegramLinkPanel mode="register" deepLink={tgRequest.deepLink} waiting sameTab />
-
-            <p className="text-center text-sm text-muted-foreground" aria-live="polite">
-              {secondsLeft > 0
-                ? (t.codeExpiresIn ?? "").replace(
-                    "{t}",
-                    `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`,
-                  )
-                : t.tgExpired}
-            </p>
-          </div>
-        )}
-
-        {step === "sms_phone" && (
-          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void startSmsLogin(); }}>
-            <AuthStepHeader
-              title={t.smsLoginTitle}
-              description={t.smsLoginDesc}
-              step={1}
-              total={TOTAL_STEPS}
-              onBack={() => setStep("credentials")}
-            />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="sms-login-phone">{t.loginPhone}</Label>
-              <Input
-                id="sms-login-phone"
-                dir="ltr"
-                inputMode="tel"
-                autoComplete="tel"
-                value={smsLoginPhone}
-                onChange={(e) => setSmsLoginPhone(e.target.value)}
-                required
+          {step === "sms_code" && (
+            <div className="space-y-5">
+              <AuthStepHeader
+                title={t.loginCodeTitle}
+                description={(t.smsLoginCodeDesc ?? "").replace("{dest}", maskPhoneForDisplay(smsLoginPhone))}
+                step={2}
+                total={TOTAL_STEPS}
+                onBack={goBackToSmsPhone}
               />
+
+              <CodeInput
+                value={code}
+                onChange={setCode}
+                onComplete={(c) => void verifySmsLogin(c)}
+                disabled={busy}
+                invalid={codeInvalid}
+                errorMessage={codeErrorMessage}
+                webOtp
+              />
+
+              <p className="text-center text-sm text-muted-foreground" aria-live="polite">
+                {secondsLeft > 0
+                  ? (t.codeExpiresIn ?? "").replace(
+                      "{t}",
+                      `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`,
+                    )
+                  : t.codeExpired}
+              </p>
+
+              <GlowButton
+                className="w-full"
+                disabled={busy || code.length !== 6}
+                onClick={() => void verifySmsLogin(code)}
+              >
+                {busy && <Loader2 className="me-2 size-4 animate-spin" />}
+                {t.loginVerify}
+              </GlowButton>
+
+              <Button
+                variant="ghost"
+                className="w-full"
+                disabled={busy || smsResendIn > 0}
+                onClick={() => void resendSmsLogin()}
+              >
+                {smsResendIn > 0 ? (t.resendIn ?? "").replace("{n}", String(smsResendIn)) : t.resend}
+              </Button>
             </div>
+          )}
 
-            <GlowButton type="submit" className="w-full" disabled={busy || !smsLoginPhone.trim()}>
-              {busy && <Loader2 className="me-2 size-4 animate-spin" />}
-              {t.smsLoginSend}
-            </GlowButton>
-          </form>
-        )}
+          {step === "needs_telegram" && (
+            <div className="space-y-4">
+              <AuthStepHeader
+                title={t.needsTelegram}
+                description={t.needsTelegramDesc}
+                step={2}
+                total={TOTAL_STEPS}
+                onBack={goBackToCredentials}
+              />
+              <TelegramLinkPanel mode="register" deepLink={linkDeepLink} waiting sameTab />
 
-        {step === "sms_code" && (
-          <div className="space-y-5">
-            <AuthStepHeader
-              title={t.loginCodeTitle}
-              description={(t.smsLoginCodeDesc ?? "").replace("{dest}", maskPhoneForDisplay(smsLoginPhone))}
-              step={2}
-              total={TOTAL_STEPS}
-              onBack={goBackToSmsPhone}
-            />
-
-            <CodeInput
-              value={code}
-              onChange={setCode}
-              onComplete={(c) => void verifySmsLogin(c)}
-              disabled={busy}
-              invalid={codeInvalid}
-              errorMessage={codeErrorMessage}
-              webOtp
-            />
-
-            <p className="text-center text-sm text-muted-foreground" aria-live="polite">
-              {secondsLeft > 0
-                ? (t.codeExpiresIn ?? "").replace(
-                    "{t}",
-                    `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`,
-                  )
-                : t.codeExpired}
-            </p>
-
-            <GlowButton
-              className="w-full"
-              disabled={busy || code.length !== 6}
-              onClick={() => void verifySmsLogin(code)}
-            >
-              {busy && <Loader2 className="me-2 size-4 animate-spin" />}
-              {t.loginVerify}
-            </GlowButton>
-
-            <Button
-              variant="ghost"
-              className="w-full"
-              disabled={busy || smsResendIn > 0}
-              onClick={() => void resendSmsLogin()}
-            >
-              {smsResendIn > 0 ? (t.resendIn ?? "").replace("{n}", String(smsResendIn)) : t.resend}
-            </Button>
+              <Card>
+                <CardContent className="flex items-start gap-3 p-4">
+                  <Phone className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <p className="text-xs text-muted-foreground">{t.lostTelegramDesc}</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
           </div>
-        )}
-
-        {step === "needs_telegram" && (
-          <div className="space-y-4">
-            <AuthStepHeader
-              title={t.needsTelegram}
-              description={t.needsTelegramDesc}
-              step={2}
-              total={TOTAL_STEPS}
-              onBack={goBackToCredentials}
-            />
-            <TelegramLinkPanel mode="register" deepLink={linkDeepLink} waiting sameTab />
-
-            <Card>
-              <CardContent className="flex items-start gap-3 p-4">
-                <Phone className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <p className="text-xs text-muted-foreground">{t.lostTelegramDesc}</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
         </div>
       </div>
-    </div>
+      <EnamadSeal className="bg-background pb-4" />
+    </>
   );
 }

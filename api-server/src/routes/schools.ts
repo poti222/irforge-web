@@ -35,6 +35,7 @@ import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, isSuperAdminUser, SCHOOL_ADMIN_ONLY, SCHOOL_MEMBERS_READ_ROLES } from "../lib/schoolAuth";
 import { logSchoolAudit } from "../lib/schoolAuditLog";
+import { ensureSchoolSubjectsSeeded } from "../lib/schoolContentAccess";
 
 const router = Router();
 
@@ -300,6 +301,8 @@ router.post("/schools", requireAuth, async (req: any, res) => {
       licenseInfo: licenseInfo ?? null,
       createdByUserId: req.userId,
     }).returning();
+    // «درس‌هایِ پیش‌فرض» (ادبیات/ریاضی/...) برایِ مدرسه‌یِ تازه.
+    await ensureSchoolSubjectsSeeded(school.id);
 
     // سازنده را همان لحظه مدیرِ همین مدرسه کن — بدون این کار «مدرسه‌ی من»ِ
     // خالی می‌ماند و هیچ راهی برای مدیریتش نداشت. (سوپرادمین استثناست: او همه‌یِ مدارس را بدونِ عضویت مدیریت می‌کند؛

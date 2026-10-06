@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { consumePostAuthTarget } from "@/lib/post-auth";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch, getGetMeQueryKey } from "@workspace/api-client-react";
@@ -46,7 +47,7 @@ export default function AuthGithubCallback() {
     customFetch<any>("/api/auth/me")
       .then((user) => {
         queryClient.setQueryData(getGetMeQueryKey(), user);
-        navigate("/dashboard", { replace: true });
+        navigate(consumePostAuthTarget(), { replace: true });
       })
       .catch(() => setFailed(true));
     // فقط یک‌بار، موقع mount — توکن در fragment است و عوض نمی‌شود.

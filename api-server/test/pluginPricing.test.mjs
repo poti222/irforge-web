@@ -40,13 +40,13 @@ const FREE_PLUGIN_IDS = ["freeplug-a", "freeplug-b", "freeplug-c", "freeplug-d"]
 
 // همان دو عددِ قدیمیِ BOT_TIER_PRICES، حالا فقط برای خواناییِ تست‌ها محلی —
 // منبعِ واقعیِ قیمت دیگر همین‌جا نیست، جدولِ seed شده‌ی SEEDED_BOT_PRODUCTS است.
-const STANDARD_PRICE_TOMAN = 500_000;
-const PRO_PRICE_TOMAN = 1_100_000;
+const STANDARD_PRICE_TOMAN = 1_000_000;
+const PRO_PRICE_TOMAN = 1_900_000;
 
 /** بازتابِ سیدِ اولیه‌ی migrate.mjs (PROGRESS.md's Phase 1/2) — همان دو ردیفِ واقعی، برای اینکه تست‌ها همان چیزی را می‌سنجند که در پروداکشن هم واقعاً نشسته. */
 const SEEDED_BOT_PRODUCTS = {
-  standard: { id: "standard", categoryId: "bot", price: 5_000_000, isActive: true, metadata: { maxFreePlugins: 3 } },
-  pro:      { id: "pro",      categoryId: "bot", price: 11_000_000, isActive: true, metadata: { maxFreePlugins: 6 } },
+  standard: { id: "standard", categoryId: "bot", price: 10_000_000, isActive: true, metadata: { maxFreePlugins: 3 } },
+  pro:      { id: "pro",      categoryId: "bot", price: 19_000_000, isActive: true, metadata: { maxFreePlugins: 6 } },
 };
 
 /**
@@ -328,7 +328,7 @@ test("getBotTierProduct: ردیفِ ناموجود یا غیرفعال null بر
 
 test("getBotTierProduct: metadataی بدونِ maxFreePlugins به Infinity می‌افتد، نه صفر", async () => {
   // یک محصولِ بات که هنوز این کلید را ندارد نباید همه‌ی پلاگین‌هایش پولی شود.
-  installBotTierRow({ id: "standard", categoryId: "bot", price: 5_000_000, isActive: true, metadata: {} });
+  installBotTierRow({ id: "standard", categoryId: "bot", price: 10_000_000, isActive: true, metadata: {} });
   const product = await getBotTierProduct("standard");
   assert.equal(product.maxFreePlugins, Infinity);
 });

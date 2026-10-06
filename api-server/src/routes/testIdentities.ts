@@ -31,6 +31,9 @@ import {
   schoolsTable,
   schoolMembersTable,
   schoolTeacherSubjectsTable,
+  schoolSubjectsTable,
+  schoolContentLessonsTable,
+  schoolContentItemsTable,
   sessionsTable,
   SCHOOL_MEMBER_ROLES,
   SCHOOL_SUBJECTS,
@@ -43,6 +46,7 @@ import { hashPassword } from "../lib/password";
 import { hashSessionToken } from "../lib/sessionToken";
 import { logger } from "../lib/logger";
 import { writeAudit } from "../lib/audit";
+import { ensureSchoolSubjectsSeeded } from "../lib/schoolContentAccess";
 
 const router = Router();
 
@@ -111,6 +115,25 @@ router.get("/super/test-identities/schools", requireSuperAdmin, requireSuperGate
   }
 });
 
+// GET /api/super/test-identities/schools/:schoolId/subjects — درس‌هایِ *واقعیِ* همان مدرسه
+// برایِ پیکرِ «درسِ معلمِ آزمایشی» (قبلاً فهرستِ ثابت بود؛ حالا مدیرِ هر مدرسه درس‌ها را عوض می‌کند).
+router.get("/super/test-identities/schools/:schoolId/subjects", requireSuperAdmin, requireSuperGate, async (req: any, res) => {
+  try {
+    const [school] = await db.select({ id: schoolsTable.id }).from(schoolsTable).where(eq(schoolsTable.id, req.params.schoolId)).limit(1);
+    if (!school) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    await ensureSchoolSubjectsSeeded(school.id);
+    const rows = await db.select({ name: schoolSubjectsTable.name }).from(schoolSubjectsTable)
+      .where(eq(schoolSubjectsTable.schoolId, school.id)).orderBy(schoolSubjectsTable.sortOrder);
+    res.json(rows.map((r: { name: string }) => r.name));
+  } catch (err) {
+    logger.error({ err }, "list test-identity school subjects error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 /**
  * POST /api/super/test-identities
  * body: { role, grade?, schoolId? , newSchoolName?, subject? }
@@ -136,7 +159,7 @@ router.post("/super/test-identities", requireSuperAdmin, requireSuperGate, async
       res.status(400).json({ error: "پایه برایِ دانش‌آموز لازم است", code: "grade_required" });
       return;
     }
-    if (role === "teacher" && (!subject || !(SCHOOL_SUBJECTS as readonly string[]).includes(subject))) {
+    if (role === "teacher" && (!subject || typeof subject !== "string")) {
       res.status(400).json({ error: "درس برایِ معلم لازم است", code: "subject_required" });
       return;
     }
@@ -153,7 +176,22 @@ router.post("/super/test-identities", requireSuperAdmin, requireSuperGate, async
         return;
       }
       targetSchoolId = school.id;
+      // نامِ درس باید یکی از درس‌هایِ *واقعیِ همین مدرسه* باشد (school_subjects).
+      if (role === "teacher") {
+        await ensureSchoolSubjectsSeeded(school.id);
+        const [subjectRow] = await db.select({ id: schoolSubjectsTable.id }).from(schoolSubjectsTable)
+          .where(and(eq(schoolSubjectsTable.schoolId, school.id), eq(schoolSubjectsTable.name, subject))).limit(1);
+        if (!subjectRow) {
+          res.status(400).json({ error: "درس برایِ معلم لازم است", code: "subject_required" });
+          return;
+        }
+      }
     } else {
+      // مدرسه‌یِ آزمایشیِ تازه هنوز ساخته نشده — اول با فهرستِ پیش‌فرض (همان که seed می‌شود) اعتبارسنجی کن.
+      if (role === "teacher" && !(SCHOOL_SUBJECTS as readonly string[]).includes(subject)) {
+        res.status(400).json({ error: "درس برایِ معلم لازم است", code: "subject_required" });
+        return;
+      }
       // دقیقاً همان دو فیلدِ ساختِ مدرسه در routes/schools.ts (POST /api/schools)،
       // به‌علاوه‌یِ پرچمِ isTestSchool.
       const [school] = await db
@@ -166,6 +204,8 @@ router.post("/super/test-identities", requireSuperAdmin, requireSuperGate, async
         })
         .returning();
       targetSchoolId = school.id;
+      // مدرسه‌یِ تازه هم باید «درس‌هایِ پیش‌فرض» را داشته باشد (وگرنه subject بی‌مرجع می‌ماند).
+      await ensureSchoolSubjectsSeeded(school.id);
     }
 
     const random = crypto.randomBytes(8).toString("hex");
@@ -315,6 +355,12 @@ router.post("/super/test-schools/cleanup", requireSuperAdmin, requireSuperGate, 
     const testUserIds = testUsers.map((u: typeof testUsers[number]) => u.id);
 
     await db.delete(schoolMembersTable).where(inArray(schoolMembersTable.schoolId, schoolIds));
+    // محتوایِ کتابخانه/درس‌ها/تخصیصِ معلم‌هایِ این مدارس هم پاک شود (school_content_lessons و
+    // school_teacher_subjects به schools(id) FK دارند — وگرنه حذفِ مدرسه در پایین شکست می‌خورد).
+    await db.delete(schoolContentItemsTable).where(inArray(schoolContentItemsTable.schoolId, schoolIds));
+    await db.delete(schoolContentLessonsTable).where(inArray(schoolContentLessonsTable.schoolId, schoolIds));
+    await db.delete(schoolTeacherSubjectsTable).where(inArray(schoolTeacherSubjectsTable.schoolId, schoolIds));
+    await db.delete(schoolSubjectsTable).where(inArray(schoolSubjectsTable.schoolId, schoolIds));
     if (testUserIds.length) {
       await db.delete(sessionsTable).where(inArray(sessionsTable.userId, testUserIds));
       await db.delete(usersTable).where(inArray(usersTable.id, testUserIds));

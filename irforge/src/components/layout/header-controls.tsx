@@ -1,3 +1,4 @@
+import { PaletteButton } from "@/components/layout/palette-button";
 import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
 import { CartButton } from "@/components/layout/cart-button";
 import { NotificationBell } from "@/components/layout/notification-bell";
@@ -20,6 +21,7 @@ export function HeaderControls() {
       <CurrencySwitcher />
       <NotificationBell />
       <CartButton />
+      <PaletteButton />
       <ThemeToggleButton />
     </div>
   );

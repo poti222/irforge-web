@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { EnamadSeal } from "@/components/layout/enamad-seal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Home } from "lucide-react";
@@ -28,46 +29,49 @@ export default function NotFound() {
     .map((slug) => ({ slug, content: articleFor(lang, slug) }))
     .filter((a) => a.content);
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background">
-      <Card className="w-full max-w-md mx-4">
-        <CardContent className="pt-6">
-          <div className="flex mb-4 gap-2 items-center">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <h1 className="text-2xl font-bold">{t.notFoundTitle}</h1>
-          </div>
+    <>
+      <div className="min-h-[calc(100dvh-5.5rem)] w-full flex items-center justify-center bg-background">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="pt-6">
+            <div className="flex mb-4 gap-2 items-center">
+              <AlertCircle className="h-8 w-8 text-red-500" />
+              <h1 className="text-2xl font-bold">{t.notFoundTitle}</h1>
+            </div>
 
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t.notFoundDesc}
-          </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t.notFoundDesc}
+            </p>
 
-          <nav aria-label={learnT.relatedTitle} className="mt-6 space-y-2">
-            <h2 className="text-sm font-semibold">{learnT.relatedTitle}</h2>
-            <ul className="space-y-1.5 text-sm">
-              {suggestions.map(({ slug, content }) => (
-                <li key={slug}>
-                  <Link
-                    href={articleRoute(slug)}
-                    className="text-primary underline-offset-4 hover:underline"
-                  >
-                    {content!.h1}
+            <nav aria-label={learnT.relatedTitle} className="mt-6 space-y-2">
+              <h2 className="text-sm font-semibold">{learnT.relatedTitle}</h2>
+              <ul className="space-y-1.5 text-sm">
+                {suggestions.map(({ slug, content }) => (
+                  <li key={slug}>
+                    <Link
+                      href={articleRoute(slug)}
+                      className="text-primary underline-offset-4 hover:underline"
+                    >
+                      {content!.h1}
+                    </Link>
+                  </li>
+                ))}
+                <li>
+                  <Link href="/learn" className="text-primary underline-offset-4 hover:underline">
+                    {learnT.backToHub}
                   </Link>
                 </li>
-              ))}
-              <li>
-                <Link href="/learn" className="text-primary underline-offset-4 hover:underline">
-                  {learnT.backToHub}
-                </Link>
-              </li>
-            </ul>
-          </nav>
+              </ul>
+            </nav>
 
-          <Button asChild className="mt-6">
-            <Link href="/">
-              <Home className="me-2 h-4 w-4" /> {t.backToHome}
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+            <Button asChild className="mt-6">
+              <Link href="/">
+                <Home className="me-2 h-4 w-4" /> {t.backToHome}
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+      <EnamadSeal className="bg-background pb-4" />
+    </>
   );
 }

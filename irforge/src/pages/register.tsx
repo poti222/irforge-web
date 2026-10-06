@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { EnamadSeal } from "@/components/layout/enamad-seal";
+import { consumePostAuthTarget } from "@/lib/post-auth";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch, getGetMeQueryKey } from "@workspace/api-client-react";
@@ -509,7 +511,7 @@ export default function Register() {
         setAuthToken(res.token);
         queryClient.setQueryData(getGetMeQueryKey(), res.user);
         sessionStorage.removeItem(STORAGE_KEY);
-        navigate("/dashboard");
+        navigate(consumePostAuthTarget());
         return;
       }
 
@@ -641,7 +643,7 @@ export default function Register() {
       setAuthToken(res.token);
       queryClient.setQueryData(getGetMeQueryKey(), res.user);
       sessionStorage.removeItem(STORAGE_KEY);
-      navigate("/dashboard");
+      navigate(consumePostAuthTarget());
     } catch (err: any) {
       // رکورد عمداً زنده می‌ماند تا کاربر بتواند ایمیل را اصلاح کند.
       if (err?.data?.code === "email_taken") setEditingEmail(true);
@@ -660,381 +662,384 @@ export default function Register() {
     .join(" ");
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <BackHomeButton className="fixed start-4 top-4 z-10" />
-      <PublicPageControls className="fixed end-4 top-4 z-10" />
-      <div className="w-full max-w-md space-y-6">
-        <div className="flex justify-center">
-          <BrandLogo href="/" />
-        </div>
+    <>
+      <div className="flex min-h-[calc(100dvh-5.5rem)] items-center justify-center bg-background px-4 py-10">
+        <BackHomeButton className="fixed start-4 top-4 z-10" />
+        <PublicPageControls className="fixed end-4 top-4 z-10" />
+        <div className="w-full max-w-md space-y-6">
+          <div className="flex justify-center">
+            <BrandLogo href="/" />
+          </div>
 
-        <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
-        {/* ── گام ۱: انتخاب روش ─────────────────────────────────────────── */}
-        {step === "method" && (
-          <div className="space-y-4">
-            {/* گام اول: بازگشتی وجود ندارد، پس فقط نشانگر گام. */}
-            <AuthStepHeader title={t.methodTitle} step={1} total={stepNumber(method, "finish")} />
+          <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
+          {/* ── گام ۱: انتخاب روش ─────────────────────────────────────────── */}
+          {step === "method" && (
+            <div className="space-y-4">
+              {/* گام اول: بازگشتی وجود ندارد، پس فقط نشانگر گام. */}
+              <AuthStepHeader title={t.methodTitle} step={1} total={stepNumber(method, "finish")} />
 
-            {/*
-              ثبت‌نام یک‌کلیکی با گوگل/گیت‌هاب: همان endpoint ورودِ آن سرویس
-              (GET /api/auth/google یا /api/auth/github) — سرور اگر حسابی با
-              همان ایمیل نباشد خودش می‌سازد، پس «ثبت‌نام» و «ورود» با این دو
-              سرویس یک مسیر مشترک‌اند. بقیه‌ی گام‌های ثبت‌نام (شماره/ایمیل/
-              پیامک) پایین‌تر، جدا از این دو، دست‌نخورده می‌مانند.
-            */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/google`;
-                }}
-                className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-3 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
-                aria-label={t.googleLoginButton}
-                title={t.googleLoginHint}
-              >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
-                  <GoogleIcon className="size-4" />
-                </span>
-                <span className="text-xs font-medium leading-tight">{t.googleLoginButton}</span>
-              </button>
+              {/*
+                ثبت‌نام یک‌کلیکی با گوگل/گیت‌هاب: همان endpoint ورودِ آن سرویس
+                (GET /api/auth/google یا /api/auth/github) — سرور اگر حسابی با
+                همان ایمیل نباشد خودش می‌سازد، پس «ثبت‌نام» و «ورود» با این دو
+                سرویس یک مسیر مشترک‌اند. بقیه‌ی گام‌های ثبت‌نام (شماره/ایمیل/
+                پیامک) پایین‌تر، جدا از این دو، دست‌نخورده می‌مانند.
+              */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/google`;
+                  }}
+                  className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-3 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                  aria-label={t.googleLoginButton}
+                  title={t.googleLoginHint}
+                >
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                    <GoogleIcon className="size-4" />
+                  </span>
+                  <span className="text-xs font-medium leading-tight">{t.googleLoginButton}</span>
+                </button>
 
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/github`;
-                }}
-                className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-3 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
-                aria-label={t.githubLoginButton}
-                title={t.githubLoginHint}
-              >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
-                  <GitHubIcon className="size-4" />
-                </span>
-                <span className="text-xs font-medium leading-tight">{t.githubLoginButton}</span>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-3 pt-1">
-              <span className="h-px flex-1 bg-border" />
-              <span className="text-xs text-muted-foreground">{t.orDivider}</span>
-              <span className="h-px flex-1 bg-border" />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => { setMethod("sms"); setStep("identity"); }}
-              className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
-            >
-              <div className="flex items-start gap-3">
-                <MessageSquareText className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="font-semibold">{t.methodSms}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{t.methodSmsDesc}</p>
-                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/github`;
+                  }}
+                  className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-3 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+                  aria-label={t.githubLoginButton}
+                  title={t.githubLoginHint}
+                >
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                    <GitHubIcon className="size-4" />
+                  </span>
+                  <span className="text-xs font-medium leading-tight">{t.githubLoginButton}</span>
+                </button>
               </div>
-            </button>
 
-            {!EMAIL_AUTH_CLOSED && (
+              <div className="flex items-center gap-3 pt-1">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">{t.orDivider}</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+
               <button
                 type="button"
-                onClick={() => { setMethod("email"); setStep("identity"); }}
+                onClick={() => { setMethod("sms"); setStep("identity"); }}
                 className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
               >
                 <div className="flex items-start gap-3">
-                  <Mail className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                  <MessageSquareText className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
                   <div className="min-w-0">
-                    <p className="font-semibold">{t.methodEmail}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{t.methodEmailDesc}</p>
+                    <p className="font-semibold">{t.methodSms}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t.methodSmsDesc}</p>
                   </div>
                 </div>
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={() => { setMethod("phone"); setStep("identity"); }}
-              className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
+              {!EMAIL_AUTH_CLOSED && (
+                <button
+                  type="button"
+                  onClick={() => { setMethod("email"); setStep("identity"); }}
+                  className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
+                >
+                  <div className="flex items-start gap-3">
+                    <Mail className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="font-semibold">{t.methodEmail}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{t.methodEmailDesc}</p>
+                    </div>
+                  </div>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => { setMethod("phone"); setStep("identity"); }}
+                className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
+              >
+                <div className="flex items-start gap-3">
+                  <Send className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="font-semibold">{t.methodPhone}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t.methodPhoneDesc}</p>
+                  </div>
+                </div>
+              </button>
+
+              <p className="text-center text-sm text-muted-foreground">
+                {t.alreadyHaveAccount ?? ""}{" "}
+                <Link href="/login" className="text-primary hover:underline">{t.signInLink}</Link>
+              </p>
+            </div>
+          )}
+
+          {/* ── گام ۲: هویت ───────────────────────────────────────────────── */}
+          {step === "identity" && (
+            <form
+              className="space-y-4"
+              onSubmit={(e) => { e.preventDefault(); void startRegistration(); }}
             >
-              <div className="flex items-start gap-3">
-                <Send className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="font-semibold">{t.methodPhone}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{t.methodPhoneDesc}</p>
+              <AuthStepHeader
+                title={t.identityTitle}
+                description={
+                  method === "email" ? t.identityDescEmail : method === "sms" ? t.identityDescSms : t.identityDesc
+                }
+                step={stepNumber(method, "identity")}
+                total={stepNumber(method, "finish")}
+                onBack={() => goBack("method")}
+              />
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="reg-first">{t.firstName}</Label>
+                  <Input id="reg-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="reg-last">{t.lastName}</Label>
+                  <Input id="reg-last" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
                 </div>
               </div>
-            </button>
-
-            <p className="text-center text-sm text-muted-foreground">
-              {t.alreadyHaveAccount ?? ""}{" "}
-              <Link href="/login" className="text-primary hover:underline">{t.signInLink}</Link>
-            </p>
-          </div>
-        )}
-
-        {/* ── گام ۲: هویت ───────────────────────────────────────────────── */}
-        {step === "identity" && (
-          <form
-            className="space-y-4"
-            onSubmit={(e) => { e.preventDefault(); void startRegistration(); }}
-          >
-            <AuthStepHeader
-              title={t.identityTitle}
-              description={
-                method === "email" ? t.identityDescEmail : method === "sms" ? t.identityDescSms : t.identityDesc
-              }
-              step={stepNumber(method, "identity")}
-              total={stepNumber(method, "finish")}
-              onBack={() => goBack("method")}
-            />
-
-            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="reg-first">{t.firstName}</Label>
-                <Input id="reg-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                <Label htmlFor="reg-email">{t.email}</Label>
+                <Input id="reg-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="reg-last">{t.lastName}</Label>
-                <Input id="reg-last" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="reg-email">{t.email}</Label>
-              <Input id="reg-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            </div>
-            {method === "sms" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="reg-sms-phone">{t.phoneLabel}</Label>
-                <Input
-                  id="reg-sms-phone"
-                  dir="ltr"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  value={smsPhone}
-                  onChange={(e) => setSmsPhone(e.target.value)}
-                  required
-                />
-              </div>
-            )}
+              {method === "sms" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="reg-sms-phone">{t.phoneLabel}</Label>
+                  <Input
+                    id="reg-sms-phone"
+                    dir="ltr"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    value={smsPhone}
+                    onChange={(e) => setSmsPhone(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
 
-            {captchaConfig.enabled && (
-              <div className="flex justify-center">
-                <TurnstileWidget
-                  ref={turnstileRef}
-                  siteKey={captchaConfig.siteKey}
-                  onVerify={setCaptchaToken}
-                  onExpire={() => setCaptchaToken(null)}
-                />
-              </div>
-            )}
+              {captchaConfig.enabled && (
+                <div className="flex justify-center">
+                  <TurnstileWidget
+                    ref={turnstileRef}
+                    siteKey={captchaConfig.siteKey}
+                    onVerify={setCaptchaToken}
+                    onExpire={() => setCaptchaToken(null)}
+                  />
+                </div>
+              )}
 
-            <GlowButton type="submit" className="w-full" disabled={busy || (captchaConfig.enabled && !captchaToken)}>
-              {busy && <Loader2 className="me-2 size-4 animate-spin" />}
-              {t.continue}
-            </GlowButton>
-          </form>
-        )}
+              <GlowButton type="submit" className="w-full" disabled={busy || (captchaConfig.enabled && !captchaToken)}>
+                {busy && <Loader2 className="me-2 size-4 animate-spin" />}
+                {t.continue}
+              </GlowButton>
+            </form>
+          )}
 
-        {/* ── گام ۳: اتصال تلگرام ───────────────────────────────────────── */}
-        {step === "telegram" && (
-          <div className="space-y-4">
-            <AuthStepHeader
-              title={t.telegramTitle}
-              description={t.telegramDesc}
-              step={stepNumber(method, "telegram")}
-              total={stepNumber(method, "finish")}
-              // رکورد در انتظار زنده می‌ماند؛ برگشتن به هویت همان
-              // `registrationId` را دوباره می‌فرستد و ردیف تازه‌ای نمی‌سازد.
-              onBack={() => goBack("identity")}
-            />
-            {/* `sameTab`: باز کردن لینک در تب جدید روی موبایل یعنی تب تازه‌ای
-                با sessionStorage خالی — و همان بود که ثبت‌نام را می‌پراند. */}
-            <TelegramLinkPanel mode="register" deepLink={deepLink} waiting sameTab />
-            <Button
-              variant="ghost"
-              className="w-full"
-              disabled={checking}
-              onClick={() => void checkTelegramProgress()}
-            >
-              {checking && <Loader2 className="me-2 size-4 animate-spin" />}
-              {t.continue}
-            </Button>
-          </div>
-        )}
-
-        {/* ── گام ۴: کد ─────────────────────────────────────────────────── */}
-        {step === "code" && (
-          <div className="space-y-5">
-            {/* بازگشت فقط دیپ‌لینک و QR را دوباره نشان می‌دهد — کد تازه‌ای
-                نمی‌فرستد؛ ارسال مجدد دکمه‌ی خودش را دارد. */}
-            <AuthStepHeader
-              title={t.codeTitle}
-              description={
-                method === "email" ? t.codeDescEmail : method === "sms" ? t.codeDescSms : t.codeDesc
-              }
-              step={stepNumber(method, "code")}
-              total={stepNumber(method, "finish")}
-              onBack={() => goBack(method === "phone" ? "telegram" : "identity")}
-            />
-
-            {/* مقصد ماسک‌شده — نه رشته‌ی خام، ولی به‌قدر کافی برای این‌که کاربر
-                مطمئن شود کجا فرستاده شده. اینجا هیچ «✅ فرستاده شد» با علامت
-                سبز ادعا نمی‌شود چون هیچ تأییدیه‌ی واقعی تحویل (کیو ارسال، فاز
-                ۱۲) هنوز وجود ندارد — فقط همان چیزی گفته می‌شود که واقعاً اتفاق
-                افتاده: تلاش برای ارسال. */}
-            <p className="text-center text-sm text-muted-foreground" dir="ltr">
-              {method === "email"
-                ? maskEmail(email)
-                : method === "sms"
-                  ? maskPhone(smsPhone)
-                  : status?.phone
-                    ? maskPhone(status.phone)
-                    : ""}
-            </p>
-
-            <CodeInput
-              value={code}
-              onChange={setCode}
-              onComplete={(c) => void verify(c)}
-              disabled={busy}
-              invalid={codeInvalid}
-              errorMessage={codeErrorMessage}
-              webOtp={method === "sms"}
-            />
-
-            <p className="text-center text-sm text-muted-foreground" aria-live="polite">
-              {(method === "sms" ? smsSecondsLeft : secondsLeft) > 0
-                ? (t.codeExpiresIn ?? "").replace(
-                    "{t}",
-                    (() => {
-                      const s = method === "sms" ? smsSecondsLeft : secondsLeft;
-                      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-                    })(),
-                  )
-                : t.codeExpired}
-            </p>
-
-            <GlowButton className="w-full" disabled={busy || code.length !== 6} onClick={() => void verify(code)}>
-              {busy && <Loader2 className="me-2 size-4 animate-spin" />}
-              {t.verify}
-            </GlowButton>
-
-            <div className="space-y-2">
+          {/* ── گام ۳: اتصال تلگرام ───────────────────────────────────────── */}
+          {step === "telegram" && (
+            <div className="space-y-4">
+              <AuthStepHeader
+                title={t.telegramTitle}
+                description={t.telegramDesc}
+                step={stepNumber(method, "telegram")}
+                total={stepNumber(method, "finish")}
+                // رکورد در انتظار زنده می‌ماند؛ برگشتن به هویت همان
+                // `registrationId` را دوباره می‌فرستد و ردیف تازه‌ای نمی‌سازد.
+                onBack={() => goBack("identity")}
+              />
+              {/* `sameTab`: باز کردن لینک در تب جدید روی موبایل یعنی تب تازه‌ای
+                  با sessionStorage خالی — و همان بود که ثبت‌نام را می‌پراند. */}
+              <TelegramLinkPanel mode="register" deepLink={deepLink} waiting sameTab />
               <Button
                 variant="ghost"
                 className="w-full"
-                disabled={busy || resendIn > 0 || (method !== "sms" && status?.canResend === false)}
-                onClick={() => void resend()}
+                disabled={checking}
+                onClick={() => void checkTelegramProgress()}
               >
-                {method !== "sms" && status?.canResend === false
-                  ? t.resendLimit
-                  : resendIn > 0
-                    ? (t.resendIn ?? "").replace("{n}", String(resendIn))
-                    : t.resend}
+                {checking && <Loader2 className="me-2 size-4 animate-spin" />}
+                {t.continue}
               </Button>
-              {/* بعد از رسیدن به سقفِ ارسال مجدد، بن‌بست نیست — یک مسیر واقعی. */}
-              {status?.canResend === false && (
-                <Link
-                  href="/support?topic=verification-code"
-                  className="block text-center text-xs text-muted-foreground hover:text-foreground"
+            </div>
+          )}
+
+          {/* ── گام ۴: کد ─────────────────────────────────────────────────── */}
+          {step === "code" && (
+            <div className="space-y-5">
+              {/* بازگشت فقط دیپ‌لینک و QR را دوباره نشان می‌دهد — کد تازه‌ای
+                  نمی‌فرستد؛ ارسال مجدد دکمه‌ی خودش را دارد. */}
+              <AuthStepHeader
+                title={t.codeTitle}
+                description={
+                  method === "email" ? t.codeDescEmail : method === "sms" ? t.codeDescSms : t.codeDesc
+                }
+                step={stepNumber(method, "code")}
+                total={stepNumber(method, "finish")}
+                onBack={() => goBack(method === "phone" ? "telegram" : "identity")}
+              />
+
+              {/* مقصد ماسک‌شده — نه رشته‌ی خام، ولی به‌قدر کافی برای این‌که کاربر
+                  مطمئن شود کجا فرستاده شده. اینجا هیچ «✅ فرستاده شد» با علامت
+                  سبز ادعا نمی‌شود چون هیچ تأییدیه‌ی واقعی تحویل (کیو ارسال، فاز
+                  ۱۲) هنوز وجود ندارد — فقط همان چیزی گفته می‌شود که واقعاً اتفاق
+                  افتاده: تلاش برای ارسال. */}
+              <p className="text-center text-sm text-muted-foreground" dir="ltr">
+                {method === "email"
+                  ? maskEmail(email)
+                  : method === "sms"
+                    ? maskPhone(smsPhone)
+                    : status?.phone
+                      ? maskPhone(status.phone)
+                      : ""}
+              </p>
+
+              <CodeInput
+                value={code}
+                onChange={setCode}
+                onComplete={(c) => void verify(c)}
+                disabled={busy}
+                invalid={codeInvalid}
+                errorMessage={codeErrorMessage}
+                webOtp={method === "sms"}
+              />
+
+              <p className="text-center text-sm text-muted-foreground" aria-live="polite">
+                {(method === "sms" ? smsSecondsLeft : secondsLeft) > 0
+                  ? (t.codeExpiresIn ?? "").replace(
+                      "{t}",
+                      (() => {
+                        const s = method === "sms" ? smsSecondsLeft : secondsLeft;
+                        return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+                      })(),
+                    )
+                  : t.codeExpired}
+              </p>
+
+              <GlowButton className="w-full" disabled={busy || code.length !== 6} onClick={() => void verify(code)}>
+                {busy && <Loader2 className="me-2 size-4 animate-spin" />}
+                {t.verify}
+              </GlowButton>
+
+              <div className="space-y-2">
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  disabled={busy || resendIn > 0 || (method !== "sms" && status?.canResend === false)}
+                  onClick={() => void resend()}
                 >
-                  {t.codeNotReceived}
-                </Link>
-              )}
+                  {method !== "sms" && status?.canResend === false
+                    ? t.resendLimit
+                    : resendIn > 0
+                      ? (t.resendIn ?? "").replace("{n}", String(resendIn))
+                      : t.resend}
+                </Button>
+                {/* بعد از رسیدن به سقفِ ارسال مجدد، بن‌بست نیست — یک مسیر واقعی. */}
+                {status?.canResend === false && (
+                  <Link
+                    href="/support?topic=verification-code"
+                    className="block text-center text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {t.codeNotReceived}
+                  </Link>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── گام ۵: رمز عبور ───────────────────────────────────────────── */}
-        {step === "finish" && (
-          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void complete(); }}>
-            {/* عمداً بدون بازگشت: کد در این نقطه مصرف شده و `verifiedAt` روی
-                سرور ست شده. برگشتن به گام کد، صفحه‌ی ورود کدی را نشان می‌داد
-                که دیگر وجود ندارد. برای عوض کردن ایمیل، همین صفحه دکمه‌ی
-                ویرایش دارد. */}
-            <AuthStepHeader
-              title={t.finishTitle}
-              description={
-                method === "email" ? t.finishDescEmail : method === "sms" ? t.finishDescSms : t.finishDesc
-              }
-              step={stepNumber(method, "finish")}
-              total={stepNumber(method, "finish")}
-            />
+          {/* ── گام ۵: رمز عبور ───────────────────────────────────────────── */}
+          {step === "finish" && (
+            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void complete(); }}>
+              {/* عمداً بدون بازگشت: کد در این نقطه مصرف شده و `verifiedAt` روی
+                  سرور ست شده. برگشتن به گام کد، صفحه‌ی ورود کدی را نشان می‌داد
+                  که دیگر وجود ندارد. برای عوض کردن ایمیل، همین صفحه دکمه‌ی
+                  ویرایش دارد. */}
+              <AuthStepHeader
+                title={t.finishTitle}
+                description={
+                  method === "email" ? t.finishDescEmail : method === "sms" ? t.finishDescSms : t.finishDesc
+                }
+                step={stepNumber(method, "finish")}
+                total={stepNumber(method, "finish")}
+              />
 
-            <Card>
-              <CardContent className="space-y-2 p-4 text-sm">
-                {method === "phone" && (
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">{t.connectedAs}</span>
-                    <span className="truncate font-medium" dir="ltr">
-                      {status?.telegramUsername ? `@${status.telegramUsername}` : telegramName || "—"}
-                    </span>
-                  </div>
-                )}
-                {(method === "phone" || method === "sms") && (
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">{t.phoneLabel}</span>
-                    <span className="font-medium tabular-nums" dir="ltr">
-                      {method === "sms" ? smsPhone : (status?.phone ?? "—")}
-                    </span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">{t.email}</span>
-                  {editingEmail ? (
-                    <span className="flex items-center gap-2">
-                      <Input
-                        value={email}
-                        dir="ltr"
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="h-8 w-48"
-                        aria-label={t.email}
-                      />
-                      <Button type="button" size="sm" variant="outline" onClick={() => void saveEmail()}>
-                        {t.saveEmail}
-                      </Button>
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <span className="truncate font-medium" dir="ltr">{email || "—"}</span>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="size-7"
-                        aria-label={t.editEmail}
-                        onClick={() => setEditingEmail(true)}
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
-                    </span>
+              <Card>
+                <CardContent className="space-y-2 p-4 text-sm">
+                  {method === "phone" && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground">{t.connectedAs}</span>
+                      <span className="truncate font-medium" dir="ltr">
+                        {status?.telegramUsername ? `@${status.telegramUsername}` : telegramName || "—"}
+                      </span>
+                    </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+                  {(method === "phone" || method === "sms") && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground">{t.phoneLabel}</span>
+                      <span className="font-medium tabular-nums" dir="ltr">
+                        {method === "sms" ? smsPhone : (status?.phone ?? "—")}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">{t.email}</span>
+                    {editingEmail ? (
+                      <span className="flex items-center gap-2">
+                        <Input
+                          value={email}
+                          dir="ltr"
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="h-8 w-48"
+                          aria-label={t.email}
+                        />
+                        <Button type="button" size="sm" variant="outline" onClick={() => void saveEmail()}>
+                          {t.saveEmail}
+                        </Button>
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span className="truncate font-medium" dir="ltr">{email || "—"}</span>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-7"
+                          aria-label={t.editEmail}
+                          onClick={() => setEditingEmail(true)}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                      </span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="reg-pass">{t.password}</Label>
-              <PasswordInput id="reg-pass" value={password} onChange={(e) => setPassword(e.target.value)} required />
-              <p className="text-xs text-muted-foreground">{t.passwordMin}</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="reg-pass2">{t.passwordConfirm}</Label>
-              <PasswordInput id="reg-pass2" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} required />
-              {passwordConfirm !== "" && password !== passwordConfirm && (
-                <p className="text-xs text-destructive">{t.passwordMismatch}</p>
-              )}
-            </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="reg-pass">{t.password}</Label>
+                <PasswordInput id="reg-pass" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <p className="text-xs text-muted-foreground">{t.passwordMin}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="reg-pass2">{t.passwordConfirm}</Label>
+                <PasswordInput id="reg-pass2" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} required />
+                {passwordConfirm !== "" && password !== passwordConfirm && (
+                  <p className="text-xs text-destructive">{t.passwordMismatch}</p>
+                )}
+              </div>
 
-            <GlowButton type="submit" className="w-full" disabled={busy}>
-              {busy && <Loader2 className="me-2 size-4 animate-spin" />}
-              {t.createAccount}
-            </GlowButton>
-          </form>
-        )}
+              <GlowButton type="submit" className="w-full" disabled={busy}>
+                {busy && <Loader2 className="me-2 size-4 animate-spin" />}
+                {t.createAccount}
+              </GlowButton>
+            </form>
+          )}
+          </div>
         </div>
       </div>
-    </div>
+      <EnamadSeal className="bg-background pb-4" />
+    </>
   );
 }

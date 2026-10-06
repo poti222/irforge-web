@@ -23,7 +23,7 @@
  * NOT NULL گذاشتیم: «درس» یک مفهومِ محلیِ یک مدرسه‌ی خاص است (معلمِ همان
  * مدرسه آن را می‌سازد)، برخلافِ لغت‌نامه‌ی عمومیِ احتمالیِ سراسرِ پلتفرم.
  */
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -33,6 +33,16 @@ export const schoolContentLessonsTable = pgTable("school_content_lessons", {
   /** یکی از SCHOOL_SUBJECTS (schema/schoolContent.ts) — همان گیتِ موضوعیِ معلم↔درس */
   subject: text("subject").notNull(),
   title: text("title").notNull(),
+  /**
+   * ترتیبِ نمایشِ درس‌ها داخلِ یک موضوع (کوچک‌تر = بالاتر). تساوی (مثلاً همه ۰ برایِ
+   * درس‌هایِ قدیمی) با createdAt شکسته می‌شود، پس backfill لازم نیست.
+   */
+  sortOrder: integer("sort_order").notNull().default(0),
+  /**
+   * override انواعِ فعالِ این جلسه — NULL یعنی از موضوع (school_subjects.enabledTypes)
+   * ارث می‌برد. مجموعه‌ی مؤثر = enabledTypes ?? subject.enabledTypes.
+   */
+  enabledTypes: jsonb("enabled_types").$type<string[] | null>(),
   createdByUserId: text("created_by_user_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

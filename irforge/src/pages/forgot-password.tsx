@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { EnamadSeal } from "@/components/layout/enamad-seal";
 import { Link } from "wouter";
 import { customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -37,60 +38,63 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 px-4 bg-background">
-      <PublicPageControls className="fixed end-4 top-4 z-10" />
-      <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
-        <BrandLogo className="mb-8 hover:opacity-80 transition-opacity" />
-        <h2 className="text-center text-2xl font-bold tracking-tight">
-          {t.resetPasswordTitle}
-        </h2>
-        <p className="mt-2 text-center text-sm text-muted-foreground max-w-sm">
-          {t.resetPasswordDesc}
-        </p>
-      </div>
+    <>
+      <div className="min-h-[calc(100dvh-5.5rem)] flex flex-col justify-center py-12 px-4 bg-background">
+        <PublicPageControls className="fixed end-4 top-4 z-10" />
+        <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
+          <BrandLogo className="mb-8 hover:opacity-80 transition-opacity" />
+          <h2 className="text-center text-2xl font-bold tracking-tight">
+            {t.resetPasswordTitle}
+          </h2>
+          <p className="mt-2 text-center text-sm text-muted-foreground max-w-sm">
+            {t.resetPasswordDesc}
+          </p>
+        </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-[400px]">
-        <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
-          {sent ? (
-            <div className="space-y-4 text-center">
-              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
-              <p className="text-sm text-muted-foreground">{error}</p>
-              <Button asChild className="w-full">
-                <Link href="/reset-password">{t.haveResetCode}</Link>
-              </Button>
-            </div>
-          ) : (
-            <form onSubmit={submit} className="space-y-5">
-              <div className="space-y-1.5">
-                <Label htmlFor="fp-phone">{t.loginPhone}</Label>
-                <Input
-                  id="fp-phone" required
-                  dir="ltr" inputMode="tel" autoComplete="tel"
-                  placeholder="0912xxxxxxx"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  disabled={loading}
-                  className="bg-background"
-                />
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-[400px]">
+          <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
+            {sent ? (
+              <div className="space-y-4 text-center">
+                <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
+                <p className="text-sm text-muted-foreground">{error}</p>
+                <Button asChild className="w-full">
+                  <Link href="/reset-password">{t.haveResetCode}</Link>
+                </Button>
               </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full h-11" disabled={loading}>
-                {loading ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Send className="me-2 h-4 w-4" />}
-                {t.sendResetCode}
-              </Button>
-            </form>
-          )}
+            ) : (
+              <form onSubmit={submit} className="space-y-5">
+                <div className="space-y-1.5">
+                  <Label htmlFor="fp-phone">{t.loginPhone}</Label>
+                  <Input
+                    id="fp-phone" required
+                    dir="ltr" inputMode="tel" autoComplete="tel"
+                    placeholder="0912xxxxxxx"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    disabled={loading}
+                    className="bg-background"
+                  />
+                </div>
+                {error && <p className="text-sm text-red-500">{error}</p>}
+                <Button type="submit" className="w-full h-11" disabled={loading}>
+                  {loading ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Send className="me-2 h-4 w-4" />}
+                  {t.sendResetCode}
+                </Button>
+              </form>
+            )}
 
-          <div className="mt-6 flex items-center justify-between text-sm">
-            <Link href="/login" className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary">
-              <ArrowLeft className="size-4 rtl-flip" /> {t.backToLogin}
-            </Link>
-            <Link href="/reset-password" className="text-primary hover:underline">
-              {t.enterCode}
-            </Link>
+            <div className="mt-6 flex items-center justify-between text-sm">
+              <Link href="/login" className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary">
+                <ArrowLeft className="size-4 rtl-flip" /> {t.backToLogin}
+              </Link>
+              <Link href="/reset-password" className="text-primary hover:underline">
+                {t.enterCode}
+              </Link>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      <EnamadSeal className="bg-background pb-4" />
+    </>
   );
 }

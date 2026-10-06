@@ -451,3 +451,111 @@
     clip-path: none;
   }
 }
+
+/* ─── Color palettes ─────────────────────────────────────────────────────
+   Independent of light/dark: `data-palette` on <html> (set by lib/palette.ts)
+   swaps the accent hue and tints the neutrals; light/dark still comes from
+   the `.dark` class, so every palette works in both. No attribute = the
+   original orange theme. The Tailwind orange/amber scales are remapped too so
+   the many hard-coded orange accents follow the palette. */
+html[data-palette="red"] { --p-h: 0; --p-s: 78%; --p-l: 42%; --p-ld: 60%; --t-s: 22%; }
+html[data-palette="rose"] { --p-h: 345; --p-s: 80%; --p-l: 42%; --p-ld: 63%; --t-s: 22%; }
+html[data-palette="pink"] { --p-h: 322; --p-s: 75%; --p-l: 42%; --p-ld: 63%; --t-s: 22%; }
+html[data-palette="purple"] { --p-h: 272; --p-s: 68%; --p-l: 46%; --p-ld: 68%; --t-s: 24%; }
+html[data-palette="indigo"] { --p-h: 245; --p-s: 72%; --p-l: 48%; --p-ld: 70%; --t-s: 26%; }
+html[data-palette="blue"] { --p-h: 217; --p-s: 90%; --p-l: 42%; --p-ld: 60%; --t-s: 26%; }
+html[data-palette="sky"] { --p-h: 199; --p-s: 92%; --p-l: 35%; --p-ld: 55%; --t-s: 26%; }
+html[data-palette="cyan"] { --p-h: 181; --p-s: 90%; --p-l: 28%; --p-ld: 50%; --t-s: 26%; }
+html[data-palette="teal"] { --p-h: 168; --p-s: 80%; --p-l: 28%; --p-ld: 48%; --t-s: 24%; }
+html[data-palette="green"] { --p-h: 142; --p-s: 70%; --p-l: 29%; --p-ld: 50%; --t-s: 22%; }
+html[data-palette="lime"] { --p-h: 84; --p-s: 75%; --p-l: 27%; --p-ld: 50%; --t-s: 22%; }
+html[data-palette="yellow"] { --p-h: 45; --p-s: 95%; --p-l: 30%; --p-ld: 55%; --t-s: 24%; }
+html[data-palette="brown"] { --p-h: 25; --p-s: 45%; --p-l: 32%; --p-ld: 58%; --t-s: 18%; }
+html[data-palette="graphite"] { --p-h: 220; --p-s: 10%; --p-l: 25%; --p-ld: 72%; --t-s: 5%; }
+
+html[data-palette] {
+  --color-orange-50: hsl(var(--p-h) 88% 96%);
+  --color-amber-50: hsl(calc(var(--p-h) + 14) 90% 96%);
+  --color-orange-100: hsl(var(--p-h) 88% 92%);
+  --color-amber-100: hsl(calc(var(--p-h) + 14) 90% 92%);
+  --color-orange-200: hsl(var(--p-h) 88% 84%);
+  --color-amber-200: hsl(calc(var(--p-h) + 14) 90% 84%);
+  --color-orange-300: hsl(var(--p-h) 88% 74%);
+  --color-amber-300: hsl(calc(var(--p-h) + 14) 90% 74%);
+  --color-orange-400: hsl(var(--p-h) 88% 64%);
+  --color-amber-400: hsl(calc(var(--p-h) + 14) 90% 64%);
+  --color-orange-500: hsl(var(--p-h) 88% 54%);
+  --color-amber-500: hsl(calc(var(--p-h) + 14) 90% 54%);
+  --color-orange-600: hsl(var(--p-h) 88% 46%);
+  --color-amber-600: hsl(calc(var(--p-h) + 14) 90% 46%);
+  --color-orange-700: hsl(var(--p-h) 88% 38%);
+  --color-amber-700: hsl(calc(var(--p-h) + 14) 90% 38%);
+  --color-orange-800: hsl(var(--p-h) 88% 30%);
+  --color-amber-800: hsl(calc(var(--p-h) + 14) 90% 30%);
+  --color-orange-900: hsl(var(--p-h) 88% 24%);
+  --color-amber-900: hsl(calc(var(--p-h) + 14) 90% 24%);
+  --color-orange-950: hsl(var(--p-h) 88% 15%);
+  --color-amber-950: hsl(calc(var(--p-h) + 14) 90% 15%);
+  --chart-1: var(--p-h) 85% 52%;
+  --chart-2: calc(var(--p-h) + 28) 80% 50%;
+  --chart-3: calc(var(--p-h) - 28) 75% 55%;
+  --chart-4: calc(var(--p-h) + 56) 70% 52%;
+  --chart-5: calc(var(--p-h) - 56) 70% 58%;
+}
+
+html[data-palette]:not(.dark) {
+  --primary: var(--p-h) var(--p-s) var(--p-l);
+  --primary-foreground: 0 0% 100%;
+  --ring: var(--p-h) var(--p-s) var(--p-l);
+  --sidebar-primary: var(--p-h) var(--p-s) var(--p-l);
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-ring: var(--p-h) var(--p-s) var(--p-l);
+  --background: 0 0% 100%;
+  --card: 0 0% 100%;
+  --popover: 0 0% 100%;
+  --foreground: 0 0% 12%;
+  --card-foreground: 0 0% 12%;
+  --popover-foreground: 0 0% 12%;
+  --sidebar-foreground: 0 0% 15%;
+  --border: 0 0% 88%;
+  --card-border: 0 0% 90%;
+  --popover-border: 0 0% 90%;
+  --input: 0 0% 85%;
+  --sidebar: 0 0% 100%;
+  --sidebar-border: 0 0% 88%;
+  --sidebar-accent: 0 0% 91%;
+  --secondary: 0 0% 93%;
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 38%;
+  --accent: 0 0% 90%;
+}
+
+html[data-palette].dark {
+  --primary: var(--p-h) var(--p-s) var(--p-ld);
+  --primary-foreground: 0 0% 5%;
+  --ring: var(--p-h) var(--p-s) var(--p-ld);
+  --sidebar-primary: var(--p-h) var(--p-s) var(--p-ld);
+  --sidebar-primary-foreground: 0 0% 5%;
+  --sidebar-ring: var(--p-h) var(--p-s) var(--p-ld);
+  --background: 0 0% 0%;
+  --foreground: 0 0% 95%;
+  --card-foreground: 0 0% 95%;
+  --popover-foreground: 0 0% 95%;
+  --sidebar-foreground: 0 0% 92%;
+  --secondary-foreground: 0 0% 95%;
+  --accent-foreground: 0 0% 95%;
+  --sidebar-accent-foreground: 0 0% 95%;
+  --card: 0 0% 5%;
+  --popover: 0 0% 5%;
+  --border: 0 0% 17%;
+  --card-border: 0 0% 20%;
+  --popover-border: 0 0% 19%;
+  --input: 0 0% 17%;
+  --sidebar: 0 0% 3%;
+  --sidebar-border: 0 0% 14%;
+  --sidebar-accent: 0 0% 11%;
+  --secondary: 0 0% 11%;
+  --muted: 0 0% 11%;
+  --muted-foreground: 0 0% 60%;
+  --accent: 0 0% 14%;
+}

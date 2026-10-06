@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { EnamadSeal } from "@/components/layout/enamad-seal";
 import { useQuery } from "@tanstack/react-query";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { SchoolSidebar } from "@/components/schools/school-sidebar";
@@ -127,6 +128,7 @@ export default function SchoolShell({ children }: { children: ReactNode }) {
               </div>
             </div>
           </main>
+          <EnamadSeal className="border-t py-3" />
         </SidebarInset>
       </SidebarProvider>
     </ViewedSchoolProvider>

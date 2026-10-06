@@ -105,12 +105,12 @@ export const SCHOOL_CONTENT_TYPES = ["dictionary", "note", "book", "formula", "p
 export type SchoolContentType = (typeof SCHOOL_CONTENT_TYPES)[number];
 
 /**
- * درس‌هایِ معمولِ دبیرستانِ ایران — کپیِ همان فهرستِ ثابتِ
- * `SCHOOL_SUBJECTS` در lib/db/src/schema/schoolContent.ts (این فایل طبقِ
- * قراردادِ خودش هیچ نوعی از بک‌اند import نمی‌کند، مثلِ SCHOOL_MEMBER_ROLES
- * بالا). فقط برایِ پیکرِ UI؛ ستونِ واقعی متنِ آزاد است.
+ * فهرستِ پیش‌فرضِ «درس»ها — فقط برایِ یک مورد: ساختِ مدرسه‌یِ آزمایشیِ *تازه* در
+ * /super که هنوز در دیتابیس وجود ندارد تا درس‌هایش از سرور خوانده شود
+ * (کپیِ DEFAULT_SUBJECT_SEEDS در lib/db/src/schema/schoolSubjects.ts). هر جای
+ * دیگر باید درس‌هایِ *واقعیِ* مدرسه را از `listSchoolSubjects` خواند.
  */
-export const SCHOOL_SUBJECTS = [
+export const DEFAULT_SCHOOL_SUBJECTS = [
   "ریاضی",
   "فیزیک",
   "شیمی",
@@ -124,7 +124,50 @@ export const SCHOOL_SUBJECTS = [
   "ورزش",
   "سایر",
 ] as const;
-export type SchoolSubject = (typeof SCHOOL_SUBJECTS)[number];
+
+/**
+ * «درس»ِ مدیریت‌شده‌یِ یک مدرسه (ادبیات، ریاضی، ...) — ببینید routes/schoolSubjects.ts.
+ * `enabledTypes` پیش‌فرضِ انواعِ محتوایِ فعال؛ هر جلسه‌یِ درس می‌تواند override کند.
+ */
+export interface SchoolSubjectInfo {
+  id: string;
+  schoolId: string;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  enabledTypes: SchoolContentType[];
+  sortOrder: number;
+  lessonCount: number;
+  /** تسلطِ همین کاربر رویِ آیتم‌هایِ قابلِ‌مطالعه (لغت/شعر) — فقط انواعِ روشن. */
+  progress: { mastered: number; total: number };
+  /** admin یا معلمِ تخصیص‌داده‌شده به همین درس. */
+  canManage: boolean;
+  createdAt: string;
+}
+
+export function listSchoolSubjects(schoolId: string) {
+  return customFetch<SchoolSubjectInfo[]>(`/api/schools/${schoolId}/subjects`);
+}
+
+export function getSchoolSubject(schoolId: string, subjectId: string) {
+  return customFetch<SchoolSubjectInfo>(`/api/schools/${schoolId}/subjects/${subjectId}`);
+}
+
+export function createSchoolSubject(schoolId: string, input: { name: string; icon?: string | null; color?: string | null; enabledTypes?: SchoolContentType[] }) {
+  return customFetch<SchoolSubjectInfo>(`/api/schools/${schoolId}/subjects`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function updateSchoolSubject(schoolId: string, subjectId: string, patch: Partial<{ name: string; icon: string | null; color: string | null; enabledTypes: SchoolContentType[] }>) {
+  return customFetch<SchoolSubjectInfo>(`/api/schools/${schoolId}/subjects/${subjectId}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+/** بدونِ force و با محتوایِ وابسته، سرور ۴۰۹ با `data.counts` می‌دهد. */
+export function deleteSchoolSubject(schoolId: string, subjectId: string, force = false) {
+  return customFetch<{ ok: true; deleted: { lessons: number; items: number; assignments: number } }>(
+    `/api/schools/${schoolId}/subjects/${subjectId}${force ? "?force=true" : ""}`,
+    { method: "DELETE" },
+  );
+}
 
 export interface SchoolContentItem {
   id: string;
@@ -191,6 +234,16 @@ export interface SchoolContentLesson {
   schoolId: string;
   subject: string;
   title: string;
+  sortOrder: number;
+  /** override همین جلسه؛ null = از درس ارث می‌برد. */
+  enabledTypes: SchoolContentType[] | null;
+  /** مجموعه‌یِ مؤثر (override ?? پیش‌فرضِ درس) — فقط همین‌ها برایِ دانش‌آموز وجود دارند. */
+  effectiveEnabledTypes: SchoolContentType[];
+  /** شمارشِ هر type؛ برایِ دانش‌آموز فقط typeهایِ روشن، برایِ نویسنده همه (حتی خاموش). */
+  typeCounts: Partial<Record<SchoolContentType, number>>;
+  itemCount: number;
+  progress: { mastered: number; total: number };
+  canManage: boolean;
   createdByUserId: string;
   createdAt: string;
   updatedAt: string;
@@ -223,10 +276,17 @@ export function bulkCreateSchoolContentItems(schoolId: string, input: { lessonId
   });
 }
 
-export function updateContentLesson(schoolId: string, lessonId: string, patch: Partial<{ title: string; subject: string }>) {
+export function updateContentLesson(schoolId: string, lessonId: string, patch: Partial<{ title: string; subject: string; enabledTypes: SchoolContentType[] | null }>) {
   return customFetch<SchoolContentLesson>(`/api/schools/${schoolId}/content-lessons/${lessonId}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
+  });
+}
+
+export function reorderContentLessons(schoolId: string, subject: string, orderedIds: string[]) {
+  return customFetch<{ ok: true }>(`/api/schools/${schoolId}/content-lessons/reorder`, {
+    method: "POST",
+    body: JSON.stringify({ subject, orderedIds }),
   });
 }
 
