@@ -72,6 +72,7 @@ const USE_CASES: { key: "shop" | "support" | "menu" | "broadcast" | "services" |
 ];
 import { useIsMobileViewport } from "@/components/landing/use-is-mobile-viewport";
 import { RevealItem, VIEWPORT_ONCE, revealContainer, revealItem } from "@/components/landing/motion";
+import { PaletteButton } from "@/components/layout/palette-button";
 import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { useT } from "@/hooks/use-translation";
@@ -215,6 +216,7 @@ export default function Landing() {
             <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
               <Link href="/pricing">{seo.navPricing}</Link>
             </Button>
+            <PaletteButton className="rounded-full" />
             <ThemeToggleButton className="rounded-full" />
 
             <LanguageSwitcher />

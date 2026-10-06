@@ -1,3 +1,4 @@
+import { PaletteButton } from "@/components/layout/palette-button";
 import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 export function PublicPageControls({ className }: { className?: string }) {
   return (
     <div className={cn("flex shrink-0 items-center gap-1.5", className)}>
+      <PaletteButton className="rounded-full" />
       <ThemeToggleButton className="rounded-full" />
       <LanguageSwitcher />
     </div>
