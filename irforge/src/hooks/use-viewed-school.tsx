@@ -79,3 +79,15 @@ export function useViewedSchool() {
   }
   return ctx;
 }
+
+/**
+ * مدرسه‌یِ «فعال» برایِ صفحاتِ درس‌ها/محتوا: مدیر (و سوپرادمین) مدرسه‌یِ دیده‌شده از سوییچر را می‌بیند؛
+ * بقیه (معلم/دانش‌آموز/والد) همیشه مدرسه‌یِ خودشان — تا یک `viewedSchoolId` ماندهْ در localStorageِ همان
+ * مرورگر (مثلاً از نشستِ قبلیِ یک مدیر) برایِ غیرمدیر یک مدرسه‌یِ ناآشنا (۴۰۳/فهرستِ خالی) نسازد.
+ * قبلاً این صفحات فقط `me.schoolId` را می‌خواندند: مدیرِ چندمدرسه‌ای که مدرسه‌یِ دیگری را سوییچ کرده بود
+ * درس‌هایِ مدرسه‌یِ *دیگر* را می‌ساخت/می‌دید، و سوپرادمین (بدونِ عضویتِ مدرسه‌ای، schoolId=null) هیچ‌چیز نمی‌دید.
+ */
+export function useActiveSchoolId(me: { role?: string | null; schoolId?: string | null } | null | undefined): string | undefined {
+  const viewed = useViewedSchoolId(me?.schoolId);
+  return me?.role === "admin" ? viewed : (me?.schoolId ?? undefined);
+}

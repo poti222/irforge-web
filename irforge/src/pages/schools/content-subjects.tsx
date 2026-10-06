@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useActiveSchoolId } from "@/hooks/use-viewed-school";
 import { Link, Redirect } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -49,10 +50,10 @@ export function SubjectsHub({ embedded = false }: { embedded?: boolean }) {
   usePrivatePageTitle(embedded ? t.studentHomeTitle : t.navLessons);
 
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
-  const schoolId = me?.schoolId ?? undefined;
+  const schoolId = useActiveSchoolId(me);
   const isAdmin = me?.role === "admin";
 
-  const { data: subjects, isLoading } = useQuery({
+  const { data: subjects, isLoading, isError, refetch } = useQuery({
     queryKey: ["schools", "subjects", schoolId],
     queryFn: () => listSchoolSubjects(schoolId!),
     enabled: !!schoolId,
@@ -90,7 +91,7 @@ export function SubjectsHub({ embedded = false }: { embedded?: boolean }) {
       toast({
         variant: "destructive",
         title: t.contentSaveError,
-        description: err?.status === 409 ? t.subjectDuplicateName : err?.data?.error,
+        description: err?.status === 409 ? (err?.data?.existing?.name ? t.subjectDuplicateNameNamed.replace("{name}", err.data.existing.name) : t.subjectDuplicateName) : err?.data?.error,
       });
     } finally {
       setSaving(false);
@@ -147,6 +148,12 @@ export function SubjectsHub({ embedded = false }: { embedded?: boolean }) {
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-36 rounded-xl" />
           ))}
+        </div>
+      ) : isError ? (
+        // یک ۵۰۰ نباید شبیهِ «هیچ درسی نیست» نمایش داده شود — همان چیزی که باگِ «درسی که ساختم دیده نمی‌شود» را پنهان می‌کرد.
+        <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-destructive/40 text-sm text-destructive" role="alert" data-testid="subjects-load-error">
+          {t.subjectsLoadError}
+          <Button size="sm" variant="outline" onClick={() => void refetch()}>{t.subjectsRetry}</Button>
         </div>
       ) : !subjects || subjects.length === 0 ? (
         <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed text-sm text-muted-foreground">

@@ -1440,6 +1440,27 @@ CREATE INDEX IF NOT EXISTS idx_school_content_lessons_subject ON school_content_
 ALTER TABLE school_content_items ADD COLUMN IF NOT EXISTS lesson_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_school_content_items_lesson ON school_content_items(lesson_id);
 
+-- ─── پیشرفتِ مطالعه (ریشه‌یِ باگِ «درسی که ساختم هیچ‌جا نمایش داده نمی‌شود») ──────
+-- جدولِ school_content_progress در drizzle (schema/schoolContentProgress.ts) بود ولی هیچ‌وقت
+-- در این فایل ساخته نشد؛ loadLessonStats (که GET /subjects و /content-lessons صدا می‌زنند)
+-- LEFT JOIN رویش دارد → در دیتابیسِ واقعی هر فهرستِ درس‌ها ۵۰۰ می‌داد (ولی POSTِ ساخت موفق بود).
+-- مایگریشنِ ۰۰۴۸ در lib/db/migrations همین بلوک را تکرار می‌کند. ایندکسِ unique عمداً نیست
+-- (مسیرِ رتبه‌دادن خودش select-then-update می‌کند؛ ایندکسِ unique در دیتابیسِ قدیمیِ احتمالاً
+-- دارای ردیفِ تکراری بوت را می‌شکست).
+CREATE TABLE IF NOT EXISTS school_content_progress (
+  id TEXT PRIMARY KEY,
+  content_item_id TEXT NOT NULL,
+  student_member_id TEXT NOT NULL,
+  last_rating TEXT NOT NULL,
+  review_count INTEGER NOT NULL DEFAULT 0,
+  interval_days INTEGER NOT NULL DEFAULT 1,
+  next_review_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_content_progress_member_item ON school_content_progress(student_member_id, content_item_id);
+CREATE INDEX IF NOT EXISTS idx_school_content_progress_item ON school_content_progress(content_item_id);
+
 -- ─── «درس‌ها»: موضوعاتِ مدیریت‌شده‌یِ هر مدرسه + روشن/خاموشِ انواعِ محتوا ─────
 -- مایگریشنِ ۰۰۴۷ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
 -- بدونِ FK رویِ schools(id) (مثلِ school_content_lessons.subject، ارجاع‌ها با نام‌اند):

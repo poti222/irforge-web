@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useActiveSchoolId } from "@/hooks/use-viewed-school";
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,7 +82,7 @@ export default function SchoolContentLesson() {
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
   const canWrite = me?.role === "admin" || me?.role === "teacher";
   const isAdmin = me?.role === "admin";
-  const schoolId = me?.schoolId ?? undefined;
+  const schoolId = useActiveSchoolId(me);
 
   const { data: lesson, isLoading: lessonLoading } = useQuery({
     queryKey: ["schools", "content-lesson", schoolId, lessonId],

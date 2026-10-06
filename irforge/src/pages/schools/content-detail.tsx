@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useActiveSchoolId } from "@/hooks/use-viewed-school";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,7 +43,8 @@ export default function SchoolContentDetail() {
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
   const canWrite = me?.role === "admin" || me?.role === "teacher";
   const isAdmin = me?.role === "admin";
-  const schoolId = item?.schoolId ?? me?.schoolId ?? undefined;
+  const activeSchoolId = useActiveSchoolId(me);
+  const schoolId = item?.schoolId ?? activeSchoolId;
 
   // گیتِ موضوعی، همان منطقِ content-list.tsx: معلم فقط باید درس‌هایِ
   // تخصیص‌داده‌شده‌ی خودش را در پیکرِ ویرایش ببیند.

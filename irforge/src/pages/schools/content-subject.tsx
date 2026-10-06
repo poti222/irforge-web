@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useActiveSchoolId } from "@/hooks/use-viewed-school";
 import { Link, useParams } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -44,7 +45,7 @@ export default function SchoolContentSubject() {
   const queryClient = useQueryClient();
 
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
-  const schoolId = me?.schoolId ?? undefined;
+  const schoolId = useActiveSchoolId(me);
   const isStudent = me?.role === "student";
   const hubHref = contentHubHref(me?.role);
 
