@@ -150,8 +150,8 @@ test("سیدِ اولیه: دو محصولِ بات (standard/pro) با قیمت
   assert.ok(block.includes("'standard'"), "ردیفِ استاندارد در سیدِ products پیدا نشد");
   assert.ok(block.includes("'pro'"), "ردیفِ پرو در سیدِ products پیدا نشد");
   // 500,000/1,100,000 تومانِ قدیمیِ bot-tiers.ts × ۱۰ = ریال.
-  assert.ok(block.includes("5000000"), "قیمتِ استاندارد (۵,۰۰۰,۰۰۰ ریال) در سید پیدا نشد");
-  assert.ok(block.includes("11000000"), "قیمتِ پرو (۱۱,۰۰۰,۰۰۰ ریال) در سید پیدا نشد");
+  assert.ok(block.includes("10000000"), "قیمتِ استاندارد (۱۰,۰۰۰,۰۰۰ ریال) در سید پیدا نشد");
+  assert.ok(block.includes("19000000"), "قیمتِ پرو (۱۹,۰۰۰,۰۰۰ ریال) در سید پیدا نشد");
 });
 
 test("سیدِ اولیه: metadataی محصولاتِ بات، maxFreePlugins دارد نه maxPlugins (تغییرِ نامِ عمدی)", () => {

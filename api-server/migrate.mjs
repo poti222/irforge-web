@@ -790,12 +790,12 @@ UPDATE user_plans SET plan_id = 'gold' WHERE plan_id = 'diamond';
 UPDATE users SET plan = 'gold' WHERE plan = 'diamond';
 
 UPDATE plans SET
-  name = 'Standard', price = 500000, price_usd = NULL,
+  name = 'Standard', price = 1000000, price_usd = NULL,
   max_bots = 1, max_plugins = 3, max_users = 50, ram_gb = 1, cpu_cores = 1, popular = false
 WHERE id = 'silver';
 
 UPDATE plans SET
-  name = 'Pro', price = 1100000, price_usd = NULL,
+  name = 'Pro', price = 1900000, price_usd = NULL,
   max_bots = 3, max_plugins = 6, max_users = 250, ram_gb = 3, cpu_cores = 3, popular = true
 WHERE id = 'gold';
 
@@ -809,8 +809,8 @@ DELETE FROM plans WHERE id = 'diamond';
 -- UPDATE بالا حفظ شده، به کاربر هیچ‌جا نشان داده نمی‌شود).
 INSERT INTO plans (id, name, price, price_usd, interval, features, max_bots, max_plugins, max_users, ram_gb, cpu_cores, popular)
 VALUES
-  ('silver', 'Standard', 500000,  NULL, 'monthly', '{}', 1, 3, 50,  1, 1, false),
-  ('gold',   'Pro',      1100000, NULL, 'monthly', '{}', 3, 6, 250, 3, 3, true)
+  ('silver', 'Standard', 1000000,  NULL, 'monthly', '{}', 1, 3, 50,  1, 1, false),
+  ('gold',   'Pro',      1900000, NULL, 'monthly', '{}', 3, 6, 250, 3, 3, true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ─── BOTS_TIER (Persist a bought bot's tier — Standard/Pro) ────────────────
@@ -950,12 +950,12 @@ INSERT INTO products (id, category_id, name, name_fa, description, description_f
 VALUES
   ('standard', 'bot', 'Standard', 'استاندارد',
    'A fast start for small projects', 'برای شروع سریع و پروژه‌های کوچک',
-   5000000, 'Medal',
+   10000000, 'Medal',
    '{"ramGb":1,"cpuCores":1,"maxBots":1,"maxFreePlugins":3,"maxConcurrentUsers":50,"popular":false,"accent":"from-slate-400 to-slate-300"}',
    0),
   ('pro', 'bot', 'Pro', 'پرو',
    'Maximum power for serious businesses', 'حداکثر امکانات برای کسب‌وکارهای جدی',
-   11000000, 'Trophy',
+   19000000, 'Trophy',
    '{"ramGb":3,"cpuCores":3,"maxBots":3,"maxFreePlugins":6,"maxConcurrentUsers":250,"popular":true,"accent":"from-amber-400 to-yellow-300"}',
    1)
 ON CONFLICT (id) DO NOTHING;
@@ -1955,6 +1955,18 @@ async function cleanupExpired(client) {
   );
 }
 
+/**
+ * قیمتِ جاریِ استاندارد/پرو: ۱٬۰۰۰٬۰۰۰ و ۱٬۹۰۰٬۰۰۰ تومان (= ۱۰ و ۱۹ میلیون ریال).
+ * بعد از migrateToRial اجرا می‌شود تا واحدش همیشه ریال باشد. محصولات فقط
+ * وقتی عوض می‌شوند که هنوز روی قیمتِ قدیمیِ سید باشند (ویرایشِ ادمین حفظ می‌شود).
+ */
+async function ensureTierPrices(client) {
+  await client.query("UPDATE plans SET price = 10000000 WHERE id = 'silver'");
+  await client.query("UPDATE plans SET price = 19000000 WHERE id = 'gold'");
+  await client.query("UPDATE products SET price = 10000000 WHERE id = 'standard' AND price = 5000000");
+  await client.query("UPDATE products SET price = 19000000 WHERE id = 'pro' AND price = 11000000");
+}
+
 async function migrate() {
   const client = await pool.connect();
   try {
@@ -1965,6 +1977,7 @@ async function migrate() {
     // row (seeded just above, already Rial-scale) exists before the guard
     // samples it.
     await migrateToRial(client);
+    await ensureTierPrices(client);
     await cleanupExpired(client);
     console.log("[migrate] Done.");
   } catch (err) {
