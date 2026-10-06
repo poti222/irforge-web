@@ -8,7 +8,7 @@
  *      اتمیک "assigned" می‌کند. اگر استخر خالی باشد، این‌جا null برمی‌گردد و
  *      تراکنش قبل از دست‌زدن به کیف‌پول rollback می‌شود — یعنی هیچ‌وقت پولِ
  *      کاربر بابتِ چیزی که موجود نیست کسر نمی‌شود.
- *   ۲) deductWallet با همان executor (tx) — اگر موجودی کافی نباشد، کل
+ *   ۲) debitSchoolWallet (کیف‌پولِ مدرسه، نه شخصی) با همان executor (tx) — اگر موجودی کافی نباشد، کل
  *      تراکنش (شاملِ claim بالا) rollback می‌شود؛ توکن به‌خودیِ‌خود دوباره
  *      "available" می‌ماند (چون commit نشد).
  *   ۳) insert در school_bots + product_purchases.
@@ -23,13 +23,13 @@ import {
   db, schoolBotTokenPoolTable, schoolBotsTable, schoolBotSubscribersTable, schoolBotLinkTokensTable,
   schoolsTable, productsTable, productPurchasesTable,
 } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, SCHOOL_ADMIN_ONLY } from "../lib/schoolAuth";
 import { encryptToken, decryptToken } from "../lib/tokenCrypto";
 import { tgApi, fetchBotIdentity, telegramWebhookSecret } from "../lib/telegram";
-import { deductWallet, ensureWallet, InsufficientBalanceError } from "../lib/wallet";
+import { debitSchoolWallet, SchoolWalletInsufficientError } from "../lib/schoolWallet";
 import { rialToToman } from "../lib/currency";
 
 const router = Router();
@@ -42,6 +42,7 @@ const SCHOOL_BOT_PRODUCT_ID = "school_bot_addon";
  * خودِ `db.transaction` پایین‌تر).
  */
 class SchoolBotPoolEmptyError extends Error {}
+class SchoolBotAlreadyPurchasedError extends Error {}
 
 /**
  * اتمیک: یک ردیفِ "available" از استخر می‌گیرد و "assigned" می‌کند —
@@ -65,9 +66,9 @@ async function claimFreeSchoolBotToken(tx: any, schoolId: string) {
   return claimed ?? null;
 }
 
-function formatBotStatus(bot: typeof schoolBotsTable.$inferSelect | null, priceToman: number | null) {
-  if (!bot) return { purchased: false, telegramUsername: null, botId: null, priceToman };
-  return { purchased: true, telegramUsername: bot.telegramUsername, botId: bot.id, priceToman };
+function formatBotStatus(bot: typeof schoolBotsTable.$inferSelect | null, priceToman: number | null, priceRial: number | null = null) {
+  if (!bot) return { purchased: false, telegramUsername: null, botId: null, priceToman, priceRial };
+  return { purchased: true, telegramUsername: bot.telegramUsername, botId: bot.id, priceToman, priceRial };
 }
 
 // GET /api/schools/:schoolId/bot — وضعیتِ بات (هر عضوِ مدرسه می‌تواند ببیند، چون دکمه‌ی اتصال در پروفایلِ همه است).
@@ -87,7 +88,7 @@ router.get("/schools/:schoolId/bot", requireAuth, async (req: any, res) => {
     const [bot] = await db.select().from(schoolBotsTable).where(eq(schoolBotsTable.schoolId, req.params.schoolId)).limit(1);
     const [product] = await db.select({ price: productsTable.price }).from(productsTable)
       .where(and(eq(productsTable.id, SCHOOL_BOT_PRODUCT_ID), eq(productsTable.isActive, true))).limit(1);
-    res.json(formatBotStatus(bot ?? null, product ? rialToToman(product.price) : null));
+    res.json(formatBotStatus(bot ?? null, product ? rialToToman(product.price) : null, product ? product.price : null));
   } catch (err) {
     logger.error({ err }, "Get school bot status error");
     res.status(500).json({ error: "Internal server error" });
@@ -123,13 +124,16 @@ router.post("/schools/:schoolId/bot/purchase", requireAuth, async (req: any, res
       return;
     }
 
-    await ensureWallet(req.userId);
-
+    // خریدِ بات از «کیف‌پولِ مدرسه» کسر می‌شود (lib/schoolWallet.ts)، نه کیف‌پولِ شخصیِ مدیر — این دو عمداً جدا هستند.
     let createdBotId: string | null = null;
     let claimedTokenPlain: string | null = null;
 
     try {
       await db.transaction(async (tx: any) => {
+        // دو خریدِ هم‌زمانِ یک مدرسه پشتِ هم صف می‌شوند تا (با موجودیِ دو برابرِ قیمت) دو بات ساخته نشود.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"school-bot:" + schoolId}))`);
+        const [dup] = await tx.select({ id: schoolBotsTable.id }).from(schoolBotsTable).where(eq(schoolBotsTable.schoolId, schoolId)).limit(1);
+        if (dup) throw new SchoolBotAlreadyPurchasedError();
         const claimed = await claimFreeSchoolBotToken(tx, schoolId);
         if (!claimed) {
           // باگِ واقعی که اینجا بود: قبلاً این مسیر فقط یک پرچم ست می‌کرد و
@@ -142,26 +146,20 @@ router.post("/schools/:schoolId/bot/purchase", requireAuth, async (req: any, res
           throw new SchoolBotPoolEmptyError();
         }
 
-        const paid = await deductWallet(req.userId, product.price, `خریدِ بات اطلاع‌رسانیِ مدرسه «${school.name}»`, tx, "spend");
+        const botId = crypto.randomUUID();
+        const paid = await debitSchoolWallet({
+          schoolId, amountRial: product.price, type: "spend", refId: botId, createdByUserId: req.userId,
+          description: `خریدِ بات اطلاع‌رسانیِ مدرسه «${school.name}»`,
+        }, tx);
         if (!paid) {
-          // باگِ واقعیِ تأییدشده با تستِ زنده: قبلاً اینجا هم فقط یک پرچم ست
-          // می‌شد و `return` بدونِ throw — یعنی آپدیتِ claimFreeSchoolBotToken
-          // بالا (status='assigned' رویِ یک ردیفِ استخر) **commit** می‌شد، در
-          // حالی که نه کیف‌پول کسر شده بود، نه school_bots ساخته شده بود، نه
-          // product_purchases ثبت شده بود. نتیجه: یک تلاشِ ناموفقِ «موجودی
-          // کافی نیست» یک توکنِ استخر را برای همیشه می‌سوزاند، بدونِ این‌که
-          // هیچ باتی ساخته شود — و چون این مدرسه هنوز در school_bots ردیفی
-          // ندارد، شارژ کردنِ کیف‌پول و تلاشِ دوباره هم کمکی نمی‌کرد: همان
-          // قدیمی‌ترین ردیفِ استخرِ در دسترس هم دیگر "assigned" بود، پس
-          // تلاشِ بعدی مستقیم با pool_empty شکست می‌خورد. throw-کردنِ
-          // InsufficientBalanceError (همان کلاسِ مشترکِ lib/wallet.ts، همان
-          // الگویی که routes/bots.ts برایِ خریدِ بات استفاده می‌کند) کلِ
-          // تراکنش را rollback می‌کند — توکن واقعاً به "available" برمی‌گردد.
-          throw new InsufficientBalanceError();
+          // موجودیِ کیف‌پولِ مدرسه کافی نیست. باید throw شود (نه return): drizzle فقط با throw تراکنش را rollback می‌کند و
+          // return یعنی commitِ claimِ توکنِ استخر — همان باگی که قبلاً توکن‌ها را می‌سوزاند (توضیحِ بالا). با throw توکن
+          // دوباره "available" می‌ماند و چیزی کسر/ساخته نمی‌شود.
+          throw new SchoolWalletInsufficientError();
         }
 
         const [botRow] = await tx.insert(schoolBotsTable).values({
-          id: crypto.randomUUID(),
+          id: botId,
           schoolId,
           botTokenPoolId: claimed.id,
         }).returning();
@@ -171,7 +169,7 @@ router.post("/schools/:schoolId/bot/purchase", requireAuth, async (req: any, res
           userId: req.userId,
           productId: product.id,
           status: "active",
-          metadata: { schoolId, schoolBotId: botRow.id },
+          metadata: { schoolId, schoolBotId: botRow.id, paidFrom: "school_wallet" },
         });
 
         createdBotId = botRow.id;
@@ -182,6 +180,10 @@ router.post("/schools/:schoolId/bot/purchase", requireAuth, async (req: any, res
         }
       });
     } catch (err) {
+      if (err instanceof SchoolBotAlreadyPurchasedError) {
+        res.status(409).json({ error: "این مدرسه قبلاً باتِ اطلاع‌رسانی خریده است.", code: "already_purchased" });
+        return;
+      }
       if (err instanceof SchoolBotPoolEmptyError) {
         res.status(409).json({
           error: "در حالِ حاضر هیچ ظرفیتِ باتی موجود نیست. لطفاً بعداً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.",
@@ -189,8 +191,8 @@ router.post("/schools/:schoolId/bot/purchase", requireAuth, async (req: any, res
         });
         return;
       }
-      if (err instanceof InsufficientBalanceError) {
-        res.status(400).json({ error: "موجودیِ کیف‌پول کافی نیست.", code: "insufficient" });
+      if (err instanceof SchoolWalletInsufficientError) {
+        res.status(409).json({ error: "موجودیِ کیف‌پولِ مدرسه کافی نیست.", code: "insufficient" });
         return;
       }
       throw err;
@@ -236,7 +238,7 @@ router.post("/schools/:schoolId/bot/purchase", requireAuth, async (req: any, res
     }
 
     const [finalBot] = await db.select().from(schoolBotsTable).where(eq(schoolBotsTable.id, createdBotId)).limit(1);
-    res.status(201).json(formatBotStatus(finalBot ?? null, rialToToman(product.price)));
+    res.status(201).json(formatBotStatus(finalBot ?? null, rialToToman(product.price), product.price));
   } catch (err) {
     logger.error({ err }, "Purchase school bot error");
     res.status(500).json({ error: "Internal server error" });
