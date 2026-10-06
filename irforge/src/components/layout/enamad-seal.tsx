@@ -17,6 +17,7 @@ export function EnamadSeal({ className = "" }: { className?: string }) {
           src="https://trustseal.enamad.ir/logo.aspx?id=7510632&Code=BwMRxuRefk1bEHHCVLxUEkfRcXhTcf4j"
           alt="نماد اعتماد الکترونیکی"
           style={{ cursor: "pointer" }}
+          {...{ code: "BwMRxuRefk1bEHHCVLxUEkfRcXhTcf4j" }}
         />
       </a>
     </div>
