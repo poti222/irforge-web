@@ -123,10 +123,6 @@
       (function () {
         try {
           var stored = localStorage.getItem("theme");
-          var pal = localStorage.getItem("irforge_palette");
-          if (pal && /^[a-z]+$/.test(pal) && pal !== "orange") {
-            document.documentElement.setAttribute("data-palette", pal);
-          }
           if (stored === "dark") {
             document.documentElement.classList.add("dark");
           }

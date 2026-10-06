@@ -4,7 +4,12 @@ import App from "./App";
 import { readInitialLang } from "./hooks/use-language";
 import { getAuthToken } from "./lib/auth-token";
 import { ensureLocales } from "./locales/registry";
+import { applyPalette, getStoredPalette } from "./lib/palette";
 import "./index.css";
+
+// پالت رنگ: اسکریپت inline داخل index.html با هش در CSP قفل است (api-server/src/lib/csp.ts)،
+// پس اینجا — در بسته‌ی خودِ اپ — قبل از اولین رندر اعمال می‌شود.
+applyPalette(getStoredPalette());
 
 setBaseUrl(import.meta.env.VITE_API_URL ?? "");
 setAuthTokenGetter(() => getAuthToken());

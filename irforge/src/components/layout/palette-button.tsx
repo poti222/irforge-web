@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Check, Palette } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useLanguage } from "@/hooks/use-language";
-import { PALETTES, getStoredPalette, savePalette, type PaletteId } from "@/lib/palette";
+import { PALETTES, applyPalette, getStoredPalette, savePalette, type PaletteId } from "@/lib/palette";
 
 /**
  * Colour-palette picker that sits next to the sun/moon toggle. The palette
@@ -14,7 +14,11 @@ export function PaletteButton({ className = "" }: { className?: string }) {
   const [current, setCurrent] = useState<PaletteId>("orange");
 
   // read after mount so SSG output and first client render match
-  useEffect(() => setCurrent(getStoredPalette()), []);
+  useEffect(() => {
+    const p = getStoredPalette();
+    applyPalette(p);
+    setCurrent(p);
+  }, []);
 
   const fa = lang === "fa" || lang === "ar";
   const title = lang === "fa" ? "رنگ تم" : lang === "ar" ? "لون المظهر" : lang === "ru" ? "Цвет темы" : lang === "tr" ? "Tema rengi" : "Theme color";
