@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import {
-  AlertTriangle, BookOpen, Check, CheckCircle2, Copy, CreditCard, GraduationCap, KeyRound, Loader2, Pencil, Plus, RefreshCcw, Send,
+  AlertTriangle, BookOpen, Check, CheckCircle2, Copy, GraduationCap, KeyRound, Loader2, Pencil, Plus, RefreshCcw, Send,
   Smartphone, Trash2, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,8 +31,9 @@ import { apiErrorMessage } from "./api";
 import {
   useCardChannels, useCardGuide, useCardSmsLog, useCreateCardChannel, useDeleteCardChannel, useRotateCardSecret,
   useSaveCardGuide, useTestCardSms, useUpdateCardChannel,
-  MAX_CHANNEL_DESCRIPTION, type CardChannel, type CardChannelForm, type ChannelKind, type TestSmsResult,
+  MAX_CHANNEL_DESCRIPTION, type CardChannel, type CardChannelForm, type CardChannelPatch, type TestSmsResult,
 } from "./cardChannelsApi";
+import { deriveFormKind, formProblems, willHaveCard, type LinkType } from "./cardChannelForm";
 
 const SECRET_HEADER = "X-Sms-Secret";
 // بدنه = فقط Magic Textِ «SMS Message» (Content-Type: text/plain). هیچ متنِ دیگری نگذارید؛ مبلغ را سرور خودش از متنِ پیامک می‌خواند.
@@ -195,12 +196,11 @@ function SecretDialog({ secret, channel, onClose }: { secret: string; channel: C
 
 // ─── پیش‌نمایشِ آنچه مشتری در بات می‌بیند ──────────────────────────────────────
 
-/** همان ترتیبِ پیامِ پرداختِ بات: شماره‌کارت، «به‌نام …»، «بانک …»، توضیحات. فقط برایِ کانالِ کارتی (لینکی کارت ندارد). */
+/** همان ترتیبِ پیامِ پرداختِ بات: شماره‌کارت، «به‌نام …»، «بانک …»، توضیحات، و دکمه‌ی لینک (اگر لینک هست). */
 function CustomerPreview({ f }: { f: CardChannelForm }) {
   const t = useT("botSettings");
-  if (f.kind !== "card_manual") return null;
   // هنگامِ ویرایش، شماره‌کارتِ قبلی از سرور نمی‌آید (فقط ماسک)؛ پیش‌نمایش فقط از چیزی که الان در فرم هست ساخته می‌شود.
-  const hasAny = f.cardNumber || f.holderName.trim() || f.bankName.trim() || f.description.trim();
+  const hasAny = f.cardNumber || f.paymentUrl.trim() || f.holderName.trim() || f.bankName.trim() || f.description.trim();
   return (
     <div className="space-y-1.5 rounded-md border border-dashed bg-muted/30 p-3" data-testid="cac-preview">
       <p className="text-xs font-medium">{t.cardAutoPreviewTitle}</p>
@@ -212,6 +212,7 @@ function CustomerPreview({ f }: { f: CardChannelForm }) {
           {f.holderName.trim() && <p>{fmt(t.cardAutoPreviewHolder, { name: f.holderName.trim() })}</p>}
           {f.bankName.trim() && <p>{fmt(t.cardAutoPreviewBank, { bank: f.bankName.trim() })}</p>}
           {f.description.trim() && <p className="whitespace-pre-line text-muted-foreground" data-testid="cac-preview-desc">{f.description.trim()}</p>}
+          {f.paymentUrl.trim() && <p className="text-muted-foreground" data-testid="cac-preview-link">{t.cardAutoPreviewLink}</p>}
         </div>
       )}
     </div>
@@ -221,63 +222,96 @@ function CustomerPreview({ f }: { f: CardChannelForm }) {
 // ─── فرمِ ساخت/ویرایش ───────────────────────────────────────────────────────
 
 const EMPTY_FORM: CardChannelForm = {
-  kind: "card_manual", cardNumber: "", holderName: "", bankName: "", description: "", paymentUrl: "", minAmountToman: 100_000,
+  kind: "open_link", cardNumber: "", holderName: "", bankName: "", description: "", paymentUrl: "", minAmountToman: 100_000,
   senderAllowlist: [], bankParser: "blubank",
 };
 
+type SubmitExtra = { removeCard: boolean };
+
+/**
+ * لینکِ پرداخت و شماره‌کارت هر دو اختیاری‌اند، حداقل یکی لازم است. `existingCard` = کانال (در ویرایش) از قبل کارت دارد
+ * (کارتِ کامل از سرور نمی‌آید؛ خالی‌گذاشتنِ فیلد یعنی «همان کارت»، و «حذف شماره کارت» آن را برمی‌دارد).
+ */
 function ChannelForm({
-  initial, editing, pending, error, onSubmit, onCancel,
+  initial, editing, existingCard = false, pending, error, onSubmit, onCancel,
 }: {
-  initial: CardChannelForm; editing: boolean; pending: boolean; error: unknown;
-  onSubmit: (f: CardChannelForm) => void; onCancel: () => void;
+  initial: CardChannelForm; editing: boolean; existingCard?: boolean; pending: boolean; error: unknown;
+  onSubmit: (f: CardChannelForm, extra: SubmitExtra) => void; onCancel: () => void;
 }) {
   const t = useT("botSettings");
   const [f, setF] = useState<CardChannelForm>(initial);
   const [senders, setSenders] = useState(initial.senderAllowlist.join(", "));
-  const isCard = f.kind === "card_manual";
+  const [removeCard, setRemoveCard] = useState(false);
   const set = <K extends keyof CardChannelForm>(k: K, v: CardChannelForm[K]) => setF((p) => ({ ...p, [k]: v }));
+
+  const hasUrl = f.paymentUrl.trim() !== "";
+  const hasCard = willHaveCard({ newCardDigits: f.cardNumber, existingCard, removeCard });
+  const linkType: LinkType = f.kind === "fixed_link" ? "fixed_link" : "open_link";
+  const kind = deriveFormKind(hasCard, hasUrl, linkType);
+  const problems = formProblems({ hasCard, hasUrl, holderName: f.holderName });
+  const linkLocked = hasCard && hasUrl;   // با کارت، لینک همیشه «مبلغ باز» است
 
   return (
     <form
       className="space-y-3 rounded-md border p-3"
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit({ ...f, senderAllowlist: senders.split(/[,\n;،]+/).map((s) => s.trim()).filter(Boolean) });
+        if (!kind || problems.length) return;
+        onSubmit(
+          { ...f, kind, paymentUrl: f.paymentUrl.trim(), senderAllowlist: senders.split(/[,\n;،]+/).map((s) => s.trim()).filter(Boolean) },
+          { removeCard },
+        );
       }}
     >
-      {!editing && (
+      <p className="text-xs text-muted-foreground" data-testid="cac-need-one-hint">{t.cardAutoNeedOne}</p>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="cac-url">{t.cardAutoUrl}</Label>
+        <Input id="cac-url" dir="ltr" placeholder="https://" value={f.paymentUrl} onChange={(e) => set("paymentUrl", e.target.value.trim())} />
+      </div>
+      {hasUrl && (
         <div className="space-y-1.5">
-          <Label>{t.cardAutoKind}</Label>
-          <Select value={f.kind} onValueChange={(v) => set("kind", v as ChannelKind)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Label>{t.cardAutoLinkType}</Label>
+          <Select value={linkLocked ? "open_link" : linkType} disabled={linkLocked} onValueChange={(v) => set("kind", v as LinkType)}>
+            <SelectTrigger data-testid="cac-link-type"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="card_manual">{t.cardAutoKindCard}</SelectItem>
-              <SelectItem value="fixed_link">{t.cardAutoKindFixed}</SelectItem>
               <SelectItem value="open_link">{t.cardAutoKindOpen}</SelectItem>
+              <SelectItem value="fixed_link">{t.cardAutoKindFixed}</SelectItem>
             </SelectContent>
           </Select>
+          {linkLocked && <p className="text-xs text-muted-foreground">{t.cardAutoLinkFixedWithCard}</p>}
         </div>
       )}
-      {isCard ? (
-        <div className="space-y-1.5">
-          <Label htmlFor="cac-card">{t.cardAutoCardNumber}</Label>
-          <Input
-            id="cac-card" dir="ltr" inputMode="numeric" autoComplete="off"
-            placeholder={editing ? t.cardAutoCardKeep : "6037 9970 0000 0001"}
-            value={formatCardNumber(f.cardNumber)}
-            onChange={(e) => set("cardNumber", e.target.value.replace(/\D/g, "").slice(0, 16))}
-          />
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          <Label htmlFor="cac-url">{t.cardAutoUrl}</Label>
-          <Input id="cac-url" dir="ltr" value={f.paymentUrl} onChange={(e) => set("paymentUrl", e.target.value.trim())} />
-        </div>
-      )}
+
+      <div className="space-y-1.5">
+        <Label htmlFor="cac-card">{t.cardAutoCardNumber}</Label>
+        <Input
+          id="cac-card" dir="ltr" inputMode="numeric" autoComplete="off"
+          placeholder={existingCard && !removeCard ? t.cardAutoCardKeep : "6037 9970 0000 0001"}
+          value={formatCardNumber(f.cardNumber)}
+          onChange={(e) => set("cardNumber", e.target.value.replace(/\D/g, "").slice(0, 16))}
+        />
+        {editing && existingCard && (
+          removeCard ? (
+            <p className="text-xs text-amber-700 dark:text-amber-300" data-testid="cac-remove-card-note">
+              {t.cardAutoRemoveCardNote}{" "}
+              <button type="button" className="underline" onClick={() => setRemoveCard(false)}>{t.cardAutoRemoveCardUndo}</button>
+            </p>
+          ) : (
+            <button type="button" className="text-xs text-destructive underline" data-testid="cac-remove-card" onClick={() => { set("cardNumber", ""); setRemoveCard(true); }}>
+              {t.cardAutoRemoveCard}
+            </button>
+          )
+        )}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="cac-holder">{t.cardAutoHolder}</Label>
           <Input id="cac-holder" value={f.holderName} onChange={(e) => set("holderName", e.target.value)} />
+          {hasCard && (
+            <p className={`text-xs ${problems.includes("holder_required") ? "text-destructive" : "text-muted-foreground"}`}>{t.cardAutoHolderHint}</p>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="cac-bank">{t.cardAutoBank}</Label>
@@ -319,9 +353,10 @@ function ChannelForm({
         <Input id="cac-senders" dir="ltr" value={senders} onChange={(e) => setSenders(e.target.value)} />
         <p className="text-xs text-muted-foreground">{t.cardAutoSendersHint}</p>
       </div>
+      {problems.includes("need_one") && <p className="text-xs text-destructive" role="alert" data-testid="cac-need-one-error">{t.cardAutoNeedOne}</p>}
       {error ? <p className="text-xs text-destructive" role="alert">{apiErrorMessage(error, "Error")}</p> : null}
       <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={pending}>
+        <Button type="submit" size="sm" disabled={pending || problems.length > 0} data-testid="cac-submit">
           {pending && <Loader2 className="me-1.5 size-3.5 animate-spin" />}
           {editing ? t.cardAutoSave : t.cardAutoCreate}
         </Button>
@@ -418,7 +453,9 @@ function ChannelCard({
   const [confirmRotate, setConfirmRotate] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const locked = channel.activeRequests > 0;
-  const kindLabel = channel.kind === "card_manual" ? t.cardAutoKindCard : channel.kind === "fixed_link" ? t.cardAutoKindFixed : t.cardAutoKindOpen;
+  const kindLabel = channel.kind === "card_manual" ? t.cardAutoKindCard
+    : channel.kind === "fixed_link" ? t.cardAutoKindFixed
+    : channel.cardMasked ? t.cardAutoKindBoth : t.cardAutoKindOpen;
   const err = (e: unknown) => toast({ title: apiErrorMessage(e, "Error"), variant: "destructive" });
 
   return (
@@ -461,6 +498,7 @@ function ChannelCard({
         {editing ? (
           <ChannelForm
             editing
+            existingCard={Boolean(channel.cardMasked)}
             initial={{
               kind: channel.kind, cardNumber: "", holderName: channel.holderName ?? "", bankName: channel.bankName ?? "",
               description: channel.description ?? "", paymentUrl: channel.paymentUrl ?? "", minAmountToman: channel.minAmountToman,
@@ -469,13 +507,14 @@ function ChannelCard({
             pending={update.isPending}
             error={update.error}
             onCancel={() => setEditing(false)}
-            onSubmit={(f) => {
-              const patch: Partial<CardChannelForm> = {
-                holderName: f.holderName, bankName: f.bankName, description: f.description, minAmountToman: f.minAmountToman,
-                senderAllowlist: f.senderAllowlist, bankParser: f.bankParser,
+            onSubmit={(f, { removeCard }) => {
+              const patch: CardChannelPatch = {
+                kind: f.kind, holderName: f.holderName, bankName: f.bankName, description: f.description,
+                minAmountToman: f.minAmountToman, senderAllowlist: f.senderAllowlist, bankParser: f.bankParser,
+                paymentUrl: f.paymentUrl,            // "" = بدونِ لینک
               };
-              if (f.kind === "card_manual" && f.cardNumber) patch.cardNumber = f.cardNumber;
-              if (f.kind !== "card_manual" && f.paymentUrl !== (channel.paymentUrl ?? "")) patch.paymentUrl = f.paymentUrl;
+              if (f.cardNumber) patch.cardNumber = f.cardNumber;
+              else if (removeCard) patch.cardNumber = null;
               update.mutate({ channelId: channel.id, patch }, { onSuccess: () => setEditing(false) });
             }}
           />
@@ -610,7 +649,7 @@ export function CardAutoConfirmSection(
 
   useEffect(() => {
     if (!seed?.nonce) return;
-    openAdd({ ...EMPTY_FORM, kind: "card_manual", cardNumber: seed.cardNumber.replace(/\D/g, "").slice(0, 16), holderName: seed.holderName });
+    openAdd({ ...EMPTY_FORM, cardNumber: seed.cardNumber.replace(/\D/g, "").slice(0, 16), holderName: seed.holderName });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed?.nonce]);
 
@@ -651,14 +690,8 @@ export function CardAutoConfirmSection(
         ) : (
           data && (
             <div className="flex flex-wrap items-center gap-3">
-              <Button type="button" size="sm" disabled={atLimit} data-testid="add-card-channel" onClick={() => openAdd(EMPTY_FORM)}>
-                <CreditCard className="me-1.5 size-3.5" /> {t.cardAutoAddCard}
-              </Button>
-              <Button
-                type="button" size="sm" variant="outline" disabled={atLimit} data-testid="add-link-channel"
-                onClick={() => openAdd({ ...EMPTY_FORM, kind: "fixed_link" })}
-              >
-                <Plus className="me-1.5 size-3.5" /> {t.cardAutoAddLink}
+              <Button type="button" size="sm" disabled={atLimit} data-testid="add-channel" onClick={() => openAdd(EMPTY_FORM)}>
+                <Plus className="me-1.5 size-3.5" /> {t.cardAutoAdd}
               </Button>
               <span className="text-xs text-muted-foreground">{fmt(t.cardAutoLimit, { n: data.limits.maxChannels })}</span>
             </div>

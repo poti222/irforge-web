@@ -58,6 +58,9 @@ export type CardChannelForm = {
   active?: boolean;
 };
 
+/** ویرایش: `cardNumber: null` = برداشتنِ کارت، نیامده/خالی = همان کارتِ قبلی؛ `paymentUrl: ""` = برداشتنِ لینک. */
+export type CardChannelPatch = Partial<Omit<CardChannelForm, "cardNumber">> & { cardNumber?: string | null };
+
 export type TestSmsResult = {
   text: string;
   direction: string;
@@ -109,7 +112,7 @@ export function useCreateCardChannel(botId: string) {
 export function useUpdateCardChannel(botId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { channelId: string; patch: Partial<CardChannelForm> }) =>
+    mutationFn: (v: { channelId: string; patch: CardChannelPatch }) =>
       customFetch<{ channel: CardChannel }>(`${base(botId)}/${v.channelId}`, { method: "PATCH", body: JSON.stringify(v.patch) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: cardChannelsKey(botId) }),
   });

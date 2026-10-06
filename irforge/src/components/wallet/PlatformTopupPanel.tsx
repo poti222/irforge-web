@@ -251,7 +251,6 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
   // ─── درخواستِ در جریان ────────────────────────────────────────────────────
   if (order) {
     const ch = order.channel;
-    const isCard = ch.kind === "card_manual";
     return (
       <div className="space-y-3 pt-3" data-testid="topup-order">
         {order.status === "queued" && (
@@ -280,7 +279,7 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
               {left !== null && <span dir="ltr" className="rounded bg-background px-1.5 py-0.5 font-mono font-semibold" data-testid="topup-countdown">{mmss(left)}</span>}
             </div>
 
-            {isCard && ch.cardNumber && (
+            {ch.cardNumber && (
               <div className="space-y-2">
                 <CopyField label={fa ? "شماره کارت مقصد" : "Destination card"} value={ch.cardNumber} display={groupCard(ch.cardNumber)} fa={fa} testId="topup-card" />
                 {(ch.holderName || ch.bankName) && (

@@ -320,7 +320,7 @@ test("ایزوله‌سازی: کانالِ bot هرگز برایِ شارژِ �
 }));
 
 test("لینکِ مبلغ-ثابتِ پلتفرم: نفرِ دوم در صف؛ لغوِ اولی نوبتِ دومی را می‌رساند", live, () => withEnv(async (t) => {
-  await t.mkChannel({ kind: "fixed_link", paymentUrl: "https://pay.example/fixed" });
+  await t.mkChannel({ kind: "fixed_link", cardNumber: undefined, paymentUrl: "https://pay.example/fixed" });   // لینکِ ثابت کارت نمی‌گیرد
   const a = await t.call("POST", "/wallet/topup/request", { user: "u1", body: { amount: 200_000 } });
   const b = await t.call("POST", "/wallet/topup/request", { user: "u2", body: { amount: 200_000 } });
   assert.deepEqual([a.json.status, a.json.suffixRial, a.json.channel.paymentUrl], ["pending", 0, "https://pay.example/fixed"]);

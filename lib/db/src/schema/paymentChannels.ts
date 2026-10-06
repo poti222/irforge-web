@@ -54,7 +54,8 @@ export const paymentChannelsTable = pgTable(
     check(
       "payment_channels_kind_fields_chk",
       sql`(${t.kind} = 'card_manual' AND ${t.cardNumberEnc} IS NOT NULL)
-        OR (${t.kind} IN ('fixed_link', 'open_link') AND ${t.paymentUrl} IS NOT NULL)`,
+        OR (${t.kind} = 'open_link' AND ${t.paymentUrl} IS NOT NULL)
+        OR (${t.kind} = 'fixed_link' AND ${t.paymentUrl} IS NOT NULL AND ${t.cardNumberEnc} IS NULL)`,
     ),
     check("payment_channels_min_amount_chk", sql`${t.minAmountRial} > 0`),
   ],

@@ -5,6 +5,10 @@
  * همه‌ی توابع فقط با `botId` ی که **route از روی مالکیتِ بات** (`resolveBotSheet`) داده کار می‌کنند و
  * همه‌ی queryها `scope='bot' AND bot_id=$botId` دارند؛ کانالِ باتِ دیگر «پیدا نشد» است.
  *
+ *  - مقصدِ پرداخت: «لینکِ پرداخت» و «شماره‌کارت» **هر دو اختیاری‌اند ولی حداقل یکی لازم است** و هر دو
+ *    هم‌زمان هم مجازند. `kind` از روی محتوا مشتق می‌شود (`deriveKind`): فقط کارت → `card_manual`؛ فقط لینک → `fixed_link`
+ *    یا `open_link` (به انتخابِ فروشنده)؛ کارت+لینک → `open_link` (مبلغِ یکتا با پسوند). لینکِ مبلغ‌ثابت پسوندِ یکتا
+ *    ندارد، پس با شماره‌کارت ترکیب نمی‌شود.
  *  - شماره‌کارت AES-256-GCM (`tokenCrypto`)؛ هرگز plaintext ذخیره یا برگردانده نمی‌شود (فقط ماسک).
  *  - secretِ وبهوک `irfsms_…` است، **فقط هشِ آن** ذخیره می‌شود و فقط هنگامِ ساخت/چرخش یک‌بار برگردانده
  *    می‌شود. چرخش، سایرِ تنظیمات را دست نمی‌زند و secretِ قدیمی همان لحظه از کار می‌افتد.
@@ -159,28 +163,64 @@ function minRial(v: unknown): number {
   return n * 10;
 }
 
-/** ورودیِ کامل (ساخت). */
+const INVALID_CARD = "شماره‌کارت نامعتبر است (۱۶ رقم و معتبر).";
+
+/** شماره‌کارتِ خام → ارقامِ معتبر؛ خالی → null؛ نامعتبر → خطا. */
+function optionalCard(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  const raw = typeof v === "string" ? v.trim() : String(v);
+  if (!raw) return null;
+  const digits = digitsOnly(raw);
+  if (!isValidCardNumber(digits)) throw new ChannelAdminError(INVALID_CARD, "invalid_card");
+  return digits;
+}
+
+/** لینکِ خام → URLِ https؛ خالی → null؛ نامعتبر → خطا. */
+function optionalUrl(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  if (typeof v === "string" && !v.trim()) return null;
+  return httpsUrl(v);
+}
+
+function kindHint(v: unknown): string | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  if (!CHANNEL_KINDS.includes(v as ChannelKind)) throw new ChannelAdminError("نوعِ کانال نامعتبر است.", "invalid_kind");
+  return v as string;
+}
+
+/**
+ * نوعِ کانال از روی محتوا. `hint` فقط وقتی معنا دارد که لینک هست: «مبلغ ثابت» یا «مبلغ باز».
+ * لینکِ مبلغ‌ثابت پسوندِ یکتا ندارد؛ تطبیقِ کارت‌به‌کارت بدونِ پسوند ممکن نیست، پس با کارت ترکیب نمی‌شود.
+ */
+export function deriveKind(hasCard: boolean, hasUrl: boolean, hint?: string): ChannelKind {
+  if (!hasCard && !hasUrl) {
+    throw new ChannelAdminError("حداقل یکی از «لینکِ پرداخت» یا «شماره‌کارت» را وارد کنید (هر دو هم می‌شود).", "destination_required");
+  }
+  if (hasCard && !hasUrl) return "card_manual";
+  if (!hasCard) return hint === "fixed_link" ? "fixed_link" : "open_link";
+  if (hint === "fixed_link") {
+    throw new ChannelAdminError(
+      "لینکِ با مبلغِ ثابت را نمی‌شود هم‌زمان با شماره‌کارت داشت؛ نوعِ لینک را «مبلغ باز» بگذارید یا شماره‌کارت را بردارید.",
+      "fixed_link_with_card");
+  }
+  return "open_link";
+}
+
+/** ورودیِ کامل (ساخت). لینک و کارت اختیاری‌اند، حداقل یکی لازم است. */
 export function validateNewChannel(input: ChannelInput): ChannelFields {
-  const kind = input.kind === undefined ? "card_manual" : input.kind;
-  if (!CHANNEL_KINDS.includes(kind as ChannelKind)) throw new ChannelAdminError("نوعِ کانال نامعتبر است.", "invalid_kind");
+  const hint = kindHint(input.kind);
   const parser = input.bankParser === undefined || input.bankParser === "" ? "blubank" : String(input.bankParser);
   if (!KNOWN_SMS_PARSERS.includes(parser)) throw new ChannelAdminError("قالبِ پیامکِ بانک نامعتبر است.", "invalid_parser");
 
-  let cardNumber: string | null = null;
-  let paymentUrl: string | null = null;
-  let holderName: string | null = null;
-  if (kind === "card_manual") {
-    const digits = digitsOnly(String(input.cardNumber ?? ""));
-    if (!isValidCardNumber(digits)) throw new ChannelAdminError("شماره‌کارت نامعتبر است (۱۶ رقم و معتبر).", "invalid_card");
-    cardNumber = digits;
-    holderName = str(input.holderName, 80);
-    if (!holderName) throw new ChannelAdminError("نامِ صاحبِ کارت لازم است.", "holder_required");
-  } else {
-    paymentUrl = httpsUrl(input.paymentUrl);
-    holderName = str(input.holderName, 80) || null;
-  }
+  const cardNumber = optionalCard(input.cardNumber);
+  const paymentUrl = optionalUrl(input.paymentUrl);
+  const kind = deriveKind(cardNumber !== null, paymentUrl !== null, hint);
+  const holder = str(input.holderName, 80);
+  // نامِ صاحبِ کارت فقط وقتی کارت هست لازم است (مشتری باید بداند به نامِ چه کسی واریز می‌کند).
+  if (cardNumber && !holder) throw new ChannelAdminError("نامِ صاحبِ کارت لازم است.", "holder_required");
+  const holderName = holder || null;
   return {
-    kind: kind as ChannelKind,
+    kind,
     cardNumber,
     holderName,
     bankName: str(input.bankName, 60) || null,
@@ -316,7 +356,7 @@ export async function createChannel(
   });
 }
 
-/** ویرایشِ جزئی. فیلدِ نیامده دست‌نخورده می‌ماند؛ `cardNumber` خالی/نیامده = همان کارتِ قبلی. */
+/** ویرایشِ جزئی. فیلدِ نیامده دست‌نخورده می‌ماند؛ `cardNumber` خالی/نیامده = همان کارتِ قبلی، `null` = برداشتنِ کارت؛ `paymentUrl` خالی = برداشتنِ لینک (حداقل یکی باید بماند). */
 export async function updateChannel(
   pool: PoolLike, input: { owner: ChannelOwner; channelId: string; patch: ChannelInput; now?: Date },
 ): Promise<ChannelView> {
@@ -335,10 +375,29 @@ export async function updateChannel(
     const params: unknown[] = [channelId, ownerBot(owner), owner.scope];
     const set = (col: string, val: unknown, cast = "") => { params.push(val); sets.push(`${col} = $${params.length}${cast}`); };
 
-    const destinationTouched =
-      (patch.kind !== undefined && patch.kind !== cur.kind) ||
-      (typeof patch.cardNumber === "string" && patch.cardNumber.trim() !== "") ||
-      (patch.paymentUrl !== undefined && patch.paymentUrl !== cur.payment_url);
+    // کارت: رشته‌ی غیرخالی = کارتِ جدید؛ `null` = برداشتنِ کارت؛ نیامده/خالی = همان کارتِ قبلی (فرم کارتِ کامل را هرگز نمی‌بیند).
+    let newCard: string | null = null;
+    let removeCard = false;
+    if (patch.cardNumber === null) {
+      removeCard = Boolean(cur.card_number_enc);
+    } else if (patch.cardNumber !== undefined) {
+      if (typeof patch.cardNumber !== "string") throw new ChannelAdminError(INVALID_CARD, "invalid_card");
+      newCard = optionalCard(patch.cardNumber);        // "" → null (= همان کارتِ قبلی)
+    }
+    // لینک: نیامده = دست‌نخورده؛ خالی/`null` = برداشتنِ لینک؛ رشته = لینکِ جدید.
+    const newUrl: string | null | undefined = patch.paymentUrl === undefined ? undefined : optionalUrl(patch.paymentUrl);
+
+    const nextHasCard = newCard !== null ? true : removeCard ? false : Boolean(cur.card_number_enc);
+    const nextHasUrl = newUrl === undefined ? Boolean(cur.payment_url) : newUrl !== null;
+    const kind = deriveKind(nextHasCard, nextHasUrl, kindHint(patch.kind) ?? cur.kind);
+
+    if (nextHasCard && (patch.holderName !== undefined || newCard !== null)) {
+      const h = patch.holderName !== undefined ? str(patch.holderName, 80) : String(cur.holder_name ?? "");
+      if (!h) throw new ChannelAdminError("نامِ صاحبِ کارت لازم است.", "holder_required");
+    }
+
+    const urlChanged = newUrl !== undefined && newUrl !== (cur.payment_url ?? null);
+    const destinationTouched = kind !== cur.kind || newCard !== null || removeCard || urlChanged;
     const deactivating = patch.active === false && cur.active;
     if ((destinationTouched || deactivating) && active > 0) {
       throw new ChannelAdminError(
@@ -346,30 +405,11 @@ export async function updateChannel(
         "channel_has_active_requests", 409);
     }
 
-    const kind = (patch.kind ?? cur.kind) as ChannelKind;
-    if (!CHANNEL_KINDS.includes(kind)) throw new ChannelAdminError("نوعِ کانال نامعتبر است.", "invalid_kind");
     if (kind !== cur.kind) set("kind", kind);
-
-    if (kind === "card_manual") {
-      if (typeof patch.cardNumber === "string" && patch.cardNumber.trim() !== "") {
-        const digits = digitsOnly(patch.cardNumber);
-        if (!isValidCardNumber(digits)) throw new ChannelAdminError("شماره‌کارت نامعتبر است (۱۶ رقم و معتبر).", "invalid_card");
-        set("card_number_enc", encryptToken(digits));
-      } else if (!cur.card_number_enc) {
-        throw new ChannelAdminError("برایِ کانالِ کارت‌به‌کارت شماره‌کارت لازم است.", "invalid_card");
-      }
-      if (kind !== cur.kind) set("payment_url", null);
-    } else {
-      const url = patch.paymentUrl !== undefined ? httpsUrl(patch.paymentUrl) : cur.payment_url;
-      if (!url) throw new ChannelAdminError("لینکِ پرداخت لازم است.", "invalid_url");
-      if (url !== cur.payment_url) set("payment_url", url);
-      if (kind !== cur.kind) set("card_number_enc", null);
-    }
-    if (patch.holderName !== undefined) {
-      const h = str(patch.holderName, 80);
-      if (kind === "card_manual" && !h) throw new ChannelAdminError("نامِ صاحبِ کارت لازم است.", "holder_required");
-      set("holder_name", h || null);
-    }
+    if (newCard !== null) set("card_number_enc", encryptToken(newCard));
+    else if (removeCard) set("card_number_enc", null);
+    if (urlChanged) set("payment_url", newUrl);
+    if (patch.holderName !== undefined) set("holder_name", str(patch.holderName, 80) || null);
     if (patch.bankName !== undefined) set("bank_name", str(patch.bankName, 60) || null);
     if (patch.description !== undefined) set("description", cleanDescription(patch.description));
     if (patch.minAmountToman !== undefined) set("min_amount_rial", minRial(patch.minAmountToman), "::bigint");

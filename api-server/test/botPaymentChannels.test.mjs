@@ -45,7 +45,7 @@ test("validateNewChannel: ماتریسِ ورودی‌های معتبر/نامع
   assert.deepEqual([link.kind, link.cardNumber, link.paymentUrl], ["fixed_link", null, "https://pay.example/x"]);
 
   const bad = [
-    [{ holderName: "x" }, "invalid_card"],
+    [{ holderName: "x" }, "destination_required"],                                   // نه کارت نه لینک
     [{ cardNumber: "6037997000000002", holderName: "x" }, "invalid_card"],          // Luhn
     [{ cardNumber: "603799700000000", holderName: "x" }, "invalid_card"],           // ۱۵ رقم
     [{ cardNumber: CARD }, "holder_required"],
@@ -53,7 +53,9 @@ test("validateNewChannel: ماتریسِ ورودی‌های معتبر/نامع
     [{ kind: "crypto", cardNumber: CARD, holderName: "x" }, "invalid_kind"],
     [{ kind: "fixed_link", paymentUrl: "http://pay.example/x" }, "invalid_url"],
     [{ kind: "open_link", paymentUrl: "javascript:alert(1)" }, "invalid_url"],
-    [{ kind: "open_link" }, "invalid_url"],
+    [{ kind: "open_link" }, "destination_required"],
+    [{ kind: "fixed_link", cardNumber: CARD, holderName: "x", paymentUrl: "https://pay.example/x" }, "fixed_link_with_card"],
+    [{ cardNumber: CARD, holderName: "x", paymentUrl: "http://pay.example/x" }, "invalid_url"],
     [{ cardNumber: CARD, holderName: "x", minAmountToman: 5_000 }, "invalid_min_amount"],
     [{ cardNumber: CARD, holderName: "x", minAmountToman: 1e12 }, "invalid_min_amount"],
     [{ cardNumber: CARD, holderName: "x", minAmountToman: 100_000.5 }, "invalid_min_amount"],
@@ -83,6 +85,31 @@ test("توضیحات: تمیزکاری، خالی = null، سقفِ ۳۰۰، ف�
   // کانالِ لینکی هم توضیحات می‌پذیرد
   assert.equal(A.validateNewChannel({ kind: "fixed_link", paymentUrl: "https://pay.example/x", description: "با لینک" }).description, "با لینک");
   assert.equal(A.MAX_DESCRIPTION, 300, "باید با MAX_CHANNEL_DESCRIPTION در UI یکی باشد");
+});
+
+test("لینک و کارت هر دو اختیاری‌اند، حداقل یکی لازم؛ هر دو هم‌زمان مجاز؛ kind از روی محتوا", () => {
+  const v = (o) => A.validateNewChannel(o);
+  const U = "https://pay.example/x";
+  const card = v({ cardNumber: CARD, holderName: "علی" });
+  assert.deepEqual([card.kind, card.cardNumber, card.paymentUrl], ["card_manual", CARD, null]);
+  const link = v({ paymentUrl: U });                                             // نامِ صاحبِ کارت بدونِ کارت لازم نیست
+  assert.deepEqual([link.kind, link.cardNumber, link.paymentUrl, link.holderName], ["open_link", null, U, null]);
+  assert.equal(v({ paymentUrl: U, kind: "fixed_link" }).kind, "fixed_link");
+  assert.equal(v({ paymentUrl: U, kind: "card_manual" }).kind, "open_link", "hintِ کارتی بدونِ کارت: لینکِ مبلغ‌باز");
+  const both = v({ cardNumber: CARD, holderName: "علی", paymentUrl: U });
+  assert.deepEqual([both.kind, both.cardNumber, both.paymentUrl], ["open_link", CARD, U]);
+  assert.equal(v({ cardNumber: CARD, holderName: "علی", paymentUrl: U, kind: "open_link" }).kind, "open_link");
+  assert.equal(v({ cardNumber: CARD, holderName: "علی", paymentUrl: "   " }).kind, "card_manual", "لینکِ خالی = بدونِ لینک");
+  assert.equal(v({ cardNumber: "", paymentUrl: U }).kind, "open_link", "کارتِ خالی = بدونِ کارت");
+  for (const [bad, code] of [
+    [{}, "destination_required"], [{ cardNumber: "", paymentUrl: "" }, "destination_required"],
+    [{ cardNumber: CARD }, "holder_required"],
+    [{ cardNumber: CARD, holderName: "x", paymentUrl: U, kind: "fixed_link" }, "fixed_link_with_card"],
+    [{ cardNumber: "abc", paymentUrl: U }, "invalid_card"],
+    [{ paymentUrl: "ftp://x.example" }, "invalid_url"],
+  ]) assert.throws(() => v(bad), (e) => e.code === code, JSON.stringify(bad));
+  assert.equal(A.deriveKind(true, true), "open_link");
+  assert.throws(() => A.deriveKind(false, false), (e) => e.code === "destination_required");
 });
 
 test("channelHealth / webhookUrlFor / maskLongDigits / sampleDepositText", () => {
@@ -290,6 +317,94 @@ test("توضیحات: ساخت/ویرایش/پاک‌کردن؛ بات فقط د
     assert.equal(view2.channel.description, "وسطِ پرداخت");
   }));
 
+test("کانالِ کارت+لینک: ساخت، نمایشِ هر دو برایِ مشتری؛ افزودن/برداشتنِ هرکدام با ویرایش؛ همیشه حداقل یکی می‌ماند", live, () =>
+  withEnv(async ({ pool, call, internal }) => {
+    const U = "https://blubiz.example/s/abc";
+    // ۱) ساخت با هر دو
+    const made = await makeChannel(call, { paymentUrl: U, kind: undefined });
+    assert.equal(made.status, 201, JSON.stringify(made.json));
+    const ch = made.json.channel;
+    assert.deepEqual([ch.kind, ch.cardMasked, ch.paymentUrl], ["open_link", "6037-****-****-0001", U]);
+    // مشتری هر دو را می‌بیند: کارتِ کامل + لینک (دکمه)
+    const pay = (await internal("/requests/create", { spreadsheetId: "sheet_A_12345", userId: "1001", purpose: "wallet_topup", baseAmountRial: 2_000_000 })).json.payment;
+    assert.deepEqual([pay.channel.cardNumber, pay.channel.paymentUrl, pay.channelKind ?? "open_link"], [CARD, U, "open_link"]);
+    assert.equal((await pool.query("SELECT channel_kind, suffix_rial FROM payment_requests WHERE id=$1", [pay.id])).rows[0].channel_kind, "open_link");
+    assert.ok(Number((await pool.query("SELECT suffix_rial FROM payment_requests WHERE id=$1", [pay.id])).rows[0].suffix_rial) > 0, "کارت+لینک پسوندِ یکتا دارد");
+    // وسطِ درخواستِ فعال برداشتنِ لینک/کارت = تغییرِ مقصد → ۴۰۹
+    for (const body of [{ paymentUrl: "" }, { cardNumber: null }]) {
+      const r = await call("PATCH", `/bots/bot_A/payment-channels/${ch.id}`, { body });
+      assert.deepEqual([r.status, r.json.code], [409, "channel_has_active_requests"], JSON.stringify(body));
+    }
+    await internal("/requests/cancel", { spreadsheetId: "sheet_A_12345", userId: "1001", requestId: pay.id });
+    const url = `/bots/bot_A/payment-channels/${ch.id}`;
+    // ۲) برداشتنِ لینک → فقط کارت (kind=card_manual، payment_url=null)
+    const noLink = await call("PATCH", url, { body: { paymentUrl: "" } });
+    assert.equal(noLink.status, 200, JSON.stringify(noLink.json));
+    assert.deepEqual([noLink.json.channel.kind, noLink.json.channel.paymentUrl, noLink.json.channel.cardMasked], ["card_manual", null, "6037-****-****-0001"]);
+    let row = (await pool.query("SELECT kind, payment_url, card_number_enc FROM payment_channels WHERE id=$1", [ch.id])).rows[0];
+    assert.deepEqual([row.kind, row.payment_url, decryptToken(row.card_number_enc)], ["card_manual", null, CARD]);
+    // ۳) برداشتنِ آخرین مقصد ممنوع
+    const none = await call("PATCH", url, { body: { cardNumber: null } });
+    assert.deepEqual([none.status, none.json.code], [400, "destination_required"]);
+    // ۴) افزودنِ لینک (لینک با نرمال‌سازی) → کارت+لینک؛ کارت دست‌نخورده
+    const addLink = await call("PATCH", url, { body: { paymentUrl: "https://blubiz.example" } });
+    assert.deepEqual([addLink.json.channel.kind, addLink.json.channel.paymentUrl, addLink.json.channel.cardMasked], ["open_link", "https://blubiz.example/", "6037-****-****-0001"]);
+    // ۵) برداشتنِ کارت → فقط لینک (open_link)، شماره‌کارت پاک
+    const noCard = await call("PATCH", url, { body: { cardNumber: null } });
+    assert.deepEqual([noCard.json.channel.kind, noCard.json.channel.cardMasked, noCard.json.channel.paymentUrl], ["open_link", null, "https://blubiz.example/"]);
+    assert.equal((await pool.query("SELECT card_number_enc FROM payment_channels WHERE id=$1", [ch.id])).rows[0].card_number_enc, null);
+    // ۶) افزودنِ کارت به کانالِ لینکی: نامِ صاحبِ کارت لازم می‌شود
+    await call("PATCH", url, { body: { holderName: "" } });
+    const needHolder = await call("PATCH", url, { body: { cardNumber: CARD2 } });
+    assert.deepEqual([needHolder.status, needHolder.json.code], [400, "holder_required"]);
+    const addCard = await call("PATCH", url, { body: { cardNumber: CARD2, holderName: "رضا" } });
+    assert.deepEqual([addCard.json.channel.kind, addCard.json.channel.cardMasked], ["open_link", "6104-****-****-0008"]);
+  }));
+
+test("لینکِ مبلغ‌ثابت با کارت ترکیب نمی‌شود؛ با تبدیل به «مبلغ باز» می‌شود؛ قیدِ DB هم همین را نگه می‌دارد", live, () =>
+  withEnv(async ({ pool, call }) => {
+    const { channel } = (await makeChannel(call, { kind: "fixed_link", cardNumber: undefined, holderName: undefined, paymentUrl: "https://pay.example/f" })).json;
+    assert.equal(channel.kind, "fixed_link");
+    const url = `/bots/bot_A/payment-channels/${channel.id}`;
+    const r = await call("PATCH", url, { body: { cardNumber: CARD, holderName: "علی" } });
+    assert.deepEqual([r.status, r.json.code], [400, "fixed_link_with_card"]);
+    const ok = await call("PATCH", url, { body: { cardNumber: CARD, holderName: "علی", kind: "open_link" } });
+    assert.deepEqual([ok.status, ok.json.channel.kind, ok.json.channel.cardMasked], [200, "open_link", "6037-****-****-0001"]);
+    // قیدِ سطحِ DB (حتی اگر کدی از validate رد شود)
+    const dbErr = async (sql, params = []) => pool.query(sql, params).then(() => null, (e) => e.constraint ?? e.message);
+    assert.equal(await dbErr("UPDATE payment_channels SET payment_url = NULL, card_number_enc = NULL WHERE id=$1", [channel.id]), "payment_channels_kind_fields_chk", "بدونِ هیچ مقصدی");
+    assert.equal(await dbErr("UPDATE payment_channels SET kind='fixed_link' WHERE id=$1", [channel.id]), "payment_channels_kind_fields_chk", "fixed_link + کارت");
+    assert.equal(await dbErr("UPDATE payment_channels SET kind='card_manual', card_number_enc = NULL WHERE id=$1", [channel.id]), "payment_channels_kind_fields_chk", "card_manual بدونِ کارت");
+    assert.equal(await dbErr("UPDATE payment_channels SET kind='open_link', payment_url = NULL WHERE id=$1", [channel.id]), "payment_channels_kind_fields_chk", "open_link بدونِ لینک");
+  }));
+
+test("مایگریشنِ 0046 روی دیتابیسِ قدیمی: ردیف‌های legacy سالم می‌مانند، قیدِ جدید جایگزین می‌شود، دوباره اجرا بی‌خطر است", live, async () => {
+  const admin = new Pool({ connectionString: PG_URL, max: 2 });
+  const schema = `card_m46_${Math.random().toString(36).slice(2, 10)}`;
+  await admin.query(`CREATE SCHEMA ${schema}`);
+  const pool = new Pool({ connectionString: PG_URL, max: 2, options: `-c search_path=${schema}` });
+  try {
+    await pool.query(["0038_card_autoconfirm.sql", "0039_card_autoconfirm_effects.sql", "0040_card_autoconfirm_reject.sql"].map(readSql).join("\n"));
+    const ins = (id, kind, card, url) => pool.query(
+      "INSERT INTO payment_channels (id, scope, bot_id, kind, card_number_enc, payment_url, sms_secret_hash) VALUES ($1,'bot','b1',$2,$3,$4,'h')", [id, kind, card, url]);
+    await ins("legacy_card", "card_manual", "enc", null);
+    await ins("legacy_open", "open_link", null, "https://x.example/");
+    await ins("legacy_fixed", "fixed_link", null, "https://x.example/f");
+    const ddl46 = readSql("0046_payment_channel_description.sql");
+    await pool.query(ddl46);
+    await pool.query(ddl46);                                   // idempotent
+    assert.equal((await pool.query("SELECT count(*)::int n FROM payment_channels")).rows[0].n, 3, "ردیف‌های legacy سالم");
+    await ins("new_both", "open_link", "enc", "https://x.example/");
+    await assert.rejects(ins("bad_fixed_card", "fixed_link", "enc", "https://x.example/"), /kind_fields_chk/, "قیدِ تازه: fixed_link کارت نمی‌گیرد (پسوندِ یکتا ندارد)");
+    await assert.rejects(ins("bad_none", "open_link", null, null), /kind_fields_chk/);
+    assert.equal((await pool.query("SELECT count(*)::int n FROM pg_constraint WHERE conname='payment_channels_kind_fields_chk' AND conrelid='payment_channels'::regclass")).rows[0].n, 1);
+  } finally {
+    await pool.end();
+    await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+    await admin.end();
+  }
+});
+
 test("سقفِ کانال: سومی مجاز، چهارمی ۴۰۹؛ ۶ ساختِ هم‌زمان فقط تا سقف", live, () =>
   withEnv(async ({ pool, call }) => {
     const outs = await Promise.all(Array.from({ length: 6 }, (_, i) => makeChannel(call, { holderName: `h${i}` })));
@@ -354,7 +469,11 @@ test("وقتی درخواستِ فعال هست: تغییرِ کارت/نوع/ل
     const url = `/bots/bot_A/payment-channels/${channel.id}`;
     const p = (await internal("/requests/create", { spreadsheetId: "sheet_A_12345", userId: "1001", purpose: "wallet_topup", baseAmountRial: 2_000_000 })).json.payment;
     assert.equal((await call("GET", "/bots/bot_A/payment-channels")).json.channels[0].activeRequests, 1);
-    for (const body of [{ cardNumber: CARD2 }, { active: false }, { kind: "fixed_link", paymentUrl: "https://pay.example/x" }]) {
+    for (const body of [
+      { cardNumber: CARD2 }, { active: false },
+      { paymentUrl: "https://pay.example/x" },                                    // افزودنِ لینک = تغییرِ مقصد
+      { kind: "fixed_link", paymentUrl: "https://pay.example/x", cardNumber: null },  // تبدیلِ کارت به لینکِ ثابت
+    ]) {
       const r = await call("PATCH", url, { body });
       assert.equal(r.status, 409, JSON.stringify(body));
       assert.equal(r.json.code, "channel_has_active_requests");
