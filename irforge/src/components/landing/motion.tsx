@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion, type Variants } from "framer-motion";
 
 /**
@@ -44,8 +44,24 @@ export function RevealItem({
   children: ReactNode;
 }) {
   const [settled, setSettled] = useState(false);
+  // Failsafe: the reveal depends on the parent's IntersectionObserver firing.
+  // If that never happens (some browsers/embedded views/capture tools), the
+  // item would stay at opacity 0 forever while still taking up space. Any item
+  // that is on screen but still hasn't played after ~2s is shown directly.
+  const [force, setForce] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (settled) return;
+    const id = window.setInterval(() => {
+      const r = ref.current?.getBoundingClientRect();
+      if (r && r.bottom > 0 && r.top < window.innerHeight) setForce(true);
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [settled]);
   return (
     <motion.div
+      ref={ref}
+      animate={force ? "show" : undefined}
       variants={variants}
       className={className}
       style={{ willChange: settled ? "auto" : "transform, opacity" }}
