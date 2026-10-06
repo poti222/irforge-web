@@ -559,3 +559,103 @@ html[data-palette].dark {
   --muted-foreground: 0 0% 60%;
   --accent: 0 0% 14%;
 }
+
+/* ═══ Landing — «کوره» (forge) visual language ═══════════════════════════════
+   Steel-dark panels + one ember accent (the active palette's `--primary`).
+   `.forge-dark` re-skins a subtree dark regardless of the page theme, and
+   keeps the user's palette (the global palette rules only touch <html>).
+   Everything below animates transform/opacity only; all of it stops under
+   prefers-reduced-motion. */
+.forge-dark {
+  color-scheme: dark;
+  --background: 222 16% 6%;
+  --foreground: 210 20% 96%;
+  --card: 222 14% 9%;
+  --card-foreground: 210 20% 96%;
+  --popover: 222 14% 9%;
+  --popover-foreground: 210 20% 96%;
+  --border: 222 10% 20%;
+  --card-border: 222 10% 22%;
+  --muted: 222 12% 13%;
+  --muted-foreground: 218 10% 68%;
+  --accent: 222 12% 14%;
+  --accent-foreground: 210 20% 96%;
+  --secondary: 222 12% 13%;
+  --secondary-foreground: 210 20% 96%;
+  --primary: 25 95% 55%;
+  --primary-foreground: 0 0% 6%;
+  --ring: 25 95% 55%;
+}
+html[data-palette] .forge-dark {
+  --primary: var(--p-h) var(--p-s) var(--p-ld);
+  --primary-foreground: 0 0% 5%;
+  --ring: var(--p-h) var(--p-s) var(--p-ld);
+}
+
+@keyframes forge-rise {
+  0%   { transform: translate3d(0, 0, 0) scale(1); opacity: 0; }
+  12%  { opacity: var(--o, 0.8); }
+  100% { transform: translate3d(var(--dx, 24px), -680px, 0) scale(0.4); opacity: 0; }
+}
+@keyframes forge-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+@keyframes forge-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -9px, 0); }
+}
+@keyframes forge-sheen {
+  from { background-position: 0% 50%; }
+  to   { background-position: -200% 50%; }
+}
+@keyframes forge-ring {
+  from { transform: scale(1); opacity: 0.55; }
+  to   { transform: scale(1.7); opacity: 0; }
+}
+
+.forge-ember {
+  position: absolute;
+  bottom: -6px;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  box-shadow: 0 0 10px 2px hsl(var(--primary) / 0.7);
+  animation: forge-rise var(--d, 10s) cubic-bezier(0.2, 0.6, 0.3, 1) var(--delay, 0s) infinite;
+  will-change: transform, opacity;
+}
+.forge-marquee-track { animation: forge-marquee 46s linear infinite; will-change: transform; }
+[dir="rtl"] .forge-marquee-track { animation-direction: reverse; }
+.forge-marquee:hover .forge-marquee-track { animation-play-state: paused; }
+.forge-float { animation: forge-float 6s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+.forge-sheen {
+  background-size: 200% 100%;
+  animation: forge-sheen 7s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.forge-ring { animation: forge-ring 0.9s cubic-bezier(0.32, 0.72, 0, 1) both; }
+@keyframes forge-spin { to { transform: rotate(360deg); } }
+/* a light that circles the demo's hairline border — a big conic gradient spun with transform, clipped to a 1px ring */
+.forge-beam-spin {
+  position: absolute;
+  inset: -80%;
+  background: conic-gradient(from 0deg, transparent 0deg, transparent 235deg, hsl(var(--primary) / 0.9) 318deg, hsl(var(--primary)) 340deg, transparent 360deg);
+  animation: forge-spin 8s linear infinite;
+  will-change: transform;
+}
+
+/* pointer spotlight (set via CSS variables by <Bezel spotlight>; no React state) */
+.forge-spot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), hsl(var(--primary) / 0.16), transparent 70%);
+}
+.forge-spot:hover::before { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .forge-ember, .forge-marquee-track, .forge-float, .forge-sheen, .forge-ring, .forge-beam-spin { animation: none !important; }
+  .forge-ember { display: none; }
+}

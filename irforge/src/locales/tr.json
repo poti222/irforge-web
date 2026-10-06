@@ -162,7 +162,62 @@
     },
     "useCasesMore": "Telegram botu nedir ve nereden başlamalıyım?",
     "guidesTitle": "Telegram bot rehberleri",
-    "guidesSub": "Ücretsiz, adım adım rehberler — üyelik gerekmez."
+    "guidesSub": "Ücretsiz, adım adım rehberler — üyelik gerekmez.",
+    "forge": {
+      "builderTitle": "Bot oluşturucu",
+      "builderHint": "Bir bloğa dokun — bot anında yanıt verir.",
+      "demo": {
+        "shop": {
+          "block": "Mağaza",
+          "user": "Neler satıyorsunuz?",
+          "bot": "Merhaba! Mağazamıza hoş geldiniz. Birini seçin:",
+          "btnA": "Ürünler",
+          "btnB": "Siparişlerim"
+        },
+        "support": {
+          "block": "Destek",
+          "user": "Siparişim hâlâ gelmedi, yardımcı olur musunuz?",
+          "bot": "Talebiniz kaydedildi; destek ekibi kısa sürede yanıt verecek.",
+          "btnA": "Taleplerim",
+          "btnB": "Yeni talep"
+        },
+        "booking": {
+          "block": "Randevu",
+          "user": "Yarın için yeriniz var mı?",
+          "bot": "Yarın boş saatler: 10:00, 11:00 ve 16:00. Hangisini ayırayım?",
+          "btnA": "10:00",
+          "btnB": "16:00"
+        },
+        "broadcast": {
+          "block": "Toplu mesaj",
+          "user": "Bugün ne var?",
+          "bot": "Hafta sonu indirimi başladı — listeyi görmek için aşağıya dokunun.",
+          "btnA": "İndirimleri gör",
+          "btnB": "Sonra"
+        }
+      },
+      "capabilitiesLabel": "IrForge neler yapar",
+      "capabilities": [
+        "Mağaza ve katalog",
+        "Cüzdan",
+        "Otomatik karttan karta ödeme",
+        "Destek talepleri",
+        "Randevu",
+        "Çekilişler",
+        "Anketler",
+        "Müşteri CRM",
+        "Toplu mesaj",
+        "Form oluşturucu",
+        "Google Sheets bağlantısı",
+        "SQL veritabanı"
+      ],
+      "schoolPhoneTitle": "Okul botu",
+      "schoolPhoneExample": "Örnek mesajlar",
+      "schoolMsg1": "Ali Rezaei bugün 2. ve 3. derse gelmedi.",
+      "schoolMsg2": "Matematik sınavı notu: 18,5 / 20",
+      "schoolMsg3": "Veli toplantısı yarın saat 17:00'de ana salonda.",
+      "doorsTitle": "Nereden başlayalım?"
+    }
   },
   "auth": {
     "signInAccount": "Hesabınıza giriş yapın",

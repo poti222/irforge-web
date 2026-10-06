@@ -162,7 +162,62 @@
     },
     "useCasesMore": "What is a Telegram bot, and where do I start?",
     "guidesTitle": "Telegram bot guides",
-    "guidesSub": "Free step-by-step guides — no sign-up needed."
+    "guidesSub": "Free step-by-step guides — no sign-up needed.",
+    "forge": {
+      "builderTitle": "Bot builder",
+      "builderHint": "Tap a block — the bot answers instantly.",
+      "demo": {
+        "shop": {
+          "block": "Shop",
+          "user": "What do you sell?",
+          "bot": "Hi! Welcome to our shop. Pick one:",
+          "btnA": "Products",
+          "btnB": "My orders"
+        },
+        "support": {
+          "block": "Support",
+          "user": "My order hasn't arrived — can you help?",
+          "bot": "Your ticket is filed; the support team will reply shortly.",
+          "btnA": "My tickets",
+          "btnB": "New ticket"
+        },
+        "booking": {
+          "block": "Booking",
+          "user": "Any slots tomorrow?",
+          "bot": "Free tomorrow: 10:00, 11:00 and 16:00. Which one should I book?",
+          "btnA": "10:00",
+          "btnB": "16:00"
+        },
+        "broadcast": {
+          "block": "Broadcast",
+          "user": "What's new today?",
+          "bot": "The weekend sale just started — tap below to see the list.",
+          "btnA": "See the deals",
+          "btnB": "Later"
+        }
+      },
+      "capabilitiesLabel": "What IrForge can do",
+      "capabilities": [
+        "Shop & catalog",
+        "Wallet",
+        "Automatic card-to-card payments",
+        "Support tickets",
+        "Appointment booking",
+        "Giveaways",
+        "Surveys",
+        "Customer CRM",
+        "Broadcast messages",
+        "Form builder",
+        "Google Sheets sync",
+        "SQL database"
+      ],
+      "schoolPhoneTitle": "School bot",
+      "schoolPhoneExample": "Example messages",
+      "schoolMsg1": "Ali Rezaei was absent today in periods 2 and 3.",
+      "schoolMsg2": "Math exam grade: 18.5 / 20",
+      "schoolMsg3": "Parent meeting tomorrow at 5 PM in the main hall.",
+      "doorsTitle": "Where do you want to start?"
+    }
   },
   "auth": {
     "signInAccount": "Sign in to your account",

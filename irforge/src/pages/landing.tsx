@@ -1,12 +1,5 @@
-import { useEffect, useMemo, useRef } from "react";
 import { Link } from "wouter";
-import {
-  motion,
-  useMotionValueEvent,
-  useReducedMotion,
-  useScroll,
-  useTransform,
-} from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
   Terminal,
@@ -28,13 +21,18 @@ import {
   Megaphone,
   CalendarCheck,
   Database,
+  GraduationCap,
+  ArrowUpRight,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { EntryShowcase } from "@/components/landing/EntryShowcase";
 import { BrandLogo } from "@/components/layout/brand-home";
-import { HeroRobot } from "@/components/landing/HeroRobot";
-import { BotChatMockup } from "@/components/landing/BotChatMockup";
+import { ForgeDemo } from "@/components/landing/forge/ForgeDemo";
+import { Bezel } from "@/components/landing/forge/Bezel";
+import { Embers } from "@/components/landing/forge/Embers";
+import { CapabilityMarquee } from "@/components/landing/forge/Marquee";
+import { SchoolPhone } from "@/components/landing/forge/SchoolPhone";
+import { setPostAuthTarget } from "@/lib/post-auth";
 import { MiniAnalyticsChart } from "@/components/landing/MiniAnalyticsChart";
 import { PluginRail } from "@/components/landing/PluginRail";
 import { FaqSection } from "@/components/landing/FaqSection";
@@ -77,7 +75,6 @@ import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { useT } from "@/hooks/use-translation";
 import { useSEO } from "@/hooks/use-seo";
-import { useMotionDirection } from "@/hooks/use-motion-direction";
 
 /**
  * CTA proof row. Intentionally empty: the numbers aren't wired to the API yet
@@ -86,6 +83,55 @@ import { useMotionDirection } from "@/hooks/use-motion-direction";
  * the row renders itself.
  */
 type LandingStat = { value: string; label: string };
+
+const EASE_OUT = "ease-[cubic-bezier(0.32,0.72,0,1)]";
+
+/** Pill CTA with the arrow nested in its own circle ("button-in-button"). */
+function PillCTA({
+  href,
+  children,
+  testId,
+  onClick,
+  size = "md",
+}: {
+  href: string;
+  children: React.ReactNode;
+  testId?: string;
+  onClick?: () => void;
+  size?: "md" | "lg";
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      data-testid={testId}
+      className={`group inline-flex items-center gap-3 rounded-full bg-primary ps-6 pe-2 font-bold text-primary-foreground shadow-[0_12px_40px_-12px_hsl(var(--primary)/0.8)] transition-[transform,box-shadow] duration-500 ${EASE_OUT} hover:shadow-[0_16px_50px_-10px_hsl(var(--primary)/0.95)] active:scale-[0.98] ${
+        size === "lg" ? "py-2.5 text-lg" : "py-2 text-base"
+      }`}
+    >
+      {children}
+      <span
+        className={`flex items-center justify-center rounded-full bg-black/15 transition-transform duration-500 ${EASE_OUT} group-hover:translate-x-0.5 group-hover:scale-105 rtl:group-hover:-translate-x-0.5 ${
+          size === "lg" ? "size-11" : "size-9"
+        }`}
+      >
+        <ChevronRight className="size-4 rtl-flip" strokeWidth={2} />
+      </span>
+    </Link>
+  );
+}
+
+function GhostCTA({ href, children, testId }: { href: string; children: React.ReactNode; testId?: string }) {
+  return (
+    <Link
+      href={href}
+      data-testid={testId}
+      className={`inline-flex items-center gap-2 rounded-full border border-border bg-foreground/[0.04] px-6 py-3.5 text-base font-semibold transition-[transform,background-color,border-color] duration-500 ${EASE_OUT} hover:border-primary/50 hover:bg-primary/10 active:scale-[0.98]`}
+    >
+      {children}
+    </Link>
+  );
+}
 
 export default function Landing() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -100,57 +146,13 @@ export default function Landing() {
 
   const reduce = useReducedMotion();
   const isMobile = useIsMobileViewport();
-  const dirSign = useMotionDirection(); // +1 in LTR, -1 in RTL
-
-  // Scroll-linked motion and ambient loops are desktop-only, and always off
-  // under prefers-reduced-motion. Mobile gets mount/in-view fades only.
-  const richMotion = !isMobile && !reduce;
-
-  const heroRef = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"],
-  });
-
-  // The mascot drifts outward (direction-aware), shrinks and fades as the hero
-  // scrolls away, so it's gone by the time "how it works" is in view.
-  // +direction = outward past the mockup's end edge, where the mascot sits, in
-  // both LTR and RTL
-  const robotX = useTransform(scrollYProgress, [0, 1], [0, 90 * dirSign]);
-  const robotScale = useTransform(scrollYProgress, [0, 1], [1, 0.55]);
-  // Drop the compositor hint once the hero is fully scrolled past. A motion
-  // value, not state, so it costs no re-render.
-  const robotWillChange = useTransform(scrollYProgress, (v) =>
-    v >= 0.999 ? "auto" : "transform, opacity"
-  );
-
-  // Style object kept referentially stable: handing framer a fresh object on
-  // every re-render (auth resolving, language flips…) makes it re-seed values
-  // from the new object instead of tracking the bound motion values.
-  const robotStyle = useMemo(
-    () => (richMotion ? { x: robotX, scale: robotScale, willChange: robotWillChange } : undefined),
-    [richMotion, robotX, robotScale, robotWillChange]
-  );
-
-  // Opacity is written straight to the node rather than through `style`: with a
-  // motion value in the same style object as the transforms it renders once and
-  // then stops tracking. This runs inside framer's own scroll frame loop — no
-  // extra scroll listener — and only ever touches a compositor-only property.
-  const robotRef = useRef<HTMLDivElement>(null);
-  useMotionValueEvent(scrollYProgress, "change", (p) => {
-    const node = robotRef.current;
-    if (!node || !richMotion) return;
-    node.style.opacity = String(Math.max(0, Math.min(1, 1 - p / 0.7)));
-  });
-  useEffect(() => {
-    // mobile / reduced motion: make sure no stale fade is left behind
-    if (!richMotion && robotRef.current) robotRef.current.style.opacity = "";
-  }, [richMotion]);
 
   const heroContainer = revealContainer(reduce ? 0 : 0.09);
   const heroItem = revealItem(!!reduce);
   const sectionItem = revealItem(!!reduce);
   const staggerContainer = revealContainer(reduce || isMobile ? 0 : 0.08);
+
+  const nf = (n: number) => n.toLocaleString(lang === "fa" ? "fa-IR" : lang === "ar" ? "ar-EG" : "en-US", { minimumIntegerDigits: 2 });
 
   const steps: { icon: LucideIcon; title: string; description: string }[] = [
     { icon: Bot, title: tr.step1Title, description: tr.step1Desc },
@@ -158,9 +160,7 @@ export default function Landing() {
     { icon: Rocket, title: tr.step3Title, description: tr.step3Desc },
   ];
 
-  // Bento: two oversized tiles carry a real mini-visual, the rest stay compact.
-  // Spans add up to 6 per row, so no row-span tricks are needed and nothing can
-  // leave a hole in the grid.
+  // Bento: spans add up to 6 per row, so nothing can leave a hole in the grid.
   const features: {
     icon: LucideIcon;
     title: string;
@@ -168,22 +168,10 @@ export default function Landing() {
     span: string;
     visual?: "plugins" | "analytics";
   }[] = [
-    {
-      icon: Blocks,
-      title: tr.pluginMarketplace,
-      description: tr.pluginMarketplaceDesc,
-      span: "md:col-span-4",
-      visual: "plugins",
-    },
+    { icon: Blocks, title: tr.pluginMarketplace, description: tr.pluginMarketplaceDesc, span: "md:col-span-4", visual: "plugins" },
     { icon: Terminal, title: tr.advancedCommands, description: tr.advancedCommandsDesc, span: "md:col-span-2" },
     { icon: Zap, title: tr.instantDeploy, description: tr.instantDeployDesc, span: "md:col-span-2" },
-    {
-      icon: BarChart3,
-      title: tr.analyticsDashboard,
-      description: tr.analyticsDashboardDesc,
-      span: "md:col-span-4",
-      visual: "analytics",
-    },
+    { icon: BarChart3, title: tr.analyticsDashboard, description: tr.analyticsDashboardDesc, span: "md:col-span-4", visual: "analytics" },
     { icon: Shield, title: tr.enterpriseSecurity, description: tr.enterpriseSecurityDesc, span: "md:col-span-3" },
     { icon: Bot, title: tr.multiBotManagement, description: tr.multiBotManagementDesc, span: "md:col-span-3" },
   ];
@@ -192,28 +180,34 @@ export default function Landing() {
   const stats: LandingStat[] = [];
 
   // IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section C — the Telegram-vs-dedicated-app
-  // differentiation angle (no school-management competitor mentions Telegram; parents
-  // already have it installed) gets its own section, not folded into the FAQ, since
-  // it's the section's whole point rather than a footnote.
+  // angle gets its own section, not folded into the FAQ.
   const schoolPoints: { icon: LucideIcon; title: string; description: string }[] = [
     { icon: Smartphone, title: tr.schoolPoint1Title, description: tr.schoolPoint1Desc },
     { icon: ClipboardCheck, title: tr.schoolPoint2Title, description: tr.schoolPoint2Desc },
     { icon: MessageSquare, title: tr.schoolPoint3Title, description: tr.schoolPoint3Desc },
   ];
 
+  const doors: { key: "bot" | "school"; href: string; icon: LucideIcon; title: string; desc: string }[] = [
+    { key: "bot", href: "/dashboard", icon: Bot, title: tr.ctaBotTitle, desc: tr.ctaBotDesc },
+    { key: "school", href: "/schools", icon: GraduationCap, title: tr.ctaSchoolTitle, desc: tr.ctaSchoolDesc },
+  ];
+
+  // A use-case cell: the first card is the big one, the rest are compact.
+  const useCaseSpan = ["lg:col-span-4", "lg:col-span-2", "lg:col-span-2", "lg:col-span-4", "lg:col-span-3", "lg:col-span-3"];
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-2">
-          <BrandLogo href={null} className="sm:gap-3 min-w-0" />
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+    <div className="flex min-h-screen flex-col overflow-x-clip bg-background text-foreground">
+      {/* ── Floating island nav ─────────────────────────────────────────── */}
+      <header className="sticky top-3 z-50 px-3">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-2 rounded-full border border-border/70 bg-background/75 px-3 shadow-[0_10px_34px_-14px_hsl(var(--foreground)/0.3)] backdrop-blur-xl sm:px-4">
+          <BrandLogo href={null} className="min-w-0 sm:gap-3" />
+          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
             {/* Public nav entry into the content hub. Root-relative: the router
                 base already supplies the language prefix. */}
-            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+            <Button asChild variant="ghost" size="sm" className="hidden rounded-full sm:inline-flex">
               <Link href="/learn">{footerT.learnNav}</Link>
             </Button>
-            <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
+            <Button asChild variant="ghost" size="sm" className="hidden rounded-full md:inline-flex">
               <Link href="/pricing">{seo.navPricing}</Link>
             </Button>
             <PaletteButton className="rounded-full" />
@@ -222,13 +216,13 @@ export default function Landing() {
             <LanguageSwitcher />
 
             {isAuthLoading ? (
-              <div className="h-8 w-[72px] rounded-md bg-muted animate-pulse" aria-hidden="true" />
+              <div className="h-8 w-[72px] animate-pulse rounded-full bg-muted" aria-hidden="true" />
             ) : user ? (
-              <Button asChild size="sm">
+              <Button asChild size="sm" className="rounded-full">
                 <Link href="/dashboard">{tr.dashboard}</Link>
               </Button>
             ) : (
-              <Button asChild size="sm">
+              <Button asChild size="sm" className="rounded-full">
                 <Link href="/login">{tr.signIn}</Link>
               </Button>
             )}
@@ -237,146 +231,136 @@ export default function Landing() {
       </header>
 
       <main className="flex-1">
-        <EntryShowcase />
-        {/* ── Hero ─────────────────────────────────────────────────────────
-            overflow-x-hidden is load-bearing: the mascot translates along x
-            and must never open a horizontal scrollbar. Height uses dvh so the
-            mobile URL bar collapsing doesn't make the section jump. */}
-        <section
-          ref={heroRef}
-          className="relative overflow-hidden border-b md:min-h-[calc(100dvh-4rem)] md:flex md:items-center"
-        >
-          <HeroBackdrop animate={richMotion} />
+        {/* ── Hero: the forge ─────────────────────────────────────────────
+            A steel-dark frame (dark in both themes), embers rising, and the
+            product itself — a live builder + Telegram chat — as the visual.
+            Hero text is capped at four elements: badge, headline, one
+            sentence, CTAs. The two entry doors sit under it, in the frame. */}
+        <section className="px-3 pt-3 sm:px-4" data-testid="entry-showcase">
+          <div className="forge-dark dark relative isolate overflow-hidden rounded-[2rem] bg-background text-foreground ring-1 ring-white/10 md:rounded-[2.75rem]">
+            <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
+              <div className="absolute -top-40 start-1/2 size-[46rem] -translate-x-1/2 rounded-full bg-primary/25 blur-[120px] rtl:translate-x-1/2" />
+              <div className="absolute -bottom-52 -end-24 size-[34rem] rounded-full bg-primary/15 blur-[110px]" />
+              <div
+                className="absolute inset-0 opacity-[0.5] [background-image:linear-gradient(hsl(var(--foreground)/0.045)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--foreground)/0.045)_1px,transparent_1px)] [background-size:56px_56px] [mask-image:radial-gradient(ellipse_at_50%_30%,black,transparent_72%)]"
+              />
+            </div>
+            <Embers count={isMobile ? 12 : 30} className="-z-10" />
 
-          <div className="container relative z-10 mx-auto w-full px-4 py-16 md:py-24">
-            <div className="grid items-center gap-14 md:grid-cols-2 md:gap-10">
-              {/* copy column — one-shot staggered entrance on mount */}
-              <motion.div
-                className="text-center md:text-start"
-                variants={heroContainer}
-                initial="hidden"
-                animate="show"
-              >
+            <div className="container relative mx-auto grid items-center gap-16 px-5 pb-14 pt-16 sm:px-8 lg:grid-cols-[1.02fr_1fr] lg:gap-10 lg:pb-20 lg:pt-32">
+              <motion.div variants={heroContainer} initial="hidden" animate="show" className="text-center lg:text-start">
                 <RevealItem variants={heroItem}>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                    <span className="size-1.5 rounded-full bg-primary" />
+                  <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary">
+                    <span className="size-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
                     {tr.heroBadge}
                   </span>
                 </RevealItem>
 
                 <RevealItem variants={heroItem}>
-                  <h1 className="mt-6 text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
+                  <h1 className="mt-7 text-[2.35rem] font-black leading-[1.25] sm:text-5xl lg:text-[3.4rem] lg:leading-[1.2]">
                     {tr.heroTitleLine1}{" "}
-                    <span className="bg-gradient-to-r from-primary via-orange-400 to-amber-400 bg-clip-text text-transparent">
+                    <span className="forge-sheen bg-gradient-to-r from-primary via-amber-300 to-primary bg-clip-text text-transparent">
                       {tr.heroTitleGradient}
                     </span>
                   </h1>
                 </RevealItem>
 
                 <RevealItem variants={heroItem}>
-                  <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg md:mx-0 mx-auto">
+                  <p className="mx-auto mt-6 max-w-xl text-base leading-8 text-muted-foreground sm:text-lg lg:mx-0">
                     {tr.taglineSub}
                   </p>
                 </RevealItem>
 
                 <RevealItem variants={heroItem}>
-                  {/* flex-wrap matters: Turkish/Russian labels are ~50% wider
-                      than English and would otherwise push the second button
-                      out of its grid column and under the mockup */}
-                  <div className="mt-8 flex flex-col flex-wrap gap-3 sm:flex-row sm:justify-center md:justify-start">
-                    <Button size="lg" className="h-12 px-8 text-base font-semibold" asChild>
-                      <Link href={user ? "/dashboard" : "/register"}>
-                        {tr.startBuilding} <ChevronRight className="ms-2 size-4 rtl-flip" />
-                      </Link>
-                    </Button>
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      className="h-12 px-8 text-base border-primary/30 hover:border-primary hover:text-primary"
-                      asChild
-                    >
-                      <Link href="/docs" data-testid="link-view-documentation">
-                        <Terminal className="me-2 size-4" />
-                        {tr.viewDocs}
-                      </Link>
-                    </Button>
+                  <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center lg:justify-start">
+                    <PillCTA href={user ? "/dashboard" : "/register"} size="lg">
+                      {tr.startBuilding}
+                    </PillCTA>
+                    <GhostCTA href="/docs" testId="link-view-documentation">
+                      <Terminal className="size-4" strokeWidth={1.8} />
+                      {tr.viewDocs}
+                    </GhostCTA>
                   </div>
                 </RevealItem>
               </motion.div>
 
-              {/* Product column: chat mockup with the mascot peeking over it.
-                  Deliberately OUTSIDE the variant-driven copy column — a
-                  variant label propagating down here would re-assert opacity on
-                  the mascot and fight the scroll-linked motion values. */}
-              <div className="relative">
-                <div className="relative mx-auto w-full max-w-md md:max-w-none">
-                  <motion.div
-                    ref={robotRef}
-                    className="absolute -top-12 -end-3 z-20 w-24 sm:-top-14 sm:w-28 md:-top-20 md:w-32"
-                    style={robotStyle}
-                  >
-                    <HeroRobot className="w-full text-primary drop-shadow-xl" />
-                  </motion.div>
+              <motion.div
+                initial={reduce ? { opacity: 0 } : { opacity: 0, y: 28 }}
+                animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                transition={{ duration: 0.9, delay: reduce ? 0 : 0.25, ease: [0.32, 0.72, 0, 1] }}
+                className="pt-24 lg:pt-0"
+              >
+                <ForgeDemo />
+              </motion.div>
+            </div>
 
-                  <motion.div
-                    initial={reduce ? { opacity: 0 } : { opacity: 0, y: 20 }}
-                    animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
-                    transition={{ duration: reduce ? 0.3 : 0.5, delay: reduce ? 0 : 0.2, ease: "easeOut" }}
-                  >
-                    <BotChatMockup />
-                  </motion.div>
-
-                  {/* Deploy status chip on the window's outer bottom corner —
-                      the inner corner points at the copy column and would
-                      collide with the CTA buttons on md screens. */}
-                  <div className="absolute -bottom-4 -end-2 flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold shadow-lg sm:-end-4">
-                    <span className="flex size-4 items-center justify-center rounded-full bg-emerald-500 text-white">
-                      <Check className="size-2.5" />
-                    </span>
-                    {tr.deployedBadge}
-                  </div>
+            {/* the two entry doors (bot builder / school system) */}
+            <div className="relative border-t border-white/10 bg-black/20">
+              <div className="container mx-auto px-5 py-8 sm:px-8">
+                <p className="mb-4 text-sm font-medium text-muted-foreground">{tr.forge.doorsTitle}</p>
+                <div className="grid gap-3 sm:grid-cols-2" data-testid="hero-entry-cards">
+                  {doors.map(({ key, href, icon: Icon, title, desc }) => (
+                    <Bezel key={key} spotlight className="rounded-[1.75rem]" innerClassName="rounded-[calc(1.75rem-0.375rem)]">
+                      <Link
+                        href={user ? href : "/login"}
+                        onClick={() => setPostAuthTarget(href)}
+                        data-testid={`hero-cta-${key}`}
+                        className="group relative z-10 flex items-center gap-4 p-4 text-start sm:p-5"
+                      >
+                        <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary transition-colors duration-500 group-hover:bg-primary group-hover:text-primary-foreground">
+                          <Icon className="size-6" strokeWidth={1.6} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-lg font-extrabold leading-tight">{title}</span>
+                          <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">{desc}</span>
+                        </span>
+                        <ArrowUpRight
+                          className={`size-5 shrink-0 text-primary transition-transform duration-500 ${EASE_OUT} group-hover:-translate-y-0.5 group-hover:translate-x-0.5 rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5`}
+                          strokeWidth={1.8}
+                        />
+                      </Link>
+                    </Bezel>
+                  ))}
                 </div>
               </div>
             </div>
           </div>
         </section>
 
+        <CapabilityMarquee />
+
         {/* ── How it works ────────────────────────────────────────────────── */}
-        <section className="border-b py-20 md:py-24">
+        <section className="py-20 md:py-28">
           <div className="container mx-auto px-4">
-            <motion.div
-              variants={staggerContainer}
-              initial="hidden"
-              whileInView="show"
-              viewport={VIEWPORT_ONCE}
-            >
+            <motion.div variants={staggerContainer} initial="hidden" whileInView="show" viewport={VIEWPORT_ONCE}>
               <RevealItem variants={sectionItem}>
-                <div className="mx-auto mb-14 max-w-2xl text-center">
-                  <h2 className="text-3xl font-bold tracking-tight md:text-4xl">{tr.howItWorks}</h2>
-                  <p className="mt-3 text-muted-foreground">{tr.howItWorksSub}</p>
+                <div className="mb-14 max-w-2xl">
+                  <h2 className="text-3xl font-black leading-snug md:text-5xl md:leading-snug">{tr.howItWorks}</h2>
+                  <p className="mt-4 text-lg leading-8 text-muted-foreground">{tr.howItWorksSub}</p>
                 </div>
               </RevealItem>
 
-              <div className="relative mx-auto grid max-w-5xl gap-8 md:grid-cols-3 md:gap-6">
-                {/* connector line, desktop only, purely decorative */}
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-[16%] top-7 hidden h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent md:block"
-                />
+              {/* a descending staircase: each step sits lower than the last — progress, not three equal cards */}
+              <div className="grid gap-5 md:grid-cols-3">
                 {steps.map((step, i) => (
-                  <RevealItem key={step.title} variants={sectionItem} className="relative">
-                    <div className="flex flex-col items-center text-center">
-                      <span className="relative z-10 flex size-14 items-center justify-center rounded-2xl border border-primary/25 bg-card text-primary shadow-sm">
-                        <step.icon className="size-6" />
-                        <span className="absolute -top-2 -end-2 flex size-6 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
-                          {i + 1}
-                        </span>
+                  <RevealItem
+                    key={step.title}
+                    variants={sectionItem}
+                    className={i === 1 ? "md:mt-12" : i === 2 ? "md:mt-24" : ""}
+                  >
+                    <Bezel spotlight innerClassName="overflow-hidden p-7">
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute -top-3 end-4 select-none text-[7rem] font-black leading-none text-foreground/[0.05]"
+                      >
+                        {nf(i + 1)}
                       </span>
-                      <h3 className="mt-5 text-lg font-semibold">{step.title}</h3>
-                      <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
-                        {step.description}
-                      </p>
-                    </div>
+                      <span className="relative flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[0_10px_30px_-10px_hsl(var(--primary)/0.8)]">
+                        <step.icon className="size-6" strokeWidth={1.6} />
+                      </span>
+                      <h3 className="relative mt-6 text-xl font-bold">{step.title}</h3>
+                      <p className="relative mt-2.5 text-[15px] leading-7 text-muted-foreground">{step.description}</p>
+                    </Bezel>
                   </RevealItem>
                 ))}
               </div>
@@ -389,34 +373,41 @@ export default function Landing() {
             bot", "inline buttons", "broadcast"…) each get a card that links to
             the guide for it. Every card describes something the product does
             today — no capability is listed here that the admin panel lacks. */}
-        <section className="border-b py-20 md:py-24">
+        <section className="py-16 md:py-24">
           <div className="container mx-auto px-4">
-            <motion.div
-              variants={staggerContainer}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, amount: 0.1 }}
-            >
+            <motion.div variants={staggerContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.1 }}>
               <RevealItem variants={sectionItem}>
-                <div className="mx-auto mb-12 max-w-2xl text-center">
-                  <h2 className="text-3xl font-bold tracking-tight md:text-4xl">{tr.useCasesTitle}</h2>
-                  <p className="mt-3 text-muted-foreground">{tr.useCasesSub}</p>
+                <div className="mb-12 max-w-2xl">
+                  <h2 className="text-3xl font-black leading-snug md:text-5xl md:leading-snug">{tr.useCasesTitle}</h2>
+                  <p className="mt-4 text-lg leading-8 text-muted-foreground">{tr.useCasesSub}</p>
                 </div>
               </RevealItem>
 
-              <ul className="mx-auto grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {USE_CASES.map(({ key, icon: Icon, slug }) => (
-                  <li key={key}>
+              <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+                {USE_CASES.map(({ key, icon: Icon, slug }, i) => (
+                  <li key={key} className={`${useCaseSpan[i]} ${i === 0 ? "sm:col-span-2" : ""}`}>
                     {/* the <li> stays the direct child of the <ul>; RevealItem renders a div */}
                     <RevealItem variants={sectionItem} className="h-full">
                       <Link href={`/learn/${slug}`} className="group block h-full">
-                        <div className="flex h-full flex-col rounded-2xl border border-border bg-card p-6 shadow-sm transition-colors group-hover:border-primary/40">
-                          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                            <Icon className="size-5" />
+                        <Bezel
+                          spotlight
+                          className="h-full"
+                          innerClassName={`flex h-full min-h-[11rem] flex-col overflow-hidden p-6 ${
+                            i === 0 ? "forge-dark dark bg-gradient-to-br from-primary/30 via-card to-card text-foreground md:p-8" : ""
+                          }`}
+                        >
+                          <span className="flex items-start justify-between">
+                            <span className="flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary transition-colors duration-500 group-hover:bg-primary group-hover:text-primary-foreground">
+                              <Icon className="size-5" strokeWidth={1.6} />
+                            </span>
+                            <ArrowUpRight
+                              className="size-5 text-muted-foreground transition-[transform,color] duration-500 group-hover:-translate-y-0.5 group-hover:text-primary rtl:-scale-x-100"
+                              strokeWidth={1.6}
+                            />
                           </span>
-                          <h3 className="mt-4 text-lg font-semibold">{tr.useCases[key].title}</h3>
-                          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{tr.useCases[key].desc}</p>
-                        </div>
+                          <h3 className={`mt-auto pt-8 font-bold ${i === 0 ? "text-2xl md:text-3xl" : "text-lg"}`}>{tr.useCases[key].title}</h3>
+                          <p className="mt-2 text-sm leading-7 text-muted-foreground">{tr.useCases[key].desc}</p>
+                        </Bezel>
                       </Link>
                     </RevealItem>
                   </li>
@@ -424,7 +415,7 @@ export default function Landing() {
               </ul>
 
               <RevealItem variants={sectionItem}>
-                <p className="mt-8 text-center">
+                <p className="mt-8">
                   <Link href="/learn/what-is-a-telegram-bot" className="text-primary underline-offset-4 hover:underline">
                     {tr.useCasesMore}
                   </Link>
@@ -434,187 +425,181 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* ── Features (bento) ────────────────────────────────────────────── */}
-        <section className="bg-card/30 py-20 md:py-24">
-          <div className="container mx-auto px-4">
-            <motion.div
-              variants={staggerContainer}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, amount: 0.1 }}
-            >
-              <RevealItem variants={sectionItem}>
-                <div className="mx-auto mb-14 max-w-2xl text-center">
-                  <h2 className="text-3xl font-bold tracking-tight md:text-4xl">{tr.engineeredForScale}</h2>
-                  <p className="mt-3 text-muted-foreground">{tr.engineeredSub}</p>
-                </div>
-              </RevealItem>
+        {/* ── Features (bento) — a second steel panel mid-page, for rhythm ── */}
+        <section className="px-3 py-6 sm:px-4 md:py-10">
+          <div className="forge-dark dark relative isolate overflow-hidden rounded-[2rem] bg-background text-foreground ring-1 ring-white/10 md:rounded-[2.75rem]">
+            <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
+              <div className="absolute -top-48 -start-24 size-[34rem] rounded-full bg-primary/20 blur-[120px]" />
+              <div className="absolute -bottom-48 -end-24 size-[30rem] rounded-full bg-primary/12 blur-[110px]" />
+            </div>
+            <Embers count={isMobile ? 6 : 14} className="-z-10" />
+            <div className="container mx-auto px-5 py-20 sm:px-8 md:py-28">
+              <motion.div variants={staggerContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.1 }}>
+                <RevealItem variants={sectionItem}>
+                  <div className="mb-12 max-w-2xl">
+                    <h2 className="text-3xl font-black leading-snug md:text-5xl md:leading-snug">{tr.engineeredForScale}</h2>
+                    <p className="mt-4 text-lg leading-8 text-muted-foreground">{tr.engineeredSub}</p>
+                  </div>
+                </RevealItem>
 
-              {/* rows size to their own content (no auto-rows-fr — that would
-                  pad the short tiles out to the tallest row) while cards still
-                  stretch to fill their row */}
-              <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-6">
-                {features.map((feature) => (
-                  <RevealItem key={feature.title} variants={sectionItem} className={`${feature.span} h-full`}>
-                    <div className="group flex h-full flex-col rounded-2xl border border-border bg-card p-6 shadow-sm transition-colors hover:border-primary/40">
-                      <div className="flex items-center gap-3">
-                        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
-                          <feature.icon className="size-5" />
-                        </span>
-                        <h3 className="text-lg font-semibold">{feature.title}</h3>
-                      </div>
-                      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{feature.description}</p>
-                      {feature.visual === "plugins" && (
-                        <div className="mt-5">
-                          <PluginRail />
+                {/* rows size to their own content while cards still stretch to fill their row */}
+                <div className="grid gap-4 md:grid-cols-6">
+                  {features.map((feature) => (
+                    <RevealItem key={feature.title} variants={sectionItem} className={`${feature.span} h-full`}>
+                      <Bezel spotlight className="h-full" innerClassName="flex h-full flex-col p-6 md:p-7">
+                        <div className="flex items-center gap-3">
+                          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+                            <feature.icon className="size-5" strokeWidth={1.6} />
+                          </span>
+                          <h3 className="text-lg font-bold">{feature.title}</h3>
                         </div>
-                      )}
-                      {feature.visual === "analytics" && (
-                        <div className="mt-5">
-                          <MiniAnalyticsChart />
-                        </div>
-                      )}
-                    </div>
-                  </RevealItem>
-                ))}
-              </div>
-            </motion.div>
+                        <p className="mt-3 text-sm leading-7 text-muted-foreground">{feature.description}</p>
+                        {feature.visual === "plugins" && (
+                          <div className="mt-5">
+                            <PluginRail />
+                          </div>
+                        )}
+                        {feature.visual === "analytics" && (
+                          <div className="mt-5">
+                            <MiniAnalyticsChart />
+                          </div>
+                        )}
+                      </Bezel>
+                    </RevealItem>
+                  ))}
+                </div>
+              </motion.div>
+            </div>
           </div>
         </section>
 
         {/* ── School management ───────────────────────────────────────────
             IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section C. Every competitor
-            surveyed for this section (InSchool, مدیار, دفتردار, دایاموز,
-            همکلاسی, راهمام, پویان) sells "the most complete school software" —
-            none of them mention Telegram at all. Parents already carry
-            Telegram, so a school bot is zero install friction where a
-            dedicated app is real friction; that's the whole section. */}
-        <section className="border-b py-20 md:py-24">
+            surveyed for this section sells "the most complete school
+            software" — none mentions Telegram. Parents already carry
+            Telegram, so a school bot is zero install friction; that's the
+            whole section. The phone shows what a parent really receives. */}
+        <section className="py-16 md:py-24">
           <div className="container mx-auto px-4">
             <motion.div
               variants={staggerContainer}
               initial="hidden"
               whileInView="show"
               viewport={VIEWPORT_ONCE}
+              className="grid items-center gap-14 lg:grid-cols-[1.1fr_0.9fr] lg:gap-20"
             >
-              <RevealItem variants={sectionItem}>
-                <div className="mx-auto mb-14 max-w-2xl text-center">
-                  <h2 className="text-3xl font-bold tracking-tight md:text-4xl">{tr.schoolSectionTitle}</h2>
-                  <p className="mt-3 text-muted-foreground">{tr.schoolSectionSubtitle}</p>
-                </div>
-              </RevealItem>
+              <div>
+                <RevealItem variants={sectionItem}>
+                  <h2 className="max-w-xl text-3xl font-black leading-snug md:text-5xl md:leading-snug">{tr.schoolSectionTitle}</h2>
+                  <p className="mt-4 max-w-xl text-lg leading-8 text-muted-foreground">{tr.schoolSectionSubtitle}</p>
+                </RevealItem>
 
-              <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
-                {schoolPoints.map((point) => (
-                  <RevealItem key={point.title} variants={sectionItem}>
-                    <div className="flex h-full flex-col rounded-2xl border border-border bg-card p-6 shadow-sm">
-                      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <point.icon className="size-5" />
-                      </span>
-                      <h3 className="mt-4 text-lg font-semibold">{point.title}</h3>
-                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{point.description}</p>
-                    </div>
-                  </RevealItem>
-                ))}
+                <ul className="mt-10 divide-y divide-border/70">
+                  {schoolPoints.map((point) => (
+                    <li key={point.title}>
+                      <RevealItem variants={sectionItem}>
+                        <div className="flex gap-4 py-6">
+                          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+                            <point.icon className="size-5" strokeWidth={1.6} />
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="text-lg font-bold">{point.title}</h3>
+                            <p className="mt-1.5 text-[15px] leading-7 text-muted-foreground">{point.description}</p>
+                          </div>
+                        </div>
+                      </RevealItem>
+                    </li>
+                  ))}
+                </ul>
+
+                <RevealItem variants={sectionItem}>
+                  <div className="mt-4">
+                    <PillCTA href={user ? "/dashboard" : "/register"}>{tr.schoolCta}</PillCTA>
+                  </div>
+                </RevealItem>
               </div>
 
               <RevealItem variants={sectionItem}>
-                <div className="mt-10 text-center">
-                  <Button size="lg" className="h-12 px-8 text-base font-semibold" asChild>
-                    <Link href={user ? "/dashboard" : "/register"}>
-                      {tr.schoolCta} <ChevronRight className="ms-2 size-4 rtl-flip" />
-                    </Link>
-                  </Button>
-                </div>
+                <SchoolPhone />
               </RevealItem>
             </motion.div>
           </div>
         </section>
 
         {/* ── FAQ ─────────────────────────────────────────────────────────
-            Also the source of the FAQPage schema on this page. IRFORGE_
-            PRODUCTS_PHASES_3_TO_6_PROMPT Phase 5: the price-list section
-            (`<LandingPlans />`) used to sit here — removed along with the
-            file itself since prices now live behind /products, not the
-            landing page; FaqSection's own `border-t` still draws the
-            divider against the feature section above, so no extra spacing
-            adjustment was needed once the block was gone. */}
+            Also the source of the FAQPage schema on this page. */}
         <FaqSection reduce={!!reduce} stagger={reduce || isMobile ? 0 : 0.08} />
 
-        {/* ── CTA ─────────────────────────────────────────────────────────── */}
-        <motion.section
-          className="relative overflow-hidden border-t py-20"
-          initial={reduce ? false : { opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.32 }}
-        >
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5" />
-          <div className="container relative z-10 mx-auto px-4 text-center">
-            <h2 className="text-3xl font-extrabold md:text-4xl">{tr.readyToForge}</h2>
-            <p className="mx-auto mt-4 max-w-xl text-muted-foreground">{tr.readyToForgeSub}</p>
+        {/* ── CTA: back to the forge ──────────────────────────────────────── */}
+        <section className="px-3 py-6 sm:px-4 md:py-10">
+          <div className="forge-dark dark relative isolate overflow-hidden rounded-[2rem] bg-background text-foreground ring-1 ring-white/10 md:rounded-[2.75rem]">
+            <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
+              <div className="absolute -bottom-40 start-1/2 size-[42rem] -translate-x-1/2 rounded-full bg-primary/30 blur-[120px] rtl:translate-x-1/2" />
+            </div>
+            <Embers count={isMobile ? 10 : 22} className="-z-10" />
 
-            {/* real aggregates only — renders nothing while `stats` is empty */}
-            {stats.length > 0 && (
-              <dl className="mx-auto mt-10 grid max-w-2xl grid-cols-2 gap-6 sm:grid-cols-3">
-                {stats.map((stat) => (
-                  <div key={stat.label}>
-                    <dt className="text-3xl font-extrabold text-primary">{stat.value}</dt>
-                    <dd className="mt-1 text-sm text-muted-foreground">{stat.label}</dd>
-                  </div>
+            <div className="container relative mx-auto px-5 py-20 text-center sm:px-8 md:py-28">
+              <h2 className="mx-auto max-w-3xl text-4xl font-black leading-snug md:text-6xl md:leading-snug">{tr.readyToForge}</h2>
+              <p className="mx-auto mt-5 max-w-xl text-lg leading-8 text-muted-foreground">{tr.readyToForgeSub}</p>
+
+              {/* real aggregates only — renders nothing while `stats` is empty */}
+              {stats.length > 0 && (
+                <dl className="mx-auto mt-10 grid max-w-2xl grid-cols-2 gap-6 sm:grid-cols-3">
+                  {stats.map((stat) => (
+                    <div key={stat.label}>
+                      <dt className="text-3xl font-extrabold text-primary">{stat.value}</dt>
+                      <dd className="mt-1 text-sm text-muted-foreground">{stat.label}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+
+              <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm text-muted-foreground">
+                {ctaPoints.map((point) => (
+                  <li key={point} className="flex items-center gap-2">
+                    <Check className="size-4 shrink-0 text-primary" strokeWidth={2} />
+                    {point}
+                  </li>
                 ))}
-              </dl>
-            )}
+              </ul>
 
-            <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm text-muted-foreground">
-              {ctaPoints.map((point) => (
-                <li key={point} className="flex items-center gap-2">
-                  <Check className="size-4 shrink-0 text-primary" />
-                  {point}
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" className="h-12 px-10 text-base font-bold" asChild>
-                <Link href={user ? "/dashboard" : "/register"}>
-                  {tr.createFreeAccount} <ChevronRight className="ms-2 size-4 rtl-flip" />
-                </Link>
-              </Button>
-              <Button size="lg" variant="ghost" className="h-12 px-6 text-base" asChild>
-                <Link href="/docs">{tr.viewDocs}</Link>
-              </Button>
+              <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <PillCTA href={user ? "/dashboard" : "/register"} size="lg">
+                  {tr.createFreeAccount}
+                </PillCTA>
+                <GhostCTA href="/docs">{tr.viewDocs}</GhostCTA>
+              </div>
             </div>
           </div>
-        </motion.section>
+        </section>
 
         {/* ── Latest guides ────────────────────────────────────────────────
             A real entry point into /learn from the highest-authority page,
             using the articles' own titles rather than generic link text. */}
-        <section className="border-t py-16 md:py-20">
+        <section className="py-16 md:py-20">
           <div className="container mx-auto px-4">
-            <div className="mx-auto mb-8 max-w-2xl text-center">
-              <h2 className="text-3xl font-bold tracking-tight md:text-4xl">{tr.guidesTitle}</h2>
-              <p className="mt-3 text-muted-foreground">{tr.guidesSub}</p>
+            <div className="mb-8 max-w-2xl">
+              <h2 className="text-3xl font-black leading-snug md:text-4xl md:leading-snug">{tr.guidesTitle}</h2>
+              <p className="mt-3 text-lg text-muted-foreground">{tr.guidesSub}</p>
             </div>
-            <ul className="mx-auto grid max-w-4xl gap-3 sm:grid-cols-2">
+            <ul className="grid gap-3 sm:grid-cols-2">
               {FEATURED_GUIDES.map((slug) => {
                 const content = articleFor(lang, slug);
                 if (!content) return null;
                 return (
                   <li key={slug}>
                     <Link href={`/learn/${slug}`} className="block h-full">
-                      <div className="h-full rounded-xl border bg-card p-5 transition-colors hover:border-primary/50">
-                        <h3 className="font-semibold">{content.h1}</h3>
-                        <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{content.lead}</p>
-                      </div>
+                      <Bezel spotlight className="h-full rounded-[1.5rem]" innerClassName="rounded-[calc(1.5rem-0.375rem)] p-5">
+                        <h3 className="font-bold">{content.h1}</h3>
+                        <p className="mt-1.5 line-clamp-2 text-sm leading-7 text-muted-foreground">{content.lead}</p>
+                      </Bezel>
                     </Link>
                   </li>
                 );
               })}
             </ul>
-            <div className="mt-6 text-center">
-              <Button asChild variant="outline">
+            <div className="mt-6">
+              <Button asChild variant="outline" className="rounded-full">
                 <Link href="/learn">{footerT.learnNav}</Link>
               </Button>
             </div>
@@ -623,53 +608,6 @@ export default function Landing() {
       </main>
 
       <PublicFooter />
-
-    </div>
-  );
-}
-
-/**
- * Hero backdrop: orange glow blobs plus the lion-and-sun flag woven into the
- * background (masked + very low opacity) instead of sitting in the layout as a
- * separate photo. Blobs drift only when `animate` is true — i.e. desktop with
- * motion allowed — and only via transform.
- */
-function HeroBackdrop({ animate }: { animate: boolean }) {
-  const drift = (
-    keyframes: { x: number[]; y: number[]; scale: number[] },
-    duration: number
-  ) =>
-    animate
-      ? {
-          animate: keyframes,
-          transition: { duration, repeat: Infinity, ease: "easeInOut" as const },
-          style: { willChange: "transform" as const },
-        }
-      : {};
-
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      <motion.div
-        className="absolute -top-24 left-1/2 size-[620px] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl"
-        {...drift({ x: [0, 40, -30, 0], y: [0, -26, 18, 0], scale: [1, 1.06, 0.97, 1] }, 19)}
-      />
-      <motion.div
-        className="absolute bottom-0 end-[10%] size-[320px] rounded-full bg-primary/5 blur-2xl"
-        {...drift({ x: [0, -34, 22, 0], y: [0, 20, -16, 0], scale: [1, 0.95, 1.05, 1] }, 16)}
-      />
-      <picture className="contents">
-        <source srcSet="/lion-sun-flag.webp" type="image/webp" />
-        <img
-          src="/lion-sun-flag.png"
-          alt=""
-          aria-hidden="true"
-          width={560}
-          height={336}
-          loading="lazy"
-          decoding="async"
-          className="absolute -end-32 top-1/2 hidden w-[560px] -translate-y-1/2 select-none opacity-[0.07] md:block dark:opacity-[0.1] [mask-image:radial-gradient(ellipse_at_center,black_10%,transparent_68%)]"
-        />
-      </picture>
     </div>
   );
 }
