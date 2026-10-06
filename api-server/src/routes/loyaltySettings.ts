@@ -8,12 +8,11 @@ import { Router } from "express";
 import { requireAuth } from "./auth.js";
 import {
   resolveBotSheet,
-  assertSheetsAuthoritative,
   sendBotConfigError,
   BotConfigError,
 } from "../lib/botConfig.js";
 import { requirePluginEnabled } from "../lib/pluginGate.js";
-import { getLoyaltySettings, setLoyaltySettings, SETTINGS_TAB } from "../lib/loyaltySettingsStore.js";
+import { getLoyaltySettings, setLoyaltySettings } from "../lib/loyaltySettingsStore.js";
 
 const router = Router();
 
@@ -31,7 +30,6 @@ router.put("/bots/:botId/loyalty-settings", requireAuth, async (req: any, res) =
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
     await requirePluginEnabled(spreadsheetId, "loyalty");
-    await assertSheetsAuthoritative(SETTINGS_TAB);
 
     const body = req.body ?? {};
     for (const key of ["currencyPerPoint", "redeemValue", "redeemMinPoints", "signupBonus"]) {

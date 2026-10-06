@@ -333,7 +333,9 @@ export async function bustTabs(spreadsheetId: string, tabs: string[]): Promise<v
  * در خروجی نمی‌آیند ولی روی شیت هم دست نمی‌خورند.
  */
 export async function readSettings(spreadsheetId: string): Promise<BotSettings> {
-  const rows = await sheetLayer.readTabRows(spreadsheetId, SETTINGS_TAB);
+  // `listEntity` (نه `sheetLayer` مستقیم): تننتی که `bot_settings`ش به Postgres مهاجرت کرده — و بات از همان‌جا
+  // می‌خواند — باید از SQL خوانده شود، نه از شیتِ کهنه (و سهمیه‌ی خواندنِ گوگل را هم نسوزاند).
+  const rows = await listEntity<unknown>(spreadsheetId, SETTINGS_TAB);
   const raw = new Map(rows.map((r) => [r.key, r.value]));
   const base = defaultBotSettings();
   const out: Record<string, unknown> = { ...base };
@@ -381,12 +383,12 @@ export async function patchSettings(
   spreadsheetId: string,
   partial: Partial<BotSettings> & Record<string, unknown>
 ): Promise<BotSettings> {
-  const entries = Object.entries(partial).filter(([, v]) => v !== undefined);
-  for (const [key, value] of entries) {
-    await sheetLayer.upsertRow(spreadsheetId, SETTINGS_TAB, key, value);
-  }
-  await sheetLayer.upsertRow(spreadsheetId, SETTINGS_TAB, "updated_at", nowIso());
-  await bustTabCache(spreadsheetId, SETTINGS_TAB);
+  const entries = Object.entries(partial)
+    .filter(([, v]) => v !== undefined)
+    .map(([key, value]) => ({ key, value }));
+  entries.push({ key: "updated_at", value: nowIso() });
+  // روی Postgres یک تراکنشِ اتمیک، روی Sheets ترتیبی + باطل‌کردنِ کش (`putEntities`).
+  await putEntities(spreadsheetId, SETTINGS_TAB, entries);
   return readSettings(spreadsheetId);
 }
 
@@ -417,10 +419,25 @@ export function getCutoverPool(): pg.Pool | null {
   return getBusinessPool();
 }
 
+/** بارگیریِ در جریان — تا چند فراخوانیِ هم‌زمانِ اولِ پروسه (یا بعد از `invalidateCutoverCache`) کشِ خالی نبینند. */
+let cutoverLoading: Promise<void> | null = null;
+
 async function loadCutoverFlags(): Promise<void> {
   const now = Date.now();
-  if (now - cutoverLoadedAt < CUTOVER_TTL_MS) return;
+  if (now - cutoverLoadedAt < CUTOVER_TTL_MS) {
+    // باگِ زنده (۲۰۲۶-۱۰-۰۶): `cutoverLoadedAt` همان لحظه ست می‌شد و فراخوانی‌هایِ هم‌زمانِ بعدی بلافاصله با کشِ هنوز-خالی
+    // برمی‌گشتند ⇒ تننتِ cut-over‌شده برایِ همان چند درخواستِ اول به Sheets می‌رفت (داده‌یِ کهنه + سهمیه‌یِ گوگل).
+    if (cutoverLoading) await cutoverLoading;
+    return;
+  }
   cutoverLoadedAt = now;
+  cutoverLoading = readCutoverFlags().finally(() => {
+    cutoverLoading = null;
+  });
+  await cutoverLoading;
+}
+
+async function readCutoverFlags(): Promise<void> {
   const p = getCutoverPool();
   if (!p) {
     cutoverCache = {};

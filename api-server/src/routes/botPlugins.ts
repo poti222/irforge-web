@@ -50,7 +50,6 @@ import {
   resolveBotSheet,
   getEntity,
   putEntity,
-  assertSheetsAuthoritative,
   sendBotConfigError,
   BotConfigError,
 } from "../lib/botConfig.js";
@@ -169,7 +168,6 @@ router.get("/bots/:botId/plugins", requireAuth, async (req: any, res) => {
 router.patch("/bots/:botId/plugins/:pluginId", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId, isSuperAdmin } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(SETTINGS_TAB);
 
     const pluginId = String(req.params.pluginId);
     const catalog = await getPluginCatalog();
@@ -289,7 +287,6 @@ export async function purchaseStorefrontBundle(
   spreadsheetId: string,
   isSuperAdmin: boolean,
 ): Promise<{ purchased: string[]; alreadyOwned: string[]; enabled: readonly string[] }> {
-  await assertSheetsAuthoritative(SETTINGS_TAB);
 
   const ownedFlags = await Promise.all(STOREFRONT_PLUGIN_IDS.map((id) => isPluginPurchased(botId, id)));
   const alreadyOwned = STOREFRONT_PLUGIN_IDS.filter((_id, i) => ownedFlags[i]);

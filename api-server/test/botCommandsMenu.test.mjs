@@ -189,8 +189,10 @@ test("isUntouchedAutoRow: فقط ردیفِ خودکارِ فعال و بدون�
   assert.equal(isUntouchedAutoRow({ ...auto, is_active: false }, catalog), false, "خاموش‌کردنِ مالک = override");
   assert.equal(isUntouchedAutoRow({ ...auto, description: "متنِ من" }, catalog), false, "توضیحِ تغییریافته = override");
   assert.equal(isUntouchedAutoRow({ ...auto, admin_only: true }, catalog), false, "admin_only تغییریافته = override");
-  assert.equal(isUntouchedAutoRow({ ...auto, source: "custom" }, catalog), false, "کامندِ سفارشی هرگز پاک نمی‌شود");
-  assert.equal(isUntouchedAutoRow({ ...auto, source: undefined }, catalog), false);
+  assert.equal(isUntouchedAutoRow({ ...auto, source: "custom", target: "admin" }, catalog), false, "کامندِ سفارشیِ واقعی (target دارد) هرگز پاک نمی‌شود");
+  assert.equal(isUntouchedAutoRow({ ...auto, source: undefined, target: "admin" }, catalog), false);
+  // تننتِ Postgres: ستونِ source گم شده بود ⇒ «custom» با target خالی = همان ردیفِ خودکار
+  assert.equal(isUntouchedAutoRow({ ...auto, source: "custom", target: "" }, catalog), true, "سایه‌یِ بی‌target");
   assert.equal(isUntouchedAutoRow(row("ghost", { source: "plugin:x" }), catalog), true, "پلاگینِ خاموش + بدونِ تغییر");
 });
 

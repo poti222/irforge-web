@@ -213,7 +213,6 @@ router.put("/bots/:botId/wallet-notify-settings", requireAuth, async (req: any, 
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
     await requirePluginEnabled(spreadsheetId, PLUGIN_ID);
-    await assertSheetsAuthoritative("bot_settings");
     res.json(await setWalletNotifySettings(spreadsheetId, req.body ?? {}));
   } catch (err) {
     sendBotConfigError(res, err, "Failed to update wallet notify settings");

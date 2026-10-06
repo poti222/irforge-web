@@ -115,9 +115,27 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema> = {
   // migration rather than rushed in under this fix's own time pressure.
   custom_commands: {
     table: "custom_commands",
-    columns: ["command", "target", "description", "admin_only", "is_active", "created_at"],
+    // `source` (bot/migrations/sql/0039_custom_commands_source.sql): "custom" | "core" | "plugin:<id>". Without it here
+    // every non-custom row this repo wrote for a cut-over tenant silently became source='custom' (the column default) —
+    // the bot's CommandGateMiddleware never saw an owner's disable, and the Commands UI listed built-ins as custom.
+    columns: ["command", "target", "description", "admin_only", "is_active", "created_at", "source"],
     jsonbColumns: [],
     kvMode: false,
+    includeIdInValue: false,
+    rowUpdatedAtCol: "updated_at",
+  },
+  // Live bug, 2026-10-06 (Noshazin): "کامندها رو از بات نمیگیره … تمامی اطلاعات باید از روی sql خونده بشه". The bot
+  // already routes `bot_settings` to Postgres for that tenant (bot log: "cutover: 'bot_settings' now routing to
+  // Postgres"), but this file never knew the entity, so `readSettings`/`patchSettings`/`getEntity(..."bot_settings")`
+  // kept hitting Google Sheets: edits were invisible to the bot, reads were stale, and a few quick clicks exhausted
+  // the Sheets read quota (HTTP 500 "Quota exceeded … Read requests per minute"). Registered as the same generic
+  // kv_mode table the bot uses (bot/migrations/sql/0004_bot_settings.sql: id/tenant_id/value JSONB) — one row per
+  // settings KEY (flat BotSettings fields + `__plugin_states__`, `payment_cfg`, `bot_commands`, …).
+  bot_settings: {
+    table: "bot_settings",
+    columns: [],
+    jsonbColumns: [],
+    kvMode: true,
     includeIdInValue: false,
     rowUpdatedAtCol: "updated_at",
   },

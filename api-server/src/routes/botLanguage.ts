@@ -92,7 +92,6 @@ router.get("/bots/:botId/language", requireAuth, async (req: any, res) => {
 router.put("/bots/:botId/language", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative("bot_settings");
 
     const language = String(req.body?.language ?? "").trim().toLowerCase();
     if (!(BOT_LANGUAGES as readonly string[]).includes(language))

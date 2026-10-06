@@ -25,9 +25,8 @@ import { validateButtons } from "./buttonValidation.js";
 // listEntity/putEntity/removeEntity خودشان برای تننتِ cutover‌شده به
 // Postgres می‌روند و دیگر نیازی به این قفل نیست — دقیقاً همان اصلاحی که
 // «forms»/«panels» قبلاً گرفتند (`routes/botForms.ts`ی همین حس را ببین).
-// `setAddressConfig` جدا مانده: آن روی تبِ «bot_settings» می‌نویسد که هنوز
-// در businessPg.ts ثبت نشده (دامنه‌ی این باگ فقط addresses بود، نه هر چیزی
-// که آن تب را می‌نویسد)، پس قفلش عمداً دست‌نخورده ماند.
+// `setAddressConfig` هم (۲۰۲۶-۱۰-۰۶) قفلش را از دست داد: «bot_settings» حالا در
+// businessPg.ts ثبت است و `putEntity` برای تننتِ cut-over‌شده خودش به Postgres می‌رود.
 import { nowIso } from "./botTypes.js";
 import { newRecordId } from "./pluginCollections.js";
 
@@ -318,7 +317,6 @@ export async function setAddressConfig(spreadsheetId: string, mapProvider: strin
   if (!(MAP_PROVIDERS as readonly string[]).includes(mapProvider)) {
     throw new BotConfigError(400, "این ارائه‌دهنده‌ی نقشه پشتیبانی نمی‌شود.", "bad_provider");
   }
-  await assertSheetsAuthoritative(SETTINGS_TAB);
   const cfg: AddressConfig = { map_provider: mapProvider as MapProvider };
   await putEntity(spreadsheetId, SETTINGS_TAB, ADDRESS_CFG_KEY, cfg);
   return cfg;

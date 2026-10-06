@@ -257,26 +257,39 @@ export type BuiltinCommand = {
 };
 
 /** Core + کامندهایِ `menu_commands`ِ پلاگین‌هایِ **روشنِ** این تننت. فقط می‌خواند؛ هیچ ردیفی نمی‌سازد. */
-async function builtinCatalog(spreadsheetId: string): Promise<{ list: BuiltinCommand[]; published: boolean }> {
+async function builtinCatalog(
+  spreadsheetId: string,
+): Promise<{ list: BuiltinCommand[]; published: boolean; owners: Map<string, string> }> {
   const list: BuiltinCommand[] = CORE_COMMANDS.map((c) => ({
     command: c.command, description: c.description, adminOnly: c.adminOnly, source: "core", locked: NEVER_DISABLE_COMMANDS.has(c.command),
   }));
   const have = new Set(list.map((c) => c.command));
+  // «صاحبِ» هر نام (Core یا پلاگین — حتی پلاگینِ خاموش): برایِ ترمیمِ ردیف‌هایی که `source`شان در گذشته گم شده.
+  const owners = new Map<string, string>(list.map((c) => [c.command, "core"]));
   const { plugins, published } = await getPluginCatalog();
   for (const plugin of plugins) {
     if (!plugin.menu_commands?.length) continue;
-    if (!(await isPluginEnabled(spreadsheetId, plugin.id))) continue;
+    const enabled = await isPluginEnabled(spreadsheetId, plugin.id);
     for (const mc of plugin.menu_commands) {
       const name = mc.command.replace(/^\//, "");
-      if (!name || have.has(name)) continue;
+      if (!name) continue;
+      if (!owners.has(name)) owners.set(name, `plugin:${plugin.id}`);
+      if (!enabled || have.has(name)) continue;
       have.add(name);
       list.push({ command: name, description: mc.description_fa || mc.description || "", adminOnly: false, source: `plugin:${plugin.id}`, locked: false });
     }
   }
-  return { list, published };
+  return { list, published, owners };
 }
 
 const isAutoRow = (c: CustomCommand): boolean => Boolean(c.source) && c.source !== "custom";
+
+/**
+ * ردیفی که «سایه‌یِ» یک کامندِ داخلی است نه کامندِ سفارشیِ واقعی: یا `source`ِ خودکار دارد، یا — برایِ تننتِ Postgres،
+ * جایی که این سایت تا امروز ستونِ `source` را نمی‌شناخت و هر چه می‌نوشت با پیش‌فرضِ «custom» ذخیره می‌شد — `target`
+ * خالی دارد (کامندِ سفارشیِ واقعی همیشه target دارد: `validateTarget`).
+ */
+const isBuiltinShadow = (c: CustomCommand): boolean => isAutoRow(c) || !String(c.target ?? "").trim();
 
 /**
  * ردیفِ «خودکارِ دست‌نخورده»: مادی‌شده توسطِ نسخه‌هایِ قبلیِ همین فایل (که روی هر GET برایِ هر کامندِ Core/پلاگین یک
@@ -285,9 +298,9 @@ const isAutoRow = (c: CustomCommand): boolean => Boolean(c.source) && c.source !
  * توضیح یا admin_only را عوض کرده) override است و می‌ماند.
  */
 function isUntouchedAutoRow(c: CustomCommand, catalog: BuiltinCommand[]): boolean {
-  if (!isAutoRow(c)) return false;
+  if (!isBuiltinShadow(c)) return false;
   if (c.is_active === false) return false;
-  const entry = catalog.find((b) => b.command === c.command && b.source === c.source);
+  const entry = catalog.find((b) => b.command === c.command);
   // پلاگینی که الان خاموش/ناشناخته است: چیزی برایِ مقایسه نیست؛ ردیفِ فعالِ بی‌admin_only اطلاعاتی ندارد.
   if (!entry) return !c.admin_only;
   return Boolean(c.admin_only) === entry.adminOnly && (c.description ?? "") === entry.description;
@@ -296,13 +309,17 @@ function isUntouchedAutoRow(c: CustomCommand, catalog: BuiltinCommand[]): boolea
 /**
  * لایوباگ ۲۰۲۶-۰۹-۲۸ می‌خواست «تمامی کامندها نمایش داده شوند»؛ پیاده‌سازی‌اش برایِ هر کامندِ Core/پلاگین یک ردیفِ
  * خودکار در تبِ `custom_commands` می‌نوشت (و بات همه را روی منو می‌گذاشت). حالا نمایش از `builtinCatalog` می‌آید (بدونِ
- * نوشتن). این تابع ردیف‌هایِ خودکارِ دست‌نخورده‌ی قدیمی را یک‌بار پاک می‌کند و `{kept, purged}` برمی‌گرداند.
+ * نوشتن). این تابع:
+ *  - ردیف‌هایِ خودکارِ دست‌نخوردهٔ قدیمی را یک‌بار پاک می‌کند (`purged`)؛
+ *  - ردیفِ دست‌خورده‌ای (override) را که `source`ش گم شده (تننتِ Postgres) با صاحبِ واقعیِ نامش ترمیم می‌کند (`healed`)
+ *    تا گیتِ بات (`is_active=false`) و UI دوباره آن را «داخلی» ببینند، نه «سفارشی».
  */
-async function purgeUntouchedAutoRows(
-  spreadsheetId: string, rows: CustomCommand[], catalog: BuiltinCommand[],
-): Promise<{ kept: CustomCommand[]; purged: string[] }> {
+async function reconcileBuiltinRows(
+  spreadsheetId: string, rows: CustomCommand[], catalog: BuiltinCommand[], owners: Map<string, string>,
+): Promise<{ kept: CustomCommand[]; purged: string[]; healed: string[] }> {
   const kept: CustomCommand[] = [];
   const purged: string[] = [];
+  const healed: string[] = [];
   for (const c of rows) {
     if (isUntouchedAutoRow(c, catalog)) {
       try {
@@ -313,9 +330,32 @@ async function purgeUntouchedAutoRows(
         logger.warn({ err, command: c.command }, "purging an auto-added command row failed (kept)");
       }
     }
+    const owner = owners.get(c.command);
+    const pointerless = !isAutoRow(c) && !String(c.target ?? "").trim();
+    if (pointerless && !owner) {
+      // «سفارشی»ای که target ندارد و نامش هم مالِ هیچ کامندِ داخلی‌ای نیست قابلِ اجرا نیست (بقایایِ مادی‌سازیِ قدیمی).
+      try {
+        await removeEntity(spreadsheetId, COMMANDS_TAB, c.command);
+        purged.push(c.command);
+        continue;
+      } catch (err) {
+        logger.warn({ err, command: c.command }, "purging a pointer-less command row failed (kept)");
+      }
+    }
+    if (owner && pointerless) {
+      const fixed: CustomCommand = { ...c, source: owner };
+      try {
+        await putEntity(spreadsheetId, COMMANDS_TAB, c.command, fixed);
+        healed.push(c.command);
+        kept.push(fixed);
+        continue;
+      } catch (err) {
+        logger.warn({ err, command: c.command }, "healing a built-in override row failed (kept as is)");
+      }
+    }
     kept.push(c);
   }
-  return { kept, purged };
+  return { kept, purged, healed };
 }
 
 // ─── ترتیب ──────────────────────────────────────────────────────────────────
@@ -329,6 +369,16 @@ async function purgeUntouchedAutoRows(
  */
 function effectiveOrder(c: CustomCommand): number {
   return typeof c.order === "number" ? c.order : Date.parse(c.created_at) || 0;
+}
+
+/**
+ * `order` را همراهِ `created_at` می‌نویسد (هر دو میلی‌ثانیه از epoch، پس بی‌اتلاف تبدیل می‌شوند). ستونِ `order` در جدولِ
+ * Postgresِ بات وجود ندارد (کلمه‌یِ رزروشده)، یعنی برایِ تننتِ Postgres فقط `created_at` ماندگار است — و
+ * `effectiveOrder` وقتی `order` نیست دقیقاً همان را می‌خواند؛ پس ترتیب در هر دو مسیر (شیت/Postgres) می‌ماند.
+ */
+function withOrder(c: CustomCommand, order: number): CustomCommand {
+  const iso = Number.isFinite(order) ? new Date(order).toISOString() : c.created_at;
+  return { ...c, order, created_at: iso };
 }
 
 function sortCommands(commands: CustomCommand[]): CustomCommand[] {
@@ -347,7 +397,7 @@ async function readRows(spreadsheetId: string): Promise<CustomCommand[]> {
 
 /** فقط کامندهایِ سفارشیِ ساخته‌شده توسطِ صاحبِ بات (نه overrideهایِ داخلی)، مرتب. */
 async function readCustomCommands(spreadsheetId: string): Promise<CustomCommand[]> {
-  return (await readRows(spreadsheetId)).filter((c) => !isAutoRow(c));
+  return (await readRows(spreadsheetId)).filter((c) => !isBuiltinShadow(c));
 }
 
 /** `bots.commandCount` را از روی تب شیت به‌روز می‌کند (فقط کامندهایِ سفارشی). */
@@ -373,10 +423,10 @@ router.get("/bots/:botId/commands", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
 
-    const [{ list: catalog, published }, rows] = await Promise.all([builtinCatalog(spreadsheetId), readRows(spreadsheetId)]);
-    // ردیف‌هایِ خودکارِ دست‌نخوردهٔ قدیمی (نوشته‌شده توسطِ نسخه‌هایِ قبلی) یک‌بار پاک می‌شوند.
-    const { kept, purged } = await purgeUntouchedAutoRows(spreadsheetId, rows, catalog);
-    const custom = kept.filter((c) => !isAutoRow(c));
+    const [{ list: catalog, published, owners }, rows] = await Promise.all([builtinCatalog(spreadsheetId), readRows(spreadsheetId)]);
+    // ردیف‌هایِ خودکارِ دست‌نخوردهٔ قدیمی (نوشته‌شده توسطِ نسخه‌هایِ قبلی) یک‌بار پاک، و overrideهایِ بی‌source ترمیم می‌شوند.
+    const { kept, purged } = await reconcileBuiltinRows(spreadsheetId, rows, catalog, owners);
+    const custom = kept.filter((c) => !isBuiltinShadow(c));
     const overrides = new Map(kept.filter(isAutoRow).map((c) => [c.command, c]));
     await syncCommandCount(req.params.botId, custom.length);
 
@@ -687,8 +737,8 @@ router.post("/bots/:botId/commands/:command/reorder", requireAuth, async (req: a
     const b = commands[swapIndex];
     const orderA = effectiveOrder(a);
     const orderB = effectiveOrder(b);
-    await putEntity(spreadsheetId, COMMANDS_TAB, a.command, { ...a, order: orderB });
-    await putEntity(spreadsheetId, COMMANDS_TAB, b.command, { ...b, order: orderA });
+    await putEntity(spreadsheetId, COMMANDS_TAB, a.command, withOrder(a, orderB));
+    await putEntity(spreadsheetId, COMMANDS_TAB, b.command, withOrder(b, orderA));
 
     res.json({ commands: await readCustomCommands(spreadsheetId) });
   } catch (err) {
@@ -731,7 +781,7 @@ router.delete("/bots/:botId/commands/:command", requireAuth, async (req: any, re
 /** خالص و بدون DB — برای تست مستقیم بدون راه‌انداختن روت/شیت کامل. */
 export const __testables = {
   effectiveOrder, sortCommands, validateCommandName, validateMenuList, builtinCatalog, isUntouchedAutoRow,
-  purgeUntouchedAutoRows, rowOrBuiltinOverride, readRows, MENU_NAME_RE,
+  isBuiltinShadow, reconcileBuiltinRows, rowOrBuiltinOverride, readRows, MENU_NAME_RE,
 };
 
 export default router;
