@@ -15,14 +15,28 @@
 import { logger } from "../lib/logger";
 import { Router } from "express";
 import {
-  db, schoolContentItemsTable, schoolContentLessonsTable, schoolMembersTable, schoolTeacherSubjectsTable,
+  db, schoolContentItemsTable, schoolContentLessonsTable, schoolMembersTable, schoolTeacherSubjectsTable, schoolSubjectsTable,
   SCHOOL_CONTENT_TYPES, SCHOOL_SUBJECTS,
 } from "@workspace/db";
 import { eq, or, isNull, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
+import { ensureSchoolSubjectsSeeded, getContentScope, itemVisibleTo, loadContentContext } from "../lib/schoolContentAccess";
 
 const router = Router();
+
+/**
+ * اعتبارسنجیِ نامِ درس: برایِ محتوایِ مختصِ یک مدرسه، فهرستِ *واقعیِ* درس‌هایِ
+ * همان مدرسه (school_subjects)؛ برایِ محتوایِ سراسریِ پلتفرم (schoolId=null)
+ * که مدرسه‌ای ندارد، همان فهرستِ پیش‌فرضِ SCHOOL_SUBJECTS.
+ */
+async function isValidSubject(schoolId: string | null, subject: string): Promise<boolean> {
+  if (!schoolId) return (SCHOOL_SUBJECTS as readonly string[]).includes(subject);
+  await ensureSchoolSubjectsSeeded(schoolId);
+  const [row] = await db.select({ id: schoolSubjectsTable.id }).from(schoolSubjectsTable)
+    .where(and(eq(schoolSubjectsTable.schoolId, schoolId), eq(schoolSubjectsTable.name, subject))).limit(1);
+  return !!row;
+}
 
 function formatItem(i: typeof schoolContentItemsTable.$inferSelect) {
   return {
@@ -95,8 +109,21 @@ router.get("/schools/content", requireAuth, async (req: any, res) => {
     if (subject) whereClause = and(whereClause, eq(schoolContentItemsTable.subject, subject));
     if (lessonId === "none") whereClause = and(whereClause, isNull(schoolContentItemsTable.lessonId));
     else if (lessonId) whereClause = and(whereClause, eq(schoolContentItemsTable.lessonId, lessonId));
+    // با schoolId، فقط عضوِ همان مدرسه (قبلاً هر کاربرِ واردشده‌ای محتوایِ هر مدرسه را می‌خواند).
+    // سپس هر آیتمی که typeاش برایِ این کاربر *خاموش* است حذف می‌شود — دانش‌آموز نباید
+    // یک typeِ خاموش را حتی با فراخوانیِ مستقیمِ API ببیند (lib/schoolContentAccess.ts).
+    const scope = schoolId ? await getContentScope(req.userId, schoolId) : null;
+    if (schoolId && !scope!.isMember) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
     const rows = await db.select().from(schoolContentItemsTable).where(whereClause);
-    res.json(rows.map(formatItem));
+    if (!schoolId) {
+      res.json(rows.map(formatItem));
+      return;
+    }
+    const ctx = await loadContentContext(schoolId);
+    res.json(rows.filter((r: any) => itemVisibleTo(r, ctx, scope!)).map(formatItem));
   } catch (err) {
     logger.error({ err }, "List school content error");
     res.status(500).json({ error: "Internal server error" });
@@ -110,6 +137,19 @@ router.get("/schools/content/:id", requireAuth, async (req: any, res) => {
     if (!row) {
       res.status(404).json({ error: "Not found" });
       return;
+    }
+    if (row.schoolId) {
+      const scope = await getContentScope(req.userId, row.schoolId);
+      if (!scope.isMember) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+      // typeِ خاموش برایِ این کاربر = وجود ندارد (۴۰۴، نه ۴۰۳ — حتی نباید لو برود که هست).
+      const ctx = await loadContentContext(row.schoolId);
+      if (!itemVisibleTo(row, ctx, scope)) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
     }
     res.json(formatItem(row));
   } catch (err) {
@@ -142,7 +182,7 @@ router.post("/schools/content", requireAuth, async (req: any, res) => {
         return;
       }
       effectiveSubject = lesson.subject;
-    } else if (effectiveSubject && !(SCHOOL_SUBJECTS as readonly string[]).includes(effectiveSubject)) {
+    } else if (effectiveSubject && !(await isValidSubject(schoolId ?? null, effectiveSubject))) {
       res.status(400).json({ error: "Invalid subject" });
       return;
     }
@@ -265,7 +305,7 @@ router.patch("/schools/content/:id", requireAuth, async (req: any, res) => {
     if (subject !== undefined && subject !== existing.subject) {
       // معلم نمی‌تواند آیتم را به درسی که مالکش نیست منتقل کند (و نه به
       // بدونِ‌درس — آن فقط کارِ admin است)؛ دوباره با `subject` جدید چک می‌شود.
-      if (subject !== null && !(SCHOOL_SUBJECTS as readonly string[]).includes(subject)) {
+      if (subject !== null && !(await isValidSubject(existing.schoolId, subject))) {
         res.status(400).json({ error: "Invalid subject" });
         return;
       }

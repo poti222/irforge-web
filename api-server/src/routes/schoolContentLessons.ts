@@ -15,26 +15,34 @@
 import { logger } from "../lib/logger";
 import { Router } from "express";
 import {
-  db, schoolContentLessonsTable, schoolContentItemsTable, schoolTeacherSubjectsTable,
-  SCHOOL_SUBJECTS, SCHOOL_MEMBER_ROLES,
+  db, schoolContentLessonsTable, schoolContentItemsTable, schoolSubjectsTable,
+  SCHOOL_MEMBER_ROLES,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql, asc } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
-import { canAccessSchool, SCHOOL_ADMIN_ONLY } from "../lib/schoolAuth";
+import { canAccessSchool } from "../lib/schoolAuth";
+import {
+  describeLesson, getContentScope, loadContentContext, loadLessonStats, normalizeEnabledTypes,
+  ensureSchoolSubjectsSeeded,
+} from "../lib/schoolContentAccess";
 
 const router = Router();
 
-function formatLesson(l: typeof schoolContentLessonsTable.$inferSelect) {
-  return {
-    id: l.id,
-    schoolId: l.schoolId,
-    subject: l.subject,
-    title: l.title,
-    createdByUserId: l.createdByUserId,
-    createdAt: l.createdAt.toISOString(),
-    updatedAt: l.updatedAt.toISOString(),
-  };
+/** آیا این نام یکی از «درس»هایِ مدیریت‌شده‌یِ همین مدرسه است؟ (جایگزینِ فهرستِ ثابتِ SCHOOL_SUBJECTS) */
+async function subjectExists(schoolId: string, name: unknown): Promise<boolean> {
+  if (typeof name !== "string" || !name) return false;
+  await ensureSchoolSubjectsSeeded(schoolId);
+  const [row] = await db.select({ id: schoolSubjectsTable.id }).from(schoolSubjectsTable)
+    .where(and(eq(schoolSubjectsTable.schoolId, schoolId), eq(schoolSubjectsTable.name, name))).limit(1);
+  return !!row;
+}
+
+/** پاسخِ کاملِ یک جلسه (انواعِ مؤثر، شمارش، پیشرفتِ همین کاربر). */
+async function describeOne(lesson: typeof schoolContentLessonsTable.$inferSelect, userId: string) {
+  const scope = await getContentScope(userId, lesson.schoolId);
+  const [ctx, stats] = await Promise.all([loadContentContext(lesson.schoolId), loadLessonStats(lesson.schoolId, scope.memberId)]);
+  return describeLesson(lesson, ctx, scope, stats);
 }
 
 const NOT_ASSIGNED_ERROR = "شما هنوز به هیچ درسی تخصیص داده‌نشده‌اید";
@@ -44,18 +52,18 @@ type WriteCheck =
   | { ok: true; isAdmin: boolean }
   | { ok: false; status: number; error: string };
 
-/** همان گیتِ موضوعیِ canWrite در routes/schoolContent.ts، مختصِ یک `schoolId` معلوم (درس همیشه مختصِ یک مدرسه است، نه سراسریِ پلتفرم). */
+/**
+ * همان گیتِ موضوعیِ canWrite در routes/schoolContent.ts، مختصِ یک `schoolId`
+ * معلوم. از getContentScope استفاده می‌کند تا مدیرِ «مدرسه‌یِ غیرِ اصلی»
+ * (school_admins) هم درست تشخیص داده شود.
+ */
 async function canWriteLesson(userId: string, schoolId: string, subject: string): Promise<WriteCheck> {
-  const { ok, member } = await canAccessSchool(userId, schoolId, SCHOOL_MEMBER_ROLES);
-  if (!ok || !member) return { ok: false, status: 403, error: "Forbidden" };
-  if (member.role !== "admin" && member.role !== "teacher") return { ok: false, status: 403, error: "Forbidden" };
-  if (member.role === "admin") return { ok: true, isAdmin: true };
-
-  const assignments = await db.select().from(schoolTeacherSubjectsTable)
-    .where(and(eq(schoolTeacherSubjectsTable.teacherUserId, userId), eq(schoolTeacherSubjectsTable.schoolId, schoolId)));
-  if (assignments.length === 0) return { ok: false, status: 403, error: NOT_ASSIGNED_ERROR };
-  const subjects = new Set(assignments.map((a: typeof assignments[number]) => a.subject));
-  if (!subjects.has(subject)) return { ok: false, status: 403, error: WRONG_SUBJECT_ERROR };
+  const scope = await getContentScope(userId, schoolId);
+  if (!scope.isMember) return { ok: false, status: 403, error: "Forbidden" };
+  if (scope.isAdmin) return { ok: true, isAdmin: true };
+  if (scope.role !== "teacher") return { ok: false, status: 403, error: "Forbidden" };
+  if (scope.assigned.size === 0) return { ok: false, status: 403, error: NOT_ASSIGNED_ERROR };
+  if (!scope.assigned.has(subject)) return { ok: false, status: 403, error: WRONG_SUBJECT_ERROR };
   return { ok: true, isAdmin: false };
 }
 
@@ -71,8 +79,11 @@ router.get("/schools/:schoolId/content-lessons", requireAuth, async (req: any, r
     const whereClause = subject
       ? and(eq(schoolContentLessonsTable.schoolId, req.params.schoolId), eq(schoolContentLessonsTable.subject, subject))
       : eq(schoolContentLessonsTable.schoolId, req.params.schoolId);
-    const rows = await db.select().from(schoolContentLessonsTable).where(whereClause);
-    res.json(rows.map(formatLesson));
+    const rows = await db.select().from(schoolContentLessonsTable).where(whereClause)
+      .orderBy(asc(schoolContentLessonsTable.sortOrder), asc(schoolContentLessonsTable.createdAt));
+    const scope = await getContentScope(req.userId, req.params.schoolId);
+    const [ctx, stats] = await Promise.all([loadContentContext(req.params.schoolId), loadLessonStats(req.params.schoolId, scope.memberId)]);
+    res.json(rows.map((l: any) => describeLesson(l, ctx, scope, stats)));
   } catch (err) {
     logger.error({ err }, "List school content lessons error");
     res.status(500).json({ error: "Internal server error" });
@@ -94,7 +105,7 @@ router.get("/schools/:schoolId/content-lessons/:id", requireAuth, async (req: an
       res.status(404).json({ error: "Not found" });
       return;
     }
-    res.json(formatLesson(lesson));
+    res.json(await describeOne(lesson, req.userId));
   } catch (err) {
     logger.error({ err }, "Get school content lesson error");
     res.status(500).json({ error: "Internal server error" });
@@ -109,23 +120,28 @@ router.post("/schools/:schoolId/content-lessons", requireAuth, async (req: any, 
       res.status(400).json({ error: "title is required" });
       return;
     }
-    if (!subject || !(SCHOOL_SUBJECTS as readonly string[]).includes(subject)) {
-      res.status(400).json({ error: "Invalid subject" });
-      return;
-    }
-    const check = await canWriteLesson(req.userId, req.params.schoolId, subject);
+    // اول گیتِ دسترسی، بعد اعتبارسنجیِ نامِ درس — تا غیرعضو از این مسیر وجودِ درس‌ها را نفهمد.
+    const check = await canWriteLesson(req.userId, req.params.schoolId, typeof subject === "string" ? subject : "");
     if (!check.ok) {
       res.status(check.status).json({ error: check.error });
       return;
     }
+    if (!(await subjectExists(req.params.schoolId, subject))) {
+      res.status(400).json({ error: "Invalid subject" });
+      return;
+    }
+    const [{ max }] = await db.select({ max: sql<number>`coalesce(max(${schoolContentLessonsTable.sortOrder}), 0)::int` })
+      .from(schoolContentLessonsTable)
+      .where(and(eq(schoolContentLessonsTable.schoolId, req.params.schoolId), eq(schoolContentLessonsTable.subject, subject)));
     const [lesson] = await db.insert(schoolContentLessonsTable).values({
       id: crypto.randomUUID(),
       schoolId: req.params.schoolId,
       subject,
       title: title.trim(),
+      sortOrder: max + 1,
       createdByUserId: req.userId,
     }).returning();
-    res.status(201).json(formatLesson(lesson));
+    res.status(201).json(await describeOne(lesson, req.userId));
   } catch (err) {
     logger.error({ err }, "Create school content lesson error");
     res.status(500).json({ error: "Internal server error" });
@@ -147,9 +163,9 @@ router.patch("/schools/:schoolId/content-lessons/:id", requireAuth, async (req: 
       res.status(check.status).json({ error: check.error });
       return;
     }
-    const { title, subject } = req.body ?? {};
+    const { title, subject, enabledTypes } = req.body ?? {};
     if (subject !== undefined && subject !== existing.subject) {
-      if (!subject || !(SCHOOL_SUBJECTS as readonly string[]).includes(subject)) {
+      if (!(await subjectExists(req.params.schoolId, subject))) {
         res.status(400).json({ error: "Invalid subject" });
         return;
       }
@@ -162,13 +178,73 @@ router.patch("/schools/:schoolId/content-lessons/:id", requireAuth, async (req: 
       }
     }
     const patch: Record<string, unknown> = {};
-    if (title !== undefined) patch.title = title.trim();
+    if (title !== undefined) {
+      if (typeof title !== "string" || !title.trim()) {
+        res.status(400).json({ error: "title is required" });
+        return;
+      }
+      patch.title = title.trim();
+    }
     if (subject !== undefined) patch.subject = subject;
-    const [updated] = await db.update(schoolContentLessonsTable).set(patch)
-      .where(eq(schoolContentLessonsTable.id, req.params.id)).returning();
-    res.json(formatLesson(updated));
+    // enabledTypes: null = از درس ارث ببر؛ آرایه = override برایِ همین جلسه.
+    if (enabledTypes !== undefined) {
+      const types = enabledTypes === null ? null : normalizeEnabledTypes(enabledTypes);
+      if (enabledTypes !== null && !types) {
+        res.status(400).json({ error: "Invalid enabledTypes" });
+        return;
+      }
+      patch.enabledTypes = types;
+    }
+    if (Object.keys(patch).length === 0) {
+      res.status(400).json({ error: "Nothing to update" });
+      return;
+    }
+    const updated = await db.transaction(async (tx: any) => {
+      const [row] = await tx.update(schoolContentLessonsTable).set(patch)
+        .where(eq(schoolContentLessonsTable.id, req.params.id)).returning();
+      // انتقالِ جلسه به درسِ دیگر: subjectِ آیتم‌هایِ داخلش هم باید دنبالش بیاید، وگرنه
+      // گیتِ موضوعیِ معلم رویِ آن‌ها با درسِ قدیمی سنجیده می‌شد.
+      if (subject !== undefined && subject !== existing.subject) {
+        await tx.update(schoolContentItemsTable).set({ subject }).where(eq(schoolContentItemsTable.lessonId, req.params.id));
+      }
+      return row;
+    });
+    res.json(await describeOne(updated, req.userId));
   } catch (err) {
     logger.error({ err }, "Update school content lesson error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/schools/:schoolId/content-lessons/reorder — { subject, orderedIds } ترتیبِ جدیدِ همه‌یِ جلسه‌هایِ یک درس
+router.post("/schools/:schoolId/content-lessons/reorder", requireAuth, async (req: any, res) => {
+  try {
+    const { subject, orderedIds } = req.body ?? {};
+    if (typeof subject !== "string" || !Array.isArray(orderedIds) || !orderedIds.every((x: unknown) => typeof x === "string")) {
+      res.status(400).json({ error: "subject and orderedIds are required" });
+      return;
+    }
+    const check = await canWriteLesson(req.userId, req.params.schoolId, subject);
+    if (!check.ok) {
+      res.status(check.status).json({ error: check.error });
+      return;
+    }
+    const rows = await db.select({ id: schoolContentLessonsTable.id }).from(schoolContentLessonsTable)
+      .where(and(eq(schoolContentLessonsTable.schoolId, req.params.schoolId), eq(schoolContentLessonsTable.subject, subject)));
+    const existingIds = new Set(rows.map((r: { id: string }) => r.id));
+    const given = new Set<string>(orderedIds);
+    if (given.size !== orderedIds.length || given.size !== existingIds.size || !orderedIds.every((x: string) => existingIds.has(x))) {
+      res.status(400).json({ error: "orderedIds must list exactly the lessons of this subject" });
+      return;
+    }
+    await db.transaction(async (tx: any) => {
+      for (let i = 0; i < orderedIds.length; i++) {
+        await tx.update(schoolContentLessonsTable).set({ sortOrder: i + 1 }).where(eq(schoolContentLessonsTable.id, orderedIds[i]));
+      }
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "Reorder school content lessons error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
