@@ -84,15 +84,15 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun settingsMap(s: Settings) = mapOf(
+    private fun settingsMap(s: AgentSettings) = mapOf(
         "backoffSeconds" to s.backoffSeconds, "timeoutSeconds" to s.timeoutSeconds, "tryAllNetworks" to s.tryAllNetworks,
         "keepDays" to s.keepDays, "notifyOnSend" to s.notifyOnSend, "notifyOnFailure" to s.notifyOnFailure,
         "autoUpdateCheck" to s.autoUpdateCheck, "updateCheckHours" to s.updateCheckHours, "updateUrl" to s.updateUrl,
     )
 
-    private fun settingsFrom(m: Map<*, *>): Settings {
-        val d = Settings()
-        return Settings(
+    private fun settingsFrom(m: Map<*, *>): AgentSettings {
+        val d = AgentSettings()
+        return AgentSettings(
             backoffSeconds = (m["backoffSeconds"] as? Int) ?: d.backoffSeconds,
             timeoutSeconds = (m["timeoutSeconds"] as? Int) ?: d.timeoutSeconds,
             tryAllNetworks = (m["tryAllNetworks"] as? Boolean) ?: d.tryAllNetworks,

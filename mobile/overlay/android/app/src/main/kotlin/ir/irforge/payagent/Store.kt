@@ -12,7 +12,7 @@ data class Config(val urls: List<String>, val secret: String, val senders: List<
 }
 
 /** همه‌ی مقادیرِ قابل‌تنظیم برای خودکارسازی/پایداری — از صفحه‌ی «تنظیمات» اپ عوض می‌شوند. */
-data class Settings(
+data class AgentSettings(
     val backoffSeconds: Int = 10,      // فاصله‌ی اولِ تلاشِ مجدد (نمایی دو برابر می‌شود)
     val timeoutSeconds: Int = 15,      // مهلتِ خواندنِ پاسخ در هر تلاش
     val tryAllNetworks: Boolean = true,// امتحانِ همه‌ی شبکه‌ها (VPN/بی‌VPN/موبایل/Wi-Fi)
@@ -119,10 +119,10 @@ object Store {
     private fun sha(s: String) = MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }
 
     // ── تنظیمات ─────────────────────────────────────────────────────────────────────
-    fun settings(ctx: Context): Settings {
+    fun settings(ctx: Context): AgentSettings {
         val p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val d = Settings()
-        return Settings(
+        val d = AgentSettings()
+        return AgentSettings(
             backoffSeconds = p.getInt("s_backoff", d.backoffSeconds).coerceIn(5, 600),
             timeoutSeconds = p.getInt("s_timeout", d.timeoutSeconds).coerceIn(5, 60),
             tryAllNetworks = p.getBoolean("s_allnet", d.tryAllNetworks),
@@ -135,7 +135,7 @@ object Store {
         )
     }
 
-    fun saveSettings(ctx: Context, s: Settings) {
+    fun saveSettings(ctx: Context, s: AgentSettings) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putInt("s_backoff", s.backoffSeconds).putInt("s_timeout", s.timeoutSeconds)
             .putBoolean("s_allnet", s.tryAllNetworks).putInt("s_keep", s.keepDays)
