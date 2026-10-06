@@ -22,9 +22,9 @@ for name in ("android/app/build.gradle.kts", "android/app/build.gradle"):
     s = re.sub(r'(namespace\s*=?\s*)"[^"]+"', r'\1"ir.irforge.payagent"', s)
     if "work-runtime-ktx" not in s:
         if name.endswith(".kts"):
-            s += '\ndependencies {\n    implementation("androidx.work:work-runtime-ktx:2.9.1")\n    implementation("com.squareup.okhttp3:okhttp:4.12.0")\n    implementation("androidx.core:core-ktx:1.13.1")\n}\n'
+            s += '\ndependencies {\n    implementation("androidx.work:work-runtime-ktx:2.10.0")\n    implementation("com.squareup.okhttp3:okhttp:4.12.0")\n    implementation("androidx.core:core-ktx:1.13.1")\n}\n'
         else:
-            s += "\ndependencies {\n    implementation 'androidx.work:work-runtime-ktx:2.9.1'\n    implementation 'com.squareup.okhttp3:okhttp:4.12.0'\n    implementation 'androidx.core:core-ktx:1.13.1'\n}\n"
+            s += "\ndependencies {\n    implementation 'androidx.work:work-runtime-ktx:2.10.0'\n    implementation 'com.squareup.okhttp3:okhttp:4.12.0'\n    implementation 'androidx.core:core-ktx:1.13.1'\n}\n"
     p.write_text(s)
     print("patched", name)
 PY
@@ -81,6 +81,37 @@ if (ksFile.exists()) {
 """)
     print("signing patched (groovy)")
 PY
+
+# قانون‌های R8 (بدونِ آن‌ها WorkManager در release کرش می‌کند) + اتصال به buildType release
+cp overlay/android/app/proguard-rules.pro android/app/proguard-rules.pro
+python3 - <<'PY'
+import pathlib
+kts = pathlib.Path("android/app/build.gradle.kts")
+groovy = pathlib.Path("android/app/build.gradle")
+if kts.exists() and "proguard-rules.pro" not in kts.read_text():
+    kts.write_text(kts.read_text() + '''
+android {
+    buildTypes {
+        getByName("release") {
+            proguardFiles("proguard-rules.pro")
+        }
+    }
+}
+''')
+    print("proguard wired (kts)")
+elif groovy.exists() and "proguard-rules.pro" not in groovy.read_text():
+    groovy.write_text(groovy.read_text() + '''
+android {
+    buildTypes {
+        release {
+            proguardFiles 'proguard-rules.pro'
+        }
+    }
+}
+''')
+    print("proguard wired (groovy)")
+PY
+grep -q 'proguard-rules.pro' android/app/build.gradle* || { echo "❌ proguard wiring نشد"; exit 1; }
 
 # جایگزینی کدِ Kotlin و manifest
 rm -rf android/app/src/main/kotlin
