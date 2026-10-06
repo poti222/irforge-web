@@ -28,11 +28,10 @@ import {
   Megaphone,
   CalendarCheck,
   Database,
-  GraduationCap,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { setPostAuthTarget } from "@/lib/post-auth";
+import { EntryShowcase } from "@/components/landing/EntryShowcase";
 import { BrandLogo } from "@/components/layout/brand-home";
 import { HeroRobot } from "@/components/landing/HeroRobot";
 import { BotChatMockup } from "@/components/landing/BotChatMockup";
@@ -236,6 +235,7 @@ export default function Landing() {
       </header>
 
       <main className="flex-1">
+        <EntryShowcase />
         {/* ── Hero ─────────────────────────────────────────────────────────
             overflow-x-hidden is load-bearing: the mascot translates along x
             and must never open a horizontal scrollbar. Height uses dvh so the
@@ -247,31 +247,6 @@ export default function Landing() {
           <HeroBackdrop animate={richMotion} />
 
           <div className="container relative z-10 mx-auto w-full px-4 py-16 md:py-24">
-            {/* دو ورودیِ اصلی: ساخت بات / سامانه‌ی مدرسه — هرکدام اول لاگین یا
-                ثبت‌نام، بعد داشبورد خودش (مقصد در sessionStorage می‌ماند). */}
-            <div className="mb-12 grid gap-4 sm:grid-cols-2" data-testid="hero-entry-cards">
-              {[
-                { key: "bot", href: "/dashboard", icon: Bot, title: tr.ctaBotTitle, desc: tr.ctaBotDesc },
-                { key: "school", href: "/schools", icon: GraduationCap, title: tr.ctaSchoolTitle, desc: tr.ctaSchoolDesc },
-              ].map(({ key, href, icon: Icon, title, desc }) => (
-                <Link
-                  key={key}
-                  href={user ? href : "/login"}
-                  onClick={() => setPostAuthTarget(href)}
-                  data-testid={`hero-cta-${key}`}
-                  className="group flex items-center gap-4 rounded-2xl border-2 border-primary/30 bg-card/70 p-6 text-start shadow-lg backdrop-blur transition hover:border-primary hover:bg-primary/10 md:p-8"
-                >
-                  <span className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary md:size-16">
-                    <Icon className="size-8" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xl font-extrabold md:text-2xl">{title}</span>
-                    <span className="mt-1 block text-sm text-muted-foreground">{desc}</span>
-                  </span>
-                  <ChevronRight className="size-5 shrink-0 text-primary rtl-flip" />
-                </Link>
-              ))}
-            </div>
             <div className="grid items-center gap-14 md:grid-cols-2 md:gap-10">
               {/* copy column — one-shot staggered entrance on mount */}
               <motion.div
