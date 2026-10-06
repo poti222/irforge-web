@@ -74,3 +74,4 @@ export * from "./schoolSubjects";
 export * from "./schoolContentProgress";
 export * from "./uploadedImages";
 export * from "./schoolTimetable";
+export * from "./schoolGuardianRequests";

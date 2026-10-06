@@ -6,7 +6,7 @@
 import { logger } from "../lib/logger";
 import { Router } from "express";
 import { db, schoolMembersTable, schoolGuardianshipsTable, schoolsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, SCHOOL_ADMIN_ONLY } from "../lib/schoolAuth";
@@ -26,7 +26,19 @@ router.post("/schools/:schoolId/guardianships", requireAuth, async (req: any, re
       res.status(400).json({ error: "parentUserId and studentMemberId are required" });
       return;
     }
-    const [row] = await db.insert(schoolGuardianshipsTable).values({
+    // مرزِ مدرسه: دانش‌آموز و والد هر دو باید عضوِ همین مدرسه باشند (قبلاً مدیرِ A می‌توانست دانش‌آموزِ B را به هر کاربری وصل کند)
+    // و پیوندِ تکراری ساخته نمی‌شود (idempotent).
+    const [stu] = await db.select({ id: schoolMembersTable.id }).from(schoolMembersTable)
+      .where(and(eq(schoolMembersTable.id, studentMemberId.trim()), eq(schoolMembersTable.schoolId, req.params.schoolId), eq(schoolMembersTable.role, "student"))).limit(1);
+    const [par] = await db.select({ id: schoolMembersTable.id }).from(schoolMembersTable)
+      .where(and(eq(schoolMembersTable.userId, parentUserId.trim()), eq(schoolMembersTable.schoolId, req.params.schoolId), eq(schoolMembersTable.role, "parent"))).limit(1);
+    if (!stu || !par) {
+      res.status(404).json({ error: "Student or parent not found in this school" });
+      return;
+    }
+    const [dup] = await db.select().from(schoolGuardianshipsTable)
+      .where(and(eq(schoolGuardianshipsTable.parentUserId, parentUserId.trim()), eq(schoolGuardianshipsTable.studentMemberId, studentMemberId.trim()))).limit(1);
+    const [row] = dup ? [dup] : await db.insert(schoolGuardianshipsTable).values({
       id: crypto.randomUUID(),
       parentUserId: parentUserId.trim(),
       studentMemberId: studentMemberId.trim(),
