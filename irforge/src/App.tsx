@@ -77,7 +77,9 @@ const SchoolsEntry = lazy(() => import("@/pages/schools/index"));
 const SchoolsAdminHome = lazy(() => import("@/pages/schools/admin/index"));
 const SchoolsStudentHome = lazy(() => import("@/pages/schools/student/index"));
 const SchoolsRoleHome = lazy(() => import("@/pages/schools/role-home"));
-const SchoolContentList = lazy(() => import("@/pages/schools/content-list"));
+const SchoolContentSubjects = lazy(() => import("@/pages/schools/content-subjects"));
+const SchoolContentSubject = lazy(() => import("@/pages/schools/content-subject"));
+const SchoolContentLessonHub = lazy(() => import("@/pages/schools/content-lesson-hub"));
 const SchoolContentLesson = lazy(() => import("@/pages/schools/content-lesson"));
 const SchoolContentStudy = lazy(() => import("@/pages/schools/content-study"));
 const SchoolContentDetail = lazy(() => import("@/pages/schools/content-detail"));
@@ -423,10 +425,17 @@ function Router() {
       <Route path="/schools/deputy"><SchoolProtectedRoute component={SchoolsRoleHome} role="deputy" /></Route>
       <Route path="/schools/deputy-discipline"><SchoolProtectedRoute component={SchoolsRoleHome} role="deputy-discipline" /></Route>
       <Route path="/schools/parent"><SchoolProtectedRoute component={SchoolsRoleHome} role="parent" /></Route>
-      <Route path="/schools/content/:type"><SchoolProtectedRoute component={SchoolContentList} /></Route>
-      <Route path="/schools/content/:type/lesson/:lessonId"><SchoolProtectedRoute component={SchoolContentLesson} /></Route>
+      {/* «درس‌ها»: هاب ← موضوع ← درس ← نوع. ترتیبِ Route مهم است: مسیرهایِ جدید باید *قبل از*
+          `/schools/content/:type/:id` (جزئیاتِ آیتم) بیایند، وگرنه «lesson»/«subject» به‌جایِ type گرفته می‌شود. */}
+      <Route path="/schools/content"><SchoolProtectedRoute component={SchoolContentSubjects} /></Route>
+      <Route path="/schools/content/subject/:subjectId"><SchoolProtectedRoute component={SchoolContentSubject} /></Route>
+      <Route path="/schools/content/lesson/:lessonId/:type"><SchoolProtectedRoute component={SchoolContentLesson} /></Route>
+      <Route path="/schools/content/lesson/:lessonId"><SchoolProtectedRoute component={SchoolContentLessonHub} /></Route>
       <Route path="/schools/content/study/:type/:lessonId/:section"><SchoolProtectedRoute component={SchoolContentStudy} /></Route>
+      {/* آدرس‌هایِ قدیمی (بوکمارک/لینک) — با replace تا دکمه‌یِ برگشتِ مرورگر به همین آدرسِ قدیمی برنگردد و حلقه نشود. */}
+      <Route path="/schools/content/:type/lesson/:lessonId">{(p: any) => <Redirect to={`/schools/content/lesson/${p.lessonId}/${p.type}`} replace />}</Route>
       <Route path="/schools/content/:type/:id"><SchoolProtectedRoute component={SchoolContentDetail} /></Route>
+      <Route path="/schools/content/:type"><Redirect to="/schools/content" replace /></Route>
       {/* بخش "/schools" فاز ۲ — مدیریتِ اعضا/کلاس‌ها/برنامه‌ها/اعلامیه‌ها + صفحاتِ واقعیِ معلم/مشاور/والد */}
       <Route path="/schools/admin/members"><SchoolProtectedRoute component={SchoolMembersPage} /></Route>
       <Route path="/schools/admin/classes"><SchoolProtectedRoute component={SchoolClassesPage} /></Route>

@@ -157,7 +157,7 @@ export default function SchoolContentStudy() {
     setStats({ know: 0, practice: 0 });
   }
 
-  const backHref = `/schools/content/${type}/lesson/${lessonId}`;
+  const backHref = `/schools/content/lesson/${lessonId}/${type}`;
   const loading = itemsLoading || progressLoading;
 
   return (
