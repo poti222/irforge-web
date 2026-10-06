@@ -1255,3 +1255,53 @@ export function selectStudentClass(schoolId: string, classId: string) {
 export function saveTeacherAssignments(schoolId: string, assignments: { classId: string; subjects: string[] }[]) {
   return customFetch<{ ok: true; classes: number; combos: number }>(`/api/schools/${schoolId}/enrollment/teacher`, { method: "PUT", body: JSON.stringify({ assignments }) });
 }
+
+// ─── برنامه‌یِ هفتگی (زنگ‌ها) ───────────────────────────────────────────────
+/** ۰=شنبه … ۶=جمعه (هفته‌یِ ایرانی). */
+export interface TimetableSlot {
+  id: string;
+  classId: string;
+  className: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  subject: string;
+  teacherUserId: string | null;
+  teacherName: string | null;
+  note: string | null;
+  /** فقط در `/timetable/mine` برایِ معلم: خودِ او معلمِ این زنگ است. */
+  mine?: boolean;
+}
+export interface TimetableRowInput {
+  startTime: string;
+  endTime: string;
+  subject: string;
+  teacherUserId?: string | null;
+  note?: string | null;
+}
+export interface TimetableRowError { index: number; field?: string; code: string; message: string; conflictsWith?: number }
+export interface MyTimetable {
+  role: SchoolMemberRole | string;
+  slots: TimetableSlot[];
+  children?: { childMemberId: string; childName: string; slots: TimetableSlot[] }[];
+}
+
+export function getClassTimetable(schoolId: string, classId: string) {
+  return customFetch<{ slots: TimetableSlot[] }>(`/api/schools/${schoolId}/timetable?classId=${encodeURIComponent(classId)}`);
+}
+export function getMyTimetable(schoolId: string) {
+  return customFetch<MyTimetable>(`/api/schools/${schoolId}/timetable/mine`);
+}
+/** جایگزینیِ کاملِ یک روز (اتمیک)؛ خطا: `err.data.rowErrors`. */
+export function replaceTimetableDay(schoolId: string, classId: string, day: number, slots: TimetableRowInput[]) {
+  return customFetch<{ slots: TimetableSlot[] }>(`/api/schools/${schoolId}/timetable/classes/${classId}/days/${day}`, {
+    method: "PUT",
+    body: JSON.stringify({ slots }),
+  });
+}
+export function copyTimetableDay(schoolId: string, classId: string, fromDay: number, toDays: number[]) {
+  return customFetch<{ slots: TimetableSlot[] }>(`/api/schools/${schoolId}/timetable/classes/${classId}/copy`, {
+    method: "POST",
+    body: JSON.stringify({ fromDay, toDays }),
+  });
+}

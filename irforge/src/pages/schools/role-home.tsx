@@ -11,6 +11,7 @@ import { useT } from "@/hooks/use-translation";
 /** `href` یعنی صفحه‌ی واقعیِ فاز ۲؛ نبودنش یعنی هنوز «به‌زودی» (/schools/stub/:key). */
 const ROLE_ITEMS: Record<string, { key: string; labelKey: string; href?: string }[]> = {
   teacher: [
+    { key: "timetable", labelKey: "navTimetable", href: "/schools/timetable" },
     { key: "classrooms", labelKey: "navClassrooms", href: "/schools/teacher/classes" },
     { key: "attendance", labelKey: "navAttendance", href: "/schools/teacher/attendance" },
     { key: "assignments", labelKey: "navAssignments" },
@@ -28,7 +29,7 @@ const ROLE_ITEMS: Record<string, { key: string; labelKey: string; href?: string 
   deputy: [
     { key: "members", labelKey: "navMemberManagement", href: "/schools/admin/members" },
     { key: "broadcast", labelKey: "navBroadcast", href: "/schools/announcements" },
-    { key: "programs", labelKey: "navProgramManagement" },
+    { key: "programs", labelKey: "navProgramManagement", href: "/schools/admin/programs" },
     { key: "closure", labelKey: "navClosureAnnouncement", href: "/schools/announcements" },
   ],
   "deputy-discipline": [
@@ -36,12 +37,13 @@ const ROLE_ITEMS: Record<string, { key: string; labelKey: string; href?: string 
     { key: "alerts", labelKey: "navAlerts", href: "/schools/admin/alerts" },
     { key: "members", labelKey: "navMemberManagement", href: "/schools/admin/members" },
     { key: "broadcast", labelKey: "navBroadcast", href: "/schools/announcements" },
-    { key: "programs", labelKey: "navProgramManagement" },
+    { key: "programs", labelKey: "navProgramManagement", href: "/schools/admin/programs" },
     { key: "closure", labelKey: "navClosureAnnouncement", href: "/schools/announcements" },
   ],
   parent: [
     { key: "children", labelKey: "navChildrenOverview", href: "/schools/parent/children" },
     { key: "dashboard", labelKey: "navParentDashboard", href: "/schools/parent/reports" },
+    { key: "timetable", labelKey: "navTimetable", href: "/schools/timetable" },
   ],
 };
 

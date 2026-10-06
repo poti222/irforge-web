@@ -91,6 +91,7 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
       // فاز ۶ (بندِ ۱/۲): «حضور و غیاب» و «نمره‌های من» اضافه شدند.
       return [
         { key: "lessons", href: "/schools/student", icon: BookOpen, label: t.navLessons, isActive: lessonsActive },
+        { key: "timetable", href: "/schools/timetable", icon: CalendarClock, label: t.navTimetable },
         { key: "announcements", href: "/schools/announcements", icon: Megaphone, label: t.navAnnouncements },
         // باگِ همان‌خانواده‌ی موردِ معلم (بالا): «تکالیف» فقط به‌صورتِ تایل در
         // صفحه‌ی خانه‌ی دانش‌آموز بود، نه آیتمِ سایدبار — یعنی از هر زیرصفحه‌ی
@@ -110,6 +111,7 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
       return [
         { key: "lessons", href: "/schools/content", icon: BookOpen, label: t.navLessons },
         { key: "classrooms", href: "/schools/teacher/classes", icon: Presentation, label: t.navClassrooms },
+        { key: "timetable", href: "/schools/timetable", icon: CalendarClock, label: t.navTimetable },
         { key: "attendance", href: "/schools/teacher/attendance", icon: ClipboardCheck, label: t.navAttendance },
         { key: "assignments", href: "/schools/teacher/assignments", icon: ClipboardList, label: t.navAssignments },
         { key: "gradebook", href: "/schools/teacher/gradebook", icon: Table2, label: t.navGradebook },
@@ -156,6 +158,7 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
       return [
         { key: "children", href: "/schools/parent/children", icon: Eye, label: t.navChildrenOverview },
         { key: "dashboard", href: "/schools/parent/reports", icon: BarChart3, label: t.navParentDashboard },
+        { key: "timetable", href: "/schools/timetable", icon: CalendarClock, label: t.navTimetable },
       ];
     default:
       return [];
