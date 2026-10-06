@@ -1,19 +1,20 @@
 import { Link } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpenText, NotebookPen, Library, Sigma, Feather, MessageCircleQuestion, ShieldCheck, GraduationCap, ClipboardList, FileQuestion, ClipboardCheck } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { MessageCircleQuestion, ShieldCheck, GraduationCap, ClipboardList, FileQuestion, ClipboardCheck } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
 import { getSchoolMe, listMyAlerts } from "@/lib/schools-api";
 import { AlertsFeed } from "@/pages/schools/admin/alerts";
+import { SubjectsHub } from "@/pages/schools/content-subjects";
 
+/**
+ * خانه‌یِ دانش‌آموز = فهرستِ «درس‌ها» (موضوعاتِ مدرسه)، طبقِ خواسته‌یِ کاربر؛
+ * پنج تایلِ جدایِ محتوا (لغت‌نامه/اشعار/...) حذف شدند — آن‌ها حالا داخلِ هر
+ * درس (سطحِ جلسه) و فقط در صورتِ فعال‌بودن دیده می‌شوند. میان‌برهایِ غیرمحتوایی
+ * (تکالیف/آزمون/حضور/نمره/ارتباط) فشرده، *زیرِ* موضوعات می‌مانند.
+ */
 const TILES = [
-  { key: "dictionary", href: "/schools/content/dictionary", icon: BookOpenText },
-  { key: "notes", href: "/schools/content/note", icon: NotebookPen },
-  { key: "books", href: "/schools/content/book", icon: Library },
-  { key: "formulas", href: "/schools/content/formula", icon: Sigma },
-  // لایه‌یِ «درس» — type جدیدِ «شعر» (طبقِ گزارشِ کاربر: «شعر یا لغت»)
-  { key: "poems", href: "/schools/content/poem", icon: Feather },
   // فاز ۳ (بندِ ۳): «تکالیفِ من» — تکِ تایلِ تازه، به‌جایِ یک نوارِ کناریِ
   // مجزا، چون این تایلیِ سادۀ صفحه‌ی خانه‌ی دانش‌آموز الگویِ بقیه هم هست.
   { key: "assignments", href: "/schools/student/assignments", icon: ClipboardList },
@@ -28,11 +29,6 @@ const TILES = [
 ];
 
 const TILE_LABEL_KEY: Record<string, string> = {
-  dictionary: "navDictionary",
-  notes: "navNotes",
-  books: "navBooks",
-  formulas: "navFormulas",
-  poems: "navPoems",
   assignments: "navAssignments",
   exams: "navExams",
   attendance: "navAttendance",
@@ -62,16 +58,14 @@ export default function SchoolsStudentHome() {
         <p className="text-sm text-muted-foreground">{t.studentHomeDescription}</p>
       </div>
       {alerts && alerts.length > 0 && <AlertsFeed alerts={alerts} isLoading={alertsLoading} />}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <SubjectsHub embedded />
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
         {TILES.map((tile) => (
           <Link key={tile.key} href={tile.href}>
             <Card className="cursor-pointer transition hover:border-primary/50">
-              <CardHeader className="flex flex-row items-center gap-3 pb-2">
-                <tile.icon className="size-5 text-primary" />
-                <CardTitle className="text-base">{t[TILE_LABEL_KEY[tile.key]]}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">{t.studentTileHint}</p>
+              <CardContent className="flex min-h-14 items-center gap-2.5 p-3">
+                <tile.icon className="size-5 shrink-0 text-primary" />
+                <span className="text-sm font-medium">{t[TILE_LABEL_KEY[tile.key]]}</span>
               </CardContent>
             </Card>
           </Link>

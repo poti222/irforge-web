@@ -127,6 +127,7 @@ import schoolAuditLogRouter from "./schoolAuditLog.js";
 import schoolTeacherSubjectsRouter from "./schoolTeacherSubjects.js";
 // لایه‌یِ «درس» رویِ کتابخانه‌ی محتوا
 import schoolContentLessonsRouter from "./schoolContentLessons.js";
+import schoolSubjectsRouter from "./schoolSubjects.js";
 // حالتِ مطالعه/فلش‌کارت — پیشرفتِ سرور-محورِ هر دانش‌آموز رویِ آیتم‌های محتوا
 import schoolContentProgressRouter from "./schoolContentProgress.js";
 // `/super` — گیتِ رمزِ دوم + داشبوردِ یکجایِ سوپرادمین + هویت‌های آزمایشی
@@ -239,6 +240,7 @@ router.use(schoolMessageReadStateRouter);
 router.use(schoolAuditLogRouter);
 router.use(schoolTeacherSubjectsRouter);
 router.use(schoolContentLessonsRouter);
+router.use(schoolSubjectsRouter);
 router.use(schoolContentProgressRouter);
 router.use(superGateRouter);
 router.use(superDashboardRouter);

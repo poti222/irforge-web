@@ -18,6 +18,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool } from "../lib/schoolAuth";
+import { getContentScope, itemVisibleTo, loadContentContext } from "../lib/schoolContentAccess";
 
 const router = Router();
 
@@ -89,6 +90,12 @@ router.post("/schools/:schoolId/content-progress/rate", requireAuth, async (req:
     }
     const [item] = await db.select().from(schoolContentItemsTable).where(eq(schoolContentItemsTable.id, contentItemId)).limit(1);
     if (!item || item.schoolId !== req.params.schoolId) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    // typeِ خاموش برایِ این کاربر وجود ندارد — پس رتبه‌دادن هم ۴۰۴ (همان قاعده‌یِ GET آیتم).
+    const scope = await getContentScope(req.userId, req.params.schoolId);
+    if (!itemVisibleTo(item, await loadContentContext(req.params.schoolId), scope)) {
       res.status(404).json({ error: "Not found" });
       return;
     }
