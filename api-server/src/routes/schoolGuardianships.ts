@@ -5,7 +5,7 @@
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, schoolMembersTable, schoolGuardianshipsTable, schoolsTable } from "@workspace/db";
+import { db, schoolMembersTable, schoolGuardianshipsTable, schoolsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
@@ -30,10 +30,10 @@ router.post("/schools/:schoolId/guardianships", requireAuth, async (req: any, re
     // و پیوندِ تکراری ساخته نمی‌شود (idempotent).
     const [stu] = await db.select({ id: schoolMembersTable.id }).from(schoolMembersTable)
       .where(and(eq(schoolMembersTable.id, studentMemberId.trim()), eq(schoolMembersTable.schoolId, req.params.schoolId), eq(schoolMembersTable.role, "student"))).limit(1);
-    const [par] = await db.select({ id: schoolMembersTable.id }).from(schoolMembersTable)
-      .where(and(eq(schoolMembersTable.userId, parentUserId.trim()), eq(schoolMembersTable.schoolId, req.params.schoolId), eq(schoolMembersTable.role, "parent"))).limit(1);
+    // والد لزوماً هنوز عضوِ مدرسه نیست (مدیر با شناسه‌یِ کاربر پیوند می‌زند و والد بعداً onboarding می‌کند)؛ فقط وجودِ کاربر.
+    const [par] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, parentUserId.trim())).limit(1);
     if (!stu || !par) {
-      res.status(404).json({ error: "Student or parent not found in this school" });
+      res.status(404).json({ error: "Student (in this school) or parent user not found" });
       return;
     }
     const [dup] = await db.select().from(schoolGuardianshipsTable)
