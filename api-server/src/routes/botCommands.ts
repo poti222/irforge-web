@@ -115,15 +115,23 @@ async function validateTarget(spreadsheetId: string, value: unknown): Promise<st
 // ─── منوی دستورات تلگرام (دکمه‌ی «/» کنار کادر پیام) ─────────────────────────
 
 /**
- * منبع حقیقتِ منو، `bot_settings.bot_commands` است — **نه یک جای تازه**.
+ * ⚠️ قاعده (لایوباگ ۲۰۲۶-۱۰-۰۶ — «هیچ کامندی نباید خودکار اضافه بشه توی بات»؛ «همه‌یِ سوییچ‌هایِ نمایش در تلگرام خاموش
+ * است ولی همه نمایش داده می‌شوند»): هیچ کامندی خودبه‌خود به بات/منو اضافه نمی‌شود.
  *
- * خودِ بات از قبل همین کلید را می‌خواند و در بوت `set_my_commands` می‌زند
- * (`utils/telegram_capabilities.py::apply_bot_commands`)، به شکل
- * `[{command, description}]`. پس سایت در همان کلید می‌نویسد، و علاوه بر آن
- * `setMyCommands` را همان لحظه هم صدا می‌زند تا کاربر برای دیدن نتیجه مجبور
- * به ری‌استارت بات نباشد.
+ *  - منوی «/»ِ تلگرام = فقط چیزی که صاحبِ بات همین‌جا گذاشته (`bot_settings.bot_commands`). بات هم موقعِ بوت همین
+ *    لیست را دقیقاً push می‌کند (`utils/telegram_capabilities.py::apply_bot_commands`)، نه چیزِ دیگری.
+ *  - وضعیتِ نمایش‌داده‌شده **زنده از تلگرام** (`getMyCommands`) خوانده می‌شود، نه از لیستِ ذخیره‌شده: هر کامندی که واقعاً
+ *    روی منو هست دیده و قابلِ حذف است (حتی اگر از قدیم خودکار نشسته باشد). اگر تلگرام جواب نداد، لیستِ ذخیره‌شده با
+ *    `menuLive: false` نشان داده می‌شود (UI هشدار می‌دهد).
+ *  - کامندهایِ داخلیِ بات (Core و پلاگین‌هایِ روشن) دیگر **ردیفِ خودکار** در شیت نمی‌سازند؛ فقط یک «فهرستِ در دسترس»
+ *    (`builtins`) هستند که صاحبِ بات از آن به منو اضافه می‌کند یا اجرایش را خاموش می‌کند (ردیفِ override فقط با
+ *    اقدامِ صریحِ همان کاربر ساخته می‌شود).
  */
 type MenuEntry = { command: string; description: string };
+
+/** نامِ مجازِ یک آیتمِ منوی تلگرام (https://core.telegram.org/bots/api#botcommand). */
+const MENU_NAME_RE = /^[a-z0-9_]{1,32}$/;
+const MENU_MAX = 100;
 
 function readMenu(settings: Record<string, unknown>): MenuEntry[] {
   const raw = settings.bot_commands;
@@ -138,30 +146,24 @@ function readMenu(settings: Record<string, unknown>): MenuEntry[] {
 }
 
 /**
- * منوی ذخیره‌شده را با منوی **زنده‌ی** تلگرام ادغام می‌کند.
- *
- * صریحاً بدون overwrite: ممکن است کسی قبلاً با BotFather یا از جای دیگری
- * کامندی روی منو گذاشته باشد که در شیت ما نیست؛ پاک‌کردنش یعنی خرابکاری در
- * چیزی که مالِ ما نبوده. `getMyCommands` هرگز باعث شکست نمی‌شود — اگر جواب
- * نداد، فقط با لیست ذخیره‌شده جلو می‌رویم.
+ * ورودیِ منو را تمیز و اعتبارسنجی می‌کند: نامِ نامعتبر → خطایِ ۴۰۰ با نامِ همان مورد؛ تکراری حذف (اولی می‌ماند)؛
+ * توضیحِ خالی (که تلگرام رد می‌کند) با `/نام` پر می‌شود؛ بیش از ۱۰۰ مورد → ۴۰۰.
  */
-async function mergedMenu(token: string, stored: MenuEntry[]): Promise<MenuEntry[]> {
-  const byName = new Map<string, MenuEntry>();
-  try {
-    const live = await tgApi<MenuEntry[]>(token, "getMyCommands");
-    if (live.ok && Array.isArray(live.result)) {
-      for (const c of live.result) {
-        const command = String(c?.command ?? "").replace(/^\//, "");
-        if (command) byName.set(command, { command, description: String(c?.description ?? "") });
-      }
-    }
-  } catch (err) {
-    logger.debug({ err }, "getMyCommands failed; merging against stored list only");
+function validateMenuList(input: unknown): MenuEntry[] {
+  if (!Array.isArray(input)) throw bad("فهرستِ منو باید یک آرایه باشد.", "bad_menu");
+  const out: MenuEntry[] = [];
+  const seen = new Set<string>();
+  for (const item of input) {
+    const row = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+    const name = String(row.command ?? "").trim().replace(/^\//, "").toLowerCase();
+    if (!MENU_NAME_RE.test(name))
+      throw bad(`نامِ «${String(row.command ?? "")}» برایِ منوی تلگرام معتبر نیست (فقط a-z، عدد و زیرخط، حداکثر ۳۲ کاراکتر).`, "bad_menu_command");
+    if (seen.has(name)) continue;
+    seen.add(name);
+    out.push({ command: name, description: String(row.description ?? "").trim().slice(0, 256) || `/${name}` });
   }
-  // مقدارِ ما برنده است: توضیحی که کاربر همین الان در سایت نوشته باید جایگزین
-  // نسخه‌ی قدیمیِ روی تلگرام شود.
-  for (const entry of stored) byName.set(entry.command, entry);
-  return [...byName.values()];
+  if (out.length > MENU_MAX) throw bad(`تلگرام حداکثر ${MENU_MAX} آیتم برایِ منو می‌پذیرد.`, "menu_too_long");
+  return out;
 }
 
 /** توکنِ رمزگشایی‌شده‌ی بات، یا ۴۰۹ با پیام روشن. */
@@ -180,29 +182,143 @@ async function botToken(botId: string): Promise<string> {
   );
 }
 
+const TG_TIMEOUT_MS = 5000;
+
 /**
- * کامند حذف/تغییرنام‌داده‌شده را از منوی تلگرام برمی‌دارد.
- *
- * **غیرقطعی و بی‌صدا**: حذف یک کامند نباید به‌خاطر در دسترس نبودن تلگرام
- * شکست بخورد. ولی نکردنش یعنی روی منوی «/» کاربر یک دستور می‌ماند که دیگر
- * هیچ کاری نمی‌کند — دقیقاً همان دسته‌ی «خرابیِ بی‌صدا» که این دور رفع‌باگ
- * درباره‌اش است.
+ * منوی **واقعیِ** تلگرام (`getMyCommands`)؛ در هر خطا/تایم‌اوت → `null` (هرگز throw نمی‌کند: باز کردنِ این بخش نباید
+ * به خاطرِ تلگرام خراب شود).
+ */
+async function fetchLiveMenu(botId: string): Promise<MenuEntry[] | null> {
+  try {
+    const token = await botToken(botId);
+    const res = await Promise.race([
+      tgApi<MenuEntry[]>(token, "getMyCommands"),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), TG_TIMEOUT_MS)),
+    ]);
+    if (!res || !res.ok || !Array.isArray(res.result)) return null;
+    return res.result
+      .map((c) => ({ command: String(c?.command ?? "").replace(/^\//, ""), description: String(c?.description ?? "") }))
+      .filter((c) => c.command);
+  } catch (err) {
+    logger.debug({ err, botId }, "getMyCommands failed; falling back to the stored menu");
+    return null;
+  }
+}
+
+/** منویِ جاری: زنده از تلگرام، وگرنه لیستِ ذخیره‌شده (با `live:false`). */
+async function currentMenu(spreadsheetId: string, botId: string): Promise<{ entries: MenuEntry[]; live: boolean }> {
+  const live = await fetchLiveMenu(botId);
+  if (live) return { entries: live, live: true };
+  let stored: MenuEntry[] = [];
+  try {
+    stored = readMenu((await readSettings(spreadsheetId)) as unknown as Record<string, unknown>);
+  } catch (err) {
+    logger.debug({ err }, "reading bot_commands menu failed (ignored)");
+  }
+  return { entries: stored, live: false };
+}
+
+/**
+ * منو را روی تلگرام **و** در `bot_settings.bot_commands` می‌نویسد (بات هم موقعِ بوت همین را دوباره push می‌کند).
+ * اول تلگرام: اگر رد کرد چیزی ذخیره نمی‌شود، وگرنه شیت چیزی را ادعا می‌کرد که روی بات نیست.
+ */
+async function applyMenu(spreadsheetId: string, botId: string, entries: MenuEntry[]): Promise<MenuEntry[]> {
+  const token = await botToken(botId);
+  const applied = await tgApi(token, "setMyCommands", { commands: entries });
+  if (!applied.ok)
+    throw new BotConfigError(409, `تلگرام منو را نپذیرفت: ${applied.description ?? "خطای نامشخص"}`, "telegram_rejected");
+  await patchSettings(spreadsheetId, { bot_commands: entries } as Record<string, unknown>);
+  return entries;
+}
+
+/**
+ * کامندِ حذف/تغییرنام‌داده‌شده/غیرفعال‌شده را از منوی تلگرام برمی‌دارد.
+ * **غیرقطعی و بی‌صدا**: نبودنِ تلگرام نباید یک حذفِ موفق را شکست بدهد.
  */
 async function dropFromMenu(spreadsheetId: string, botId: string, commandName: string): Promise<void> {
   try {
-    const settings = (await readSettings(spreadsheetId)) as unknown as Record<string, unknown>;
-    const stored = readMenu(settings);
-    if (!stored.some((m) => m.command === commandName)) return;
-
-    const next = stored.filter((m) => m.command !== commandName);
-    await patchSettings(spreadsheetId, { bot_commands: next } as Record<string, unknown>);
-
-    const token = await botToken(botId);
-    await tgApi(token, "setMyCommands", { commands: next });
+    const { entries } = await currentMenu(spreadsheetId, botId);
+    if (!entries.some((m) => m.command === commandName)) return;
+    await applyMenu(spreadsheetId, botId, entries.filter((m) => m.command !== commandName));
   } catch (err) {
     logger.warn({ err, botId, commandName }, "dropFromMenu failed (ignored)");
   }
 }
+
+// ─── کامندهایِ داخلیِ بات (فهرستِ در دسترس؛ هرگز خودکار به شیت نمی‌نویسد) ─────
+
+export type BuiltinCommand = {
+  command: string;
+  description: string;
+  adminOnly: boolean;
+  /** `"core"` یا `"plugin:<id>"` */
+  source: string;
+  locked: boolean;
+};
+
+/** Core + کامندهایِ `menu_commands`ِ پلاگین‌هایِ **روشنِ** این تننت. فقط می‌خواند؛ هیچ ردیفی نمی‌سازد. */
+async function builtinCatalog(spreadsheetId: string): Promise<{ list: BuiltinCommand[]; published: boolean }> {
+  const list: BuiltinCommand[] = CORE_COMMANDS.map((c) => ({
+    command: c.command, description: c.description, adminOnly: c.adminOnly, source: "core", locked: NEVER_DISABLE_COMMANDS.has(c.command),
+  }));
+  const have = new Set(list.map((c) => c.command));
+  const { plugins, published } = await getPluginCatalog();
+  for (const plugin of plugins) {
+    if (!plugin.menu_commands?.length) continue;
+    if (!(await isPluginEnabled(spreadsheetId, plugin.id))) continue;
+    for (const mc of plugin.menu_commands) {
+      const name = mc.command.replace(/^\//, "");
+      if (!name || have.has(name)) continue;
+      have.add(name);
+      list.push({ command: name, description: mc.description_fa || mc.description || "", adminOnly: false, source: `plugin:${plugin.id}`, locked: false });
+    }
+  }
+  return { list, published };
+}
+
+const isAutoRow = (c: CustomCommand): boolean => Boolean(c.source) && c.source !== "custom";
+
+/**
+ * ردیفِ «خودکارِ دست‌نخورده»: مادی‌شده توسطِ نسخه‌هایِ قبلیِ همین فایل (که روی هر GET برایِ هر کامندِ Core/پلاگین یک
+ * ردیف می‌نوشت) و بعد هیچ‌وقت تغییر نکرده — فعال، همان `admin_only`/توضیحِ کاتالوگ. چنین ردیفی هیچ اطلاعاتی ندارد و
+ * همان چیزی بود که کامندها را «خودش اضافه‌شده» نشان می‌داد؛ پاک می‌شود. ردیفی که صاحبِ بات دست زده (خاموش کرده/
+ * توضیح یا admin_only را عوض کرده) override است و می‌ماند.
+ */
+function isUntouchedAutoRow(c: CustomCommand, catalog: BuiltinCommand[]): boolean {
+  if (!isAutoRow(c)) return false;
+  if (c.is_active === false) return false;
+  const entry = catalog.find((b) => b.command === c.command && b.source === c.source);
+  // پلاگینی که الان خاموش/ناشناخته است: چیزی برایِ مقایسه نیست؛ ردیفِ فعالِ بی‌admin_only اطلاعاتی ندارد.
+  if (!entry) return !c.admin_only;
+  return Boolean(c.admin_only) === entry.adminOnly && (c.description ?? "") === entry.description;
+}
+
+/**
+ * لایوباگ ۲۰۲۶-۰۹-۲۸ می‌خواست «تمامی کامندها نمایش داده شوند»؛ پیاده‌سازی‌اش برایِ هر کامندِ Core/پلاگین یک ردیفِ
+ * خودکار در تبِ `custom_commands` می‌نوشت (و بات همه را روی منو می‌گذاشت). حالا نمایش از `builtinCatalog` می‌آید (بدونِ
+ * نوشتن). این تابع ردیف‌هایِ خودکارِ دست‌نخورده‌ی قدیمی را یک‌بار پاک می‌کند و `{kept, purged}` برمی‌گرداند.
+ */
+async function purgeUntouchedAutoRows(
+  spreadsheetId: string, rows: CustomCommand[], catalog: BuiltinCommand[],
+): Promise<{ kept: CustomCommand[]; purged: string[] }> {
+  const kept: CustomCommand[] = [];
+  const purged: string[] = [];
+  for (const c of rows) {
+    if (isUntouchedAutoRow(c, catalog)) {
+      try {
+        await removeEntity(spreadsheetId, COMMANDS_TAB, c.command);
+        purged.push(c.command);
+        continue;
+      } catch (err) {
+        logger.warn({ err, command: c.command }, "purging an auto-added command row failed (kept)");
+      }
+    }
+    kept.push(c);
+  }
+  return { kept, purged };
+}
+
+// ─── ترتیب ──────────────────────────────────────────────────────────────────
 
 /**
  * ترتیبِ مؤثر یک کامند — یا مقدارِ صریحِ `order` (که هنگامِ ساخت با
@@ -219,93 +335,22 @@ function sortCommands(commands: CustomCommand[]): CustomCommand[] {
   return [...commands].sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
 }
 
-/**
- * لایوباگ ۲۰۲۶-۰۹-۲۸ — «کامند ساپورت بدون نصب پلاگین ساپورت یا تیکت هست و
- * ساخته می‌شه ... تمامی کامند ها باید نمایش داده بشه». تا امروز این جدول
- * فقط ردیف‌هایی را داشت که ادمین صریحاً از همین سکشن ساخته بود — هر کامندِ
- * Core (`utils/bot_manager.py::_CORE_HANDLER_MODULES`، همیشه و بدونِ
- * قیدوشرط لود می‌شود) و هر کامندِ خودِ یک پلاگینِ فعال، کاملاً نامرئی بود.
- *
- * برایِ هر کدام که هنوز ردیفی ندارد، یک ردیفِ واقعی می‌سازد (`source`
- * می‌گوید از کجا آمده) — از این به بعد دقیقاً مثلِ هر کامندِ سفارشیِ دیگر
- * قابلِ‌دیدن/ویرایش/جابه‌جایی/غیرفعال‌سازی است، از همان endpointهای موجود،
- * بدونِ کدِ تازه‌ی جدا برایِ هرکدام. ردیفِ یک پلاگینِ الان-خاموش پنهان می‌شود
- * (نه حذف — روشن‌شدنِ دوباره‌اش همان وضعیتِ قبلی را برمی‌گرداند)، چون رویِ
- * بات هم همین الان قابلِ‌اجرا نیست.
- */
-async function materializeBuiltinCommands(
-  spreadsheetId: string,
-  existing: CustomCommand[]
-): Promise<CustomCommand[]> {
-  const have = new Set(existing.map((c) => c.command));
-  let nextOrder = existing.length ? Math.max(...existing.map(effectiveOrder)) + 1 : Date.now();
-  const additions: CustomCommand[] = [];
-
-  for (const entry of CORE_COMMANDS) {
-    if (have.has(entry.command)) continue;
-    const row: CustomCommand = {
-      command: entry.command,
-      target: "",
-      description: entry.description,
-      admin_only: entry.adminOnly,
-      is_active: true,
-      created_at: nowIso(),
-      order: nextOrder++,
-      source: "core",
-    };
-    await putEntity(spreadsheetId, COMMANDS_TAB, entry.command, row);
-    have.add(entry.command);
-    additions.push(row);
-  }
-
-  const { plugins } = await getPluginCatalog();
-  const enabledCache = new Map<string, boolean>();
-  async function pluginEnabled(pluginId: string): Promise<boolean> {
-    if (!enabledCache.has(pluginId)) enabledCache.set(pluginId, await isPluginEnabled(spreadsheetId, pluginId));
-    return enabledCache.get(pluginId)!;
-  }
-
-  for (const plugin of plugins) {
-    if (!plugin.menu_commands?.length) continue;
-    if (!(await pluginEnabled(plugin.id))) continue;
-    for (const mc of plugin.menu_commands) {
-      const name = mc.command.replace(/^\//, "");
-      if (!name || have.has(name)) continue;
-      const row: CustomCommand = {
-        command: name,
-        target: "",
-        description: mc.description_fa || mc.description || "",
-        admin_only: false,
-        is_active: true,
-        created_at: nowIso(),
-        order: nextOrder++,
-        source: `plugin:${plugin.id}`,
-      };
-      await putEntity(spreadsheetId, COMMANDS_TAB, name, row);
-      have.add(name);
-      additions.push(row);
-    }
-  }
-
-  const merged = [...existing, ...additions];
-  const visible: CustomCommand[] = [];
-  for (const c of merged) {
-    if (c.source?.startsWith("plugin:") && !(await pluginEnabled(c.source.slice(7)))) continue;
-    visible.push(c);
-  }
-  return visible;
-}
-
-async function readCommands(spreadsheetId: string): Promise<CustomCommand[]> {
+/** ردیف‌هایِ تب (بدونِ هیچ مادی‌سازی)، مرتب. شاملِ کامندهای سفارشی و overrideهایِ صریحِ داخلی‌ها. */
+async function readRows(spreadsheetId: string): Promise<CustomCommand[]> {
   const rows = await listEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB);
-  const commands = rows
-    .filter((r) => r.value && typeof r.value === "object")
-    .map((r) => ({ ...(r.value as CustomCommand), command: (r.value as CustomCommand).command ?? r.key }));
-  const merged = await materializeBuiltinCommands(spreadsheetId, commands);
-  return sortCommands(merged);
+  return sortCommands(
+    rows
+      .filter((r) => r.value && typeof r.value === "object")
+      .map((r) => ({ ...(r.value as CustomCommand), command: (r.value as CustomCommand).command ?? r.key })),
+  );
 }
 
-/** `bots.commandCount` را از روی تب شیت به‌روز می‌کند (نه از روی جدول Postgres). */
+/** فقط کامندهایِ سفارشیِ ساخته‌شده توسطِ صاحبِ بات (نه overrideهایِ داخلی)، مرتب. */
+async function readCustomCommands(spreadsheetId: string): Promise<CustomCommand[]> {
+  return (await readRows(spreadsheetId)).filter((c) => !isAutoRow(c));
+}
+
+/** `bots.commandCount` را از روی تب شیت به‌روز می‌کند (فقط کامندهایِ سفارشی). */
 async function syncCommandCount(botId: string, count: number): Promise<void> {
   try {
     await db.update(botsTable).set({ commandCount: count }).where(eq(botsTable.id, botId));
@@ -315,44 +360,82 @@ async function syncCommandCount(botId: string, count: number): Promise<void> {
   }
 }
 
+/** نامی که نمی‌شود برایِ کامندِ سفارشی گرفت: ردیف‌هایِ موجود + همه‌یِ کامندهایِ داخلیِ بات (هندلرِ Core صاحبِ آن نام است). */
+async function reservedNames(spreadsheetId: string, rows: CustomCommand[]): Promise<Set<string>> {
+  const names = new Set(rows.map((c) => c.command));
+  for (const b of (await builtinCatalog(spreadsheetId)).list) names.add(b.command);
+  return names;
+}
+
 // ─── مسیرها ─────────────────────────────────────────────────────────────────
 
 router.get("/bots/:botId/commands", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    const rawCommands = await readCommands(spreadsheetId);
-    await syncCommandCount(req.params.botId, rawCommands.length);
 
-    // لایوباگ ۲۰۲۶-۰۹-۲۸ — `locked` مشتق‌شده است، هرگز روی شیت ذخیره نمی‌شود:
-    // فقط چند کامندِ Core (start/admin/cancel/emergency_*) که خاموش‌شدنشان
-    // یعنی از دسترس‌افتادنِ کاملِ بات یا ابزارِ اضطراری — UI سایت با همین
-    // فلگ سوییچِ فعال/غیرفعال را برایشان قفل می‌کند؛ خودِ بات هم مستقلاً و
-    // hard-coded همین لیست را اجرا می‌کند (utils/command_gate_middleware.py).
-    const commands = rawCommands.map((c) => ({ ...c, locked: NEVER_DISABLE_COMMANDS.has(c.command) }));
+    const [{ list: catalog, published }, rows] = await Promise.all([builtinCatalog(spreadsheetId), readRows(spreadsheetId)]);
+    // ردیف‌هایِ خودکارِ دست‌نخوردهٔ قدیمی (نوشته‌شده توسطِ نسخه‌هایِ قبلی) یک‌بار پاک می‌شوند.
+    const { kept, purged } = await purgeUntouchedAutoRows(spreadsheetId, rows, catalog);
+    const custom = kept.filter((c) => !isAutoRow(c));
+    const overrides = new Map(kept.filter(isAutoRow).map((c) => [c.command, c]));
+    await syncCommandCount(req.params.botId, custom.length);
 
-    // کدام‌ها روی منوی «/» تلگرام هم هستند. از تنظیمات خوانده می‌شود نه از
-    // تلگرام: یک درخواست شبکه به‌ازای هر بار باز کردن این سکشن، به‌خاطر یک
-    // چک‌باکس، ارزشش را ندارد.
-    let menu: string[] = [];
-    try {
-      menu = readMenu((await readSettings(spreadsheetId)) as unknown as Record<string, unknown>).map((m) => m.command);
-    } catch (err) {
-      logger.debug({ err }, "reading bot_commands menu failed (ignored)");
-    }
+    // منوی «/» — زنده از تلگرام (وگرنه ذخیره‌شده با menuLive:false).
+    const { entries: menuEntries, live: menuLive } = await currentMenu(spreadsheetId, req.params.botId);
+    const inMenu = new Set(menuEntries.map((m) => m.command));
 
-    res.json({ commands, count: commands.length, menu });
+    const customNames = new Set(custom.map((c) => c.command));
+    const builtins = catalog
+      .filter((b) => !customNames.has(b.command))
+      .map((b) => {
+        const o = overrides.get(b.command);
+        return {
+          command: b.command,
+          source: b.source,
+          description: o?.description ?? b.description,
+          admin_only: o ? Boolean(o.admin_only) : b.adminOnly,
+          is_active: o ? o.is_active !== false : true,
+          locked: b.locked,
+          // کامندی با حروفِ بزرگ (ACPT…) یا نامِ نامعتبر را تلگرام در منو نمی‌پذیرد.
+          menuEligible: MENU_NAME_RE.test(b.command),
+          inMenu: inMenu.has(b.command),
+        };
+      });
+
+    res.json({
+      // ردیف‌هایِ سفارشی؛ `locked` فقط برایِ سازگاری با کلاینتِ قدیمی (سفارشی هرگز قفل نیست).
+      commands: custom.map((c) => ({ ...c, locked: false })),
+      count: custom.length,
+      menu: menuEntries.map((m) => m.command),
+      menuEntries,
+      menuLive,
+      builtins,
+      builtinsPublished: published,
+      purged: purged.length,
+    });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to list commands");
   }
 });
 
 /**
- * PUT /bots/:botId/commands/:command/menu — این کامند روی منوی «/» تلگرام
- * باشد یا نباشد.
- *
- * دو نوشتن انجام می‌شود و هر دو لازم‌اند: `bot_settings.bot_commands` تا
- * بعد از ری‌استارت هم بماند (بات خودش موقع بوت از همین می‌خواند)، و
- * `setMyCommands` تا همین حالا اثر کند.
+ * PUT /bots/:botId/commands/menu — کلِ منوی «/» را با همین لیست (به همین ترتیب) جایگزین می‌کند: اضافه/حذف/جابه‌جایی
+ * هر آیتم (از جمله آیتم‌هایی که فقط روی تلگرام هستند و کامندِ سایت ندارند). `{ commands: [{command, description}] }`.
+ */
+router.put("/bots/:botId/commands/menu", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    const entries = validateMenuList(req.body?.commands);
+    const menu = await applyMenu(spreadsheetId, req.params.botId, entries);
+    res.json({ menu: menu.map((m) => m.command), menuEntries: menu });
+  } catch (err) {
+    sendBotConfigError(res, err, "Failed to update the Telegram command menu");
+  }
+});
+
+/**
+ * PUT /bots/:botId/commands/:command/menu — این کامند روی منوی «/» باشد یا نباشد (سوییچِ «نمایش در تلگرام»).
+ * کامندِ سفارشی یا داخلی (Core/پلاگین) هر دو مجازند. اضافه‌شده همیشه ته منو می‌نشیند؛ ترتیب را ویرایشگرِ منو عوض می‌کند.
  */
 router.put("/bots/:botId/commands/:command/menu", requireAuth, async (req: any, res) => {
   try {
@@ -360,45 +443,21 @@ router.put("/bots/:botId/commands/:command/menu", requireAuth, async (req: any, 
     const key = String(req.params.command).replace(/^\//, "");
     const inMenu = Boolean(req.body?.inMenu);
 
-    const command = await getEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB, key);
-    if (!command) throw new BotConfigError(404, "این کامند پیدا نشد.", "command_not_found");
-
-    const settings = (await readSettings(spreadsheetId)) as unknown as Record<string, unknown>;
-    const stored = readMenu(settings).filter((m) => m.command !== key);
+    const { entries } = await currentMenu(spreadsheetId, req.params.botId);
+    const next = entries.filter((m) => m.command !== key);
     if (inMenu) {
-      // تلگرام توضیح خالی را برای یک آیتم منو رد می‌کند، پس اگر کاربر چیزی
-      // ننوشته خودِ نام کامند گذاشته می‌شود.
-      stored.push({ command: key, description: (command.description || `/${key}`).slice(0, 256) });
+      if (!MENU_NAME_RE.test(key))
+        throw bad("این نام را تلگرام در منو نمی‌پذیرد (فقط حروفِ کوچکِ انگلیسی، عدد و زیرخط).", "bad_menu_command");
+      const row = await getEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB, key);
+      const builtin = (await builtinCatalog(spreadsheetId)).list.find((b) => b.command === key);
+      if (!row && !builtin) throw new BotConfigError(404, "این کامند پیدا نشد.", "command_not_found");
+      // تلگرام توضیحِ خالی را رد می‌کند، پس اگر چیزی نیست خودِ نامِ کامند گذاشته می‌شود.
+      next.push({ command: key, description: (row?.description || builtin?.description || `/${key}`).slice(0, 256) });
     }
+    if (next.length > MENU_MAX) throw bad(`تلگرام حداکثر ${MENU_MAX} آیتم برایِ منو می‌پذیرد.`, "menu_too_long");
 
-    const token = await botToken(req.params.botId);
-    const merged = await mergedMenu(token, stored);
-    // آیتمی که کاربر همین الان برداشت نباید از راه ادغام برگردد.
-    const unordered = inMenu ? merged : merged.filter((m) => m.command !== key);
-
-    // منوی «/» تلگرام هم از همان ترتیبی پیروی می‌کند که خودِ سایت نشان
-    // می‌دهد — وگرنه «ترتیب» فقط روی جدولِ سایت اثر داشت و همان چیزی که
-    // کاربرِ نهایی واقعاً در تلگرام می‌بیند دست‌نخورده می‌ماند. آیتمی که
-    // بیرون از شیتِ ما روی منو نشسته (مثلاً با BotFather) در نقشه نیست و
-    // sort پایدار جایش را همان‌جایی که در merged بود نگه می‌دارد.
-    const orderIndex = new Map((await readCommands(spreadsheetId)).map((c, i) => [c.command, i]));
-    const finalMenu = [...unordered].sort(
-      (a, b) => (orderIndex.get(a.command) ?? Infinity) - (orderIndex.get(b.command) ?? Infinity)
-    );
-
-    const applied = await tgApi(token, "setMyCommands", { commands: finalMenu });
-    if (!applied.ok)
-      throw new BotConfigError(
-        409,
-        `تلگرام منو را نپذیرفت: ${applied.description ?? "خطای نامشخص"}`,
-        "telegram_rejected"
-      );
-
-    // فقط بعد از موفقیت تلگرام ذخیره می‌شود، وگرنه شیت چیزی را ادعا می‌کرد
-    // که روی بات نیست.
-    await patchSettings(spreadsheetId, { bot_commands: finalMenu } as Record<string, unknown>);
-
-    res.json({ menu: finalMenu.map((m) => m.command) });
+    const menu = await applyMenu(spreadsheetId, req.params.botId, next);
+    res.json({ menu: menu.map((m) => m.command), menuEntries: menu });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to update the Telegram command menu");
   }
@@ -445,7 +504,7 @@ router.post("/bots/:botId/commands/migrate", requireAuth, async (req: any, res) 
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
 
     const legacy = await db.select().from(commandsTable).where(eq(commandsTable.botId, req.params.botId));
-    const existing = new Set((await readCommands(spreadsheetId)).map((c) => c.command));
+    const existing = new Set((await readRows(spreadsheetId)).map((c) => c.command));
 
     let migrated = 0;
     let skipped = 0;
@@ -482,7 +541,7 @@ router.post("/bots/:botId/commands/migrate", requireAuth, async (req: any, res) 
       migrated += 1;
     }
 
-    const total = (await readCommands(spreadsheetId)).length;
+    const total = (await readCustomCommands(spreadsheetId)).length;
     await syncCommandCount(req.params.botId, total);
     res.json({ migrated, skipped, invalid, total });
   } catch (err) {
@@ -496,11 +555,10 @@ router.post("/bots/:botId/commands", requireAuth, async (req: any, res) => {
 
     const body = req.body ?? {};
     const name = validateCommandName(body.command);
-    // readCommands() هم مادی‌سازیِ کامندهایِ Core/پلاگین را اجرا می‌کند --
-    // بدونش یک ادمین می‌توانست کامندی به نامِ «support» بسازد که هیچ‌وقت
-    // اجرا نمی‌شد (هندلرِ Core از قبل صاحبِ آن نام است، dispatch_custom_command
-    // اصلاً هیچ‌وقت به آن نمی‌رسد) بدونِ هیچ خطایی که این را بگوید.
-    if ((await readCommands(spreadsheetId)).some((c) => c.command === name))
+    // نامِ کامندِ داخلیِ بات (Core/پلاگین) رزرو است: هندلرِ آن از قبل صاحبِ آن نام است و
+    // `dispatch_custom_command` هیچ‌وقت به آن نمی‌رسد — بدونِ این چک، کامندی به نامِ «support» بی‌صدا هرگز اجرا نمی‌شد.
+    // (فقط می‌خواند؛ برخلافِ نسخه‌هایِ قبلی دیگر ردیفی نمی‌نویسد.)
+    if ((await reservedNames(spreadsheetId, await readRows(spreadsheetId))).has(name))
       throw new BotConfigError(409, `کامند /${name} از قبل وجود دارد.`, "duplicate_command");
 
     const command: CustomCommand = {
@@ -517,26 +575,44 @@ router.post("/bots/:botId/commands", requireAuth, async (req: any, res) => {
     };
 
     await putEntity(spreadsheetId, COMMANDS_TAB, name, command);
-    await syncCommandCount(req.params.botId, (await readCommands(spreadsheetId)).length);
+    await syncCommandCount(req.params.botId, (await readCustomCommands(spreadsheetId)).length);
     res.status(201).json({ command });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to create command");
   }
 });
 
+/**
+ * ردیفِ فعلیِ یک کامند؛ برایِ کامندِ داخلیِ بدونِ ردیف (دیگر خودکار ساخته نمی‌شود) یک **override** از کاتالوگ می‌سازد —
+ * فقط وقتی صاحبِ بات صریحاً چیزی را عوض می‌کند (خاموش‌کردن/توضیح/admin_only).
+ */
+async function rowOrBuiltinOverride(spreadsheetId: string, key: string): Promise<CustomCommand | null> {
+  const current = await getEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB, key);
+  if (current) return current;
+  const builtin = (await builtinCatalog(spreadsheetId)).list.find((b) => b.command === key);
+  if (!builtin) return null;
+  return {
+    command: builtin.command,
+    target: "",
+    description: builtin.description,
+    admin_only: builtin.adminOnly,
+    is_active: true,
+    created_at: nowIso(),
+    order: Date.now(),
+    source: builtin.source,
+  };
+}
+
 router.patch("/bots/:botId/commands/:command", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
 
     const key = String(req.params.command).replace(/^\//, "");
-    const current = await getEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB, key);
+    const current = await rowOrBuiltinOverride(spreadsheetId, key);
     if (!current) throw new BotConfigError(404, "این کامند پیدا نشد.", "command_not_found");
 
-    // لایوباگ ۲۰۲۶-۰۹-۲۸ — ردیفِ source!="custom" فقط نمایانگرِ یک کامندِ
-    // از قبل هاردکدشده در کدِ بات است: `target`ش بی‌معناست (رفتارِ واقعی از
-    // کد می‌آید، نه این فیلد) و نامش (کلیدِ سطر) باید عیناً همان چیزی بماند
-    // که `Command("...")` در پایتون منتظرش است، وگرنه ردیفِ غیرفعال‌سازی
-    // دیگر با هیچ کامندِ واقعی مطابق نمی‌شود.
+    // ردیفِ source!="custom" فقط نمایانگرِ یک کامندِ از قبل هاردکدشده در کدِ بات است: `target`ش بی‌معناست (رفتارِ
+    // واقعی از کد می‌آید) و نامش باید عیناً همان بماند که `Command("...")` در پایتون منتظرش است.
     const source = current.source ?? "custom";
     const body = req.body ?? {};
     const next: CustomCommand = { ...current, command: current.command ?? key };
@@ -583,11 +659,9 @@ router.patch("/bots/:botId/commands/:command", requireAuth, async (req: any, res
 });
 
 /**
- * جابه‌جاییِ یک کامند در فهرست — با **دکمه**، نه drag (دقیقاً همان دلیلِ
- * `ButtonBuilder.tsx`: روی موبایل کشیدن داخل یک جدولِ اسکرول‌شونده عملاً کار
- * نمی‌کند). فقط با همسایه‌ی بالا/پایینِ خودش (طبق `effectiveOrder` فعلی)
- * `order` را عوض می‌کند — نه یک عددِ کامل جدید برای همه، که هم روی Sheets
- * چند نوشتنِ غیرلازم بود و هم race بین دو تب باز را بدتر می‌کرد.
+ * جابه‌جاییِ یک کامندِ **سفارشی** در فهرستِ سایت — با **دکمه**، نه drag (دقیقاً همان دلیلِ `ButtonBuilder.tsx`: روی
+ * موبایل کشیدن داخل یک جدولِ اسکرول‌شونده عملاً کار نمی‌کند). فقط با همسایه‌ی بالا/پایینِ خودش `order` را عوض می‌کند.
+ * (ترتیبِ منوی «/»ِ تلگرام جداست: `PUT /commands/menu`.)
  */
 router.post("/bots/:botId/commands/:command/reorder", requireAuth, async (req: any, res) => {
   try {
@@ -598,7 +672,7 @@ router.post("/bots/:botId/commands/:command/reorder", requireAuth, async (req: a
     if (direction !== "up" && direction !== "down")
       throw bad("جهت جابه‌جایی نامعتبر است.", "bad_direction");
 
-    const commands = await readCommands(spreadsheetId);
+    const commands = await readCustomCommands(spreadsheetId);
     const index = commands.findIndex((c) => c.command === key);
     if (index === -1) throw new BotConfigError(404, "این کامند پیدا نشد.", "command_not_found");
 
@@ -616,27 +690,23 @@ router.post("/bots/:botId/commands/:command/reorder", requireAuth, async (req: a
     await putEntity(spreadsheetId, COMMANDS_TAB, a.command, { ...a, order: orderB });
     await putEntity(spreadsheetId, COMMANDS_TAB, b.command, { ...b, order: orderA });
 
-    res.json({ commands: await readCommands(spreadsheetId) });
+    res.json({ commands: await readCustomCommands(spreadsheetId) });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to reorder command");
   }
 });
 
 /**
- * لایوباگ ۲۰۲۶-۰۹-۲۸ — «حذف»ِ ردیفِ یک کامندِ Core/پلاگین معنایِ واقعیِ
- * «حذف» ندارد: خودِ هندلرِ آن در کدِ بات هنوز وجود دارد و ثابت است؛ حذفِ
- * ردیف فقط یعنی سایت دیگر آن را نمی‌بیند تا بار بعد که کسی این سکشن را باز
- * کند دوباره مادی (و is_active=true) بسازدش — یعنی «حذف» در عمل هیچ اثری
- * نمی‌گذاشت. به‌جایش برایِ این‌ها همان تغییرِ `is_active=false` را ذخیره
- * می‌کند (دقیقاً همان چیزی که سوییچِ فعال/غیرفعالِ همین جدول هم می‌کند) --
- * `utils/command_gate_middleware.py` سمتِ بات همین فیلد را می‌خواند.
+ * «حذف» یک کامندِ داخلیِ بات (Core/پلاگین) معنایِ واقعیِ حذف ندارد: هندلرش در کدِ بات ثابت است. به‌جایش اجرایش را
+ * خاموش می‌کند (`is_active=false` — `utils/command_gate_middleware.py` سمتِ بات همین را می‌خواند) و از منو برمی‌دارد.
+ * کامندِ سفارشی واقعاً پاک می‌شود.
  */
 router.delete("/bots/:botId/commands/:command", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
 
     const key = String(req.params.command).replace(/^\//, "");
-    const current = await getEntity<CustomCommand>(spreadsheetId, COMMANDS_TAB, key);
+    const current = await rowOrBuiltinOverride(spreadsheetId, key);
     if (!current) throw new BotConfigError(404, "این کامند پیدا نشد.", "command_not_found");
 
     if ((current.source ?? "custom") !== "custom") {
@@ -651,7 +721,7 @@ router.delete("/bots/:botId/commands/:command", requireAuth, async (req: any, re
     const removed = await removeEntity(spreadsheetId, COMMANDS_TAB, key);
     if (!removed) throw new BotConfigError(404, "این کامند پیدا نشد.", "command_not_found");
     await dropFromMenu(spreadsheetId, req.params.botId, key);
-    await syncCommandCount(req.params.botId, (await readCommands(spreadsheetId)).length);
+    await syncCommandCount(req.params.botId, (await readCustomCommands(spreadsheetId)).length);
     res.json({ deleted: key });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to delete command");
@@ -660,7 +730,8 @@ router.delete("/bots/:botId/commands/:command", requireAuth, async (req: any, re
 
 /** خالص و بدون DB — برای تست مستقیم بدون راه‌انداختن روت/شیت کامل. */
 export const __testables = {
-  effectiveOrder, sortCommands, validateCommandName, materializeBuiltinCommands,
+  effectiveOrder, sortCommands, validateCommandName, validateMenuList, builtinCatalog, isUntouchedAutoRow,
+  purgeUntouchedAutoRows, rowOrBuiltinOverride, readRows, MENU_NAME_RE,
 };
 
 export default router;
