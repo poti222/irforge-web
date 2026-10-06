@@ -10,8 +10,17 @@
  * ۴۰۳ مواجه می‌شد، با این‌که واقعاً مدیرِ همان مدرسه بود. این فایل آن دو منبع
  * را یک‌جا چک می‌کند.
  */
-import { db, schoolMembersTable, schoolAdminsTable } from "@workspace/db";
+import { db, schoolMembersTable, schoolAdminsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+
+/**
+ * سوپرادمینِ پلتفرم (`users.role = 'super_admin'`). فقط برایِ دروازه‌ی مدیریتیِ `canAccessSchool` و
+ * `/schools/me` / `/schools/my-schools` استفاده می‌شود؛ خودِ نقش را `requireSuperAdmin` در `routes/auth.ts` می‌سنجد.
+ */
+export async function isSuperAdminUser(userId: string): Promise<boolean> {
+  const [u] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  return u?.role === "super_admin";
+}
 
 export async function getSchoolMember(userId: string) {
   const [row] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.userId, userId)).limit(1);
@@ -22,6 +31,11 @@ export async function getSchoolMember(userId: string) {
  * آیا `userId` روی `schoolId` یکی از نقش‌های `allowedRoles` را دارد؟
  * عضویتِ اصلی (`school_members`) *یا*، فقط وقتی "admin" جزوِ نقش‌های مجاز
  * باشد، یک ردیفِ اضافه در `school_admins` برایِ همین مدرسه.
+ *
+ * سوپرادمینِ پلتفرم (`/super`) هم فقط روی endpointهایی رد می‌شود که «admin» جزوِ نقش‌هایِ مجازشان است (= مدیریتِ مدرسه)،
+ * نه روی endpointهایِ ویژه‌یِ دانش‌آموز/معلم/والد که هویتِ عضویتِ خودِ کاربر را لازم دارند؛ پس بدونِ اینکه عضوِ
+ * مدرسه‌ای باشد هر مدرسه را مثلِ مدیرِ همان مدرسه مدیریت می‌کند. (او از قبل می‌تواند هر کاربری را impersonate کند؛ این
+ * فقط همان توان را بدونِ جعلِ هویت و با ردپایِ واقعیِ خودش می‌دهد.)
  */
 export async function canAccessSchool(
   userId: string,
@@ -37,6 +51,7 @@ export async function canAccessSchool(
       .where(and(eq(schoolAdminsTable.userId, userId), eq(schoolAdminsTable.schoolId, schoolId)))
       .limit(1);
     if (extra) return { ok: true, member };
+    if (await isSuperAdminUser(userId)) return { ok: true, member };
   }
   return { ok: false, member };
 }

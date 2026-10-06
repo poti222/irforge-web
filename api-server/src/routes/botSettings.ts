@@ -23,10 +23,8 @@ import {
   readSettings,
   patchSettings,
   listEntity,
-  assertSheetsAuthoritative,
   sendBotConfigError,
   BotConfigError,
-  SETTINGS_TAB,
 } from "../lib/botConfig.js";
 import { cacheBustEnabled } from "../lib/botCacheBust.js";
 import { resolveTelegramChat, botTokenOrEmpty } from "../lib/telegramResolve.js";
@@ -375,7 +373,6 @@ router.get("/bots/:botId/settings", requireAuth, async (req: any, res) => {
 router.patch("/bots/:botId/settings", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(SETTINGS_TAB);
 
     const body = req.body ?? {};
     const patch: Record<string, unknown> = {};
@@ -463,7 +460,6 @@ router.get("/bots/:botId/settings/channels", requireAuth, async (req: any, res) 
 router.post("/bots/:botId/settings/channels", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(SETTINGS_TAB);
 
     const input = normalizeChannel(req.body?.channel);
     const settings = await readSettings(spreadsheetId);
@@ -526,7 +522,6 @@ router.post("/bots/:botId/settings/channels", requireAuth, async (req: any, res)
 router.delete("/bots/:botId/settings/channels/:idx", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(SETTINGS_TAB);
 
     const settings = await readSettings(spreadsheetId);
     const idx = Number(req.params.idx);
@@ -608,7 +603,6 @@ router.post("/bots/:botId/settings/channels/check", requireAuth, async (req: any
 router.put("/bots/:botId/settings/working-hours", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(SETTINGS_TAB);
 
     const working_hours = validateWorkingHours(req.body);
     const updated = await patchSettings(spreadsheetId, { working_hours });
@@ -623,7 +617,6 @@ router.put("/bots/:botId/settings/working-hours", requireAuth, async (req: any, 
 router.put("/bots/:botId/settings/anti-flood", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(SETTINGS_TAB);
 
     const anti_flood = validateAntiFlood(req.body);
     const updated = await patchSettings(spreadsheetId, { anti_flood });
@@ -638,7 +631,6 @@ router.put("/bots/:botId/settings/anti-flood", requireAuth, async (req: any, res
 router.put("/bots/:botId/settings/payment", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(SETTINGS_TAB);
 
     const current = (await readSettings(spreadsheetId)).payment_cfg;
     const payment_cfg = validatePaymentConfig(req.body, current);

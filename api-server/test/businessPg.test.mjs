@@ -68,6 +68,18 @@ test("businessPg: wrapForColumn JSON-stringifies only the jsonb columns (buttons
   assert.equal(__testables.wrapForColumn(s, "is_home", true), true);
 });
 
+test("businessPg: bot_settings is registered as kv_mode, matching bot/migrations/sql/0004_bot_settings.sql + business_repository.py's EntitySchema", async () => {
+  const { __testables, isKnownPgEntity } = await import("../src/lib/businessPg.ts");
+  const s = __testables.ENTITY_SCHEMAS.bot_settings;
+  assert.ok(s && isKnownPgEntity("bot_settings"), "bot_settings must be registered");
+  assert.equal(s.table, "bot_settings");
+  assert.equal(s.kvMode, true, "one row per settings KEY, a single generic value JSONB column");
+  assert.deepEqual(s.columns, []);
+  assert.equal(s.includeIdInValue, false);
+  // scalars / arrays / objects all come back verbatim
+  for (const v of ["fa", true, 5, ["a"], { x: 1 }]) assert.deepEqual(__testables.rowToValue(s, { id: "k", value: v }), v);
+});
+
 test("businessPg: isKnownPgEntity is scoped to exactly the registered entities — panels/forms/custom_commands/addresses/catalog_* yes, everything else no (conservative-by-design)", async () => {
   const { isKnownPgEntity } = await import("../src/lib/businessPg.ts");
   assert.equal(isKnownPgEntity("panels"), true);
@@ -78,7 +90,9 @@ test("businessPg: isKnownPgEntity is scoped to exactly the registered entities �
   assert.equal(isKnownPgEntity("catalog_items"), true);
   assert.equal(isKnownPgEntity("catalog_item_options"), true);
   assert.equal(isKnownPgEntity("catalog_fulfillments"), true);
-  for (const other of ["users", "bot_settings", "workflows", "events", "payments", "wallet"]) {
+  // bot_settings (2026-10-06): the bot already routes it to Postgres for cut-over tenants — the site must too.
+  assert.equal(isKnownPgEntity("bot_settings"), true);
+  for (const other of ["users", "workflows", "events", "payments", "wallet"]) {
     assert.equal(isKnownPgEntity(other), false, `'${other}' must stay on the old Sheets-only path until it's actually registered here`);
   }
 });
@@ -132,7 +146,8 @@ test("businessPg: custom_commands schema matches bot/migrations/sql/0008_custom_
   const { __testables } = await import("../src/lib/businessPg.ts");
   const s = __testables.ENTITY_SCHEMAS.custom_commands;
   assert.ok(s, "custom_commands must be registered");
-  assert.deepEqual(s.columns, ["command", "target", "description", "admin_only", "is_active", "created_at"]);
+  assert.deepEqual(s.columns, ["command", "target", "description", "admin_only", "is_active", "created_at", "source"],
+    "`source` (0039_custom_commands_source.sql) must be listed, or every non-custom row written from the site silently becomes source='custom'");
   assert.deepEqual(s.jsonbColumns, [], "every custom_commands column is a scalar, no JSONB");
   assert.equal(s.kvMode, false);
   assert.equal(s.includeIdInValue, false, "the row key IS the command name — no separate id field on the value, unlike Panel/Form");

@@ -33,7 +33,7 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
-import { canAccessSchool, SCHOOL_ADMIN_ONLY, SCHOOL_MEMBERS_READ_ROLES } from "../lib/schoolAuth";
+import { canAccessSchool, isSuperAdminUser, SCHOOL_ADMIN_ONLY, SCHOOL_MEMBERS_READ_ROLES } from "../lib/schoolAuth";
 import { logSchoolAudit } from "../lib/schoolAuditLog";
 import { ensureSchoolSubjectsSeeded } from "../lib/schoolContentAccess";
 
@@ -96,6 +96,18 @@ router.get("/schools/me", requireAuth, async (req: any, res) => {
   try {
     const member = await getMember(req.userId);
     if (!member) {
+      // سوپرادمینِ پلتفرم (`/super`) بدونِ عضویتِ مدرسه‌ای: هویتِ «مدیرِ همه‌یِ مدارس» تا صفحاتِ /schools/admin/* و
+      // SchoolShell کار کنند. مدرسه‌ی دیده‌شده را سوییچرِ «مدرسه‌های من» (همه‌یِ مدارس برایِ او) تعیین می‌کند. هیچ ردیفی
+      // ساخته نمی‌شود و نقشِ مدرسه‌ایِ واقعی ندارد؛ `isSuperAdmin` برایِ نشان‌دادنِ نوارِ «حالتِ سوپرادمین» است.
+      if (await isSuperAdminUser(req.userId)) {
+        const now = new Date().toISOString();
+        res.json({
+          id: `super:${req.userId}`, userId: req.userId, schoolId: null, role: "admin", grade: null, nationalId: null,
+          birthDate: null, city: null, schoolNameFreeText: null, profileComplete: true, createdAt: now, updatedAt: now,
+          school: null, isSuperAdmin: true,
+        });
+        return;
+      }
       res.json(null);
       return;
     }
@@ -104,7 +116,7 @@ router.get("/schools/me", requireAuth, async (req: any, res) => {
       const [s] = await db.select().from(schoolsTable).where(eq(schoolsTable.id, member.schoolId)).limit(1);
       school = s ? formatSchool(s) : null;
     }
-    res.json({ ...formatMember(member), school });
+    res.json({ ...formatMember(member), school, ...((await isSuperAdminUser(req.userId)) ? { isSuperAdmin: true } : {}) });
   } catch (err) {
     logger.error({ err }, "Get school member error");
     res.status(500).json({ error: "Internal server error" });
@@ -293,9 +305,12 @@ router.post("/schools", requireAuth, async (req: any, res) => {
     await ensureSchoolSubjectsSeeded(school.id);
 
     // سازنده را همان لحظه مدیرِ همین مدرسه کن — بدون این کار «مدرسه‌ی من»ِ
-    // خالی می‌ماند و هیچ راهی برای مدیریتش نداشت.
+    // خالی می‌ماند و هیچ راهی برای مدیریتش نداشت. (سوپرادمین استثناست: او همه‌یِ مدارس را بدونِ عضویت مدیریت می‌کند؛
+    // ساختنِ مدرسه نباید عضویتِ مدرسه‌ایِ خودش را جابه‌جا کند.)
     const existing = await getMember(req.userId);
-    if (existing) {
+    if (await isSuperAdminUser(req.userId)) {
+      // فقط ساخته شد؛ عضویتی ساخته/عوض نمی‌شود.
+    } else if (existing) {
       await db.update(schoolMembersTable).set({ schoolId: school.id, role: "admin", profileComplete: true })
         .where(eq(schoolMembersTable.id, existing.id));
     } else {
@@ -544,6 +559,13 @@ router.delete("/schools/:id/members/:memberId", requireAuth, async (req: any, re
 // `school_admins`، یکتا بر اساسِ id).
 router.get("/schools/my-schools", requireAuth, async (req: any, res) => {
   try {
+    // سوپرادمین: همه‌یِ مدارس (سوییچرِ مدرسه در /schools/admin برایِ او کلِ پلتفرم است).
+    if (await isSuperAdminUser(req.userId)) {
+      const all = await db.select().from(schoolsTable);
+      all.sort((a: typeof all[number], b: typeof all[number]) => a.name.localeCompare(b.name, "fa"));
+      res.json(all.map(formatSchool));
+      return;
+    }
     const member = await getMember(req.userId);
     const schoolIds = new Set<string>();
     if (member?.role === "admin" && member.schoolId) schoolIds.add(member.schoolId);

@@ -1,17 +1,25 @@
 /**
- * CommandsEditor.tsx — کامندهای سفارشی بات (بازنویسی‌شده، فاز ۱۲).
+ * CommandsEditor.tsx — کامندهای بات: منوی زنده‌یِ تلگرام + کامندهای داخلی + کامندهای سفارشی.
  *
  * قبلاً این کامپوننت روی جدول `commands` در Postgres سایت کار می‌کرد و شکلش
  * (`name`, `permission`, `arguments`, `workflow`) هیچ ربطی به چیزی که بات
  * می‌خواند نداشت — باگ B13. حالا مستقیم روی تب `custom_commands` شیت تننت است،
  * با همان فیلدهایی که `handlers/custom_commands.py` می‌فهمد.
+ *
+ * لایوباگ ۲۰۲۶-۱۰-۰۶ («هیچ کامندی نباید خودکار اضافه بشه توی بات»؛ «همه‌یِ سوییچ‌هایِ نمایش در تلگرام خاموش است ولی
+ * همه نمایش داده می‌شوند»): سه بخش جدا —
+ *   ۱) منوی «/»ِ تلگرام: **زنده از تلگرام**، با اضافه/حذف/ترتیب/توضیح (`CommandsMenuEditor`)؛
+ *   ۲) کامندهای داخلیِ بات (Core/پلاگین): فقط فهرست؛ نه خودکار به منو می‌روند نه ردیفی برایشان ساخته می‌شود؛
+ *   ۳) کامندهای سفارشیِ خودِ مالک.
+ * سوییچِ «نمایش در تلگرام» پیش‌نویسِ منو را عوض می‌کند و با «ذخیره» روی تلگرام اعمال می‌شود.
  */
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import {
-  Plus, Loader2, Trash2, Terminal, ArrowLeftRight, AlertTriangle, Check, X, ArrowUp, ArrowDown,
+  Plus, Loader2, Trash2, Terminal, ArrowLeftRight, AlertTriangle, Check, X, ArrowUp, ArrowDown, Boxes,
 } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +34,8 @@ import {
 } from "@/components/ui/select";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
+import { CommandsMenuEditor, type MenuCandidate } from "./CommandsMenuEditor";
+import { addEntry, MENU_NAME_RE, removeEntry, sameMenu, toPayload, type MenuEntry } from "./commandsMenu";
 
 type BotCommand = {
   command: string;
@@ -42,6 +52,34 @@ type BotCommand = {
    * خاموش‌کردنشان یعنی از دسترس‌افتادنِ کاملِ بات یا ابزارِ اضطراری —
    * سرور همیشه این را از routes/botCommands.ts محاسبه می‌کند. */
   locked?: boolean;
+};
+
+/** کامندِ داخلیِ بات (Core/پلاگین) — فقط فهرستِ در دسترس؛ ردیفی در شیت ندارد مگر override صریحِ مالک. */
+type BuiltinCommand = {
+  command: string;
+  /** `"core"` یا `"plugin:<id>"` */
+  source: string;
+  description: string;
+  admin_only: boolean;
+  is_active: boolean;
+  locked: boolean;
+  /** نامش را تلگرام در منو می‌پذیرد (حروفِ کوچکِ انگلیسی/عدد/_). */
+  menuEligible: boolean;
+  inMenu: boolean;
+};
+
+type CommandsResponse = {
+  /** فقط کامندهایِ سفارشیِ ساخته‌شده توسطِ مالک. */
+  commands: BotCommand[];
+  count: number;
+  menu: string[];
+  /** منوی «/»: زنده از تلگرام (یا لیستِ ذخیره‌شده وقتی `menuLive` نیست). */
+  menuEntries: MenuEntry[];
+  menuLive: boolean;
+  builtins: BuiltinCommand[];
+  builtinsPublished: boolean;
+  /** چند ردیفِ خودکارِ قدیمی در همین درخواست پاک شد. */
+  purged: number;
 };
 
 type Targets = {
@@ -201,6 +239,7 @@ function TargetPicker({
   );
 }
 
+
 export function CommandsEditor({ botId }: { botId: string }) {
   const t = useT("botCommands");
   const { toast } = useToast();
@@ -208,7 +247,9 @@ export function CommandsEditor({ botId }: { botId: string }) {
 
   const { data, isLoading, error } = useQuery({
     queryKey: commandsKey(botId),
-    queryFn: () => customFetch<{ commands: BotCommand[]; count: number; menu: string[] }>(`/api/bots/${botId}/commands`),
+    queryFn: () => customFetch<CommandsResponse>(`/api/bots/${botId}/commands`),
+    // منو زنده از تلگرام خوانده می‌شود؛ برگشتن به تب باید وضعیتِ واقعی را تازه کند.
+    refetchOnWindowFocus: true,
   });
   const { data: targets } = useQuery({
     queryKey: ["bot-command-targets", botId],
@@ -217,6 +258,31 @@ export function CommandsEditor({ botId }: { botId: string }) {
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: commandsKey(botId) });
+
+  // ── پیش‌نویسِ منوی «/» ────────────────────────────────────────────────────
+  const serverMenu = useMemo<MenuEntry[]>(() => data?.menuEntries ?? [], [data?.menuEntries]);
+  const [menuDraft, setMenuDraft] = useState<MenuEntry[]>([]);
+  const [menuSeeded, setMenuSeeded] = useState(false);
+  const menuDirty = menuSeeded && !sameMenu(menuDraft, serverMenu);
+  // تا وقتی مالک چیزی را عوض نکرده، پیش‌نویس همیشه آینه‌یِ وضعیتِ تازه‌یِ سرور است؛ بعد از تغییر دست نمی‌خورد.
+  const serverMenuKey = JSON.stringify(serverMenu);
+  useEffect(() => {
+    if (!data) return;
+    if (!menuSeeded || !menuDirty) {
+      setMenuDraft(serverMenu);
+      setMenuSeeded(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverMenuKey, data === undefined]);
+
+  // ردیف‌هایِ خودکارِ قدیمیِ پاک‌شده را یک‌بار به مالک خبر بده.
+  const purgedToastShown = useRef(false);
+  useEffect(() => {
+    if (data && data.purged > 0 && !purgedToastShown.current) {
+      purgedToastShown.current = true;
+      toast({ title: t.purgedToast.replace("{n}", String(data.purged)) });
+    }
+  }, [data, t, toast]);
 
   const create = useMutation({
     mutationFn: (body: Partial<BotCommand>) =>
@@ -250,19 +316,31 @@ export function CommandsEditor({ botId }: { botId: string }) {
       toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
   });
   /**
-   * افزودن/برداشتن از منوی «/» تلگرام. جدا از `update` است چون سرور علاوه بر
-   * نوشتن روی شیت، همان لحظه `setMyCommands` را هم صدا می‌زند و ممکن است
-   * تلگرام ردش کند — آن خطا باید جدا از خطای ذخیره‌ی خود کامند دیده شود.
+   * ذخیره‌یِ کلِ منوی «/» — سرور اول `setMyCommands` را روی تلگرام می‌زند و فقط اگر پذیرفت در شیت می‌نویسد؛
+   * رد شدنِ تلگرام (۴۰۹ `telegram_rejected`) جدا از خطایِ ذخیره‌یِ خودِ کامند دیده می‌شود.
    */
-  const setMenu = useMutation({
-    mutationFn: ({ command, inMenu }: { command: string; inMenu: boolean }) =>
-      customFetch<{ menu: string[] }>(`/api/bots/${botId}/commands/${command}/menu`, {
+  const saveMenu = useMutation({
+    mutationFn: (commands: MenuEntry[]) =>
+      customFetch<{ menu: string[]; menuEntries: MenuEntry[] }>(`/api/bots/${botId}/commands/menu`, {
         method: "PUT",
-        body: JSON.stringify({ inMenu }),
+        body: JSON.stringify({ commands: toPayload(commands) }),
       }),
-    onSuccess: (_result, variables) => {
+    onSuccess: (result) => {
+      // پیش‌نویس همین‌جا با چیزی که سرور واقعاً اعمال کرد هم‌تراز می‌شود تا «ذخیره‌نشده» نماند.
+      setMenuDraft(result.menuEntries);
+      qc.setQueryData<CommandsResponse>(commandsKey(botId), (old) =>
+        old
+          ? {
+              ...old,
+              menu: result.menu,
+              menuEntries: result.menuEntries,
+              menuLive: true,
+              builtins: old.builtins.map((b) => ({ ...b, inMenu: result.menu.includes(b.command) })),
+            }
+          : old
+      );
       invalidate();
-      toast({ title: variables.inMenu ? t.menuAdded : t.menuRemoved });
+      toast({ title: t.menuSaved });
     },
     onError: (err: any) =>
       toast({ variant: "destructive", title: t.menuFailed, description: errMessage(err, t.errorGeneric) }),
@@ -292,6 +370,36 @@ export function CommandsEditor({ botId }: { botId: string }) {
   const [draft, setDraft] = useState<Partial<BotCommand>>({ command: "", target: "", description: "", admin_only: false });
   const [createError, setCreateError] = useState<string | null>(null);
 
+  const commands = data?.commands ?? [];
+  const builtins = data?.builtins ?? [];
+
+  const knownCommands = useMemo(
+    () => new Set<string>([...commands.map((c) => c.command), ...builtins.map((b) => b.command)]),
+    [commands, builtins]
+  );
+  const inDraft = useMemo(() => new Set(menuDraft.map((m) => m.command)), [menuDraft]);
+
+  /** کامندهایی که هنوز در منو نیستند و تلگرام نامشان را می‌پذیرد. */
+  const candidates = useMemo<MenuCandidate[]>(
+    () => [
+      ...commands
+        .filter((c) => MENU_NAME_RE.test(c.command) && !inDraft.has(c.command))
+        .map((c) => ({ command: c.command, description: c.description, group: "custom" as const })),
+      ...builtins
+        .filter((b) => b.menuEligible && !inDraft.has(b.command))
+        .map((b) => ({
+          command: b.command,
+          description: b.description,
+          group: (b.source === "core" ? "core" : "plugin") as "core" | "plugin",
+        })),
+    ],
+    [commands, builtins, inDraft]
+  );
+
+  function toggleInMenu(command: string, description: string, on: boolean) {
+    setMenuDraft((cur) => (on ? addEntry(cur, command, description) : removeEntry(cur, command)));
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 p-8 text-muted-foreground">
@@ -307,9 +415,6 @@ export function CommandsEditor({ botId }: { botId: string }) {
       </div>
     );
   }
-
-  const commands = data.commands;
-  const menu = data.menu ?? [];
 
   function targetLabel(target: string): string {
     if (target.startsWith("panel:")) {
@@ -330,12 +435,11 @@ export function CommandsEditor({ botId }: { botId: string }) {
     return t.sourcePlugin;
   }
 
-  function isCustom(cmd: BotCommand): boolean {
-    return !cmd.source || cmd.source === "custom";
-  }
+  const onMutationError = (err: any) =>
+    toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="w-full text-sm text-muted-foreground sm:w-auto sm:min-w-0 sm:flex-1">{t.sectionDesc}</p>
         <Button variant="outline" onClick={() => migrate.mutate()} disabled={migrate.isPending}>
@@ -347,113 +451,190 @@ export function CommandsEditor({ botId }: { botId: string }) {
         </Button>
       </div>
 
-      {commands.length === 0 ? (
-        <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-          {t.noCommands}
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full min-w-[38rem] text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="p-2 text-start font-medium">{t.colCommand}</th>
-                <th className="p-2 text-start font-medium">{t.colSource}</th>
-                <th className="p-2 text-start font-medium">{t.colTarget}</th>
-                <th className="p-2 text-start font-medium">{t.colDescription}</th>
-                <th className="p-2 text-start font-medium">{t.colAdminOnly}</th>
-                <th className="p-2 text-start font-medium">{t.colActive}</th>
-                <th className="p-2 text-start font-medium">{t.colInMenu}</th>
-                <th className="p-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {commands.map((cmd, index) => (
-                <tr key={cmd.command} className="border-t">
-                  <td className="p-2">
-                    <code dir="ltr" className="flex items-center gap-1 font-mono">
-                      <Terminal className="size-3.5 shrink-0 text-muted-foreground" />/{cmd.command}
-                    </code>
-                  </td>
-                  <td className="p-2">
-                    <Badge variant={isCustom(cmd) ? "outline" : "secondary"}>{sourceLabel(cmd.source)}</Badge>
-                  </td>
-                  <td className="p-2">
-                    <div className="min-w-0 max-w-48 truncate">
-                      {isCustom(cmd) ? (
-                        <Badge variant="outline">{targetLabel(cmd.target)}</Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{t.targetBuiltinHandler}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="p-2">
-                    <span className="line-clamp-1 text-muted-foreground">{cmd.description || "—"}</span>
-                  </td>
-                  <td className="p-2">
-                    {cmd.admin_only ? <Check className="size-4 text-emerald-500" /> : <X className="size-4 text-muted-foreground" />}
-                  </td>
-                  <td className="p-2">
-                    <Switch
-                      checked={cmd.is_active}
-                      aria-label={t.colActive}
-                      disabled={cmd.locked}
-                      title={cmd.locked ? t.lockedHint : undefined}
-                      onCheckedChange={(v) =>
-                        update.mutate(
-                          { command: cmd.command, patch: { is_active: v } },
-                          { onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }) }
-                        )
-                      }
-                    />
-                  </td>
-                  <td className="p-2">
-                    {/* منوی «/» تلگرام — همان چیزی که کاربر کنار کادر پیام
-                        می‌بیند. مستقل از `is_active` است: یک کامند می‌تواند کار
-                        کند ولی عمداً در منو نباشد. */}
-                    <Switch
-                      checked={menu.includes(cmd.command)}
-                      aria-label={t.colInMenu}
-                      disabled={setMenu.isPending}
-                      onCheckedChange={(v) => setMenu.mutate({ command: cmd.command, inMenu: v })}
-                    />
-                  </td>
-                  <td className="p-2 text-end">
-                    <div className="flex items-center justify-end gap-0.5">
-                      <Button
-                        variant="ghost" size="icon" aria-label={t.moveCommandUp}
-                        disabled={index === 0 || reorder.isPending}
-                        onClick={() => reorder.mutate({ command: cmd.command, direction: "up" })}
-                      >
-                        <ArrowUp className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost" size="icon" aria-label={t.moveCommandDown}
-                        disabled={index === commands.length - 1 || reorder.isPending}
-                        onClick={() => reorder.mutate({ command: cmd.command, direction: "down" })}
-                      >
-                        <ArrowDown className="size-4" />
-                      </Button>
-                      {isCustom(cmd) && (
-                        <Button
-                          variant="ghost" size="icon" aria-label={t.deleteCta}
-                          onClick={() =>
-                            remove.mutate(cmd.command, {
-                              onSuccess: () => toast({ title: t.commandDeleted }),
-                              onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: errMessage(err, t.errorGeneric) }),
-                            })
-                          }
-                        >
-                          <Trash2 className="size-4 text-destructive" />
-                        </Button>
-                      )}
-                    </div>
-                  </td>
+      {/* ۱) منوی «/»ِ تلگرام — زنده */}
+      <CommandsMenuEditor
+        draft={menuDraft}
+        onChange={setMenuDraft}
+        dirty={menuDirty}
+        live={data.menuLive}
+        saving={saveMenu.isPending}
+        onSave={() => saveMenu.mutate(menuDraft)}
+        onRevert={() => setMenuDraft(serverMenu)}
+        knownCommands={knownCommands}
+        candidates={candidates}
+        onAdd={(c) => toggleInMenu(c.command, c.description, true)}
+      />
+
+      {/* ۲) کامندهای داخلیِ بات */}
+      <Card data-testid="builtin-commands-card">
+        <CardHeader className="space-y-1.5">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Boxes className="size-4" /> {t.builtinsTitle}
+          </CardTitle>
+          <CardDescription>{t.builtinsDesc}</CardDescription>
+          {!data.builtinsPublished && (
+            <p className="text-xs text-muted-foreground">{t.builtinsNoCatalog}</p>
+          )}
+        </CardHeader>
+        <CardContent>
+          {/* فهرستِ داخلی‌ها بلند است (۴۰+ کامند)؛ داخلِ یک کادرِ اسکرول‌شونده تا صفحه را نکشد. */}
+          <div className="max-h-[32rem] overflow-auto rounded-md border">
+            <table className="w-full min-w-[34rem] text-sm">
+              <thead className="sticky top-0 z-10 bg-muted">
+                <tr>
+                  <th className="p-2 text-start font-medium">{t.colCommand}</th>
+                  <th className="p-2 text-start font-medium">{t.colSource}</th>
+                  <th className="p-2 text-start font-medium">{t.colDescription}</th>
+                  <th className="p-2 text-start font-medium">{t.colAdminOnly}</th>
+                  <th className="p-2 text-start font-medium">{t.colActive}</th>
+                  <th className="p-2 text-start font-medium">{t.colInMenu}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {builtins.map((b) => (
+                  <tr key={b.command} className="border-t" data-testid={`builtin-row-${b.command}`}>
+                    <td className="p-2">
+                      <code dir="ltr" className="flex items-center gap-1 font-mono">
+                        <Terminal className="size-3.5 shrink-0 text-muted-foreground" />/{b.command}
+                      </code>
+                    </td>
+                    <td className="p-2"><Badge variant="secondary">{sourceLabel(b.source)}</Badge></td>
+                    <td className="p-2"><span className="line-clamp-1 text-muted-foreground">{b.description || "—"}</span></td>
+                    <td className="p-2">
+                      {b.admin_only ? <Check className="size-4 text-emerald-500" /> : <X className="size-4 text-muted-foreground" />}
+                    </td>
+                    <td className="p-2">
+                      <Switch
+                        checked={b.is_active}
+                        aria-label={t.colActive}
+                        disabled={b.locked || update.isPending}
+                        title={b.locked ? t.lockedHint : undefined}
+                        onCheckedChange={(v) =>
+                          update.mutate({ command: b.command, patch: { is_active: v } }, { onError: onMutationError })
+                        }
+                      />
+                    </td>
+                    <td className="p-2">
+                      {/* همان چیزی که الان واقعاً روی تلگرام هست (پیش‌نویس از منوی زنده شروع می‌شود). */}
+                      <Switch
+                        checked={inDraft.has(b.command)}
+                        aria-label={t.colInMenu}
+                        disabled={!b.menuEligible && !inDraft.has(b.command)}
+                        title={!b.menuEligible ? t.menuNameInvalid : undefined}
+                        onCheckedChange={(v) => toggleInMenu(b.command, b.description, v)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ۳) کامندهای سفارشیِ مالک */}
+      <Card data-testid="custom-commands-card">
+        <CardHeader className="space-y-1.5">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Terminal className="size-4" /> {t.customTitle}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {commands.length === 0 ? (
+            <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+              {t.noCommands}
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full min-w-[38rem] text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="p-2 text-start font-medium">{t.colCommand}</th>
+                    <th className="p-2 text-start font-medium">{t.colTarget}</th>
+                    <th className="p-2 text-start font-medium">{t.colDescription}</th>
+                    <th className="p-2 text-start font-medium">{t.colAdminOnly}</th>
+                    <th className="p-2 text-start font-medium">{t.colActive}</th>
+                    <th className="p-2 text-start font-medium">{t.colInMenu}</th>
+                    <th className="p-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {commands.map((cmd, index) => (
+                    <tr key={cmd.command} className="border-t" data-testid={`custom-row-${cmd.command}`}>
+                      <td className="p-2">
+                        <code dir="ltr" className="flex items-center gap-1 font-mono">
+                          <Terminal className="size-3.5 shrink-0 text-muted-foreground" />/{cmd.command}
+                        </code>
+                      </td>
+                      <td className="p-2">
+                        <div className="min-w-0 max-w-48 truncate">
+                          <Badge variant="outline">{targetLabel(cmd.target)}</Badge>
+                        </div>
+                      </td>
+                      <td className="p-2">
+                        <span className="line-clamp-1 text-muted-foreground">{cmd.description || "—"}</span>
+                      </td>
+                      <td className="p-2">
+                        {cmd.admin_only ? <Check className="size-4 text-emerald-500" /> : <X className="size-4 text-muted-foreground" />}
+                      </td>
+                      <td className="p-2">
+                        <Switch
+                          checked={cmd.is_active}
+                          aria-label={t.colActive}
+                          onCheckedChange={(v) =>
+                            update.mutate({ command: cmd.command, patch: { is_active: v } }, { onError: onMutationError })
+                          }
+                        />
+                      </td>
+                      <td className="p-2">
+                        <Switch
+                          checked={inDraft.has(cmd.command)}
+                          aria-label={t.colInMenu}
+                          disabled={!MENU_NAME_RE.test(cmd.command) && !inDraft.has(cmd.command)}
+                          onCheckedChange={(v) => toggleInMenu(cmd.command, cmd.description, v)}
+                        />
+                      </td>
+                      <td className="p-2 text-end">
+                        <div className="flex items-center justify-end gap-0.5">
+                          <Button
+                            variant="ghost" size="icon" aria-label={t.moveCommandUp}
+                            disabled={index === 0 || reorder.isPending}
+                            onClick={() => reorder.mutate({ command: cmd.command, direction: "up" })}
+                          >
+                            <ArrowUp className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost" size="icon" aria-label={t.moveCommandDown}
+                            disabled={index === commands.length - 1 || reorder.isPending}
+                            onClick={() => reorder.mutate({ command: cmd.command, direction: "down" })}
+                          >
+                            <ArrowDown className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost" size="icon" aria-label={t.deleteCta}
+                            onClick={() =>
+                              remove.mutate(cmd.command, {
+                                onSuccess: () => {
+                                  // سرور آیتم را از منوی تلگرام هم برداشته؛ پیش‌نویسِ ذخیره‌نشده نباید دوباره اضافه‌اش کند.
+                                  setMenuDraft((cur) => removeEntry(cur, cmd.command));
+                                  toast({ title: t.commandDeleted });
+                                },
+                                onError: onMutationError,
+                              })
+                            }
+                          >
+                            <Trash2 className="size-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <p className="flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
         <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />

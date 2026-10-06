@@ -53,8 +53,9 @@ router.get("/schools/:schoolId/announcements", requireAuth, async (req: any, res
 // kind="class" فقط اگر فرستنده معلمِ همان کلاس باشد (school_class_members با roleInClass="teacher").
 router.post("/schools/:schoolId/announcements", requireAuth, async (req: any, res) => {
   try {
+    // `requester` ممکن است null باشد: سوپرادمینِ پلتفرم بدونِ عضویتِ مدرسه‌ای (`canAccessSchool`)؛ او همیشه admin حساب می‌شود.
     const { ok, member: requester } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_MEMBER_ROLES);
-    if (!ok || !requester) {
+    if (!ok) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
@@ -72,9 +73,11 @@ router.post("/schools/:schoolId/announcements", requireAuth, async (req: any, re
         res.status(400).json({ error: "classId is required for kind=class" });
         return;
       }
-      const [membership] = await db.select().from(schoolClassMembersTable)
-        .where(and(eq(schoolClassMembersTable.classId, classId), eq(schoolClassMembersTable.schoolMemberId, requester.id), eq(schoolClassMembersTable.roleInClass, "teacher")))
-        .limit(1);
+      const [membership] = requester
+        ? await db.select().from(schoolClassMembersTable)
+          .where(and(eq(schoolClassMembersTable.classId, classId), eq(schoolClassMembersTable.schoolMemberId, requester.id), eq(schoolClassMembersTable.roleInClass, "teacher")))
+          .limit(1)
+        : [];
       const { ok: isAdmin } = await canAccessSchool(req.userId, req.params.schoolId, ["admin"]);
       if (!membership && !isAdmin) {
         res.status(403).json({ error: "Forbidden" });

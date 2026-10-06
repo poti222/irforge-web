@@ -22,6 +22,19 @@ const ViewedSchoolContext = createContext<{
 
 const STORAGE_KEY = "schools:viewed-school-id";
 
+/**
+ * `/super` — «مدیریتِ کاملِ» یک مدرسه از پنلِ سوپرادمین: مدرسه را قبل از رفتن به /schools/admin انتخاب‌شده می‌گذارد
+ * (ViewedSchoolProvider هنگامِ mount همین مقدار را می‌خواند). خطایِ localStorage بی‌اهمیت است.
+ */
+export function rememberViewedSchool(id: string | null): void {
+  try {
+    if (id) localStorage.setItem(STORAGE_KEY, id);
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // حالتِ خصوصی/بلاک‌شده — فقط یعنی انتخاب به صفحه‌یِ بعد نمی‌رسد؛ سوییچرِ مدرسه همان‌جا هم هست.
+  }
+}
+
 export function ViewedSchoolProvider({ children }: { children: ReactNode }) {
   const [viewedSchoolId, setViewedSchoolIdState] = useState<string | null>(() => {
     try {

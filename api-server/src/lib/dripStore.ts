@@ -354,7 +354,6 @@ export async function getSafetyConfig(spreadsheetId: string): Promise<DripSafety
 }
 
 export async function setSafetyConfig(spreadsheetId: string, body: any): Promise<DripSafetyConfig> {
-  await assertSheetsAuthoritative(SETTINGS_TAB);
   const current = await getSafetyConfig(spreadsheetId);
   const quietStart = body.quiet_start !== undefined ? String(body.quiet_start) : current.quiet_start;
   const quietEnd = body.quiet_end !== undefined ? String(body.quiet_end) : current.quiet_end;
