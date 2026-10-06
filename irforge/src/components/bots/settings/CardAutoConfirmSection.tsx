@@ -10,6 +10,7 @@
  */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
+import { QRCodeSVG } from "qrcode.react";
 import {
   AlertTriangle, BookOpen, Check, CheckCircle2, Copy, GraduationCap, KeyRound, Loader2, Pencil, Plus, RefreshCcw, Send,
   Smartphone, Trash2, XCircle,
@@ -155,9 +156,19 @@ function GuideCallout() {
 
 // ─── دیالوگِ کلیدِ امنیتی (فقط یک‌بار) ──────────────────────────────────────
 
+/** لینکِ راه‌اندازیِ اپِ «IrForge Pay Agent» (mobile/) — با اسکنِ QR یا چسباندنِ لینک، همه‌ی تنظیمات یک‌جا وارد می‌شود. */
+export function buildAgentSetupLink(channel: CardChannel, secret: string): string {
+  const q = new URLSearchParams();
+  q.append("u", channel.webhookUrl);
+  q.append("s", secret);
+  if (channel.senderAllowlist.length) q.append("b", channel.senderAllowlist.join(","));
+  return `irforge-pay://setup?${q.toString()}`;
+}
+
 function SecretDialog({ secret, channel, onClose }: { secret: string; channel: CardChannel; onClose: () => void }) {
   const t = useT("botSettings");
   const copy = useCopy();
+  const agentLink = buildAgentSetupLink(channel, secret);
   const row = (label: string, value: string, dataTestId: string) => (
     <div className="space-y-1">
       <Label>{label}</Label>
@@ -179,6 +190,16 @@ function SecretDialog({ secret, channel, onClose }: { secret: string; channel: C
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
+          <div className="flex items-center gap-3 rounded-md border p-3" data-testid="agent-qr">
+            <QRCodeSVG value={agentLink} size={112} level="M" marginSize={1} />
+            <div className="min-w-0 flex-1 space-y-1.5 text-xs">
+              <div className="font-medium">اتصال با اپ IrForge Pay Agent</div>
+              <p className="text-muted-foreground">در اپ، «اسکن QR» را بزنید. این QR شامل کلید امنیتی است؛ جایی ذخیره یا منتشرش نکنید.</p>
+              <Button type="button" size="sm" variant="outline" onClick={() => copy(agentLink)}>
+                <Copy className="me-1.5 size-3.5" /> کپی لینک راه‌اندازی
+              </Button>
+            </div>
+          </div>
           {row(t.cardAutoWebhook, channel.webhookUrl, "secret-url")}
           {row(t.cardAutoSecretHeader, SECRET_HEADER, "secret-header")}
           {row(t.cardAutoSecretValue, secret, "secret-value")}

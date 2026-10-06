@@ -1,0 +1,10 @@
+.dart_tool/
+build/
+.flutter-plugins*
+.packages
+pubspec.lock
+# تولیدشده توسط bootstrap.sh (flutter create)؛ منبع حقیقت: overlay/
+android/
+ios/
+.metadata
+*.iml
