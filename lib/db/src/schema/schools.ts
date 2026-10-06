@@ -43,6 +43,12 @@ export const schoolsTable = pgTable("schools", {
    * اجرا می‌شود (مدرسه‌ای مثلِ هر مدرسه‌یِ دیگر است، فقط با یک برچسب).
    */
   isTestSchool: boolean("is_test_school").notNull().default(false),
+  /**
+   * آیا «درس‌هایِ پیش‌فرض» (school_subjects) برایِ این مدرسه seed شده؟ بدونِ این پرچم،
+   * یک seedِ idempotent که با هر درخواست/بوت اجرا شود، درسی را که مدیر عمداً حذف
+   * کرده دوباره زنده می‌کرد. seed دقیقاً یک‌بار انجام و پرچم true می‌شود.
+   */
+  subjectsSeeded: boolean("subjects_seeded").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

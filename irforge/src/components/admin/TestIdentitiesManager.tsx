@@ -16,7 +16,7 @@ import {
 import { FlaskConical, Loader2, LogIn, Trash2, Sparkles } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
-import { SCHOOL_MEMBER_ROLES, SCHOOL_SUBJECTS, type SchoolMemberRole } from "@/lib/schools-api";
+import { SCHOOL_MEMBER_ROLES, DEFAULT_SCHOOL_SUBJECTS, type SchoolMemberRole } from "@/lib/schools-api";
 import { setAuthToken, getAuthToken } from "@/lib/auth-token";
 import { SUPER_STASH_KEY } from "@/lib/super-stash";
 
@@ -66,6 +66,16 @@ export function TestIdentitiesManager() {
     queryKey: ["super", "test-identities", "schools"],
     queryFn: () => customFetch<SchoolOption[]>("/api/super/test-identities/schools", { credentials: "include" as any }),
   });
+
+  // درس‌هایِ *واقعیِ* مدرسه‌یِ انتخاب‌شده (مدیرِ هر مدرسه آن‌ها را عوض می‌کند)؛ برایِ
+  // مدرسه‌یِ آزمایشیِ تازه هنوز چیزی در دیتابیس نیست → فهرستِ پیش‌فرضِ seed.
+  const realSchoolId = schoolChoice && schoolChoice !== "__new__" ? schoolChoice : "";
+  const { data: schoolSubjectNames } = useQuery({
+    queryKey: ["super", "test-identities", "school-subjects", realSchoolId],
+    queryFn: () => customFetch<string[]>(`/api/super/test-identities/schools/${realSchoolId}/subjects`, { credentials: "include" as any }),
+    enabled: !!realSchoolId,
+  });
+  const subjectOptions: string[] = realSchoolId ? (schoolSubjectNames ?? []) : [...DEFAULT_SCHOOL_SUBJECTS];
 
   async function create() {
     if (!role) return;
@@ -205,7 +215,7 @@ export function TestIdentitiesManager() {
                   <SelectValue placeholder={fa ? "درس (لازم است)" : "Subject (required)"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {SCHOOL_SUBJECTS.map((s) => (
+                  {subjectOptions.map((s) => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
                 </SelectContent>
@@ -213,7 +223,7 @@ export function TestIdentitiesManager() {
             )}
           </div>
 
-          <Select value={schoolChoice} onValueChange={setSchoolChoice}>
+          <Select value={schoolChoice} onValueChange={(v) => { setSchoolChoice(v); setSubject(""); }}>
             <SelectTrigger>
               <SelectValue placeholder={fa ? "یک مدرسه‌ی واقعی یا ساختِ مدرسه‌ی آزمایشیِ تازه" : "An existing school, or create a fresh test school"} />
             </SelectTrigger>

@@ -6,7 +6,8 @@
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, schoolTeacherSubjectsTable, schoolMembersTable, SCHOOL_MEMBER_ROLES, SCHOOL_SUBJECTS } from "@workspace/db";
+import { db, schoolTeacherSubjectsTable, schoolMembersTable, schoolSubjectsTable, SCHOOL_MEMBER_ROLES } from "@workspace/db";
+import { ensureSchoolSubjectsSeeded } from "../lib/schoolContentAccess";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
@@ -58,7 +59,13 @@ router.post("/schools/:schoolId/teacher-subjects", requireAuth, async (req: any,
       res.status(400).json({ error: "teacherUserId is required" });
       return;
     }
-    if (!subject || !(SCHOOL_SUBJECTS as readonly string[]).includes(subject)) {
+    // نامِ درس باید یکی از درس‌هایِ *واقعیِ همین مدرسه* باشد (school_subjects) — نه فهرستِ ثابت.
+    await ensureSchoolSubjectsSeeded(req.params.schoolId);
+    const [subjectRow] = typeof subject === "string" && subject
+      ? await db.select({ id: schoolSubjectsTable.id }).from(schoolSubjectsTable)
+          .where(and(eq(schoolSubjectsTable.schoolId, req.params.schoolId), eq(schoolSubjectsTable.name, subject))).limit(1)
+      : [];
+    if (!subjectRow) {
       res.status(400).json({ error: "Invalid subject" });
       return;
     }

@@ -15,9 +15,9 @@ import {
   deleteSchoolContentItem,
   getSchoolContentItem,
   getSchoolMe,
+  listSchoolSubjects,
   listTeacherSubjects,
   updateSchoolContentItem,
-  SCHOOL_SUBJECTS,
   type SchoolContentType,
 } from "@/lib/schools-api";
 import { FormulaBody } from "@/components/schools/FormulaBody";
@@ -34,9 +34,10 @@ export default function SchoolContentDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: item, isLoading } = useQuery({
+  const { data: item, isLoading, isError } = useQuery({
     queryKey: ["schools", "content-item", id],
     queryFn: () => getSchoolContentItem(id),
+    retry: false,
   });
   const { data: me } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
   const canWrite = me?.role === "admin" || me?.role === "teacher";
@@ -50,8 +51,13 @@ export default function SchoolContentDetail() {
     queryFn: () => listTeacherSubjects(schoolId!, me!.userId),
     enabled: !!schoolId && me?.role === "teacher",
   });
+  const { data: allSubjects } = useQuery({
+    queryKey: ["schools", "subjects", schoolId],
+    queryFn: () => listSchoolSubjects(schoolId!),
+    enabled: !!schoolId && isAdmin,
+  });
   const assignableSubjects: string[] = isAdmin
-    ? [...SCHOOL_SUBJECTS]
+    ? (allSubjects ?? []).map((sb) => sb.name)
     : Array.from(new Set((myAssignments ?? []).map((a) => a.subject)));
 
   usePrivatePageTitle(item?.title ?? "");
@@ -89,12 +95,23 @@ export default function SchoolContentDetail() {
     try {
       await deleteSchoolContentItem(id);
       await queryClient.invalidateQueries({ queryKey: ["schools", "content-by-lesson"] });
-      navigate(`/schools/content/${type}/lesson/${item?.lessonId ?? "none"}`);
+      navigate(`/schools/content/lesson/${item?.lessonId ?? "none"}/${type}`);
     } catch (err: any) {
       toast({ variant: "destructive", title: t.contentSaveError, description: err?.data?.error });
     }
   }
 
+  // ۴۰۴ (آیتم نیست، یا نوعش برایِ این کاربر خاموش است) نباید اسپینرِ بی‌پایان بدهد.
+  if (isError) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Button variant="ghost" size="sm" className="w-fit" onClick={() => navigate(me?.role === "student" ? "/schools/student" : "/schools/content")}>
+          <ArrowRight className="me-1 size-4" /> {t.navLessons}
+        </Button>
+        <div className="flex h-40 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">{t.contentItemNotFound}</div>
+      </div>
+    );
+  }
   if (isLoading || !item) {
     return <Loader2 className="size-6 animate-spin" />;
   }
@@ -105,8 +122,8 @@ export default function SchoolContentDetail() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Button variant="ghost" size="sm" className="w-fit" onClick={() => navigate(`/schools/content/${type}/lesson/${item.lessonId ?? "none"}`)}>
-        <ArrowRight className="me-1 size-4" /> {t.backToLessons}
+      <Button variant="ghost" size="sm" className="w-fit" onClick={() => navigate(`/schools/content/lesson/${item.lessonId ?? "none"}/${type}`)}>
+        <ArrowRight className="me-1 size-4" /> {t.backToLessonList}
       </Button>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

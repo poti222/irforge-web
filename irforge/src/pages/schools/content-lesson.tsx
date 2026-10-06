@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,38 +22,30 @@ import {
   getContentLesson,
   getSchoolMe,
   listSchoolContent,
+  listSchoolSubjects,
   listTeacherSubjects,
-  SCHOOL_CONTENT_TYPES,
-  SCHOOL_SUBJECTS,
   type SchoolContentItem,
   type SchoolContentType,
 } from "@/lib/schools-api";
 import { parseBulkDictionaryText, type ParsedBulkDictionaryLine } from "@/lib/schools-bulk-dictionary";
 import { chunkIntoSections, CONTENT_SECTION_SIZE } from "@/lib/schools-content-sections";
 
-const TYPE_LABEL_KEY: Record<SchoolContentType, string> = {
-  dictionary: "navDictionary",
-  note: "navNotes",
-  book: "navBooks",
-  formula: "navFormulas",
-  poem: "navPoems",
-};
+import { TYPE_LABEL_KEY, TYPE_META, contentHubHref } from "@/lib/schools-subject-style";
+import { ContentBreadcrumb } from "@/components/schools/ContentBreadcrumb";
 
 /**
- * pages/schools/content-lesson.tsx — داخلِ یک «درس» (یا پسودوگروهِ «بدون
- * درس»): گریدِ آیتم‌هایِ محتوایی + فرمِ افزودن. این همان تجربه‌ای است که
- * کاربر خواسته بود: «یه درس بسازی و توش شعر یا لغت اضافه کنی».
+ * pages/schools/content-lesson.tsx — سطحِ چهارمِ «درس‌ها»: آیتم‌هایِ *یک نوع*
+ * (لغت‌نامه/اشعار/فرمول‌ها/جزوه‌ها/کتاب‌ها) داخلِ یک درس، + فرمِ افزودن. مسیر:
+ * `/schools/content/lesson/:lessonId/:type`؛ انتخابِ نوع در صفحه‌یِ قبلی
+ * (content-lesson-hub.tsx) انجام می‌شود، پس این‌جا دیگر پیکرِ انتخابِ نوع/گروه‌بندیِ
+ * چندنوعی نیست (قبلاً همه‌یِ typeها در یک صفحه گروه‌بندی می‌شدند).
  *
- * اگر `lessonId` یک درسِ واقعی باشد، آیتم‌هایِ هر typeی (لغت‌نامه/شعر/جزوه/…)
- * می‌تواند داخلش باشد — پس لیست با *همه‌یِ* typeها خوانده می‌شود (نه فقط
- * typeِ مسیر)، و فرمِ افزودن یک پیکرِ انتخابِ نوع دارد. subject این‌جا
- * دیگر قابلِ‌انتخاب نیست: از خودِ درس می‌آید و فقط به‌صورتِ برچسب نشان
- * داده می‌شود (سرور هم هر مقداری که بفرستیم را نادیده می‌گیرد و از رویِ
- * خودِ lessonId جایگزین می‌کند — ببینید routes/schoolContent.ts).
+ * نوعِ خاموش برایِ دانش‌آموز: سرور لیست را خالی می‌دهد و این صفحه یک پیامِ
+ * «در دسترس نیست» نشان می‌دهد؛ admin/معلمِ همان موضوع می‌توانند وارد شوند (یک
+ * بنرِ «برایِ دانش‌آموزان غیرفعال است» می‌بینند) تا بتوانند محتوا اضافه کنند.
  *
- * اگر `lessonId === "none"` باشد (پسودوگروهِ «بدون درس»)، دقیقاً رفتارِ
- * قدیمیِ این صفحه را برایِ همان یک typeِ مسیر حفظ می‌کنیم — نه چیزِ تازه‌ای،
- * فقط همان فرمِ قبلی (subject قابلِ‌انتخاب، نه از یک درس).
+ * `lessonId === "none"` پسودوگروهِ «بدون درس» است (محتوایِ قدیمی): همان فرمِ
+ * قدیمی با subjectِ قابلِ‌انتخاب، فقط برایِ همان typeِ مسیر.
  *
  * ── افزودنِ دسته‌ای (bulk) ─────────────────────────────────────────────
  * طبقِ گزارشِ مستقیمِ کاربر، فقط برایِ type="dictionary" (هر خط = یک واژه +
@@ -101,14 +94,21 @@ export default function SchoolContentLesson() {
     queryFn: () => listTeacherSubjects(schoolId!, me!.userId),
     enabled: !!schoolId && me?.role === "teacher",
   });
-  const assignableSubjects = isAdmin
-    ? SCHOOL_SUBJECTS
+  // admin: همه‌یِ موضوعاتِ *واقعیِ* مدرسه (school_subjects)؛ معلم: فقط تخصیص‌هایِ خودش.
+  const { data: allSubjects } = useQuery({
+    queryKey: ["schools", "subjects", schoolId],
+    queryFn: () => listSchoolSubjects(schoolId!),
+    enabled: !!schoolId,
+  });
+  const subjectInfo = allSubjects?.find((sb) => sb.name === lesson?.subject);
+  const assignableSubjects: string[] = isAdmin
+    ? (allSubjects ?? []).map((sb) => sb.name)
     : Array.from(new Set((myAssignments ?? []).map((a) => a.subject)));
 
   // گیتِ UI: برایِ درسِ واقعی، معلم فقط اگر subjectِ آن درس را داشته باشد.
   // برایِ «بدون درس»، همان گیتِ قدیمی (معلمِ بدونِ‌تخصیص اصلاً فرم نمی‌بیند).
   const canWriteHere = isGrouped
-    ? isAdmin || (!!lesson && (assignableSubjects as readonly string[]).includes(lesson.subject))
+    ? !!lesson?.canManage
     : isAdmin || assignableSubjects.length > 0;
 
   usePrivatePageTitle(isGrouped ? (lesson?.title ?? "") : t.noLessonGroupLabel);
@@ -117,12 +117,12 @@ export default function SchoolContentLesson() {
     queryKey: ["schools", "content-by-lesson", schoolId, type, lessonId],
     // درسِ واقعی: هر typeی ممکن است داخلش باشد → type فیلتر نمی‌شود.
     // «بدون درس»: فقط همین typeِ مسیر (حفظِ رفتارِ قبلی).
-    queryFn: () => listSchoolContent(isGrouped ? undefined : type, schoolId, undefined, lessonId),
+    // همیشه فقط همین typeِ مسیر (انتخابِ نوع در صفحه‌یِ hubِ درس انجام شده).
+    queryFn: () => listSchoolContent(type, schoolId, undefined, lessonId),
     enabled: !isGrouped || !lessonLoading,
   });
 
   const [showForm, setShowForm] = useState(false);
-  const [itemType, setItemType] = useState<SchoolContentType>(type);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [language, setLanguage] = useState("");
@@ -130,7 +130,7 @@ export default function SchoolContentLesson() {
   const [imageUrl, setImageUrl] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const currentType = isGrouped ? itemType : type;
+  const currentType = type;
   // افزودنِ دسته‌ای فقط برایِ لغت‌نامه (ببینید توضیحِ بالایِ فایل) — و فقط
   // داخلِ یک درسِ واقعی معنا دارد (بدونِ‌درس، همان فرمِ تکیِ قدیمی کافی‌ست).
   const bulkEligible = isGrouped && currentType === "dictionary";
@@ -158,7 +158,7 @@ export default function SchoolContentLesson() {
     setSaving(true);
     try {
       await createSchoolContentItem({
-        type: isGrouped ? itemType : type,
+        type,
         title: title.trim(),
         body,
         language: language.trim() || null,
@@ -169,6 +169,8 @@ export default function SchoolContentLesson() {
       });
       await queryClient.invalidateQueries({ queryKey: ["schools", "content-by-lesson", schoolId, type, lessonId] });
       await queryClient.invalidateQueries({ queryKey: ["schools", "content"] });
+      await queryClient.invalidateQueries({ queryKey: ["schools", "content-lesson"] });
+      await queryClient.invalidateQueries({ queryKey: ["schools", "content-lessons"] });
       setTitle("");
       setBody("");
       setLanguage("");
@@ -194,6 +196,8 @@ export default function SchoolContentLesson() {
       });
       await queryClient.invalidateQueries({ queryKey: ["schools", "content-by-lesson", schoolId, type, lessonId] });
       await queryClient.invalidateQueries({ queryKey: ["schools", "content"] });
+      await queryClient.invalidateQueries({ queryKey: ["schools", "content-lesson"] });
+      await queryClient.invalidateQueries({ queryKey: ["schools", "content-lessons"] });
       setBulkText("");
       setBulkParsed([]);
       setAddMode("single");
@@ -210,25 +214,66 @@ export default function SchoolContentLesson() {
     return <Loader2 className="size-6 animate-spin" />;
   }
 
+  const typeLabel = t[TYPE_LABEL_KEY[type]] ?? "";
+  const typeMeta = TYPE_META[type] ?? TYPE_META.dictionary;
+  const hubHref = `/schools/content/lesson/${lessonId}`;
+  const crumbs = [
+    { label: t.navLessons, href: contentHubHref(me?.role) },
+    ...(isGrouped
+      ? [
+          { label: lesson?.subject ?? "…", href: subjectInfo ? `/schools/content/subject/${subjectInfo.id}` : undefined },
+          { label: lesson?.title ?? "…", href: hubHref },
+        ]
+      : [{ label: t.noLessonGroupLabel, href: hubHref }]),
+    { label: typeLabel },
+  ];
+  // نوعِ خاموش: دانش‌آموز (غیرنویسنده) → «در دسترس نیست»؛ نویسنده → فقط یک بنر (محتوا را می‌بیند/اضافه می‌کند).
+  const typeOffHere = isGrouped && !!lesson && !lesson.effectiveEnabledTypes.includes(type);
+  const typeDisabledForMe = typeOffHere && !lesson!.canManage;
+  const typeDisabledForStudentsBanner = typeOffHere && lesson!.canManage;
+
   return (
     <div className="flex flex-col gap-4">
-      <Link href={`/schools/content/${type}`}>
-        <Button variant="ghost" size="sm" className="w-fit">
-          <ArrowRight className="me-1 size-4" /> {t.backToLessons}
-        </Button>
-      </Link>
+      <ContentBreadcrumb items={crumbs} />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold">{isGrouped ? lesson?.title : t.noLessonGroupLabel}</h1>
-          {isGrouped && lesson && <Badge variant="secondary" className="text-[10px]">{lesson.subject}</Badge>}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className={`flex size-12 items-center justify-center rounded-xl ${typeMeta.color.chip}`}>
+            <typeMeta.Icon className="size-6" />
+          </span>
+          <div>
+            <h1 className="text-xl font-bold">{typeLabel}</h1>
+            <p className="text-xs text-muted-foreground" dir="auto">
+              {isGrouped ? lesson?.title : t.noLessonGroupLabel}
+              {isGrouped && lesson ? ` · ${lesson.subject}` : ""}
+            </p>
+          </div>
         </div>
-        {canWrite && (
-          <Button variant={showForm ? "secondary" : "default"} onClick={() => setShowForm((s) => !s)}>
-            <Plus className="me-1 size-4" /> {isGrouped ? t.addItemToLessonButton : t.addContentButton}
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <Link href={hubHref}>
+            <Button variant="outline" className="min-h-11">
+              <ArrowRight className="me-1 size-4" /> {t.backToLessonHub}
+            </Button>
+          </Link>
+          {canWrite && (
+            <Button className="min-h-11" variant={showForm ? "secondary" : "default"} onClick={() => setShowForm((s) => !s)} data-testid="button-add-item">
+              <Plus className="me-1 size-4" /> {isGrouped ? t.addItemToLessonButton : t.addContentButton}
+            </Button>
+          )}
+        </div>
       </div>
+
+      {typeDisabledForMe && (
+        <div className="flex h-40 items-center justify-center rounded-xl border border-dashed px-4 text-center text-sm text-muted-foreground">
+          {t.typeNotAvailable}
+        </div>
+      )}
+      {typeDisabledForStudentsBanner && (
+        <Alert>
+          <TriangleAlert className="size-4" />
+          <AlertDescription>{t.typeDisabledForStudentsBanner}</AlertDescription>
+        </Alert>
+      )}
 
       {canWrite && showForm && !canWriteHere && (
         <Alert variant="destructive">
@@ -250,21 +295,6 @@ export default function SchoolContentLesson() {
       {canWrite && showForm && canWriteHere && addMode === "single" && (
         <Card>
           <CardContent className="flex flex-col gap-3 pt-4">
-            {isGrouped && (
-              <div className="flex flex-col gap-1.5">
-                <Label>{t.contentTypeField}</Label>
-                <Select value={itemType} onValueChange={(v) => setItemType(v as SchoolContentType)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SCHOOL_CONTENT_TYPES.map((tp) => (
-                      <SelectItem key={tp} value={tp}>{t[TYPE_LABEL_KEY[tp]]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             <div className="flex flex-col gap-1.5">
               <Label>{t.contentTitleField}</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -284,7 +314,7 @@ export default function SchoolContentLesson() {
                 </Select>
               </div>
             )}
-            {(isGrouped ? itemType : type) === "dictionary" && (
+            {type === "dictionary" && (
               <div className="flex flex-col gap-1.5">
                 <Label>{t.contentLanguageField}</Label>
                 <Input value={language} onChange={(e) => setLanguage(e.target.value)} placeholder="fa / en" dir="ltr" />
@@ -293,7 +323,7 @@ export default function SchoolContentLesson() {
             <div className="flex flex-col gap-1.5">
               <Label>
                 {t.contentBodyField}
-                {(isGrouped ? itemType : type) === "formula" && <span className="ms-1 text-xs text-muted-foreground">({t.formulaKatexHint})</span>}
+                {type === "formula" && <span className="ms-1 text-xs text-muted-foreground">({t.formulaKatexHint})</span>}
               </Label>
               <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} dir="auto" />
             </div>
@@ -387,62 +417,50 @@ export default function SchoolContentLesson() {
         </Card>
       )}
 
-      {itemsLoading ? (
-        <Loader2 className="size-6 animate-spin" />
+      {typeDisabledForMe ? null : itemsLoading ? (
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
+        </div>
       ) : !items || items.length === 0 ? (
-        <div className="flex h-32 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
+        <div className="flex h-32 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
           {t.contentEmpty}
         </div>
       ) : (
-        <div className="flex flex-col gap-6">
-          {(isGrouped ? SCHOOL_CONTENT_TYPES : [type]).map((groupType) => {
-            const groupItems = items.filter((i) => i.type === groupType);
-            if (groupItems.length === 0) return null;
-            // «بخش»هایِ ۲۰تایی فقط برایِ لغت‌نامه/شعر (ببینید توضیحِ بالایِ فایل) — جزوه/کتاب/فرمول عادتاً به این حجم نمی‌رسند.
-            const chunkable = groupType === "dictionary" || groupType === "poem";
-            const sections = chunkable ? chunkIntoSections(groupItems) : [groupItems];
-            return (
-              <div key={groupType} className="flex flex-col gap-2">
-                {isGrouped && (
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-[10px]">{t[TYPE_LABEL_KEY[groupType]]}</Badge>
-                    <span className="text-xs text-muted-foreground">({groupItems.length})</span>
-                  </div>
-                )}
-                {sections.length <= 1 ? (
+        (() => {
+          // «بخش»هایِ ۲۰تایی فقط برایِ لغت‌نامه/شعر (ببینید توضیحِ بالایِ فایل) — جزوه/کتاب/فرمول عادتاً به این حجم نمی‌رسند.
+          const chunkable = type === "dictionary" || type === "poem";
+          const sections = chunkable ? chunkIntoSections(items) : [items];
+          return sections.length <= 1 ? (
+            <ContentItemsBlock
+              items={items}
+              type={type}
+              t={t}
+              navigate={navigate}
+              studyHref={isGrouped && chunkable ? `/schools/content/study/${type}/${lessonId}/0` : undefined}
+            />
+          ) : (
+            <Tabs defaultValue="0" className="w-full">
+              <TabsList className="h-auto flex-wrap">
+                {sections.map((_, idx) => (
+                  <TabsTrigger key={idx} value={String(idx)}>
+                    {t.sectionLabel.replace("{n}", String(idx + 1))}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {sections.map((sectionItems, idx) => (
+                <TabsContent key={idx} value={String(idx)} className="mt-2">
                   <ContentItemsBlock
-                    items={groupItems}
-                    type={groupType}
+                    items={sectionItems}
+                    type={type}
                     t={t}
                     navigate={navigate}
-                    studyHref={isGrouped && chunkable ? `/schools/content/study/${groupType}/${lessonId}/0` : undefined}
+                    studyHref={`/schools/content/study/${type}/${lessonId}/${idx}`}
                   />
-                ) : (
-                  <Tabs defaultValue="0" className="w-full">
-                    <TabsList className="h-auto flex-wrap">
-                      {sections.map((_, idx) => (
-                        <TabsTrigger key={idx} value={String(idx)}>
-                          {t.sectionLabel.replace("{n}", String(idx + 1))}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
-                    {sections.map((sectionItems, idx) => (
-                      <TabsContent key={idx} value={String(idx)} className="mt-2">
-                        <ContentItemsBlock
-                          items={sectionItems}
-                          type={groupType}
-                          t={t}
-                          navigate={navigate}
-                          studyHref={`/schools/content/study/${groupType}/${lessonId}/${idx}`}
-                        />
-                      </TabsContent>
-                    ))}
-                  </Tabs>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                </TabsContent>
+              ))}
+            </Tabs>
+          );
+        })()
       )}
     </div>
   );

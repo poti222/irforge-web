@@ -25,7 +25,7 @@ import {
   assignTeacherSubject,
   revokeTeacherSubject,
   SCHOOL_MEMBER_ROLES,
-  SCHOOL_SUBJECTS,
+  listSchoolSubjects,
   type SchoolMemberRole,
 } from "@/lib/schools-api";
 
@@ -57,6 +57,12 @@ export default function SchoolMembersPage() {
   const [linking, setLinking] = useState(false);
 
   // تخصیصِ معلم↔درس (کنترلِ دسترسیِ موضوعی به کتابخانه‌ی محتوا) — فقط admin.
+  // نامِ درس‌ها از موضوعاتِ *واقعیِ* مدرسه (مدیر می‌تواند موضوعِ تازه بسازد) — نه فهرستِ ثابت.
+  const { data: schoolSubjects } = useQuery({
+    queryKey: ["schools", "subjects", schoolId],
+    queryFn: () => listSchoolSubjects(schoolId!),
+    enabled: !!schoolId && isAdmin,
+  });
   const { data: teacherSubjects } = useQuery({
     queryKey: ["schools", "teacher-subjects", schoolId],
     queryFn: () => listTeacherSubjects(schoolId!),
@@ -271,7 +277,7 @@ export default function SchoolMembersPage() {
                     <SelectValue placeholder={t.teacherSubjectsSelectSubject} />
                   </SelectTrigger>
                   <SelectContent>
-                    {SCHOOL_SUBJECTS.map((s) => (
+                    {(schoolSubjects ?? []).map((sb) => sb.name).map((s) => (
                       <SelectItem key={s} value={s}>{s}</SelectItem>
                     ))}
                   </SelectContent>
