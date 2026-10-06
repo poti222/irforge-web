@@ -92,6 +92,8 @@ const SchoolMembersPage = lazy(() => import("@/pages/schools/admin/members"));
 const SchoolClassesPage = lazy(() => import("@/pages/schools/admin/classes"));
 const SchoolClassDetailPage = lazy(() => import("@/pages/schools/admin/class-detail"));
 const SchoolProgramsPage = lazy(() => import("@/pages/schools/admin/programs"));
+const ParentLinkPage = lazy(() => import("@/pages/schools/parent/link"));
+const SchoolTimetablePage = lazy(() => import("@/pages/schools/timetable"));
 const SchoolAnnouncementsPage = lazy(() => import("@/pages/schools/announcements"));
 const TeacherClassesPage = lazy(() => import("@/pages/schools/teacher/classes"));
 const CounselorStudentsPage = lazy(() => import("@/pages/schools/counselor/students"));
@@ -444,6 +446,8 @@ function Router() {
       <Route path="/schools/admin/classes"><SchoolProtectedRoute component={SchoolClassesPage} /></Route>
       <Route path="/schools/admin/classes/:id"><SchoolProtectedRoute component={SchoolClassDetailPage} /></Route>
       <Route path="/schools/admin/programs"><SchoolProtectedRoute component={SchoolProgramsPage} /></Route>
+      <Route path="/schools/parent/link"><SchoolProtectedRoute component={ParentLinkPage} /></Route>
+      <Route path="/schools/timetable"><SchoolProtectedRoute component={SchoolTimetablePage} /></Route>
       <Route path="/schools/announcements"><SchoolProtectedRoute component={SchoolAnnouncementsPage} /></Route>
       <Route path="/schools/teacher/classes"><SchoolProtectedRoute component={TeacherClassesPage} /></Route>
       <Route path="/schools/counselor/students"><SchoolProtectedRoute component={CounselorStudentsPage} /></Route>

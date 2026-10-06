@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, GraduationCap } from "lucide-react";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
+import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
 import { listMyChildren } from "@/lib/schools-api";
 
 /**
@@ -26,7 +28,10 @@ export default function ParentChildrenPage() {
       {isLoading ? (
         <Loader2 className="size-6 animate-spin" />
       ) : !children || children.length === 0 ? (
-        <div className="flex h-32 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">{t.noChildrenLinked}</div>
+        <div className="flex min-h-32 flex-col items-center justify-center gap-3 rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+          <p>{t.noChildrenLinked}</p>
+          <Button asChild size="sm"><Link href="/schools/parent/link">{t.grGoLink}</Link></Button>
+        </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {children.map((c) => (

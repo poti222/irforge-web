@@ -18,6 +18,7 @@ export default function NotificationDetail() {
   const { id } = useParams<{ id: string }>();
   const { lang } = useLanguage();
   const t = useT("notifications");
+  const ts = useT("schools");
   const { markRead } = useNotifications();
   // فلش «برگشت» باید به عقب اشاره کند، که در RTL یعنی راست.
   const BackArrow = isRtlLang(lang) ? ArrowRight : ArrowLeft;
@@ -42,6 +43,8 @@ export default function NotificationDetail() {
     ? ({
         tickets: t.ctaTickets, invoices: t.ctaInvoices, buyBot: t.ctaBuyBot, wallet: t.ctaWallet,
         bots: t.ctaBots, update: t.ctaUpdate, adminPending: t.ctaAdminPending, adminPayments: t.ctaAdminPayments,
+        // کلیدهایِ مدرسه فقط در namespaceِ schools (فا/انگلیسی) هستند.
+        schoolGuardian: (ts as any).grNotifCta, schoolGuardianParent: (ts as any).grNotifCtaParent,
       }[cta.key])
     : null;
 

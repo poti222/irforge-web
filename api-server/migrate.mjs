@@ -1475,6 +1475,73 @@ CREATE TABLE IF NOT EXISTS uploaded_images (
 );
 CREATE INDEX IF NOT EXISTS idx_uploaded_images_user ON uploaded_images(uploaded_by_user_id);
 
+-- ─── برنامه‌یِ هفتگیِ کلاس (زنگ‌ها)؛ مایگریشنِ ۰۰۵۲ همین را تکرار می‌کند ──────────
+CREATE TABLE IF NOT EXISTS school_timetable_slots (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL,
+  class_id TEXT NOT NULL,
+  day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+  start_time TEXT NOT NULL,
+  end_time TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  teacher_user_id TEXT,
+  note TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_timetable_class_day ON school_timetable_slots(class_id, day_of_week);
+CREATE INDEX IF NOT EXISTS idx_school_timetable_school ON school_timetable_slots(school_id);
+CREATE INDEX IF NOT EXISTS idx_school_timetable_teacher ON school_timetable_slots(teacher_user_id);
+
+-- ─── درخواستِ اتصالِ والد با شماره‌یِ دانش‌آموز؛ مایگریشنِ ۰۰۵۳ همین را تکرار می‌کند ───
+CREATE TABLE IF NOT EXISTS school_guardian_requests (
+  id TEXT PRIMARY KEY,
+  submission_id TEXT NOT NULL,
+  school_id TEXT NOT NULL,
+  parent_user_id TEXT NOT NULL,
+  student_member_id TEXT,
+  normalized_phone TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  decided_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_school_guardian_requests_parent ON school_guardian_requests(parent_user_id, school_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_school_guardian_requests_student ON school_guardian_requests(student_member_id, status);
+
+-- ─── کیف‌پولِ مدرسه (جدا از wallets/باتِ پلتفرم)؛ مایگریشنِ ۰۰۵۴ همین را تکرار می‌کند ───
+CREATE TABLE IF NOT EXISTS school_wallets (
+  school_id TEXT PRIMARY KEY,
+  balance INTEGER NOT NULL DEFAULT 0 CHECK (balance >= 0),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS school_wallet_transactions (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  balance_after INTEGER NOT NULL,
+  description TEXT NOT NULL,
+  ref_id TEXT,
+  created_by_user_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_wallet_txn_school ON school_wallet_transactions(school_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS school_wallet_topup_requests (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL,
+  requested_by_user_id TEXT NOT NULL,
+  amount_rial INTEGER NOT NULL CHECK (amount_rial > 0),
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  decided_by_user_id TEXT,
+  decision_note TEXT,
+  txn_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  decided_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_school_wallet_topup_school ON school_wallet_topup_requests(school_id, status);
+
 -- ─── «درس‌ها»: موضوعاتِ مدیریت‌شده‌یِ هر مدرسه + روشن/خاموشِ انواعِ محتوا ─────
 -- مایگریشنِ ۰۰۴۷ در lib/db/migrations همین بلوک را برای drizzle-kit تکرار می‌کند.
 -- بدونِ FK رویِ schools(id) (مثلِ school_content_lessons.subject، ارجاع‌ها با نام‌اند):
