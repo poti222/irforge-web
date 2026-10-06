@@ -21,7 +21,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
         channel = MethodChannel(engine.dartExecutor.binaryMessenger, "ir.irforge.payagent/native")
-        UpdateWorker.schedule(this)
+        runCatching { UpdateWorker.schedule(this) }
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "getConfig" -> result.success(Store.config(this)?.let { mapOf("urls" to it.urls, "secret" to it.secret, "senders" to it.senders) })

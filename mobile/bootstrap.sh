@@ -29,6 +29,10 @@ for name in ("android/app/build.gradle.kts", "android/app/build.gradle"):
     print("patched", name)
 PY
 
+# اگر namespace/applicationId عوض نشده باشد، اپ هنگامِ اجرا ClassNotFound می‌دهد؛ همین‌جا بشکن.
+grep -rq 'ir.irforge.payagent' android/app/build.gradle* || { echo "❌ namespace patch نشد"; exit 1; }
+grep -q 'namespace = "ir.irforge.payagent"\|namespace "ir.irforge.payagent"' android/app/build.gradle* || { echo "❌ namespace نادرست"; exit 1; }
+
 # امضای release با keystore ثابت (فقط اگر android/key.properties موجود باشد — CI آن را از secrets می‌سازد).
 # بدونِ آن، بیلد با کلیدِ debug امضا می‌شود و آپدیتِ داخلِ اپ روی نصب‌های قبلی کار نمی‌کند.
 python3 - <<'PY'
