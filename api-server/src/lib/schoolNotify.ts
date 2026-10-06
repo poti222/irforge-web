@@ -31,6 +31,8 @@ export type SchoolNotifyInput = {
   title: string;
   body: string;
   severity?: "info" | "warning" | "critical";
+  /** ارجاعِ اختیاری به رکوردِ مبدأ (مثلاً id اخطار) تا بعداً بشود اعلانِ سایتِ مربوط را پاک کرد. */
+  refId?: string;
 };
 
 /** ایموجیِ ابتدایِ پیامِ تلگرامی — همان الگویِ notifyTelegram.ts، ساده‌تر چون kind های مدرسه‌ای همه اطلاع‌رسانی‌اند نه موفق/ناموفق. */
@@ -57,6 +59,7 @@ async function deliverSiteNotifications(input: SchoolNotifyInput): Promise<void>
         severity: input.severity ?? "info",
         title: input.title,
         message: input.body,
+        refId: input.refId ?? null,
         read: false,
       })),
     );

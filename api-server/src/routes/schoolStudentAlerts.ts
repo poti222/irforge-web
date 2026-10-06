@@ -6,8 +6,8 @@
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, schoolStudentAlertsTable, schoolMembersTable, schoolGuardianshipsTable, usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { db, schoolStudentAlertsTable, schoolMembersTable, schoolGuardianshipsTable, usersTable, notificationsTable } from "@workspace/db";
+import { eq, and, or, inArray, isNull } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool } from "../lib/schoolAuth";
@@ -18,8 +18,22 @@ const router = Router();
 
 const SEVERITIES = ["notice", "warning", "serious"] as const;
 
-function formatAlert(a: typeof schoolStudentAlertsTable.$inferSelect) {
+/**
+ * قالبِ همه‌یِ پاسخ‌هایِ این فایل. اخطارِ حذف‌شده فقط یک «سنگِ قبر» است: `{id, deleted:true, deletedAt}`
+ * (برایِ staff‌ها `studentMemberId` هم تا بدانند مالِ کدام دانش‌آموز بوده). title/body/severity/صادرکننده *هرگز*
+ * برنمی‌گردد — این تنها نقطه‌یِ سریال‌سازی است، پس نشتِ متنِ حذف‌شده از هر فهرستی (دانش‌آموز/والد/مدیر) همین‌جا بسته می‌شود.
+ */
+function formatAlert(a: typeof schoolStudentAlertsTable.$inferSelect, audience: "staff" | "private" = "private") {
+  if (a.deletedAt) {
+    return {
+      id: a.id,
+      deleted: true as const,
+      deletedAt: a.deletedAt.toISOString(),
+      ...(audience === "staff" ? { studentMemberId: a.studentMemberId } : {}),
+    };
+  }
   return {
+    deleted: false as const,
     id: a.id,
     schoolId: a.schoolId,
     studentMemberId: a.studentMemberId,
@@ -90,6 +104,7 @@ export async function issueSchoolStudentAlert(params: {
       severity: row.severity === "serious" ? "critical" : row.severity === "warning" ? "warning" : "info",
       title: row.title,
       body: row.body,
+      refId: row.id,
     });
   }
 
@@ -117,7 +132,7 @@ router.post("/schools/:schoolId/alerts", requireAuth, async (req: any, res) => {
       title: title.trim(),
       body: body.trim(),
     });
-    res.status(201).json(formatAlert(row));
+    res.status(201).json(formatAlert(row, "staff"));
   } catch (err) {
     logger.error({ err }, "Create student alert error");
     res.status(500).json({ error: "Internal server error" });
@@ -137,7 +152,7 @@ router.get("/schools/:schoolId/alerts", requireAuth, async (req: any, res) => {
     if (studentMemberId) conditions.push(eq(schoolStudentAlertsTable.studentMemberId, studentMemberId));
     const rows = await db.select().from(schoolStudentAlertsTable).where(and(...conditions));
     rows.sort((a: typeof rows[number], b: typeof rows[number]) => b.createdAt.getTime() - a.createdAt.getTime());
-    res.json(rows.map(formatAlert));
+    res.json(rows.map((r: typeof rows[number]) => formatAlert(r, "staff")));
   } catch (err) {
     logger.error({ err }, "List school alerts error");
     res.status(500).json({ error: "Internal server error" });
@@ -155,7 +170,7 @@ router.get("/schools/:schoolId/alerts/my", requireAuth, async (req: any, res) =>
     const rows = await db.select().from(schoolStudentAlertsTable)
       .where(and(eq(schoolStudentAlertsTable.schoolId, req.params.schoolId), eq(schoolStudentAlertsTable.studentMemberId, member.id)));
     rows.sort((a: typeof rows[number], b: typeof rows[number]) => b.createdAt.getTime() - a.createdAt.getTime());
-    res.json(rows.map(formatAlert));
+    res.json(rows.map((r: typeof rows[number]) => formatAlert(r, "private")));
   } catch (err) {
     logger.error({ err }, "Get my alerts error");
     res.status(500).json({ error: "Internal server error" });
@@ -172,9 +187,74 @@ router.get("/schools/:schoolId/alerts/child/:studentMemberId", requireAuth, asyn
     const rows = await db.select().from(schoolStudentAlertsTable)
       .where(and(eq(schoolStudentAlertsTable.schoolId, req.params.schoolId), eq(schoolStudentAlertsTable.studentMemberId, req.params.studentMemberId)));
     rows.sort((a: typeof rows[number], b: typeof rows[number]) => b.createdAt.getTime() - a.createdAt.getTime());
-    res.json(rows.map(formatAlert));
+    res.json(rows.map((r: typeof rows[number]) => formatAlert(r, "private")));
   } catch (err) {
     logger.error({ err }, "Get child alerts error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * DELETE /api/schools/:schoolId/alerts/:alertId — حذفِ نرم.
+ * چه کسی: admin (و سوپرادمین/چندمدرسه‌ایِ همان مدرسه) و deputy_discipline (صاحبِ حوزه‌یِ انضباط) هر اخطاری را؛
+ * deputy «ساده» فقط اخطاری را که خودش صادر کرده (او می‌تواند صادر کند ولی حوزه‌یِ انضباط را مدیریت نمی‌کند).
+ * اثر: title/body دیگر هیچ‌جا نمی‌آید، فهرست‌ها «این اخطار حذف شد» نشان می‌دهند، اعلانِ سایتِ همان اخطار (زنگوله‌یِ
+ * دانش‌آموز/والد) پاک می‌شود (پیامِ تلگرامِ ازپیش‌ارسال‌شده را نمی‌شود پس گرفت)، و در لاگِ مدرسه ثبت می‌شود.
+ */
+router.delete("/schools/:schoolId/alerts/:alertId", requireAuth, async (req: any, res) => {
+  try {
+    const { schoolId, alertId } = req.params;
+    const access = await canAccessSchool(req.userId, schoolId, ["admin", "deputy", "deputy_discipline"]);
+    if (!access.ok) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const [row] = await db.select().from(schoolStudentAlertsTable)
+      .where(and(eq(schoolStudentAlertsTable.id, alertId), eq(schoolStudentAlertsTable.schoolId, schoolId))).limit(1);
+    if (!row) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const isAdmin = (await canAccessSchool(req.userId, schoolId, ["admin"])).ok;
+    const isDiscipline = access.member?.schoolId === schoolId && access.member?.role === "deputy_discipline";
+    if (!isAdmin && !isDiscipline && row.issuedByUserId !== req.userId) {
+      res.status(403).json({ error: "Only the issuer, the discipline deputy or an admin can delete this alert" });
+      return;
+    }
+    if (row.deletedAt) {
+      res.json({ ok: true, alreadyDeleted: true });
+      return;
+    }
+    const now = new Date();
+    const [studentMember] = await db.select().from(schoolMembersTable).where(eq(schoolMembersTable.id, row.studentMemberId)).limit(1);
+    const guardians = await db.select().from(schoolGuardianshipsTable).where(eq(schoolGuardianshipsTable.studentMemberId, row.studentMemberId));
+    const recipientIds = [...(studentMember ? [studentMember.userId] : []), ...guardians.map((g: typeof guardians[number]) => g.parentUserId)];
+    await db.transaction(async (tx: any) => {
+      await tx.update(schoolStudentAlertsTable).set({ deletedAt: now, deletedByUserId: req.userId })
+        .where(and(eq(schoolStudentAlertsTable.id, alertId), isNull(schoolStudentAlertsTable.deletedAt)));
+      // اعلانِ سایت: با refId (اخطارهایِ جدید)، و برایِ اعلان‌هایِ قدیمیِ بدونِ refId با تطابقِ گیرنده+عنوان+متن.
+      const legacy = recipientIds.length > 0
+        ? and(
+            eq(notificationsTable.type, "school_student_alert"),
+            eq(notificationsTable.schoolId, schoolId),
+            isNull(notificationsTable.refId),
+            inArray(notificationsTable.userId, recipientIds),
+            eq(notificationsTable.title, row.title),
+            eq(notificationsTable.message, row.body),
+          )
+        : undefined;
+      await tx.delete(notificationsTable).where(
+        legacy
+          ? or(and(eq(notificationsTable.type, "school_student_alert"), eq(notificationsTable.refId, alertId)), legacy)
+          : and(eq(notificationsTable.type, "school_student_alert"), eq(notificationsTable.refId, alertId)),
+      );
+    });
+    // لاگ: بدونِ متنِ اخطار (فقط دانش‌آموز + شناسه) — ردپای «چه کسی حذف کرد» بدونِ نشتِ دوباره‌یِ متن.
+    const [u] = studentMember ? await db.select().from(usersTable).where(eq(usersTable.id, studentMember.userId)).limit(1) : [];
+    await logSchoolAudit(schoolId, req.userId, "alert.deleted", `${u?.name ?? u?.email ?? row.studentMemberId} (alert ${alertId})`);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "Delete student alert error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

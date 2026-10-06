@@ -7,13 +7,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ShieldAlert, Plus } from "lucide-react";
+import { Loader2, ShieldAlert, Plus, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
 import { useViewedSchoolId } from "@/hooks/use-viewed-school";
 import {
-  getSchoolMe, listSchoolMembers, listSchoolAlerts, createStudentAlert,
+  getSchoolMe, listSchoolMembers, listSchoolAlerts, createStudentAlert, deleteStudentAlert,
   ALERT_SEVERITIES, type AlertSeverity, type StudentAlert,
 } from "@/lib/schools-api";
 
@@ -54,6 +58,23 @@ export default function SchoolAlertsPage() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    if (!schoolId || !deleteId) return;
+    setDeleting(true);
+    try {
+      await deleteStudentAlert(schoolId, deleteId);
+      await queryClient.invalidateQueries({ queryKey: ["schools", "alerts", schoolId] });
+      toast({ title: t.alertDeleteSuccess });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: t.alertDeleteError, description: err?.data?.error });
+    } finally {
+      setDeleting(false);
+      setDeleteId(null);
+    }
+  }
 
   async function handleCreate() {
     if (!schoolId || !studentMemberId || !title.trim() || !body.trim()) return;
@@ -133,11 +154,17 @@ export default function SchoolAlertsPage() {
           ) : (
             alerts.map((a) => {
               const person = students.find((s) => s.id === a.studentMemberId);
+              if (a.deleted) return <DeletedAlertLine key={a.id} alert={a} who={person?.userName ?? person?.userEmail} />;
               return (
-                <div key={a.id} className="rounded-md border p-3 text-sm">
-                  <div className="flex items-center justify-between">
+                <div key={a.id} className="rounded-md border p-3 text-sm" data-testid={`alert-${a.id}`}>
+                  <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">{a.title}</span>
-                    <Badge variant={SEVERITY_VARIANT[a.severity]}>{t[`alertSeverity_${a.severity}`]}</Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge variant={SEVERITY_VARIANT[a.severity]}>{t[`alertSeverity_${a.severity}`]}</Badge>
+                      <Button size="icon" variant="ghost" className="size-8" aria-label={t.alertDeleteButton} data-testid={`button-delete-alert-${a.id}`} onClick={() => setDeleteId(a.id)}>
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{person?.userName ?? person?.userEmail ?? a.studentMemberId}</p>
                   <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{a.body}</p>
@@ -148,6 +175,30 @@ export default function SchoolAlertsPage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.alertDeleteConfirmTitle}</AlertDialogTitle>
+            <AlertDialogDescription>{t.alertDeleteConfirmBody}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.cancelButton}</AlertDialogCancel>
+            <AlertDialogAction disabled={deleting} onClick={(e) => { e.preventDefault(); void handleDelete(); }}>{t.alertDeleteButton}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+/** سنگِ قبرِ اخطارِ حذف‌شده: فقط پیامِ «حذف شد» + تاریخ؛ هیچ متنی از اخطار نیست. */
+function DeletedAlertLine({ alert, who }: { alert: { id: string; deletedAt: string }; who?: string | null }) {
+  const t = useT("schools") as any;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed bg-muted/40 p-3 text-sm italic text-muted-foreground" data-testid={`alert-deleted-${alert.id}`}>
+      <span>{t.alertDeletedTombstone}{who ? ` — ${who}` : ""}</span>
+      <span className="text-xs not-italic" dir="auto">{t.alertDeletedOn} {new Date(alert.deletedAt).toLocaleDateString("fa-IR")}</span>
     </div>
   );
 }
@@ -164,7 +215,7 @@ export function AlertsFeed({ alerts, isLoading }: { alerts: StudentAlert[] | und
         ) : !alerts || alerts.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t.alertsEmpty}</p>
         ) : (
-          alerts.map((a) => (
+          alerts.map((a) => a.deleted ? <DeletedAlertLine key={a.id} alert={a} /> : (
             <div key={a.id} className="rounded-md border p-3 text-sm">
               <div className="flex items-center justify-between">
                 <span className="font-medium">{a.title}</span>

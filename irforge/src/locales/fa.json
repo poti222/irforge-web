@@ -4477,7 +4477,15 @@
     "auditAction_admin.granted": "اعطایِ مدیریت",
     "auditAction_invite_code.created": "ساختِ کدِ معرف",
     "auditAction_invite_code.toggled": "تغییرِ وضعیتِ کدِ معرف",
-    "auditAction_alert.issued": "صدورِ اخطار"
+    "auditAction_alert.issued": "صدورِ اخطار",
+    "auditAction_alert.deleted": "حذفِ اخطار",
+    "alertDeletedTombstone": "این اخطار حذف شد",
+    "alertDeletedOn": "حذف‌شده در",
+    "alertDeleteButton": "حذفِ اخطار",
+    "alertDeleteConfirmTitle": "این اخطار حذف شود؟",
+    "alertDeleteConfirmBody": "متنِ اخطار برای دانش‌آموز، والدین و مدیران پنهان می‌شود و به‌جایش فقط «این اخطار حذف شد» با تاریخ می‌ماند. این کار قابل بازگشت نیست.",
+    "alertDeleteSuccess": "اخطار حذف شد",
+    "alertDeleteError": "حذفِ اخطار ممکن نشد"
   },
   "about": {
     "breadcrumbLabel": "مسیر صفحه",

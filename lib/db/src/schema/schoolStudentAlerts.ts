@@ -25,6 +25,12 @@ export const schoolStudentAlertsTable = pgTable("school_student_alerts", {
   title: text("title").notNull(),
   body: text("body").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /**
+   * حذفِ نرم: ردیف می‌ماند (برایِ ردپا و برایِ این‌که فهرست‌ها «این اخطار حذف شد» را نشان بدهند، نه ناپدیدشدنِ
+   * بی‌صدا)، ولی title/body هرگز دیگر در هیچ پاسخی نمی‌آید (routes/schoolStudentAlerts.ts::formatAlert).
+   */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedByUserId: text("deleted_by_user_id"),
 });
 
 export const insertSchoolStudentAlertSchema = createInsertSchema(schoolStudentAlertsTable).omit({ createdAt: true });

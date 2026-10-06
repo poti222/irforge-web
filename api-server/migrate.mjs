@@ -1299,6 +1299,9 @@ CREATE TABLE IF NOT EXISTS school_student_alerts (
 );
 CREATE INDEX IF NOT EXISTS idx_school_student_alerts_student ON school_student_alerts(student_member_id);
 CREATE INDEX IF NOT EXISTS idx_school_student_alerts_school ON school_student_alerts(school_id);
+-- حذفِ نرمِ اخطار (مایگریشنِ ۰۰۵۰ در lib/db/migrations همین را تکرار می‌کند)
+ALTER TABLE school_student_alerts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE school_student_alerts ADD COLUMN IF NOT EXISTS deleted_by_user_id TEXT;
 
 ALTER TABLE school_exam_attempts ADD COLUMN IF NOT EXISTS late_submission BOOLEAN NOT NULL DEFAULT FALSE;
 

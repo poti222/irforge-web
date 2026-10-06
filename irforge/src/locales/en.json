@@ -4477,7 +4477,15 @@
     "auditAction_admin.granted": "Admin granted",
     "auditAction_invite_code.created": "Invite code created",
     "auditAction_invite_code.toggled": "Invite code status changed",
-    "auditAction_alert.issued": "Alert issued"
+    "auditAction_alert.issued": "Alert issued",
+    "auditAction_alert.deleted": "Alert deleted",
+    "alertDeletedTombstone": "This alert was deleted",
+    "alertDeletedOn": "Deleted on",
+    "alertDeleteButton": "Delete alert",
+    "alertDeleteConfirmTitle": "Delete this alert?",
+    "alertDeleteConfirmBody": "The alert text will be hidden from the student, parents and staff; only “This alert was deleted” with the date remains. This cannot be undone.",
+    "alertDeleteSuccess": "Alert deleted",
+    "alertDeleteError": "Couldn't delete the alert"
   },
   "about": {
     "breadcrumbLabel": "Breadcrumb",

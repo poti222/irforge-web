@@ -1103,7 +1103,9 @@ export function childGradebookExportUrl(schoolId: string, studentMemberId: strin
 export const ALERT_SEVERITIES = ["notice", "warning", "serious"] as const;
 export type AlertSeverity = (typeof ALERT_SEVERITIES)[number];
 
-export interface StudentAlert {
+/** اخطارِ زنده. */
+export interface LiveStudentAlert {
+  deleted: false;
   id: string;
   schoolId: string;
   studentMemberId: string;
@@ -1112,6 +1114,18 @@ export interface StudentAlert {
   title: string;
   body: string;
   createdAt: string;
+}
+/** سنگِ قبرِ اخطارِ حذف‌شده — هیچ متنی ندارد (برایِ staff‌ها `studentMemberId` هم هست). */
+export interface DeletedStudentAlert {
+  deleted: true;
+  id: string;
+  deletedAt: string;
+  studentMemberId?: string;
+}
+export type StudentAlert = LiveStudentAlert | DeletedStudentAlert;
+
+export function deleteStudentAlert(schoolId: string, alertId: string) {
+  return customFetch<{ ok: true }>(`/api/schools/${schoolId}/alerts/${alertId}`, { method: "DELETE" });
 }
 
 export function createStudentAlert(schoolId: string, input: { studentMemberId: string; severity: AlertSeverity; title: string; body: string }) {
