@@ -4,9 +4,9 @@ build/
 .packages
 pubspec.lock
 # تولیدشده توسط bootstrap.sh (flutter create)؛ منبع حقیقت: overlay/
-android/
-ios/
+/android/
+/ios/
 .metadata
 *.iml
-web/
+/web/
 .idea/
