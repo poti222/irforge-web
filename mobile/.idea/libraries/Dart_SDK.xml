@@ -1,0 +1,19 @@
+<component name="libraryTable">
+  <library name="Dart SDK">
+    <CLASSES>
+      <root url="file:///tmp/claude-0/-home-user-irforge-web/580bd70f-5fe4-5068-852a-5d2c4cb236d4/scratchpad/sdk/flutter/bin/cache/dart-sdk/lib/async" />
+      <root url="file:///tmp/claude-0/-home-user-irforge-web/580bd70f-5fe4-5068-852a-5d2c4cb236d4/scratchpad/sdk/flutter/bin/cache/dart-sdk/lib/collection" />
+      <root url="file:///tmp/claude-0/-home-user-irforge-web/580bd70f-5fe4-5068-852a-5d2c4cb236d4/scratchpad/sdk/flutter/bin/cache/dart-sdk/lib/convert" />
+      <root url="file:///tmp/claude-0/-home-user-irforge-web/580bd70f-5fe4-5068-852a-5d2c4cb236d4/scratchpad/sdk/flutter/bin/cache/dart-sdk/lib/core" />
+      <root url="file:///tmp/claude-0/-home-user-irforge-web/580bd70f-5fe4-5068-852a-5d2c4cb236d4/scratchpad/sdk/flutter/bin/cache/dart-sdk/lib/developer" />
+      <root url="file:///tmp/claude-0/-home-user-irforge-web/580bd70f-5fe4-5068-852a-5d2c4cb236d4/scratchpad/sdk/flutter/bin/cache/dart-sdk/lib/html" />
+      <root url="file:///tmp/claude-0/-home-user-irforge-web/580bd70f-5fe4-5068-852a-5d2c4cb236d4/scratchpad/sdk/flutter/bin/cache/dart-sdk/lib/io" />
+      <root url="file:///tmp/claude-0/-home-user-irforge-web/580bd70f-5fe4-5068-852a-5d2c4cb236d4/scratchpad/sdk/flutter/bin/cache/dart-sdk/lib/isolate" />
+      <root url="file:///tmp/claude-0/-home-user-irforge-web/580bd70f-5fe4-5068-852a-5d2c4cb236d4/scratchpad/sdk/flutter/bin/cache/dart-sdk/lib/math" />
+      <root url="file:///tmp/claude-0/-home-user-irforge-web/580bd70f-5fe4-5068-852a-5d2c4cb236d4/scratchpad/sdk/flutter/bin/cache/dart-sdk/lib/mirrors" />
+      <root url="file:///tmp/claude-0/-home-user-irforge-web/580bd70f-5fe4-5068-852a-5d2c4cb236d4/scratchpad/sdk/flutter/bin/cache/dart-sdk/lib/typed_data" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

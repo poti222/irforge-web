@@ -45,4 +45,5 @@ PY
 fi
 
 flutter pub get
+dart run flutter_launcher_icons
 echo "✅ آماده. اجرا:  flutter run   |  APK:  flutter build apk --release   |  iOS:  flutter build ipa"

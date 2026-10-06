@@ -18,6 +18,18 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon.png
+
+# آیکن را برای همه‌ی تراکم‌ها (mdpi…xxxhdpi، iOS) خودکار تولید می‌کند — bootstrap.sh صدایش می‌زند.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/icon.png
+  adaptive_icon_background: "#F2701C"
+  adaptive_icon_foreground: assets/icon_fg.png
+  remove_alpha_ios: true

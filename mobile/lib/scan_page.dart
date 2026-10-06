@@ -34,7 +34,14 @@ class _ScanPageState extends State<ScanPage> {
       body: Stack(children: [
         MobileScanner(onDetect: _onDetect),
         if (_err != null)
-          Positioned(bottom: 32, left: 16, right: 16, child: Card(child: Padding(padding: const EdgeInsets.all(12), child: Text(_err!, textAlign: TextAlign.center)))),
+          Positioned(
+              bottom: 32,
+              left: 16,
+              right: 16,
+              child: Card(
+                  child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(_err!, textAlign: TextAlign.center)))),
       ]),
     );
   }

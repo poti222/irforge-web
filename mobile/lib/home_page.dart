@@ -27,7 +27,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _refresh();
+    _refresh().then((_) => _askAllPermissions());
     _poll = Timer.periodic(const Duration(seconds: 5), (_) => _refresh());
   }
 
@@ -46,31 +46,77 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _refresh() async {
     final c = await Native.loadConfig();
     final s = await Native.status();
-    if (mounted) setState(() { _cfg = c; _st = s; });
+    if (mounted)
+      setState(() {
+        _cfg = c;
+        _st = s;
+      });
+  }
+
+  /// همان اولِ کار، همه‌ی دسترسی‌های لازم را یک‌جا می‌خواهد: پیامک، اعلان، دوربین (اسکنِ QR) و معافیت از باتری.
+  Future<void> _askAllPermissions() async {
+    if (!Native.isAndroid ||
+        !mounted ||
+        (_st.smsPermission && _st.batteryExempt)) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('دسترسی‌های لازم'),
+        content: const Text(
+          'برای اینکه پیامک بانک همیشه و خودکار به سایت برسد، این دسترسی‌ها لازم است:\n\n'
+          '• دریافت پیامک — فقط پیامک بانک مجاز خوانده می‌شود\n'
+          '• اعلان — هشدار وقتی کلید یا اتصال مشکل دارد\n'
+          '• دوربین — فقط برای اسکن QR پنل\n'
+          '• معافیت از بهینه‌سازی باتری — تا اندروید اپ را در پس‌زمینه نبندد',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('بعداً')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('اجازه می‌دهم')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (!_st.smsPermission) await Native.requestSmsPermission();
+    if (!_st.batteryExempt) await Native.requestBatteryExemption();
+    await _refresh();
   }
 
   Future<void> _applyConfig(AgentConfig c) async {
     await Native.saveConfig(c);
     await _refresh();
-    if (Native.isAndroid && !_st.smsPermission) await Native.requestSmsPermission();
+    if (Native.isAndroid && !_st.smsPermission)
+      await Native.requestSmsPermission();
     await _run(() => Native.testConnection(c));
   }
 
   Future<void> _run(Future<TestResult> Function() f) async {
-    setState(() { _busy = true; _msg = null; });
+    setState(() {
+      _busy = true;
+      _msg = null;
+    });
     final r = await f();
     if (!mounted) return;
-    setState(() { _busy = false; _msg = r.message; });
+    setState(() {
+      _busy = false;
+      _msg = r.message;
+    });
     await _refresh();
   }
 
   Future<void> _scan() async {
-    final c = await Navigator.of(context).push<AgentConfig>(MaterialPageRoute(builder: (_) => const ScanPage()));
+    final c = await Navigator.of(context)
+        .push<AgentConfig>(MaterialPageRoute(builder: (_) => const ScanPage()));
     if (c != null) await _applyConfig(c);
   }
 
   Future<void> _manual() async {
-    final c = await Navigator.of(context).push<AgentConfig>(MaterialPageRoute(builder: (_) => ManualPage(initial: _cfg)));
+    final c = await Navigator.of(context).push<AgentConfig>(
+        MaterialPageRoute(builder: (_) => ManualPage(initial: _cfg)));
     if (c != null) await _applyConfig(c);
   }
 
@@ -78,7 +124,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final c = AgentConfig.parseLink(data?.text ?? '');
     if (c == null) {
-      setState(() => _msg = 'لینک معتبر در کلیپ‌بورد نیست. لینک راه‌اندازی را از پنل کپی کنید.');
+      setState(() => _msg =
+          'لینک معتبر در کلیپ‌بورد نیست. لینک راه‌اندازی را از پنل کپی کنید.');
       return;
     }
     await _applyConfig(c);
@@ -89,47 +136,79 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final cfg = _cfg;
     return Scaffold(
       appBar: AppBar(title: const Text('IrForge Pay Agent')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        _statusCard(cfg),
-        const SizedBox(height: 16),
-        FilledButton.icon(onPressed: _busy ? null : _scan, icon: const Icon(Icons.qr_code_scanner), label: const Text('اتصال با اسکن QR')),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(onPressed: _busy ? null : _paste, icon: const Icon(Icons.content_paste), label: const Text('اتصال با لینک (از کلیپ‌بورد)')),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(onPressed: _busy ? null : _manual, icon: const Icon(Icons.edit), label: const Text('ورود / ویرایش دستی')),
-        if (cfg != null) ...[
-          const Divider(height: 32),
-          FilledButton.tonalIcon(
-            onPressed: _busy ? null : () => _run(() => Native.testConnection(cfg)),
-            icon: const Icon(Icons.wifi_tethering),
-            label: const Text('تست اتصال'),
-          ),
-          if (Native.isAndroid) ...[
-            const SizedBox(height: 8),
-            FilledButton.tonalIcon(
-              onPressed: _busy ? null : () async { await Native.flushNow(); await _refresh(); setState(() => _msg = 'ارسال صف شروع شد'); },
-              icon: const Icon(Icons.send),
-              label: const Text('ارسال مجدد صف'),
-            ),
-          ],
-        ],
-        if (_msg != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_msg!, textAlign: TextAlign.center)),
-        if (Native.isAndroid) ..._androidChecklist(),
-        if (!Native.isAndroid) ...[
-          const Divider(height: 32),
-          FilledButton.icon(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => IosGuidePage(config: cfg))),
-            icon: const Icon(Icons.phone_iphone),
-            label: const Text('راهنمای راه‌اندازی روی آیفون'),
-          ),
-        ],
-        const SizedBox(height: 24),
-        if (cfg != null)
-          TextButton(
-            onPressed: () async { await Native.clearConfig(); await _refresh(); },
-            child: const Text('حذف تنظیمات این گوشی'),
-          ),
-      ]),
+      body: SafeArea(
+          child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                    maxWidth: 560), // گوشی/تبلت/وب: عرضِ محتوا ثابتِ خوانا
+                child: ListView(padding: const EdgeInsets.all(16), children: [
+                  _statusCard(cfg),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                      onPressed: _busy ? null : _scan,
+                      icon: const Icon(Icons.qr_code_scanner),
+                      label: const Text('اتصال با اسکن QR')),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                      onPressed: _busy ? null : _paste,
+                      icon: const Icon(Icons.content_paste),
+                      label: const Text('اتصال با لینک (از کلیپ‌بورد)')),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                      onPressed: _busy ? null : _manual,
+                      icon: const Icon(Icons.edit),
+                      label: const Text('ورود / ویرایش دستی')),
+                  if (cfg != null) ...[
+                    const Divider(height: 32),
+                    FilledButton.tonalIcon(
+                      onPressed: _busy
+                          ? null
+                          : () => _run(() => Native.testConnection(cfg)),
+                      icon: const Icon(Icons.wifi_tethering),
+                      label: const Text('تست اتصال'),
+                    ),
+                    if (Native.isAndroid) ...[
+                      const SizedBox(height: 8),
+                      FilledButton.tonalIcon(
+                        onPressed: _busy
+                            ? null
+                            : () async {
+                                await Native.flushNow();
+                                await _refresh();
+                                setState(() => _msg = 'ارسال صف شروع شد');
+                              },
+                        icon: const Icon(Icons.send),
+                        label: const Text('ارسال مجدد صف'),
+                      ),
+                    ],
+                  ],
+                  if (_msg != null)
+                    Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(_msg!, textAlign: TextAlign.center)),
+                  if (Native.isAndroid) ..._androidChecklist(),
+                  if (!Native.isAndroid) ...[
+                    const Divider(height: 32),
+                    FilledButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => IosGuidePage(config: cfg))),
+                      icon: const Icon(Icons.phone_iphone),
+                      label: const Text('راهنمای راه‌اندازی روی آیفون'),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  if (cfg != null)
+                    TextButton(
+                      onPressed: () async {
+                        await Native.clearConfig();
+                        await _refresh();
+                      },
+                      child: const Text('حذف تنظیمات این گوشی'),
+                    ),
+                ]),
+              ))),
     );
   }
 
@@ -143,7 +222,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           Row(children: [
             Icon(Icons.circle, color: color, size: 14),
             const SizedBox(width: 8),
-            Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
+            Expanded(
+                child: Text(title,
+                    style: Theme.of(context).textTheme.titleMedium)),
           ]),
           const SizedBox(height: 6),
           Text(sub),
@@ -155,8 +236,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               if (_st.blocked > 0) Text('متوقف (کلید): ${_st.blocked}'),
               if (_st.dead > 0) Text('ردشده: ${_st.dead}'),
             ]),
-            if (_st.lastSentAt != null) Text('آخرین ارسال: ${_fmt(_st.lastSentAt!)}'),
-            if (_st.lastError != null && _st.pending > 0) Text('آخرین خطا: ${_st.lastError}', style: const TextStyle(color: Colors.redAccent)),
+            if (_st.lastSentAt != null)
+              Text('آخرین ارسال: ${_fmt(_st.lastSentAt!)}'),
+            if (_st.lastError != null && _st.pending > 0)
+              Text('آخرین خطا: ${_st.lastError}',
+                  style: const TextStyle(color: Colors.redAccent)),
           ],
         ]),
       ),
@@ -164,27 +248,71 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   (Color, String, String) _summary(AgentConfig? cfg) {
-    if (cfg == null) return (Colors.grey, 'متصل نیست', 'با دکمه‌های زیر یک‌بار تنظیمات کانال را وارد کنید.');
-    if (!Native.isAndroid) return (Colors.orange, 'تنظیمات آماده است', 'آیفون پیامک را نمی‌تواند خودکار بخواند؛ «راهنمای آیفون» را ببینید.');
-    if (!_st.smsPermission) return (Colors.red, 'مجوز پیامک داده نشده', 'بدون مجوز، پیامک بانک به سایت نمی‌رسد.');
-    if (_st.blocked > 0) return (Colors.red, 'کلید/کانال نامعتبر', 'پیامک‌ها منتظرند. تنظیمات را اصلاح کنید؛ خودکار ارسال می‌شوند.');
-    if (_st.pending > 0) return (Colors.orange, 'در حال تلاش برای ارسال', 'اینترنت/VPN قطع یا ناپایدار است؛ برنامه خودش دوباره تلاش می‌کند و چیزی گم نمی‌شود.');
-    return (Colors.green, 'فعال و آماده', 'هر پیامک بانک به‌صورت خودکار به سایت می‌رسد.');
+    if (cfg == null)
+      return (
+        Colors.grey,
+        'متصل نیست',
+        'با دکمه‌های زیر یک‌بار تنظیمات کانال را وارد کنید.'
+      );
+    if (!Native.isAndroid)
+      return (
+        Colors.orange,
+        'تنظیمات آماده است',
+        'آیفون پیامک را نمی‌تواند خودکار بخواند؛ «راهنمای آیفون» را ببینید.'
+      );
+    if (!_st.smsPermission)
+      return (
+        Colors.red,
+        'مجوز پیامک داده نشده',
+        'بدون مجوز، پیامک بانک به سایت نمی‌رسد.'
+      );
+    if (_st.blocked > 0)
+      return (
+        Colors.red,
+        'کلید/کانال نامعتبر',
+        'پیامک‌ها منتظرند. تنظیمات را اصلاح کنید؛ خودکار ارسال می‌شوند.'
+      );
+    if (_st.pending > 0)
+      return (
+        Colors.orange,
+        'در حال تلاش برای ارسال',
+        'اینترنت/VPN قطع یا ناپایدار است؛ برنامه خودش دوباره تلاش می‌کند و چیزی گم نمی‌شود.'
+      );
+    return (
+      Colors.green,
+      'فعال و آماده',
+      'هر پیامک بانک به‌صورت خودکار به سایت می‌رسد.'
+    );
   }
 
   List<Widget> _androidChecklist() => [
         const Divider(height: 32),
         Text('چک‌لیست پایداری', style: Theme.of(context).textTheme.titleSmall),
         ListTile(
-          leading: Icon(_st.smsPermission ? Icons.check_circle : Icons.error, color: _st.smsPermission ? Colors.green : Colors.red),
+          leading: Icon(_st.smsPermission ? Icons.check_circle : Icons.error,
+              color: _st.smsPermission ? Colors.green : Colors.red),
           title: const Text('مجوز دریافت پیامک'),
-          trailing: _st.smsPermission ? null : TextButton(onPressed: () async { await Native.requestSmsPermission(); await _refresh(); }, child: const Text('اجازه')),
+          trailing: _st.smsPermission
+              ? null
+              : TextButton(
+                  onPressed: () async {
+                    await Native.requestSmsPermission();
+                    await _refresh();
+                  },
+                  child: const Text('اجازه')),
         ),
         ListTile(
-          leading: Icon(_st.batteryExempt ? Icons.check_circle : Icons.error_outline, color: _st.batteryExempt ? Colors.green : Colors.orange),
+          leading: Icon(
+              _st.batteryExempt ? Icons.check_circle : Icons.error_outline,
+              color: _st.batteryExempt ? Colors.green : Colors.orange),
           title: const Text('معافیت از بهینه‌سازی باتری'),
-          subtitle: const Text('برای شیائومی/سامسونگ/هوآوی در تنظیمات «Autostart» را هم روشن کنید.'),
-          trailing: _st.batteryExempt ? null : const TextButton(onPressed: Native.requestBatteryExemption, child: Text('تنظیم')),
+          subtitle: const Text(
+              'برای شیائومی/سامسونگ/هوآوی در تنظیمات «Autostart» را هم روشن کنید.'),
+          trailing: _st.batteryExempt
+              ? null
+              : const TextButton(
+                  onPressed: Native.requestBatteryExemption,
+                  child: Text('تنظیم')),
         ),
       ];
 

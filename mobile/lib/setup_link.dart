@@ -1,7 +1,8 @@
 /// پارسِ لینکِ راه‌اندازی که پنلِ سایت در QR می‌گذارد:
 /// `irforge-pay://setup?u=<webhook>&u=<backup>&s=<secret>&b=<sender1,sender2>`
 class AgentConfig {
-  const AgentConfig({required this.urls, required this.secret, this.senders = const []});
+  const AgentConfig(
+      {required this.urls, required this.secret, this.senders = const []});
 
   final List<String> urls;
   final String secret;
@@ -9,7 +10,8 @@ class AgentConfig {
 
   bool get isComplete => urls.isNotEmpty && secret.isNotEmpty;
 
-  Map<String, dynamic> toMap() => {'urls': urls, 'secret': secret, 'senders': senders};
+  Map<String, dynamic> toMap() =>
+      {'urls': urls, 'secret': secret, 'senders': senders};
 
   static AgentConfig? fromMap(Map<dynamic, dynamic>? m) {
     if (m == null) return null;
@@ -24,8 +26,11 @@ class AgentConfig {
   /// null = لینکِ نامعتبر.
   static AgentConfig? parseLink(String raw) {
     final uri = Uri.tryParse(raw.trim());
-    if (uri == null || uri.scheme != 'irforge-pay' || uri.host != 'setup') return null;
-    final urls = (uri.queryParametersAll['u'] ?? const []).where(isValidWebhookUrl).toList();
+    if (uri == null || uri.scheme != 'irforge-pay' || uri.host != 'setup')
+      return null;
+    final urls = (uri.queryParametersAll['u'] ?? const [])
+        .where(isValidWebhookUrl)
+        .toList();
     final secret = uri.queryParameters['s']?.trim() ?? '';
     final senders = (uri.queryParameters['b'] ?? '')
         .split(',')
@@ -39,5 +44,7 @@ class AgentConfig {
 
 bool isValidWebhookUrl(String u) {
   final uri = Uri.tryParse(u.trim());
-  return uri != null && (uri.scheme == 'https' || uri.scheme == 'http') && uri.host.isNotEmpty;
+  return uri != null &&
+      (uri.scheme == 'https' || uri.scheme == 'http') &&
+      uri.host.isNotEmpty;
 }

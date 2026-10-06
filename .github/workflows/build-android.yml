@@ -18,10 +18,17 @@ jobs:
           ./bootstrap.sh
           flutter analyze
           flutter test
-      - name: Build APK
+      # آیکن‌ها/منابع را اندروید خودش بر اساس تراکمِ صفحه‌ی هر گوشی انتخاب می‌کند؛
+      # برای حجم: R8/shrink پیش‌فرضِ release است + نسخه‌ی جداگانه به‌ازای هر معماریِ CPU (کوچک‌تر).
+      - name: Build universal APK (یک فایل برای همه‌ی گوشی‌ها)
         working-directory: mobile
         run: flutter build apk --release
+      - name: Build per-ABI APKs (کوچک‌تر)
+        working-directory: mobile
+        run: flutter build apk --release --split-per-abi
+      - name: Report sizes
+        run: ls -lh mobile/build/app/outputs/flutter-apk/*.apk
       - uses: actions/upload-artifact@v4
         with:
           name: irforge-pay-agent-apk
-          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          path: mobile/build/app/outputs/flutter-apk/*.apk
