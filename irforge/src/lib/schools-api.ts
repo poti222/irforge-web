@@ -48,6 +48,8 @@ export interface SchoolMemberMe {
   createdAt: string;
   updatedAt: string;
   school: SchoolSummary | null;
+  /** `/super`: سوپرادمینِ پلتفرم — بدونِ عضویتِ واقعی «مدیرِ همه‌یِ مدارس» حساب می‌شود (سرور `GET /schools/me`). */
+  isSuperAdmin?: boolean;
 }
 
 export interface SchoolOnboardingInput {
