@@ -11,7 +11,8 @@
  * درمی‌آمد. حالا از فایل‌های ترجمه می‌آیند.
  */
 import { Link } from "wouter";
-import { Wallet as WalletIcon } from "lucide-react";
+import { PageHeader } from "@/components/forge-ui/PageHeader";
+import { Wallet as WalletIcon, Store } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { PluginLibrary } from "@/components/plugins/PluginLibrary";
@@ -36,10 +37,7 @@ export default function Marketplace() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.title}</h1>
-          <p className="max-w-2xl text-muted-foreground">{t.subtitle}</p>
-        </div>
+        <PageHeader icon={<Store />} title={t.title} description={t.subtitle} />
 
         {/* موجودی همان چیزی است که قبل از خرید لازم داری بدانی، پس همین‌جاست. */}
         <Link

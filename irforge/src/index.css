@@ -659,3 +659,69 @@ html[data-palette] .forge-dark {
   .forge-ember, .forge-marquee-track, .forge-float, .forge-sheen, .forge-ring, .forge-beam-spin { animation: none !important; }
   .forge-ember { display: none; }
 }
+
+/* ═══ App-wide «کوره» surface language ═══════════════════════════════════════
+   The landing page introduced a steel-and-ember look; this block carries it
+   into every signed-in page. It deliberately works at the token level (radius,
+   shadows, sidebar palette, page glow) so the ~200 existing components pick it
+   up without being touched, and every colour still comes from the palette
+   system (`--primary`, `data-palette`) so the user's chosen accent is kept. */
+:root {
+  --radius: .75rem;
+  --shadow-card: 0 1px 0 hsl(0 0% 100% / .75) inset, 0 1px 2px hsl(24 30% 10% / .05), 0 14px 32px -20px hsl(24 30% 10% / .22);
+  --shadow-pop: 0 1px 0 hsl(0 0% 100% / .6) inset, 0 18px 40px -14px hsl(24 30% 10% / .32), 0 2px 8px hsl(24 30% 10% / .08);
+}
+.dark {
+  --shadow-card: 0 1px 0 hsl(0 0% 100% / .045) inset, 0 0 0 1px hsl(0 0% 100% / .015), 0 18px 36px -22px rgb(0 0 0 / .85);
+  --shadow-pop: 0 1px 0 hsl(0 0% 100% / .06) inset, 0 22px 48px -16px rgb(0 0 0 / .9), 0 0 0 1px hsl(0 0% 100% / .03);
+}
+
+/* The dashboard sidebar is steel in BOTH themes (like the landing hero frame):
+   re-declared on the element so it beats the per-palette light-mode tokens. */
+[data-sidebar="sidebar"] {
+  --sidebar: 24 14% 7%;
+  --sidebar-foreground: 30 14% 84%;
+  --sidebar-border: 24 10% 15%;
+  --sidebar-accent: 24 10% 12.5%;
+  --sidebar-accent-foreground: 30 20% 96%;
+  --sidebar-primary: var(--p-h, 25) var(--p-s, 95%) var(--p-ld, 53%);
+  --sidebar-primary-foreground: 24 30% 8%;
+  --sidebar-ring: var(--p-h, 25) var(--p-s, 95%) var(--p-ld, 53%);
+  --muted-foreground: 30 8% 58%;
+  --foreground: 30 14% 94%;
+  --border: 24 10% 17%;
+  color: hsl(var(--sidebar-foreground));
+  color-scheme: dark;
+}
+[data-slot="sidebar-inner"] {
+  background-image:
+    radial-gradient(260px 200px at 100% 0%, hsl(var(--sidebar-primary) / .14), transparent 70%),
+    radial-gradient(240px 260px at 0% 100%, hsl(var(--sidebar-primary) / .07), transparent 70%);
+  border-radius: calc(var(--radius) + 6px);
+  box-shadow: 0 0 0 1px hsl(0 0% 100% / .05) inset, 0 24px 48px -28px rgb(0 0 0 / .7);
+}
+
+/* The page surface next to the sidebar gets a faint ember glow so it never
+   reads as a flat white sheet. */
+[data-slot="sidebar-inset"] {
+  background-image:
+    radial-gradient(900px 380px at 92% -160px, hsl(var(--primary) / .085), transparent 70%),
+    radial-gradient(640px 320px at -5% -120px, hsl(var(--primary) / .04), transparent 70%);
+  background-repeat: no-repeat;
+}
+
+/* Cards inside cards (the bot-management sections nest a lot of them) drop
+   their elevation and become quiet panels instead of a stack of boxes. */
+[data-slot="card"] [data-slot="card"] {
+  box-shadow: none;
+  background-color: hsl(var(--muted) / .35);
+  border-color: hsl(var(--border) / .55);
+}
+
+::selection { background: hsl(var(--primary) / .28); }
+
+/* Slim, warm scrollbars (WebKit + Firefox). */
+* { scrollbar-width: thin; scrollbar-color: hsl(var(--muted-foreground) / .35) transparent; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / .3); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / .5); background-clip: padding-box; border: 2px solid transparent; }

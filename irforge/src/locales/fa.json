@@ -438,7 +438,9 @@
     "viewAllBots": "مشاهده همه بات‌ها",
     "noUsername": "بدون آیدی",
     "attentionTierExpired": "دوره‌ی پکیج تمام شده — بات خاموش است",
-    "attentionTierEndingSoon": "پکیج {n} روز دیگر تمام می‌شود"
+    "attentionTierEndingSoon": "پکیج {n} روز دیگر تمام می‌شود",
+    "greeting": "سلام، {name}",
+    "subtitle": "وضعیت بات‌هایت در یک نگاه"
   },
   "bots": {
     "title": "محصولاتِ من",

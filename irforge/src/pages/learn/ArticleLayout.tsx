@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Link } from "wouter";
 import { PublicFooter } from "@/components/layout/public-footer";
-import { PublicPageControls } from "@/components/layout/public-page-controls";
+import { PublicNav } from "@/components/layout/PublicNav";
+import { ForgePanel } from "@/components/forge-ui/ForgePanel";
 import { BuildBotCta } from "@/components/learn/BuildBotCta";
 import { ChevronDown, Clock, Send, ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -97,6 +98,7 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
 
   return (
     <>
+      <PublicNav />
     <div className="mx-auto max-w-3xl space-y-10 px-4 py-8">
       {/* Breadcrumb trail, mirroring the BreadcrumbList in the page's JSON-LD. */}
       <div className="flex items-center justify-between gap-3">
@@ -109,10 +111,9 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
             <li className="text-foreground">{seo[entry.navKey]}</li>
           </ol>
         </nav>
-        <PublicPageControls />
       </div>
 
-      <header className="space-y-4">
+      <ForgePanel as="header" className="space-y-4 p-7 sm:p-12" embers={14}>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{article.h1}</h1>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
@@ -124,7 +125,7 @@ export function ArticleLayout({ slug }: { slug: ArticleSlug }) {
             goes and builds the bot. A second one closes the page below. */}
         <BuildBotCta />
         <p className="text-lg leading-relaxed">{article.lead}</p>
-      </header>
+      </ForgePanel>
 
       {article.outcome && (
         <section className="space-y-3">

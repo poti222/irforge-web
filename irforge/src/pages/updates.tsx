@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { PageHeader } from "@/components/forge-ui/PageHeader";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,9 +36,7 @@ export default function Updates() {
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 p-4 md:p-6">
-      <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-        <Sparkles className="size-5" /> {t.title}
-      </h1>
+      <PageHeader icon={<Sparkles />} title={t.title} />
 
       {isLoading ? (
         <div className="space-y-3">

@@ -19,6 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import { BrandHomeButton, SidebarBrandHeader } from "@/components/layout/brand-home";
 import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
+import { PublicNav } from "@/components/layout/PublicNav";
+import { ForgePanel } from "@/components/forge-ui/ForgePanel";
 import { useT } from "@/hooks/use-translation";
 import { useSEO } from "@/hooks/use-seo";
 
@@ -93,32 +95,7 @@ export default function Docs() {
   useSEO({ title: seo.docsTitle, description: seo.docsDescription, route: "/docs" });
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
-        <div className="container mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <BrandHomeButton />
-            <div className="flex flex-col leading-none min-w-0">
-              <span className="font-extrabold text-lg tracking-tight truncate">{t.docsPageTitle}</span>
-              <span className="hidden sm:block text-[9px] text-primary font-semibold tracking-widest uppercase opacity-80">
-                IrForge Platform
-              </span>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
-          <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
-            <Link href="/learn">{footerT.learnNav}</Link>
-          </Button>
-          <ThemeToggleButton className="rounded-full" />
-          <LanguageSwitcher />
-          <Button variant="ghost" size="sm" className="shrink-0" asChild>
-            <Link href="/" data-testid="link-back-home" aria-label={t.backToHome}>
-              <ArrowLeft className="sm:me-2 size-4 rtl-flip" />
-              <span className="hidden sm:inline">{t.backToHome}</span>
-            </Link>
-          </Button>
-          </div>
-        </div>
-      </header>
+      <PublicNav />
 
       <motion.main
         initial={{ opacity: 0, y: 24 }}
@@ -126,15 +103,17 @@ export default function Docs() {
         transition={{ duration: 0.4, ease: "easeOut" as const }}
         className="container mx-auto px-4 py-12 max-w-5xl space-y-14"
       >
-        <motion.div variants={fadeUp} initial="hidden" animate="show" custom={0}>
-          <Badge variant="secondary" className="mb-4">{t.gettingStartedBadge}</Badge>
-          <h1 className="text-4xl font-extrabold tracking-tight mb-3">
-            {t.buildFirstBotTitle}
-          </h1>
-          <p className="text-muted-foreground text-lg max-w-2xl">
-            {t.buildFirstBotDesc}
-          </p>
-        </motion.div>
+        <ForgePanel className="p-8 sm:p-12" embers={14}>
+          <motion.div variants={fadeUp} initial="hidden" animate="show" custom={0}>
+            <Badge variant="secondary" className="mb-4">{t.gettingStartedBadge}</Badge>
+            <h1 className="text-4xl font-extrabold tracking-tight mb-3">
+              {t.buildFirstBotTitle}
+            </h1>
+            <p className="text-muted-foreground text-lg max-w-2xl">
+              {t.buildFirstBotDesc}
+            </p>
+          </motion.div>
+        </ForgePanel>
 
         {/* Quick start */}
         <motion.section variants={fadeUp} initial="hidden" animate="show" custom={1} className="space-y-4">

@@ -18,9 +18,7 @@ import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
 import { cn } from "@/lib/utils";
 import { hoverLiftMotion } from "@/lib/motion-variants";
-import { BrandLogo } from "@/components/layout/brand-home";
-import { PublicPageControls } from "@/components/layout/public-page-controls";
-import { BackHomeButton } from "@/components/layout/back-home-button";
+import { AuthShell } from "@/components/auth/AuthShell";
 import { CodeInput } from "@/components/auth/CodeInput";
 import { GoogleIcon } from "@/components/auth/GoogleIcon";
 import { GitHubIcon } from "@/components/auth/GitHubIcon";
@@ -475,15 +473,8 @@ export default function Login() {
 
   return (
     <>
-      <div className="flex min-h-[calc(100dvh-5.5rem)] items-center justify-center bg-background px-4 py-10">
-        <BackHomeButton className="fixed start-4 top-4 z-10" />
-        <PublicPageControls className="fixed end-4 top-4 z-10" />
-        <div className="w-full max-w-md space-y-6">
-          <div className="flex justify-center">
-            <BrandLogo href="/" />
-          </div>
-
-          <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
+      <AuthShell>
+          <div className="rounded-3xl border border-border/70 bg-card px-5 py-8 shadow-[var(--shadow-pop)] sm:px-9">
           {step === "credentials" && (
             <form
               className="space-y-4"
@@ -863,8 +854,7 @@ export default function Login() {
             </div>
           )}
           </div>
-        </div>
-      </div>
+      </AuthShell>
       <EnamadSeal className="bg-background pb-4" />
     </>
   );

@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { PageHeader } from "@/components/forge-ui/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Bell, CheckCheck, ChevronLeft, ChevronRight } from "lucide-react";
@@ -19,16 +20,15 @@ export default function Notifications() {
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 p-4 md:p-6">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <Bell className="size-5" /> {t.title}
-        </h1>
-        {unreadCount > 0 && (
+      <PageHeader
+        icon={<Bell />}
+        title={t.title}
+        actions={unreadCount > 0 ? (
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => markAllRead()}>
             <CheckCheck className="size-4" /> {t.markAllRead}
           </Button>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {isLoading ? (
         <div className="space-y-2">

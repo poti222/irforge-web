@@ -12,6 +12,7 @@
  * right label so the button doesn't lie before the request even goes out).
  */
 import { useState } from "react";
+import { PageHeader } from "@/components/forge-ui/PageHeader";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -105,10 +106,7 @@ export default function Plans() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t.title}</h1>
-          <p className="text-muted-foreground">{t.subtitle}</p>
-        </div>
+        <PageHeader icon={<Sparkles />} title={t.title} description={t.subtitle} />
         {wallet && (
           <p className="text-sm text-muted-foreground">{t.walletBalance.replace("{amount}", formatToman(wallet.balance, lang))}</p>
         )}

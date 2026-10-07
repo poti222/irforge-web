@@ -3,7 +3,6 @@ import { useGetDashboardStats, useGetDashboardActivity, useListBots, customFetch
 import type { ActivityItem, ActivityItemType, Bot as BotType } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MotionCard } from "@/components/ui/motion-card";
 import { Badge } from "@/components/ui/badge";
 import {
   Bot, Users, MessageSquare, Activity, Plus, Wallet,
@@ -25,6 +24,11 @@ import { TrialDialog } from "@/components/bots/TrialDialog";
 import { UpdateDialog } from "@/components/updates/UpdateDialog";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { botsNeedingAttention, type AttentionReason } from "@/lib/dashboard-attention";
+import { PageHeader } from "@/components/forge-ui/PageHeader";
+import { ForgePanel } from "@/components/forge-ui/ForgePanel";
+import { StatTile } from "@/components/forge-ui/StatTile";
+import { StatusPill } from "@/components/forge-ui/LiveDot";
+import { botStatusMeta } from "@/lib/bot-status";
 
 // P7: map each activity type to a distinct icon (sane default for unknowns).
 const ACTIVITY_ICONS: Record<ActivityItemType, LucideIcon> = {
@@ -150,73 +154,56 @@ export default function Dashboard() {
     queryFn: () => customFetch<DashboardAnnouncement[]>("/api/announcements"),
   });
 
-  const statCards = stats
-    ? [
-        { label: t.totalBots, value: (stats.totalBots ?? 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US"), icon: Bot, change: stats.botsChange },
-        { label: t.activeBots, value: (stats.activeBots ?? 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US"), icon: Activity, change: undefined },
-        { label: t.totalUsers, value: (stats.totalUsers ?? 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US"), icon: Users, change: stats.usersChange },
-        // «پیام‌های پردازش‌شده» حذف شد: منبعش (`bots.message_count`) هیچ‌جای
-        // استک نوشته نمی‌شد و کارت برای همه همیشه صفر بود. جایش عددی نشسته
-        // که واقعاً از شیت می‌آید.
-        { label: t.activeUsersToday, value: (stats.activeUsersToday ?? 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US"), icon: MessageSquare, change: undefined },
-      ]
-    : [];
-
-  // کارت درآمد فقط وقتی می‌آید که دست‌کم یک بات پلاگین کیف پول داشته باشد؛
-  // سرور در غیر این صورت `null` می‌دهد. باتی که فروش ندارد نباید کارتی ببیند
-  // که همیشه صفر است.
-  if (stats && stats.totalRevenue != null) {
-    statCards.push({
-      label: t.revenue,
-      value: formatToman(stats.totalRevenue, lang),
-      icon: Wallet,
-      change: undefined,
-    });
-  }
+  const nf = (n: number) => n.toLocaleString(lang === "fa" ? "fa-IR" : "en-US");
+  const firstName = (user?.name || user?.platformUsername || "").trim().split(/\s+/)[0];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <TrialWarningDialog />
       {/* خودش وقتی آپدیت دیده‌نشده‌ای نیست هیچ چیزی رندر نمی‌کند. */}
       <UpdateDialog />
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-          {t.title}
-        </h1>
-        <MotionButton asChild>
-          <Link href="/bots">
-            <Plus className="me-2 h-4 w-4" /> {t.createBot}
-          </Link>
-        </MotionButton>
-      </div>
+      <PageHeader
+        eyebrow={t.title}
+        title={t.greeting.replace("{name}", firstName)}
+        description={t.subtitle}
+        actions={
+          <MotionButton asChild size="lg">
+            <Link href="/bots">
+              <Plus className="me-2 h-4 w-4" /> {t.createBot}
+            </Link>
+          </MotionButton>
+        }
+      />
 
       {showTrialOffer && (
-        <div className="flex flex-col items-start gap-4 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Gift className="size-6" />
+        <ForgePanel className="p-6 sm:p-7" embers={8}>
+          <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[inset_0_1px_0_hsl(0_0%_100%/.28),0_14px_28px_-12px_hsl(var(--primary)/.9)]">
+                <Gift className="size-7" />
+              </div>
+              <div>
+                <p className="text-lg font-bold">{t.trialOfferTitle}</p>
+                <p className="max-w-xl text-sm text-muted-foreground">{t.trialOfferDesc}</p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold">{t.trialOfferTitle}</p>
-              <p className="text-sm text-muted-foreground">{t.trialOfferDesc}</p>
+            <div className="flex w-full items-center gap-2 sm:w-auto">
+              <MotionButton className="flex-1 sm:flex-none" size="lg" onClick={() => setTrialOpen(true)}>
+                <Gift className="me-2 h-4 w-4" /> {t.trialOfferCta}
+              </MotionButton>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0 text-muted-foreground"
+                disabled={dismissingTrialOffer}
+                onClick={() => void dismissTrialOffer()}
+                aria-label={t.trialOfferDismiss}
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
           </div>
-          <div className="flex w-full items-center gap-2 sm:w-auto">
-            <MotionButton className="flex-1 sm:flex-none" onClick={() => setTrialOpen(true)}>
-              <Gift className="me-2 h-4 w-4" /> {t.trialOfferCta}
-            </MotionButton>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0"
-              disabled={dismissingTrialOffer}
-              onClick={() => void dismissTrialOffer()}
-              aria-label={t.trialOfferDismiss}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        </ForgePanel>
       )}
       <TrialDialog open={trialOpen} onOpenChange={setTrialOpen} />
 
@@ -225,7 +212,7 @@ export default function Dashboard() {
           {announcements.map((a) => (
             <div
               key={a.id}
-              className={`flex items-start gap-3 rounded-lg border p-3 ${ANNOUNCEMENT_STYLES[a.type] ?? ANNOUNCEMENT_STYLES.info}`}
+              className={`flex items-start gap-3 rounded-2xl border p-4 ${ANNOUNCEMENT_STYLES[a.type] ?? ANNOUNCEMENT_STYLES.info}`}
             >
               <Megaphone className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="min-w-0">
@@ -248,11 +235,13 @@ export default function Dashboard() {
             return (
               <div
                 key={bot.id}
-                className={`flex flex-wrap items-center gap-3 rounded-lg border p-3 ${ATTENTION_STYLES[reason]}`}
+                className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3.5 ${ATTENTION_STYLES[reason]}`}
               >
-                <Icon className="h-4 w-4 shrink-0" />
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-current/10">
+                  <Icon className="h-4 w-4" />
+                </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold truncate">{bot.name}</p>
+                  <p className="truncate text-sm font-semibold">{bot.name}</p>
                   <p className="text-sm opacity-90">{attentionReasonText(reason, bot, t)}</p>
                 </div>
                 <Button asChild size="sm" variant="outline" className="shrink-0 bg-background/60">
@@ -267,86 +256,101 @@ export default function Dashboard() {
       )}
 
       {statsLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader className="h-20" />
-              <CardContent className="h-10" />
-            </Card>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="h-32 animate-pulse" />
           ))}
         </div>
       ) : stats ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {statCards.map((c) => (
-            <MotionCard key={c.label}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">{c.label}</CardTitle>
-                <c.icon className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{c.value}</div>
-                {c.change !== undefined && <TrendBadge change={c.change} lang={lang} suffix={t.trendVsPrevious} />}
-              </CardContent>
-            </MotionCard>
-          ))}
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {/* The headline number gets the dark forge treatment; the rest are quiet tiles. */}
+          <ForgePanel className="col-span-2 flex min-h-[9.5rem] flex-col justify-between rounded-3xl p-5" embers={6}>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-muted-foreground">{t.totalUsers}</span>
+              <span className="flex size-8 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                <Users className="size-4" />
+              </span>
+            </div>
+            <div>
+              <div className="text-4xl font-bold leading-none tracking-tight tabular-nums">{nf(stats.totalUsers ?? 0)}</div>
+              {stats.usersChange != null && <TrendBadge change={stats.usersChange} lang={lang} suffix={t.trendVsPrevious} />}
+            </div>
+          </ForgePanel>
+          <StatTile label={t.totalBots} value={nf(stats.totalBots ?? 0)} icon={Bot} hint={
+            <span className="tabular-nums">{nf(stats.activeBots ?? 0)} {t.activeBots}</span>
+          } />
+          <StatTile label={t.activeUsersToday} value={nf(stats.activeUsersToday ?? 0)} icon={MessageSquare} />
+          {/* کارت درآمد فقط وقتی می‌آید که دست‌کم یک بات پلاگین کیف پول داشته باشد؛
+              سرور در غیر این صورت `null` می‌دهد. */}
+          {stats.totalRevenue != null && (
+            <div className="col-span-2 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card px-5 py-4 shadow-[var(--shadow-card)] lg:col-span-4">
+              <span className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
+                <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><Wallet className="size-4" /></span>
+                {t.revenue}
+              </span>
+              <span className="text-xl font-bold tabular-nums">{formatToman(stats.totalRevenue, lang)}</span>
+            </div>
+          )}
         </div>
       ) : null}
 
-      {/* P49: a direct jump-off point into bot management, not just a count
-          of how many exist — the missing piece that made this page a
-          readout instead of a workspace. */}
-      {bots && bots.length > 0 && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>{t.yourBots}</CardTitle>
-            {bots.length > QUICK_ACCESS_BOT_LIMIT && (
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/bots">
-                  {t.viewAllBots} <ArrowRight className="ms-1.5 h-3.5 w-3.5 rtl-flip" />
-                </Link>
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {bots.slice(0, QUICK_ACCESS_BOT_LIMIT).map((bot) => (
-                <Link
-                  key={bot.id}
-                  href={`/bots/${bot.id}`}
-                  className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:border-primary/50 hover:bg-accent/50"
-                >
-                  {bot.avatar ? (
-                    <img
-                      src={bot.avatar}
-                      alt=""
-                      loading="lazy"
-                      className="size-9 shrink-0 rounded-lg border border-border object-cover"
-                    />
-                  ) : (
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <Bot className="h-4.5 w-4.5" />
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{bot.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {bot.username ? `@${bot.username}` : t.noUsername}
-                    </p>
-                  </div>
-                  <Badge variant={bot.status === "active" ? "default" : "secondary"} className="shrink-0">
-                    {bot.status}
-                  </Badge>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <div className="grid gap-6 xl:grid-cols-5">
+        {/* P49: a direct jump-off point into bot management, not just a count
+            of how many exist — the missing piece that made this page a
+            readout instead of a workspace. */}
+        {bots && bots.length > 0 && (
+          <Card className="xl:col-span-3">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">{t.yourBots}</CardTitle>
+              {bots.length > QUICK_ACCESS_BOT_LIMIT && (
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/bots">
+                    {t.viewAllBots} <ArrowRight className="ms-1.5 h-3.5 w-3.5 rtl-flip" />
+                  </Link>
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-2.5">
+                {bots.slice(0, QUICK_ACCESS_BOT_LIMIT).map((bot) => {
+                  const st = botStatusMeta(bot.status, lang);
+                  return (
+                    <Link
+                      key={bot.id}
+                      href={`/bots/${bot.id}`}
+                      className="group flex items-center gap-3.5 rounded-2xl border border-border/70 bg-background/60 p-3 transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-primary/40 hover:bg-card"
+                    >
+                      {bot.avatar ? (
+                        <img
+                          src={bot.avatar}
+                          alt=""
+                          loading="lazy"
+                          className="size-11 shrink-0 rounded-xl border border-border object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <Bot className="size-5" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{bot.name}</p>
+                        <p dir="ltr" className="truncate text-start text-xs text-muted-foreground">
+                          {bot.username ? `@${bot.username}` : t.noUsername}
+                        </p>
+                      </div>
+                      <StatusPill tone={st.tone} pulse={st.pulse} className="shrink-0">{st.label}</StatusPill>
+                      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:text-primary rtl-flip" />
+                    </Link>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+        <Card className={bots && bots.length > 0 ? "xl:col-span-2" : "xl:col-span-5"}>
           <CardHeader>
-            <CardTitle>{t.recentActivity}</CardTitle>
+            <CardTitle className="text-base">{t.recentActivity}</CardTitle>
           </CardHeader>
           <CardContent>
             {activityLoading ? (
@@ -356,8 +360,8 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : activity && activity.length > 0 ? (
-              <motion.div
-                className="space-y-4"
+              <motion.ol
+                className="relative space-y-5 before:absolute before:inset-y-2 before:start-[1.125rem] before:w-px before:bg-border"
                 initial="hidden"
                 animate="show"
                 variants={{ show: { transition: { staggerChildren: 0.05 } } }}
@@ -365,38 +369,38 @@ export default function Dashboard() {
                 {activity.map((item: ActivityItem) => {
                   const Icon = ACTIVITY_ICONS[item.type] ?? Activity;
                   return (
-                    <motion.div
+                    <motion.li
                       key={item.id}
                       variants={{
                         hidden: { opacity: 0, x: reduce ? 0 : dir * -12 },
                         show: { opacity: 1, x: 0, transition: { type: "spring", duration: 0.3, bounce: 0.1 } },
                       }}
-                      className="flex items-center gap-3 border-b pb-4 last:border-0 last:pb-0"
+                      className="relative flex items-start gap-3.5"
                     >
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <div className="relative z-10 flex size-9 shrink-0 items-center justify-center rounded-full bg-card text-primary ring-4 ring-card [box-shadow:inset_0_0_0_1px_hsl(var(--primary)/.35)]">
                         <Icon className="h-4 w-4" />
                       </div>
-                      <div className="space-y-1 min-w-0">
-                        <p className="flex items-center gap-2 text-sm font-medium leading-none">
-                          <span className="truncate">{item.title}</span>
+                      <div className="min-w-0 space-y-1 pt-0.5">
+                        <p className="flex flex-wrap items-center gap-2 text-sm font-semibold leading-tight">
+                          <span>{item.title}</span>
                           {item.botName && (
                             <Badge variant="secondary" className="shrink-0 font-normal">{item.botName}</Badge>
                           )}
                         </p>
-                        <p className="text-sm text-muted-foreground truncate">{item.description}</p>
+                        <p className="text-sm text-muted-foreground">{item.description}</p>
                       </div>
-                    </motion.div>
+                    </motion.li>
                   );
                 })}
-              </motion.div>
+              </motion.ol>
             ) : (
               // P9: friendly empty state with a clear next action instead of dead gray text.
               <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
-                <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Bot className="h-6 w-6" />
+                <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                  <Bot className="h-7 w-7" />
                 </div>
                 <div>
-                  <p className="font-medium">
+                  <p className="font-semibold">
                     {t.noActivityTitle}
                   </p>
                   <p className="text-sm text-muted-foreground">

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bot as BotIcon, Copy, Check, ExternalLink } from "lucide-react";
+import { Copy, Check, ExternalLink } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import type { Bot } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,32 +43,9 @@ export function BotIdentityCard({ bot }: { bot: Bot }) {
         <CardTitle className="text-sm">{t.identityTitle}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          {bot.avatar ? (
-            <img
-              src={bot.avatar}
-              alt={t.botAvatarAlt}
-              loading="lazy"
-              className="size-12 shrink-0 rounded-lg border border-border object-cover"
-            />
-          ) : (
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <BotIcon className="h-6 w-6" />
-            </div>
-          )}
-          <div className="min-w-0">
-            <div className="truncate font-semibold">{bot.name}</div>
-            {handle ? (
-              <div dir="ltr" className="truncate font-mono text-sm text-muted-foreground">
-                {handle}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
         {link && handle ? (
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
-            <div className="rounded-lg bg-white p-2">
+            <div className="rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-black/5">
               {/* fixed white plate: a QR on a dark card is unreadable to scanners */}
               <QRCodeSVG value={link} size={116} level="M" marginSize={0} />
             </div>

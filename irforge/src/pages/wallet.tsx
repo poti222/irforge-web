@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from "react";
+import { PageHeader } from "@/components/forge-ui/PageHeader";
 import { customFetch } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -172,10 +173,11 @@ export default function Wallet() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{fa ? "کیف پول من" : "My Wallet"}</h1>
-        <p className="text-muted-foreground">{fa ? "شارژ حساب و مدیریت موجودی." : "Top up and manage your balance."}</p>
-      </div>
+      <PageHeader
+        icon={<WalletIcon />}
+        title={fa ? "کیف پول من" : "My Wallet"}
+        description={fa ? "شارژ حساب و مدیریت موجودی." : "Top up and manage your balance."}
+      />
 
       <Card className="bg-primary/5 border-primary/30">
         <CardContent className="flex items-center gap-4 py-6">

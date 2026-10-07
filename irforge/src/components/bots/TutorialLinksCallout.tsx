@@ -21,11 +21,11 @@ export function TutorialLinksCallout() {
   if (tutorialLinks.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-300">
+    <div className="rounded-2xl border border-primary/25 bg-gradient-to-l from-primary/[0.09] to-primary/[0.03] p-3.5 text-foreground">
       <div className="flex items-start gap-3">
-        <GraduationCap className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary"><GraduationCap className="size-4" aria-hidden="true" /></span>
         <div className="min-w-0 flex-1 space-y-2">
-          <p className="text-sm font-medium">
+          <p className="pt-1 text-sm font-semibold">
             {fa ? "تازه‌کاری؟ این‌ها را ببین" : "New here? Check these out"}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -35,7 +35,7 @@ export function TutorialLinksCallout() {
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-background/60 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-background"
+                className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-background/70 px-3 py-1 text-xs font-medium transition-colors hover:border-primary/50 hover:bg-background"
               >
                 {link.label}
                 <ArrowUpRight className="size-3" aria-hidden="true" />

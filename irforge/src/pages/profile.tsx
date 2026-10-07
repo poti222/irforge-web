@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { PageHeader } from "@/components/forge-ui/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -248,7 +249,7 @@ export default function Profile() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{fa ? "تنظیمات پروفایل" : "Profile Settings"}</h1>
+      <PageHeader icon={<ShieldCheck />} title={fa ? "تنظیمات پروفایل" : "Profile Settings"} />
 
       <Card>
         <CardHeader>

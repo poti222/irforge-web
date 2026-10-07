@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PageHeader } from "@/components/forge-ui/PageHeader";
 import { customFetch } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -147,13 +148,12 @@ export default function Tickets() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{fa ? "تیکت‌ها" : "Tickets"}</h1>
-          <p className="text-muted-foreground">{fa ? "پشتیبانی و پیگیری درخواست‌ها." : "Support and request tracking."}</p>
-        </div>
-        <Button className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}><Plus className="me-2 h-4 w-4" /> {fa ? "تیکت جدید" : "New ticket"}</Button>
-      </div>
+      <PageHeader
+        icon={<LifeBuoy />}
+        title={fa ? "تیکت‌ها" : "Tickets"}
+        description={fa ? "پشتیبانی و پیگیری درخواست‌ها." : "Support and request tracking."}
+        actions={<Button size="lg" className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}><Plus className="me-2 h-4 w-4" /> {fa ? "تیکت جدید" : "New ticket"}</Button>}
+      />
 
       <div className="grid gap-4 lg:grid-cols-3">
         {/* List */}

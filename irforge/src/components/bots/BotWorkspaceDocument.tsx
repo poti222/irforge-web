@@ -37,6 +37,7 @@ import {
   GitBranch,
   Database,
   Gamepad2,
+  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
@@ -47,7 +48,6 @@ import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
 import { useMotionDirection } from "@/hooks/use-motion-direction";
-import { SidebarBrandHeader } from "@/components/layout/brand-home";
 import { hasUnsavedChanges, setDiscardMessage } from "@/lib/unsaved-changes";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -85,12 +85,8 @@ import { GiveawaySection } from "@/components/bots/giveaway/GiveawaySection";
 import { LoyaltySection } from "@/components/bots/loyalty/LoyaltySection";
 // سکشن عمومیِ پلاگین‌های تازه — جدول‌هایش از اسکیمای سرور ساخته می‌شوند.
 import { PluginSection } from "@/components/bots/plugins/PluginSection";
-import { BotHealthCard } from "@/components/bots/BotHealthCard";
-import { BotPlanCard } from "@/components/bots/BotPlanCard";
-import { BotAdminCodeCard } from "@/components/bots/BotAdminCodeCard";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
-import { BotIdentityCard } from "@/components/bots/BotIdentityCard";
-import { TutorialLinksCallout } from "@/components/bots/TutorialLinksCallout";
+import { BotOverview } from "@/components/bots/BotOverview";
 import { TutorialButton } from "@/components/tutorial/TutorialButton";
 import { TUTORIALS } from "@/lib/tutorials/content";
 import type { LocaleShape } from "@/hooks/use-translation";
@@ -386,6 +382,11 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
 
   /** سکشن مقصدی که منتظر تأیید «دور ریختن تغییرات» است. */
   const [pendingSection, setPendingSection] = useState<SectionKey | null>(null);
+  /** the collapsed "other / not available yet" group */
+  const [showOther, setShowOther] = useState(false);
+  const activeMeta = findSection(section);
+  const ActiveIcon = activeMeta?.icon;
+  const activeLabel = activeMeta ? t[activeMeta.labelKey] : "";
 
   function applyGoTo(next: SectionKey) {
     const params = new URLSearchParams(search);
@@ -440,55 +441,80 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
       };
 
   return (
-    <div className="flex flex-1 flex-col gap-4 min-h-0 md:flex-row">
-      {/* Sidebar section nav — grouped and vertical on md+, one flat
-          horizontally-scrolling strip of chips on mobile (group headers are
-          hidden there; at 375px a stack of headers would eat the whole
-          viewport before the first item). The header band matches the app
-          sidebar so every sidebar surface reads as the same component. */}
-      <nav className="flex shrink-0 flex-col md:w-52">
-        <SidebarBrandHeader className="hidden md:flex mb-2" size="sm" />
-        <div className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:gap-0 md:overflow-visible md:pb-0">
+    <div className="flex flex-1 flex-col gap-5 min-h-0 md:flex-row md:items-start">
+      {/* Section rail — grouped and vertical on md+ (sticky, so it stays in
+          reach while a long section scrolls), one flat horizontally-scrolling
+          strip of chips on mobile (group headers are hidden there; at 375px a
+          stack of headers would eat the whole viewport before the first
+          item). Sections that are not available yet live in one collapsed
+          "other" group instead of a wall of padlocks. */}
+      <nav className="flex shrink-0 flex-col md:sticky md:top-20 md:max-h-[calc(100vh-6.5rem)] md:w-56 md:overflow-y-auto md:pe-1" aria-label={t.sectionOverview}>
+        <div className="flex gap-1.5 overflow-x-auto pb-1 md:flex-col md:gap-0 md:overflow-visible md:pb-0">
           {/* گروهی که همه‌ی آیتم‌هایش پنهان شده‌اند، عنوانِ تنها نشان نمی‌دهد. */}
-          {SECTION_GROUPS.filter((g) => g.items.some(visible)).map((group) => (
-            <div key={group.key} className="contents md:block md:mb-3">
-              <div className="hidden md:block px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
-                {t[group.labelKey]}
-              </div>
-              {group.items.filter(visible).map((s) => {
-                const active = section === s.key;
-                return (
+          {SECTION_GROUPS.filter((g) => g.items.some(visible)).map((group) => {
+            const isOther = group.key === "other";
+            const collapsed = isOther && !showOther && !group.items.some((s) => s.key === section);
+            return (
+              <div key={group.key} className="contents md:block md:mb-4">
+                {isOther ? (
                   <button
-                    key={s.key}
-                    onClick={() => !s.locked && goTo(s.key)}
-                    disabled={s.locked}
-                    title={s.locked ? t.comingSoon : undefined}
-                    className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors md:w-full ${
-                      s.locked
-                        ? "cursor-not-allowed text-muted-foreground/50"
-                        : active
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
+                    type="button"
+                    onClick={() => setShowOther((v) => !v)}
+                    aria-expanded={!collapsed}
+                    className="hidden w-full items-center gap-1.5 px-3 pb-1.5 text-[11px] font-semibold text-muted-foreground/70 transition-colors hover:text-foreground md:flex"
                   >
-                    <s.icon className="h-4 w-4 shrink-0" />
-                    <span>{t[s.labelKey]}</span>
-                    {s.locked && <Lock className="ms-auto h-3 w-3 shrink-0" />}
+                    <ChevronDown className={`size-3 transition-transform ${collapsed ? "-rotate-90 rtl:rotate-90" : ""}`} />
+                    {t[group.labelKey]}
                   </button>
-                );
-              })}
-            </div>
-          ))}
+                ) : (
+                  <div className="hidden px-3 pb-1.5 text-[11px] font-semibold text-muted-foreground/70 md:block">
+                    {t[group.labelKey]}
+                  </div>
+                )}
+                {!collapsed && group.items.filter(visible).map((s) => {
+                  const active = section === s.key;
+                  return (
+                    <button
+                      key={s.key}
+                      onClick={() => !s.locked && goTo(s.key)}
+                      disabled={s.locked}
+                      title={s.locked ? t.comingSoon : undefined}
+                      aria-current={active ? "page" : undefined}
+                      className={`relative flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-colors md:w-full ${
+                        s.locked
+                          ? "cursor-not-allowed text-muted-foreground/45"
+                          : active
+                            ? "bg-primary/10 text-primary before:absolute before:inset-y-2 before:start-0 before:hidden before:w-[3px] before:rounded-full before:bg-primary md:before:block"
+                            : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                      }`}
+                    >
+                      <s.icon className="h-4 w-4 shrink-0" />
+                      <span className="whitespace-nowrap">{t[s.labelKey]}</span>
+                      {s.locked && <Lock className="ms-auto h-3 w-3 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       </nav>
 
       {/* Main area */}
-      <div className="flex-1 min-w-0 overflow-auto rounded-md border bg-card p-4">
-        {/* IRFORGE_TUTORIAL_SYSTEM_PROMPT — یک نقطه‌ی مشترک برایِ همه‌ی
-            سکشن‌ها، به‌جایِ گذاشتنِ TutorialButton داخلِ هرکدام جداگانه.
-            خودِ دکمه اگر برایِ این سکشن آموزشی نوشته نشده باشد چیزی رندر
-            نمی‌کند، پس صدا زدنش اینجا برایِ هر سکشن بدونِ چک کردن امن است. */}
-        <div className="mb-3 flex justify-end">
+      <div className="min-w-0 flex-1 rounded-3xl border border-border/70 bg-card/70 p-4 shadow-[var(--shadow-card)] sm:p-6">
+        {/* One heading per section, so you always know where you are; the
+            tutorial button sits opposite it (IRFORGE_TUTORIAL_SYSTEM_PROMPT —
+            one shared spot instead of a button inside every section; it
+            renders nothing for a section without a tutorial). */}
+        <div className="mb-5 flex items-center justify-between gap-3 border-b border-border/60 pb-4">
+          <div className="flex min-w-0 items-center gap-3">
+            {ActiveIcon && (
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                <ActiveIcon className="size-5" />
+              </span>
+            )}
+            <h2 className="truncate text-xl font-bold tracking-tight">{activeLabel}</h2>
+          </div>
           <TutorialButton section={section} />
         </div>
         {/* No mode="wait": with it, the incoming section only mounts after the
@@ -500,45 +526,16 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
         <AnimatePresence>
           <motion.div key={section} {...anim}>
             {section === "overview" && (
-              <div className="space-y-4">
-                <TutorialLinksCallout />
-                <BotIdentityCard bot={bot} />
-
-                {/* فاز ۲۴ — سلامت بات: شکست‌های بی‌صدا را قبل از اینکه کاربرِ
-                    بات به آن‌ها بخورد نشان می‌دهد. */}
-                <BotHealthCard bot={bot} />
-                {/* فاز ۳۲ — پلن و اشتراک: پلنِ فعلی، قیمت، و روزهای باقی‌مانده. */}
-                <BotPlanCard bot={bot} />
-                <BotAdminCodeCard bot={bot} />
-
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewTotalUsers}</CardTitle></CardHeader>
-                    {/* شمارش کاربران از endpoint آمار می‌آید، نه از `bot.userCount`:
-                        آن ستون در Postgres است و هیچ‌وقت به‌روز نمی‌شد. تا رسیدن
-                        پاسخ، همان عدد قدیمی نشان داده می‌شود تا کارت نپرد. */}
-                    <CardContent><div className="text-2xl font-bold">{nf(stats?.users ?? bot.userCount)}</div></CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewActiveToday}</CardTitle></CardHeader>
-                    <CardContent>
-                      {stats?.activeUsersToday == null ? (
-                        <div className="text-sm text-muted-foreground">{t.noDataYet}</div>
-                      ) : (
-                        <div className="text-2xl font-bold">{nf(stats.activeUsersToday)}</div>
-                      )}
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewCommands}</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold">{nf(bot.commandCount)}</div></CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">{t.overviewPlugins}</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold">{nf(bot.pluginCount)}</div></CardContent>
-                  </Card>
-                </div>
-              </div>
+              <BotOverview
+                bot={bot}
+                stats={stats}
+                nf={nf}
+                onGo={(k) => goTo(k as SectionKey)}
+                actions={(["panels", "commands", "broadcast", "plugins"] as const).flatMap((k) => {
+                  const m = findSection(k);
+                  return m && !m.locked && visible(m) ? [{ key: m.key, icon: m.icon, label: t[m.labelKey] }] : [];
+                })}
+              />
             )}
             {section === "panels" && <PanelsSection bot={bot} />}
             {section === "forms" && <FormsSection bot={bot} />}

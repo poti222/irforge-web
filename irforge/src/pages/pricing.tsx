@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { PublicFooter } from "@/components/layout/public-footer";
-import { PublicPageControls } from "@/components/layout/public-page-controls";
+import { PublicNav } from "@/components/layout/PublicNav";
+import { ForgePanel } from "@/components/forge-ui/ForgePanel";
 import { Check, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +58,7 @@ export default function Pricing() {
 
   return (
     <>
+      <PublicNav />
       <div className="mx-auto max-w-4xl space-y-10 px-4 py-8">
         <div className="flex items-center justify-between gap-3">
           <nav aria-label={t.breadcrumbLabel} className="min-w-0 text-sm text-muted-foreground">
@@ -66,13 +68,12 @@ export default function Pricing() {
               <li className="text-foreground">{seo.navPricing}</li>
             </ol>
           </nav>
-          <PublicPageControls />
-        </div>
+          </div>
 
-        <header className="space-y-3">
+        <ForgePanel as="header" className="space-y-3 p-7 sm:p-12" embers={14}>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{t.title}</h1>
           <p className="text-lg leading-relaxed text-muted-foreground">{t.intro}</p>
-        </header>
+        </ForgePanel>
 
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">{t.tiersTitle}</h2>

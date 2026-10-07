@@ -438,7 +438,9 @@
     "viewAllBots": "عرض كل البوتات",
     "noUsername": "بدون معرّف",
     "attentionTierExpired": "انتهت مدة الباقة — البوت متوقف",
-    "attentionTierEndingSoon": "تنتهي الباقة بعد {n} أيام"
+    "attentionTierEndingSoon": "تنتهي الباقة بعد {n} أيام",
+    "greeting": "مرحباً، {name}",
+    "subtitle": "حالة روبوتاتك بنظرة واحدة"
   },
   "bots": {
     "title": "منتجاتي",

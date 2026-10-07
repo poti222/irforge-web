@@ -438,7 +438,9 @@
     "viewAllBots": "Все боты",
     "noUsername": "Без имени пользователя",
     "attentionTierExpired": "Срок пакета истёк — бот отключён",
-    "attentionTierEndingSoon": "Пакет закончится через {n} дн."
+    "attentionTierEndingSoon": "Пакет закончится через {n} дн.",
+    "greeting": "Привет, {name}",
+    "subtitle": "Ваши боты с первого взгляда"
   },
   "bots": {
     "title": "Мои продукты",

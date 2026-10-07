@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { PublicFooter } from "@/components/layout/public-footer";
-import { PublicPageControls } from "@/components/layout/public-page-controls";
+import { PublicNav } from "@/components/layout/PublicNav";
+import { ForgePanel } from "@/components/forge-ui/ForgePanel";
 import { BuildBotCta } from "@/components/learn/BuildBotCta";
 import { BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +28,7 @@ export default function LearnHub() {
 
   return (
     <>
+      <PublicNav />
     <div className="mx-auto max-w-3xl space-y-8 px-4 py-8">
       <div className="flex items-center justify-between gap-3">
         <nav aria-label={t.breadcrumbLabel} className="min-w-0 text-sm text-muted-foreground">
@@ -36,17 +38,16 @@ export default function LearnHub() {
             <li className="text-foreground">{seo.navLearnHub}</li>
           </ol>
         </nav>
-        <PublicPageControls />
       </div>
 
-      <header className="space-y-3">
+      <ForgePanel as="header" className="space-y-3 p-7 sm:p-12" embers={14}>
         <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight sm:text-4xl">
           <BookOpen className="size-7 shrink-0" aria-hidden="true" />
           {t.hubTitle}
         </h1>
         <BuildBotCta />
         <p className="text-lg leading-relaxed text-muted-foreground">{t.hubIntro}</p>
-      </header>
+      </ForgePanel>
 
       <section className="space-y-3">
         <h2 className="sr-only">{t.hubListHeading}</h2>

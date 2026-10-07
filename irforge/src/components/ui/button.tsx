@@ -5,16 +5,16 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0" +
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-[color,background-color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0" +
 " hover-elevate active-elevate-2",
   {
     variants: {
       variant: {
         default:
            // @replit: no hover, and add primary border
-           "bg-primary text-primary-foreground border border-primary-border",
+           "bg-primary text-primary-foreground border border-primary-border shadow-[inset_0_1px_0_hsl(0_0%_100%/.2),0_6px_16px_-8px_hsl(var(--primary)/.65)] active:translate-y-px",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-sm border-destructive-border",
+          "bg-destructive text-destructive-foreground border-destructive-border shadow-[inset_0_1px_0_hsl(0_0%_100%/.18),0_6px_16px_-8px_hsl(var(--destructive)/.6)]",
         outline:
           // @replit Shows the background color of whatever card / sidebar / accent background it is inside of.
           // Inherits the current text color. Uses shadow-xs. no shadow on active
@@ -30,8 +30,8 @@ const buttonVariants = cva(
       size: {
         // @replit changed sizes
         default: "min-h-9 px-4 py-2",
-        sm: "min-h-8 rounded-md px-3 text-xs",
-        lg: "min-h-10 rounded-md px-8",
+        sm: "min-h-8 rounded-lg px-3 text-xs",
+        lg: "min-h-11 rounded-xl px-8 text-[0.95rem]",
         icon: "size-10 sm:size-9",
       },
     },

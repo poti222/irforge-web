@@ -217,8 +217,8 @@ function SuperDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="flex h-16 items-center gap-3 border-b px-4">
-        <ShieldCheck className="size-5 text-primary" />
+      <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border/60 bg-background/75 px-4 backdrop-blur-xl">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[inset_0_1px_0_hsl(0_0%_100%/.28),0_6px_14px_-6px_hsl(var(--primary)/.85)]"><ShieldCheck className="size-5" /></span>
         <div className="min-w-0">
           <h1 className="text-lg font-bold leading-none" dir="ltr">/super</h1>
           <p className="text-xs text-muted-foreground">{fa ? "مدیریتِ کاملِ پلتفرم، مدارس و ربات‌ها — یک‌جا" : "Full platform, schools & bots management — in one place"}</p>
@@ -242,16 +242,16 @@ function SuperDashboard() {
           </Select>
         </div>
         <nav className="hidden md:block" aria-label="super sections" data-testid="super-nav">
-          <div className="sticky top-4 space-y-4">
+          <div className="forge-dark dark sticky top-20 max-h-[calc(100vh-6rem)] space-y-4 overflow-y-auto rounded-3xl border border-white/10 bg-[hsl(222_16%_6%)] p-3 text-foreground shadow-[0_1px_0_hsl(0_0%_100%/.06)_inset,0_30px_60px_-30px_rgb(0_0_0/.7)]">
             {SUPER_GROUPS_META.map((g) => (
               <div key={g.id} className="space-y-1">
-                <p className="px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{fa ? g.fa : g.en}</p>
+                <p className="px-2 pt-1 text-[11px] font-semibold text-muted-foreground">{fa ? g.fa : g.en}</p>
                 {g.tabs.map((t) => {
                   const Icon = TAB_ICONS[t.id];
                   return (
                     <button
                       key={t.id} type="button" onClick={() => setTab(t.id)} aria-current={t.id === tab ? "page" : undefined} data-testid={`super-tab-${t.id}`}
-                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start text-sm transition-colors ${t.id === tab ? "bg-primary/10 font-medium text-primary" : "text-foreground/80 hover:bg-accent"}`}
+                      className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-start text-sm transition-colors ${t.id === tab ? "bg-primary/15 font-semibold text-primary" : "text-foreground/75 hover:bg-white/5 hover:text-foreground"}`}
                     >
                       <Icon className="size-4 shrink-0" />{fa ? t.fa : t.en}
                     </button>
@@ -263,7 +263,7 @@ function SuperDashboard() {
         </nav>
 
         <main className="min-w-0 space-y-4" data-testid={`super-panel-${tab}`}>
-          <h2 className="text-xl font-bold">{fa ? currentMeta.fa : currentMeta.en}</h2>
+          <h2 className="text-2xl font-bold tracking-tight">{fa ? currentMeta.fa : currentMeta.en}</h2>
           {/* هر تب ErrorBoundaryِ خودش را دارد (با key = تب): خرابیِ یک بخش منو و بقیه‌یِ تب‌ها را از کار نمی‌اندازد. */}
           <ErrorBoundary inline key={tab}>
             <Suspense fallback={<div className="flex h-32 items-center justify-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>}>

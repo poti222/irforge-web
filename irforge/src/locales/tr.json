@@ -438,7 +438,9 @@
     "viewAllBots": "Tüm botları görüntüle",
     "noUsername": "Kullanıcı adı yok",
     "attentionTierExpired": "Paket süresi doldu — bot kapalı",
-    "attentionTierEndingSoon": "Paket {n} gün içinde bitiyor"
+    "attentionTierEndingSoon": "Paket {n} gün içinde bitiyor",
+    "greeting": "Merhaba, {name}",
+    "subtitle": "Botlarınıza tek bakışta"
   },
   "bots": {
     "title": "Ürünlerim",

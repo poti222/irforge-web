@@ -5,8 +5,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BrandLogo } from "@/components/layout/brand-home";
-import { PublicPageControls } from "@/components/layout/public-page-controls";
+import { AuthShell } from "@/components/auth/AuthShell";
 import { ArrowLeft, CheckCircle2, Loader2, Send } from "lucide-react";
 import { useT } from "@/hooks/use-translation";
 import { useSEO } from "@/hooks/use-seo";
@@ -39,10 +38,8 @@ export default function ForgotPassword() {
 
   return (
     <>
-      <div className="min-h-[calc(100dvh-5.5rem)] flex flex-col justify-center py-12 px-4 bg-background">
-        <PublicPageControls className="fixed end-4 top-4 z-10" />
-        <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
-          <BrandLogo className="mb-8 hover:opacity-80 transition-opacity" />
+      <AuthShell>
+        <div className="flex flex-col items-center">
           <h2 className="text-center text-2xl font-bold tracking-tight">
             {t.resetPasswordTitle}
           </h2>
@@ -51,8 +48,8 @@ export default function ForgotPassword() {
           </p>
         </div>
 
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-[400px]">
-          <div className="bg-card px-4 py-8 shadow-xl sm:rounded-xl border sm:px-10">
+        <div className="mt-2 w-full">
+          <div className="rounded-3xl border border-border/70 bg-card px-5 py-8 shadow-[var(--shadow-pop)] sm:px-9">
             {sent ? (
               <div className="space-y-4 text-center">
                 <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
@@ -93,7 +90,7 @@ export default function ForgotPassword() {
             </div>
           </div>
         </div>
-      </div>
+      </AuthShell>
       <EnamadSeal className="bg-background pb-4" />
     </>
   );

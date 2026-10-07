@@ -1,4 +1,5 @@
 import { customFetch } from "@workspace/api-client-react";
+import { PageHeader } from "@/components/forge-ui/PageHeader";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,10 +68,11 @@ export default function Invoices() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{fa ? "فاکتورهای من" : "My Invoices"}</h1>
-        <p className="text-muted-foreground">{fa ? "تاریخچهٔ مالی: خرید ربات و تراکنش‌های کیف پول." : "Financial history: bot purchases and wallet transactions."}</p>
-      </div>
+      <PageHeader
+        icon={<Receipt />}
+        title={fa ? "فاکتورهای من" : "My Invoices"}
+        description={fa ? "تاریخچهٔ مالی: خرید ربات و تراکنش‌های کیف پول." : "Financial history: bot purchases and wallet transactions."}
+      />
 
       {isLoading ? (
         <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-md bg-muted" />)}</div>

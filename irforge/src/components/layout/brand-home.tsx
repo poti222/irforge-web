@@ -79,7 +79,7 @@ export function BrandLogo({
   const content = (
     <div className={`flex items-center ${s.gap} min-w-0 ${className}`}>
       <div
-        className={`flex aspect-square ${s.badge} shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground`}
+        className={`flex aspect-square ${s.badge} shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[inset_0_1px_0_hsl(0_0%_100%/.28),0_6px_14px_-6px_hsl(var(--primary)/.85)]`}
       >
         <OrangeRobot className={`${s.glyph} text-primary-foreground`} />
       </div>

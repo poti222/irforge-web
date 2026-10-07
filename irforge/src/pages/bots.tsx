@@ -10,6 +10,9 @@ import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useListMyPurchases } from "@/hooks/use-products";
 import { productIcon } from "@/lib/product-icons";
 import { botLifetime, LIFETIME_TONE } from "@/lib/bot-lifetime";
+import { PageHeader } from "@/components/forge-ui/PageHeader";
+import { StatusPill } from "@/components/forge-ui/LiveDot";
+import { botStatusMeta } from "@/lib/bot-status";
 
 /**
  * IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section A — this page (still `/bots`,
@@ -70,126 +73,137 @@ export default function Bots() {
   usePrivatePageTitle(useT("pageTitles").bots);
   const { lang } = useLanguage();
   const t = useT("bots");
+  const tw = useT("botWorkspace");
   const { data: bots, isLoading } = useListBots();
+  const nf = (n: number | undefined) => (n ?? 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US");
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t.title}</h1>
-        {/* Creating a bot now always starts from the Buy Bot flow. */}
-        <Button asChild className="w-full sm:w-auto">
-          <Link href="/products">
-            <Plus className="me-2 h-4 w-4" /> {t.createNewBot}
-          </Link>
-        </Button>
-      </div>
+    <div className="space-y-10">
+      {/* Creating a bot now always starts from the Buy Bot flow. */}
+      <PageHeader
+        icon={<BotIcon />}
+        title={t.title}
+        description={bots && bots.length > 0 ? `${nf(bots.length)} · ${t.myBotsTitle}` : t.myBotsTitle}
+        actions={
+          <Button asChild size="lg" className="w-full sm:w-auto">
+            <Link href="/products">
+              <Plus className="me-2 h-4 w-4" /> {t.createNewBot}
+            </Link>
+          </Button>
+        }
+      />
 
       <div className="space-y-3">
-      <h2 className="text-lg font-semibold tracking-tight">{t.myBotsTitle}</h2>
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="animate-pulse">
-              <CardHeader className="h-20" />
-              <CardContent className="h-24" />
+              <CardHeader className="h-24" />
+              <CardContent className="h-28" />
             </Card>
           ))}
         </div>
       ) : bots && bots.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {bots.map((bot) => (
-            <Card key={bot.id} className="flex flex-col">
-              <CardHeader className="pb-4">
-                <div className="flex justify-between items-start">
-                  <div className="flex min-w-0 items-center gap-3">
-                    {/* the bot's own Telegram profile photo when it has one —
-                        makes a list of several bots scannable at a glance */}
-                    {bot.avatar ? (
-                      <img
-                        src={bot.avatar}
-                        alt={t.botAvatarAlt}
-                        loading="lazy"
-                        className="size-10 shrink-0 rounded-lg border border-border object-cover"
-                      />
-                    ) : (
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <BotIcon className="h-6 w-6" />
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <CardTitle className="truncate text-lg">{bot.name}</CardTitle>
-                      {bot.username ? (
-                        <a
-                          href={`https://t.me/${bot.username}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          dir="ltr"
-                          className="block truncate text-sm text-muted-foreground hover:text-primary hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          @{bot.username}
-                        </a>
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {bots.map((bot) => {
+            const st = botStatusMeta(bot.status, lang);
+            const life = botLifetime(bot, lang);
+            return (
+              <Card key={bot.id} className="group flex flex-col overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-pop)]">
+                <div className="relative bg-gradient-to-br from-primary/[0.12] via-primary/[0.04] to-transparent px-5 pb-4 pt-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3.5">
+                      {/* the bot's own Telegram profile photo when it has one —
+                          makes a list of several bots scannable at a glance */}
+                      {bot.avatar ? (
+                        <img
+                          src={bot.avatar}
+                          alt={t.botAvatarAlt}
+                          loading="lazy"
+                          className="size-14 shrink-0 rounded-2xl border border-border object-cover ring-4 ring-background"
+                        />
                       ) : (
-                        <p className="truncate text-sm text-muted-foreground">{t.noUsername}</p>
+                        <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[inset_0_1px_0_hsl(0_0%_100%/.25),0_10px_20px_-10px_hsl(var(--primary)/.8)] ring-4 ring-background">
+                          <BotIcon className="h-7 w-7" />
+                        </div>
                       )}
+                      <div className="min-w-0">
+                        <h3 className="truncate text-lg font-bold leading-tight">{bot.name}</h3>
+                        {bot.username ? (
+                          <a
+                            href={`https://t.me/${bot.username}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            dir="ltr"
+                            className="block truncate text-start text-sm text-muted-foreground hover:text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            @{bot.username}
+                          </a>
+                        ) : (
+                          <p className="truncate text-sm text-muted-foreground">{t.noUsername}</p>
+                        )}
+                      </div>
                     </div>
+                    <StatusPill tone={st.tone} pulse={st.pulse}>{st.label}</StatusPill>
                   </div>
-                  <Badge variant={bot.status === "active" ? "default" : "secondary"}>
-                    {bot.status === "expired" || bot.status === "tier_expired" ? (lang === "fa" ? "منقضی‌شده" : "expired") : bot.status}
-                  </Badge>
+                  {life && (
+                    <Badge
+                      variant="outline"
+                      data-testid="bot-lifetime-badge"
+                      className={`mt-3 flex w-fit items-center gap-1 ${LIFETIME_TONE[life.tone]}`}
+                    >
+                      <Gift className="size-3" />
+                      {life.text}
+                    </Badge>
+                  )}
                 </div>
-                {botLifetime(bot, lang) && (
-                  <Badge
-                    variant="outline"
-                    data-testid="bot-lifetime-badge"
-                    className={`mt-2 flex w-fit items-center gap-1 ${LIFETIME_TONE[botLifetime(bot, lang)!.tone]}`}
-                  >
-                    <Gift className="size-3" />
-                    {botLifetime(bot, lang)!.text}
-                  </Badge>
-                )}
-              </CardHeader>
-              <CardContent className="flex-1 pb-4">
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {bot.description || t.noDescription}
-                </p>
-                <div className="flex gap-4 mt-4 text-sm">
-                  <div className="flex flex-col">
-                    <span className="text-muted-foreground">{t.usersLabel}</span>
-                    <span className="font-medium">{(bot.userCount || 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US")}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-muted-foreground">{t.commandsLabel}</span>
-                    <span className="font-medium">{(bot.commandCount || 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US")}</span>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-0 border-t mt-4 gap-2">
-                <Button variant="ghost" className="flex-1 mt-4" asChild>
-                  <Link href={`/bots/${bot.id}`}>
-                    {t.manageBot} <ArrowRight className="ms-2 h-4 w-4 rtl-flip" />
-                  </Link>
-                </Button>
-                {/* Straight to the gear — the settings section is where most
-                    return visits go, and the workspace reads the section from
-                    the URL, so this deep link lands exactly there. */}
-                <Button variant="ghost" size="icon" className="mt-4 shrink-0" asChild title={t.botSettingsShortcut}>
-                  <Link href={`/bots/${bot.id}?section=settings`} aria-label={t.botSettingsShortcut}>
-                    <Settings className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
+                <CardContent className="flex flex-1 flex-col gap-4 p-5 pt-4">
+                  <p className="line-clamp-2 min-h-10 text-sm leading-relaxed text-muted-foreground">
+                    {bot.description || t.noDescription}
+                  </p>
+                  <dl className="grid grid-cols-3 divide-x divide-border/70 rounded-xl bg-muted/50 py-2.5 text-center rtl:divide-x-reverse">
+                    {[
+                      [t.usersLabel, bot.userCount],
+                      [t.commandsLabel, bot.commandCount],
+                      [tw.overviewPlugins, bot.pluginCount],
+                    ].map(([label, n]) => (
+                      <div key={label as string} className="px-2">
+                        <dd className="text-base font-bold tabular-nums">{nf(n as number | undefined)}</dd>
+                        <dt className="truncate text-[0.7rem] text-muted-foreground">{label}</dt>
+                      </div>
+                    ))}
+                  </dl>
+                </CardContent>
+                <CardFooter className="gap-2 p-5 pt-0">
+                  <Button className="flex-1" asChild>
+                    <Link href={`/bots/${bot.id}`}>
+                      {t.manageBot} <ArrowRight className="ms-2 h-4 w-4 rtl-flip" />
+                    </Link>
+                  </Button>
+                  {/* Straight to the gear — the settings section is where most
+                      return visits go, and the workspace reads the section from
+                      the URL, so this deep link lands exactly there. */}
+                  <Button variant="outline" size="icon" className="shrink-0" asChild title={t.botSettingsShortcut}>
+                    <Link href={`/bots/${bot.id}?section=settings`} aria-label={t.botSettingsShortcut}>
+                      <Settings className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
       ) : (
-        <div className="text-center py-20 bg-card rounded-lg border border-dashed">
-          <BotIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h2 className="text-xl font-semibold mb-2">{t.noBotsTitle}</h2>
-          <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+        <div className="rounded-3xl border border-dashed border-border bg-card/60 px-6 py-20 text-center">
+          <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/20">
+            <BotIcon className="h-8 w-8" />
+          </div>
+          <h2 className="mb-2 text-xl font-semibold">{t.noBotsTitle}</h2>
+          <p className="mx-auto mb-6 max-w-sm text-muted-foreground">
             {t.noBotsDesc}
           </p>
-          <Button asChild>
+          <Button asChild size="lg">
             <Link href="/products">
               <Plus className="me-2 h-4 w-4" /> {t.createFirstBot}
             </Link>

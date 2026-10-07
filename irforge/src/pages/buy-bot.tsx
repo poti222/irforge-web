@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { PageHeader } from "@/components/forge-ui/PageHeader";
 import { Link } from "wouter";
 import { CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { MotionCard } from "@/components/ui/motion-card";
@@ -74,14 +75,7 @@ export default function BuyBot() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-          {tp.pageTitle}
-        </h1>
-        <p className="max-w-lg text-muted-foreground">
-          {tp.pageSub}
-        </p>
-      </div>
+      <PageHeader icon={<PackageOpen />} title={tp.pageTitle} description={tp.pageSub} />
 
       {!hasUsedTrial && (
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-6 text-center sm:flex-row sm:justify-between sm:text-start">

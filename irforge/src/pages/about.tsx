@@ -1,7 +1,8 @@
 import { Link } from "wouter";
 import { Instagram, Send } from "lucide-react";
 import { PublicFooter } from "@/components/layout/public-footer";
-import { PublicPageControls } from "@/components/layout/public-page-controls";
+import { PublicNav } from "@/components/layout/PublicNav";
+import { ForgePanel } from "@/components/forge-ui/ForgePanel";
 import { BuildBotCta } from "@/components/learn/BuildBotCta";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,6 +33,7 @@ export default function About() {
 
   return (
     <>
+      <PublicNav />
       <div className="mx-auto max-w-3xl space-y-10 px-4 py-8">
         <div className="flex items-center justify-between gap-3">
           <nav aria-label={t.breadcrumbLabel} className="min-w-0 text-sm text-muted-foreground">
@@ -41,14 +43,13 @@ export default function About() {
               <li className="text-foreground">{seo.navAbout}</li>
             </ol>
           </nav>
-          <PublicPageControls />
-        </div>
+          </div>
 
-        <header className="space-y-4">
+        <ForgePanel as="header" className="space-y-4 p-7 sm:p-12" embers={14}>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{t.h1}</h1>
           <BuildBotCta />
           <p className="text-lg leading-relaxed">{t.lead}</p>
-        </header>
+        </ForgePanel>
 
         {sections.map((chapter) => (
           <section key={chapter.h2} className="space-y-3">

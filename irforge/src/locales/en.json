@@ -438,7 +438,9 @@
     "viewAllBots": "View all bots",
     "noUsername": "No username",
     "attentionTierExpired": "Package period ended — the bot is off",
-    "attentionTierEndingSoon": "Package ends in {n} days"
+    "attentionTierEndingSoon": "Package ends in {n} days",
+    "greeting": "Hello, {name}",
+    "subtitle": "Your bots at a glance"
   },
   "bots": {
     "title": "My Products",

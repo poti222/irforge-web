@@ -53,7 +53,7 @@ export default function DashboardShell({
       <AppSidebar />
       <SidebarInset>
         <TestModeBanner />
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background/75 px-4 backdrop-blur-xl md:rounded-t-2xl">
           <SidebarTrigger />
           <HeaderControls />
         </header>
