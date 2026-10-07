@@ -547,13 +547,13 @@
   "admin": {},
   "botLanguageSettings": {},
   "seo": {
-    "homeTitle": "Telegram Bot Builder | Create a Bot Without Code | IrForge",
-    "homeDescription": "Build a Telegram bot without code with IrForge: shop bot, support tickets, broadcasts, booking and a Persian admin panel. Enter your token and try it free for 7 days.",
+    "homeTitle": "Telegram Bot Builder | Buy & Build Bots Without Code | IrForge",
+    "homeDescription": "Build or buy a Telegram bot without code: shop, support, broadcast and booking bots with a Persian-first panel, plus a school system. Free for 7 days.",
     "docsTitle": "IrForge Docs | Telegram Bot Builder Guide & SDK",
     "docsDescription": "Complete IrForge documentation: quick start, defining commands with arguments, writing plugins, and finding your way around the management panel.",
     "navHome": "Home",
     "navDocs": "Documentation",
-    "keywords": "telegram bot builder, build a telegram bot, no-code telegram bot, telegram shop bot, telegram support bot, telegram broadcast, buy a telegram bot, ready-made telegram bot, telegram bot admin panel, school management bot, IrForge",
+    "keywords": "telegram bot builder, buy telegram bot, telegram bot price, build telegram bot without code, telegram shop bot, telegram support bot, telegram broadcast bot, school management system, school management with telegram, IrForge",
     "botTokenTitle": "How to Get a Telegram Bot Token from BotFather | IrForge",
     "botTokenDescription": "Get a Telegram bot token in seven steps with @BotFather, learn what the token actually is, how to keep it safe, and how to revoke one that has leaked.",
     "navBotToken": "Bot token",
@@ -584,8 +584,8 @@
     "webhookTitle": "Telegram Webhook vs Polling: Which to Use | IrForge",
     "webhookDescription": "Telegram webhook vs polling explained: how each delivers updates, what each costs you in latency and infrastructure, and which one your bot should use.",
     "navWebhook": "Webhook vs polling",
-    "pricingTitle": "Telegram Bot Pricing & Packages | IrForge",
-    "pricingDescription": "IrForge pricing and packages for Telegram bots: a free 7-day trial bot, Standard and Pro packages, monthly renewal from your wallet, and what each package includes.",
+    "pricingTitle": "Buy a Telegram Bot | Standard & Pro Plans and Prices | IrForge",
+    "pricingDescription": "Buy a Telegram bot on IrForge: a free 7-day trial bot, Standard and Pro plans renewed monthly from your wallet, with the features of each plan laid out clearly.",
     "navPricing": "Pricing",
     "whatIsTitle": "What Is a Telegram Bot? Uses, Types & How to Build One | IrForge",
     "whatIsDescription": "What is a Telegram bot and what can it do? A plain-language intro to bot types (shop, support, notifications), how bots work and how to build one without code.",
@@ -601,7 +601,12 @@
     "navBroadcast": "Broadcast",
     "aboutTitle": "About IrForge | Telegram Bot Builder",
     "aboutDescription": "What IrForge is, what it does and how to reach us: a Telegram bot builder with a Persian-first panel, how tokens and data are handled, costs and support channels.",
-    "navAbout": "About"
+    "navAbout": "About",
+    "schoolTitle": "School Management System via Telegram | IrForge",
+    "schoolDescription": "IrForge school management system: panels for admins, teachers, students, parents and counselors, with grades, attendance and Telegram alerts to families.",
+    "schoolKeywords": "school management system, school management software, school management with Telegram, school Telegram bot, school notification bot, student grades and attendance system, parent and teacher portal, online attendance, IrForge",
+    "navSchool": "School management",
+    "pricingKeywords": "buy telegram bot, telegram bot price, telegram bot builder pricing, telegram bot cost, Standard and Pro plans, IrForge"
   },
   "faq": {
     "title": "Frequently asked questions",
@@ -4742,5 +4747,82 @@
     "ctaBody": "Try it free for 7 days — no coding, no servers.",
     "ctaButton": "Build your own bot",
     "ctaPricing": "See pricing"
+  },
+  "schoolPage": {
+    "breadcrumbLabel": "Breadcrumb",
+    "h1": "School Management System with Telegram Notifications",
+    "lead": "IrForge is more than a Telegram bot builder: it also includes a school management system. Admins, deputies, teachers, counselors, students and parents each get their own panel, grades, attendance, assignments and exams live in one place, and the school's notification bot delivers alerts straight to families on Telegram.",
+    "sections": [
+      {
+        "h2": "What does the IrForge school management system do?",
+        "body": [
+          "You create the school, define classes and programs, and invite members with invite codes. A code can have an expiry date and a usage cap, and can be limited to one role or open to all. From then on the daily work — attendance, grades, assignments, exams and announcements — happens in this panel instead of notebooks and scattered chat groups."
+        ]
+      },
+      {
+        "h2": "What does each role see?",
+        "items": [
+          "**Admins and deputies:** member, class and program management, alerts, broadcast messages, closure announcements and a change history.",
+          "**Teachers:** today's classes, attendance, the gradebook, assignments, exams and a question bank, and chat with students.",
+          "**Students:** subjects, assignments, exams, their own attendance and grades, and contact with the counselor, admin and teachers.",
+          "**Parents:** their child's status, reports, grades and attendance, without waiting for a call or a report card.",
+          "**Counselors:** the student list, reports, a schedule and chat with students and families."
+        ]
+      },
+      {
+        "h2": "School system features",
+        "items": [
+          "Attendance and a gradebook for every class and subject",
+          "Assignments and exams, with a question bank for teachers",
+          "Announcements, broadcast messages and closure notices for everyone or a group",
+          "Two-way chat between students and the admin, teachers and counselor",
+          "Discipline alerts and a recorded history of important changes",
+          "Learning content: dictionary, notes, books, formulas and poems, with a study mode and flashcards"
+        ]
+      },
+      {
+        "h2": "School notifications on Telegram",
+        "body": [
+          "Most families already have Telegram, so there is no new app to install. A school can have a notification bot named after itself; exam, assignment, attendance and alert notices go straight to members' Telegram. Each member connects once with the \"Connect with Telegram\" button. The bot is bought from the school wallet, and if no bot capacity is available the system tells you so.",
+          "If you also want a Telegram bot for a business, see the [guide to building a Telegram bot](/learn/how-to-make-a-telegram-bot) and the [pricing page](/pricing)."
+        ]
+      },
+      {
+        "h2": "Where do I start?",
+        "items": [
+          "Sign up and choose your role in the School section.",
+          "If you have your school's invite code, enter it to join directly; otherwise create your own school.",
+          "Add classes and members, and create invite codes for each role.",
+          "If you want Telegram notifications, buy the notification bot and ask members to connect to it."
+        ]
+      }
+    ],
+    "faq": [
+      {
+        "q": "Who is the IrForge school management system for?",
+        "a": "Schools and educational institutes that want to manage grades, attendance, assignments, exams and announcements in one panel. Admins, deputies, teachers, counselors, students and parents each have their own role and panel."
+      },
+      {
+        "q": "Do we need to install an app?",
+        "a": "No. The panel works in the browser, and notifications arrive through Telegram, which families usually already have."
+      },
+      {
+        "q": "How do school notifications reach Telegram?",
+        "a": "The school buys a notification bot named after itself and members connect to it with the \"Connect with Telegram\" button. After that, exam, assignment, attendance and alert notices are also sent to their Telegram."
+      },
+      {
+        "q": "How do members join a school?",
+        "a": "With an invite code. The admin creates codes for a single role or for all roles, and can set an expiry date and a usage cap."
+      },
+      {
+        "q": "Can I also build a regular Telegram bot on IrForge?",
+        "a": "Yes. IrForge is first of all a Telegram bot builder: shop, support, broadcast and booking bots without code. Every account gets a free 7-day trial bot."
+      }
+    ],
+    "ctaTitle": "Try the school system",
+    "ctaBody": "Sign up, choose your role, and create your school or join one with an invite code.",
+    "ctaButton": "Open the school system",
+    "ctaBots": "Buy and build a Telegram bot",
+    "faqTitle": "School system FAQ"
   }
 }

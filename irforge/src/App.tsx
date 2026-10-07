@@ -34,6 +34,7 @@ import LearnChooseBuilder from "@/pages/learn/choose-a-telegram-bot-builder";
 import LearnMenuButtons from "@/pages/learn/telegram-bot-menu-buttons";
 import LearnBroadcast from "@/pages/learn/telegram-bot-broadcast";
 import About from "@/pages/about";
+import SchoolManagement from "@/pages/school-management";
 import Pricing from "@/pages/pricing";
 
 /**
@@ -367,6 +368,7 @@ function Router() {
       <Route path="/learn/telegram-bot-broadcast" component={LearnBroadcast} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/about" component={About} />
+      <Route path="/school-management" component={SchoolManagement} />
       {/* The guide used to live at /learn/bot-token and that URL was public and
           prerendered, so it must not simply 404. wouter can only redirect once
           the SPA has booted — a real 301 has to be configured at the host.

@@ -45,6 +45,7 @@ export const PUBLIC_ROUTES = [
   "/learn/botfather-commands",
   "/learn/telegram-bot-webhook-vs-polling",
   "/pricing",
+  "/school-management",
   "/about",
 ] as const;
 
@@ -176,7 +177,14 @@ export const ROUTE_SEO: Record<string, RouteSeo> = {
   "/pricing": {
     titleKey: "pricingTitle",
     descKey: "pricingDescription",
+    keywordsKey: "pricingKeywords",
     navKey: "navPricing",
+  },
+  "/school-management": {
+    titleKey: "schoolTitle",
+    descKey: "schoolDescription",
+    keywordsKey: "schoolKeywords",
+    navKey: "navSchool",
   },
   "/about": {
     titleKey: "aboutTitle",

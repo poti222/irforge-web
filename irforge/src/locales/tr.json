@@ -587,7 +587,7 @@
     "pricingTitle": "Telegram Bot Fiyatları ve Paketleri | IrForge",
     "pricingDescription": "Telegram botları için IrForge fiyatları ve paketleri: 7 günlük ücretsiz deneme botu, Standard ve Pro paketleri, cüzdandan aylık yenileme ve her paketin içeriği.",
     "navPricing": "Fiyatlar",
-    "whatIsTitle": "Telegram Botu Nedir? Kullanım Alanları, Türleri ve Nasıl Yapılır | IrForge",
+    "whatIsTitle": "Telegram botu nedir? Kullanım alanları ve nasıl yapılır | IrForge",
     "whatIsDescription": "Telegram botu nedir ve ne yapar? Bot türlerine (mağaza, destek, bildirim), botların nasıl çalıştığına ve kod yazmadan nasıl yapılacağına sade bir giriş.",
     "navWhatIs": "Telegram botu nedir?",
     "chooseBuilderTitle": "En İyi Telegram Bot Oluşturucu Nasıl Seçilir | IrForge",
@@ -601,7 +601,12 @@
     "navBroadcast": "Toplu mesaj",
     "aboutTitle": "IrForge Hakkında | Telegram Bot Oluşturucu",
     "aboutDescription": "IrForge nedir, ne yapar ve bize nasıl ulaşırsınız: Farsça öncelikli panelli Telegram bot oluşturucu, token ve verinin nasıl ele alındığı, maliyetler ve destek kanalları.",
-    "navAbout": "Hakkında"
+    "navAbout": "Hakkında",
+    "schoolTitle": "Telegram ile Okul Yönetim Sistemi | Not ve Devamsızlık | IrForge",
+    "schoolDescription": "IrForge okul yönetim sistemi: yönetici, öğretmen, öğrenci, veli ve rehber için ayrı paneller; not, devamsızlık kaydı ve ailelere Telegram bildirimleri.",
+    "schoolKeywords": "okul yönetim sistemi, okul yönetim yazılımı, Telegram ile okul yönetimi, okul Telegram botu, okul bildirim botu, not ve devamsızlık sistemi, veli paneli, IrForge",
+    "navSchool": "Okul yönetimi",
+    "pricingKeywords": "Telegram botu satın al, Telegram botu fiyatı, Telegram bot oluşturucu fiyatları, Telegram bot maliyeti, Standard ve Pro paketleri, IrForge"
   },
   "faq": {
     "title": "Sık sorulan sorular",
@@ -4085,5 +4090,82 @@
     "ctaBody": "7 gün ücretsiz deneyin — kodsuz, sunucusuz.",
     "ctaButton": "Kendi botunu yap",
     "ctaPricing": "Fiyatları gör"
+  },
+  "schoolPage": {
+    "breadcrumbLabel": "Sayfa yolu",
+    "h1": "Telegram Bildirimli Okul Yönetim Sistemi",
+    "lead": "IrForge yalnızca bir Telegram bot oluşturucu değildir; bir okul yönetim sistemi de içerir. Yönetici, müdür yardımcısı, öğretmen, rehber, öğrenci ve velilerin her birinin kendi paneli vardır; not, devamsızlık, ödev ve sınav tek yerde tutulur ve okulun bildirim botu uyarıları doğrudan ailelerin Telegram'ına gönderir.",
+    "sections": [
+      {
+        "h2": "IrForge okul yönetim sistemi ne yapar?",
+        "body": [
+          "Okulu oluşturur, sınıfları ve programları tanımlar, üyeleri davet kodlarıyla çağırırsınız. Bir kodun son kullanma tarihi ve kullanım sınırı olabilir; tek bir role ya da tüm rollere ayrılabilir. Bundan sonra günlük işler — yoklama, notlar, ödevler, sınavlar ve duyurular — defterler ve dağınık sohbet grupları yerine bu panelden yürür."
+        ]
+      },
+      {
+        "h2": "Her rol ne görür?",
+        "items": [
+          "**Yönetici ve yardımcılar:** üye, sınıf ve program yönetimi, uyarılar, toplu mesaj, tatil duyurusu ve değişiklik geçmişi.",
+          "**Öğretmen:** bugünkü dersler, yoklama, not defteri, ödev, sınav, soru bankası ve öğrenciyle yazışma.",
+          "**Öğrenci:** dersler, ödevler, sınavlar, kendi devamsızlık ve notları; rehber, yönetici ve öğretmenle iletişim.",
+          "**Veli:** çocuğunun durumu, raporlar, notlar ve devamsızlık; telefon ya da karne beklemeden.",
+          "**Rehber:** öğrenci listesi, raporlar, zaman çizelgesi ve öğrenci ile ailelerle yazışma."
+        ]
+      },
+      {
+        "h2": "Okul sistemi özellikleri",
+        "items": [
+          "Her sınıf ve ders için yoklama ve not defteri",
+          "Ödev ve sınav, öğretmenler için soru bankası ile",
+          "Herkese ya da bir gruba duyuru, toplu mesaj ve tatil bildirimi",
+          "Öğrencinin yönetici, öğretmen ve rehberle iki yönlü yazışması",
+          "Disiplin uyarıları ve önemli değişikliklerin kayıtlı geçmişi",
+          "Eğitim içeriği: sözlük, not, kitap, formül ve şiir; çalışma modu ve bilgi kartlarıyla"
+        ]
+      },
+      {
+        "h2": "Telegram'da okul bildirimleri",
+        "body": [
+          "Çoğu ailede Telegram zaten kurulu olduğundan yeni bir uygulama gerekmez. Okul, kendi adını taşıyan bir bildirim botuna sahip olabilir; sınav, ödev, devamsızlık ve uyarı bildirimleri doğrudan üyelerin Telegram'ına gider. Her üye \"Telegram ile bağlan\" düğmesiyle bir kez bağlanır. Bot okul cüzdanından satın alınır; bot kapasitesi yoksa sistem bunu size söyler.",
+          "İşletmeniz için de bir Telegram botu istiyorsanız [Telegram botu oluşturma rehberine](/learn/how-to-make-a-telegram-bot) ve [fiyatlara](/pricing) bakın."
+        ]
+      },
+      {
+        "h2": "Nereden başlamalıyım?",
+        "items": [
+          "Kayıt olun ve Okul bölümünde rolünüzü seçin.",
+          "Okulun davet kodu varsa girin ve doğrudan katılın; yoksa kendi okulunuzu oluşturun.",
+          "Sınıfları ve üyeleri ekleyin, her rol için davet kodu oluşturun.",
+          "Telegram bildirimi istiyorsanız bildirim botunu satın alın ve üyelerden bağlanmalarını isteyin."
+        ]
+      }
+    ],
+    "faq": [
+      {
+        "q": "IrForge okul yönetim sistemi kimler için?",
+        "a": "Not, devamsızlık, ödev, sınav ve duyuruları tek panelde yönetmek isteyen okullar ve eğitim kurumları için. Yönetici, yardımcı, öğretmen, rehber, öğrenci ve velinin ayrı rolü ve paneli vardır."
+      },
+      {
+        "q": "Uygulama kurmamız gerekir mi?",
+        "a": "Hayır. Panel tarayıcıda çalışır, bildirimler ise ailelerin çoğunda zaten bulunan Telegram ile gelir."
+      },
+      {
+        "q": "Okul bildirimleri Telegram'a nasıl ulaşır?",
+        "a": "Okul kendi adını taşıyan bir bildirim botu satın alır, üyeler \"Telegram ile bağlan\" düğmesiyle bağlanır; sonrasında sınav, ödev, devamsızlık ve uyarı bildirimleri Telegram'larına da gönderilir."
+      },
+      {
+        "q": "Üyeler okula nasıl katılır?",
+        "a": "Davet koduyla. Yönetici tek bir rol ya da tüm roller için kod oluşturur; son kullanma tarihi ve kullanım sınırı belirleyebilir."
+      },
+      {
+        "q": "IrForge'da normal bir Telegram botu da yapabilir miyim?",
+        "a": "Evet. IrForge her şeyden önce bir Telegram bot oluşturucudur: mağaza, destek, toplu mesaj ve randevu botlarını kodsuz yapabilirsiniz. Her hesap 7 günlük ücretsiz deneme botu alır."
+      }
+    ],
+    "ctaTitle": "Okul sistemini deneyin",
+    "ctaBody": "Kayıt olun, rolünüzü seçin; okulunuzu oluşturun ya da davet koduyla katılın.",
+    "ctaButton": "Okul sistemine gir",
+    "ctaBots": "Telegram botu satın al ve oluştur",
+    "faqTitle": "Okul sistemi hakkında sık sorulanlar"
   }
 }
