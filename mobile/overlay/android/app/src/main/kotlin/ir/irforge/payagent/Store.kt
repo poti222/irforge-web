@@ -22,6 +22,7 @@ data class AgentSettings(
     val autoUpdateCheck: Boolean = true,
     val updateCheckHours: Int = 6,
     val updateUrl: String = "",        // خالی = از origin وبهوک: /api/agent/latest
+    val keywords: String = "",         // کلمات (با ویرگول): فقط پیامکی که یکی‌شان را دارد ارسال شود؛ خالی = فیلتر نیست
 )
 
 data class QueuedSms(val id: String, val sender: String, val body: String, val ts: Long, val attempts: Int)
@@ -132,6 +133,7 @@ object Store {
             autoUpdateCheck = p.getBoolean("s_autoupd", d.autoUpdateCheck),
             updateCheckHours = p.getInt("s_updhours", d.updateCheckHours).coerceIn(1, 72),
             updateUrl = p.getString("s_updurl", d.updateUrl) ?: "",
+            keywords = p.getString("s_keywords", d.keywords) ?: "",
         )
     }
 
@@ -142,6 +144,7 @@ object Store {
             .putBoolean("s_notsend", s.notifyOnSend).putBoolean("s_notfail", s.notifyOnFailure)
             .putBoolean("s_autoupd", s.autoUpdateCheck).putInt("s_updhours", s.updateCheckHours)
             .putString("s_updurl", s.updateUrl.trim())
+            .putString("s_keywords", s.keywords.trim())
             .apply()
     }
 

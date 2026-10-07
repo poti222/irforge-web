@@ -11,6 +11,7 @@ class SmsReceiver : BroadcastReceiver() {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
         val parts = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         val cfg = Store.config(ctx)
+        val keywords = Store.settings(ctx).keywords.split(',', '،', '\n').map { it.trim() }.filter { it.isNotEmpty() }
         var queued = false
         // پیامکِ چندبخشی = چند PDU از یک فرستنده؛ یکی‌شان کن.
         for ((sender, group) in parts.groupBy { it.originatingAddress ?: "" }) {
@@ -21,6 +22,8 @@ class SmsReceiver : BroadcastReceiver() {
                 cfg.senders.isNotEmpty() && !senderAllowed(sender, cfg.senders) -> "not_allowed"
                 // لیستِ فرستنده خالی است: فقط پیامک‌هایی که شبیه تراکنشِ بانکی‌اند (پیامکِ شخصی/OTP نه).
                 cfg.senders.isEmpty() && !looksLikeBankSms(body) -> "not_bank_like"
+                // فیلترِ کلمه: اگر کاربر کلمه‌ای تعیین کرده، متن باید یکی‌شان را داشته باشد.
+                keywords.isNotEmpty() && keywords.none { body.contains(it, ignoreCase = true) } -> "no_keyword"
                 else -> "queued"
             }
             Log.i("PayAgent", "sms-received sender=$sender decision=$decision")

@@ -93,7 +93,7 @@ class MainActivity : FlutterActivity() {
     private fun settingsMap(s: AgentSettings) = mapOf(
         "backoffSeconds" to s.backoffSeconds, "timeoutSeconds" to s.timeoutSeconds, "tryAllNetworks" to s.tryAllNetworks,
         "keepDays" to s.keepDays, "notifyOnSend" to s.notifyOnSend, "notifyOnFailure" to s.notifyOnFailure,
-        "autoUpdateCheck" to s.autoUpdateCheck, "updateCheckHours" to s.updateCheckHours, "updateUrl" to s.updateUrl,
+        "autoUpdateCheck" to s.autoUpdateCheck, "updateCheckHours" to s.updateCheckHours, "updateUrl" to s.updateUrl, "keywords" to s.keywords,
     )
 
     private fun settingsFrom(m: Map<*, *>): AgentSettings {
@@ -108,6 +108,7 @@ class MainActivity : FlutterActivity() {
             autoUpdateCheck = (m["autoUpdateCheck"] as? Boolean) ?: d.autoUpdateCheck,
             updateCheckHours = (m["updateCheckHours"] as? Int) ?: d.updateCheckHours,
             updateUrl = (m["updateUrl"] as? String) ?: d.updateUrl,
+            keywords = (m["keywords"] as? String) ?: d.keywords,
         )
     }
 

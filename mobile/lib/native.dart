@@ -78,11 +78,13 @@ class AgentSettings {
     this.autoUpdateCheck = true,
     this.updateCheckHours = 6,
     this.updateUrl = '',
+    this.keywords = '',
   });
 
   final int backoffSeconds, timeoutSeconds, keepDays, updateCheckHours;
   final bool tryAllNetworks, notifyOnSend, notifyOnFailure, autoUpdateCheck;
   final String updateUrl;
+  final String keywords;
 
   AgentSettings copyWith({
     int? backoffSeconds,
@@ -94,6 +96,7 @@ class AgentSettings {
     bool? notifyOnFailure,
     bool? autoUpdateCheck,
     String? updateUrl,
+    String? keywords,
   }) =>
       AgentSettings(
         backoffSeconds: backoffSeconds ?? this.backoffSeconds,
@@ -105,6 +108,7 @@ class AgentSettings {
         notifyOnFailure: notifyOnFailure ?? this.notifyOnFailure,
         autoUpdateCheck: autoUpdateCheck ?? this.autoUpdateCheck,
         updateUrl: updateUrl ?? this.updateUrl,
+        keywords: keywords ?? this.keywords,
       );
 
   Map<String, dynamic> toMap() => {
@@ -117,6 +121,7 @@ class AgentSettings {
         'autoUpdateCheck': autoUpdateCheck,
         'updateCheckHours': updateCheckHours,
         'updateUrl': updateUrl,
+        'keywords': keywords,
       };
 
   static AgentSettings fromMap(Map? m) {
@@ -135,6 +140,7 @@ class AgentSettings {
       updateCheckHours:
           (m['updateCheckHours'] as num?)?.toInt() ?? d.updateCheckHours,
       updateUrl: m['updateUrl'] as String? ?? d.updateUrl,
+      keywords: m['keywords'] as String? ?? d.keywords,
     );
   }
 }

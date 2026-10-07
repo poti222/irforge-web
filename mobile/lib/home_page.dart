@@ -10,6 +10,7 @@ import 'events_page.dart';
 import 'queue_page.dart';
 import 'scan_page.dart';
 import 'setup_link.dart';
+import 'senders_page.dart';
 import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -183,6 +184,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       appBar: AppBar(title: const Text('IrForge Pay Agent'), actions: [
         if (Native.isAndroid)
           IconButton(
+            tooltip: 'محدود کردن فرستنده‌ها',
+            icon: const Icon(Icons.filter_alt_outlined),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const SendersPage()))
+                .then((_) => _refresh()),
+          ),
+        if (Native.isAndroid)
+          IconButton(
             tooltip: 'پیامک‌های دریافتی',
             icon: const Icon(Icons.sms_outlined),
             onPressed: () => Navigator.of(context)
@@ -237,6 +246,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       label: const Text('تست اتصال'),
                     ),
                     if (Native.isAndroid) ...[
+                      const SizedBox(height: 8),
+                      FilledButton.tonalIcon(
+                        onPressed: () => Navigator.of(context)
+                            .push(MaterialPageRoute(
+                                builder: (_) => const SendersPage()))
+                            .then((_) => _refresh()),
+                        icon: const Icon(Icons.filter_alt_outlined),
+                        label: const Text('محدود کردن فرستنده‌ها'),
+                      ),
                       const SizedBox(height: 8),
                       FilledButton.tonalIcon(
                         onPressed: _busy
