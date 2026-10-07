@@ -34,6 +34,7 @@ import { requireSuperAdmin } from "./auth";
 import { requireSuperGate } from "../middleware/superGate";
 import { uploadedImagesTable } from "@workspace/db";
 import { sniff } from "../lib/schoolBotPhoto";
+import { getConnections, inviteText, adminGuideHtml, stripHtmlGuide } from "../lib/schoolBot/adminInfo";
 import { debitSchoolWallet, SchoolWalletInsufficientError } from "../lib/schoolWallet";
 import { rialToToman } from "../lib/currency";
 
@@ -304,6 +305,27 @@ router.get("/schools/:schoolId/bot/diagnostics", requireAuth, async (req: any, r
 });
 router.post("/super/schools/:schoolId/bot/resync", ...superGuard, (req: any, res) => resyncHandler(req, res, req.params.schoolId));
 router.get("/super/schools/:schoolId/bot/diagnostics", ...superGuard, (req: any, res) => diagnosticsHandler(req, res, req.params.schoolId));
+
+// GET /api/schools/:schoolId/bot/admin-info — مدیر: راهنما، متنِ دعوت (آمادهٔ کپی) و وضعیتِ اتصالِ اعضا (فقط نام‌ها).
+router.get("/schools/:schoolId/bot/admin-info", requireAuth, async (req: any, res) => {
+  try {
+    const { ok } = await canAccessSchool(req.userId, req.params.schoolId, ["admin", "deputy", "deputy_discipline"]);
+    if (!ok) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [bot] = await db.select().from(schoolBotsTable).where(eq(schoolBotsTable.schoolId, req.params.schoolId)).limit(1);
+    const [school] = await db.select({ name: schoolsTable.name }).from(schoolsTable).where(eq(schoolsTable.id, req.params.schoolId)).limit(1);
+    const uname = bot?.telegramUsername ?? null;
+    res.json({
+      botLink: uname ? `https://t.me/${uname}` : null,
+      inviteText: inviteText(school?.name ?? "مدرسه", uname),
+      guide: stripHtmlGuide(adminGuideHtml(school?.name ?? "مدرسه", uname)),
+      connections: await getConnections(req.params.schoolId),
+      photo: bot ? { status: bot.photoStatus, syncedUrl: bot.photoSyncedUrl, lastResyncAt: bot.lastResyncAt } : null,
+    });
+  } catch (err) {
+    logger.error({ err }, "School bot admin-info error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 // POST /api/schools/:schoolId/bot/photo { url: "/api/uploads/images/<uuid>" } — مرورگرِ مدیر عکسِ مدرسه را (WebP/GIF) به JPEG
 // تبدیل و با /api/uploads/images آپلود کرده؛ این‌جا فقط به عنوانِ عکسِ بات برایِ photoUrlِ *فعلیِ* مدرسه ثبت و اعمال می‌شود.

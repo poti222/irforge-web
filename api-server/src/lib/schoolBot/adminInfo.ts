@@ -80,3 +80,8 @@ export async function connectionsHtml(schoolId: string, limit = 15): Promise<str
   }
   return lines.join("\n");
 }
+
+/** HTMLِ تلگرام → متنِ ساده برایِ نمایش در سایت. */
+export function stripHtmlGuide(html: string): string {
+  return html.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+}
