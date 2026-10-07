@@ -265,6 +265,8 @@ export function PanelsSection({ bot }: { bot: Bot }) {
                   repair.mutate(undefined, {
                     onSuccess: ({ fixed }) =>
                       toast({ title: t.repairDone.replace("{n}", String(fixed)) }),
+                    onError: (err: any) =>
+                      toast({ variant: "destructive", title: t.repairFailed, description: err?.data?.error ?? err?.message }),
                   })
                 }
               >

@@ -2766,7 +2766,22 @@
     "settingGameServerPickHint": "\"Manage all\" opens the same picker the admin quick link shows — the user picks a server themselves.",
     "settingGameServerShowAll": "🗂 Manage all (default)",
     "settingGameServerNoneYet": "No servers yet — add one in the \"CS2 Servers\" section.",
-    "untitledAddress": "Untitled"
+    "untitledAddress": "Untitled",
+    "repairFailed": "Auto-repair failed",
+    "tabReplyKeyboard": "Bottom keyboard",
+    "rkIntro": "The keyboard shown under the message box. Set it for this panel and it changes when the user opens the panel — every panel can have its own.",
+    "rkModeLabel": "When the user opens this panel",
+    "rkModeKeep": "No change (keep the current keyboard)",
+    "rkModeCustom": "A custom keyboard for this panel",
+    "rkModeDefault": "Restore the bot's main keyboard",
+    "rkModeHide": "Hide the bottom keyboard",
+    "rkHintKeep": "This panel does not touch the user's bottom keyboard.",
+    "rkHintCustom": "The buttons below replace the current keyboard every time this panel is opened.",
+    "rkHintDefault": "The bot's main keyboard (Settings → Bottom keyboard) is shown again; if that is off, the keyboard is hidden.",
+    "rkHintHide": "The bottom keyboard is removed when this panel opens.",
+    "rkEmptyCustom": "No buttons yet — this setting has no effect until you add one.",
+    "rkMessageLabel": "Carrier message text (optional)",
+    "rkMessageHint": "Telegram allows only one kind of buttons per message, so a panel that has inline buttons must send the bottom keyboard in a short separate message after it. Leave empty to send “⌨️”."
   },
   "botForms": {
     "loading": "Loading forms…",
@@ -4048,7 +4063,8 @@
     "infraCacheFast": "Changes reach the bot within seconds",
     "infraCacheSlow": "Changes reach the bot within about a minute",
     "infraQueueOn": "broadcast queue connected",
-    "infraQueueOff": "broadcast queue not configured"
+    "infraQueueOff": "broadcast queue not configured",
+    "repairFailed": "Auto-repair failed"
   },
   "botPlan": {
     "loading": "Loading plan…",

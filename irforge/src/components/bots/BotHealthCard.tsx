@@ -55,6 +55,9 @@ export function BotHealthCard({ bot }: { bot: Bot }) {
       qc.invalidateQueries({ queryKey: ["bot-panels", bot.id] });
       toast({ title: t.repairDone.replace("{n}", String(fixed)) });
     },
+    // بدون این، شکستِ سرور (مثلاً ۴۰۹/۵۰۰) هیچ پیامی نداشت و دکمه «کار نمی‌کرد».
+    onError: (err: any) =>
+      toast({ variant: "destructive", title: t.repairFailed, description: err?.data?.error ?? err?.message }),
   });
 
   function goToSection(section: string) {

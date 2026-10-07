@@ -58,6 +58,13 @@ type EntitySchema = {
   includeIdInValue: boolean;
   /** Column name for the row's own bookkeeping updated-at timestamp, when the entity's OWN domain field already owns `updated_at` (Panel does). */
   rowUpdatedAtCol: string;
+  /**
+   * ستون‌هایی که در دیتابیس NULL-پذیرند و `null` برایشان یک مقدارِ واقعی است («بدونِ والد»).
+   * برای بقیه‌ی ستون‌ها `null` یعنی «ننویس» (ستون‌های NOT NULL با DEFAULT) — وگرنه INSERT می‌شکست.
+   * بدونِ این، `parent_id: null` هرگز روی Postgres نوشته نمی‌شد و «رفعِ خودکار»/«جدا کردنِ فرزند»/حذفِ orphan
+   * برای باتِ مهاجرت‌کرده بی‌اثر بود.
+   */
+  nullableColumns?: string[];
 };
 
 // ─── registered entities ────────────────────────────────────────────────────
@@ -79,6 +86,7 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema> = {
     kvMode: false,
     includeIdInValue: true,
     rowUpdatedAtCol: "row_updated_at",
+    nullableColumns: ["parent_id"],
   },
   // PHASE 17.6 on the bot side (business_repository.py). Form.id duplicates
   // the row key like Panel does (includeIdInValue), but unlike Panel, Form
@@ -301,7 +309,8 @@ async function upsertOne(client: PoolClient, s: EntitySchema, tenantId: string, 
     return;
   }
   const v = (value ?? {}) as Record<string, unknown>;
-  const cols = s.columns.filter((c) => v[c] !== undefined && v[c] !== null);
+  const nullable = new Set(s.nullableColumns ?? []);
+  const cols = s.columns.filter((c) => v[c] !== undefined && (v[c] !== null || nullable.has(c)));
   if (cols.length === 0) {
     await client.query(
       `INSERT INTO ${s.table} (tenant_id, id) VALUES ($1, $2) ` +

@@ -2766,7 +2766,22 @@
     "settingGameServerPickHint": "\"Hepsini yönet\" yönetici hızlı bağlantısının gösterdiği aynı listeyi açar — kullanıcı sunucuyu kendisi seçer.",
     "settingGameServerShowAll": "🗂 Hepsini yönet (varsayılan)",
     "settingGameServerNoneYet": "Henüz sunucu yok — \"CS2 Sunucuları\" bölümünden ekleyin.",
-    "untitledAddress": "Başlıksız"
+    "untitledAddress": "Başlıksız",
+    "repairFailed": "Otomatik onarım başarısız oldu",
+    "tabReplyKeyboard": "Alt klavye",
+    "rkIntro": "Mesaj kutusunun altında görünen klavye. Bu panel için ayarlarsanız, kullanıcı paneli açtığında değişir; her panelin kendi klavyesi olabilir.",
+    "rkModeLabel": "Kullanıcı bu paneli açtığında",
+    "rkModeKeep": "Değişiklik yok (mevcut klavye kalsın)",
+    "rkModeCustom": "Bu panele özel klavye",
+    "rkModeDefault": "Botun ana klavyesini geri yükle",
+    "rkModeHide": "Alt klavyeyi gizle",
+    "rkHintKeep": "Bu panel kullanıcının alt klavyesine dokunmaz.",
+    "rkHintCustom": "Aşağıdaki düğmeler bu panel her açıldığında mevcut klavyenin yerini alır.",
+    "rkHintDefault": "Botun ana klavyesi (Ayarlar → Alt klavye) yeniden gösterilir; o da kapalıysa klavye gizlenir.",
+    "rkHintHide": "Bu panel açıldığında alt klavye kaldırılır.",
+    "rkEmptyCustom": "Henüz düğme yok; bir düğme ekleyene kadar bu ayar etkisizdir.",
+    "rkMessageLabel": "Taşıyıcı mesaj metni (isteğe bağlı)",
+    "rkMessageHint": "Telegram bir mesajda yalnızca tek tür düğmeye izin verir; satır içi düğmesi olan bir panel alt klavyeyi ardından kısa ayrı bir mesajla göndermek zorundadır. Boş bırakılırsa “⌨️” gönderilir."
   },
   "botForms": {
     "loading": "Formlar yükleniyor…",
@@ -4048,7 +4063,8 @@
     "infraCacheFast": "Değişiklikler saniyeler içinde bota ulaşır",
     "infraCacheSlow": "Değişiklikler yaklaşık bir dakikada bota ulaşır",
     "infraQueueOn": "toplu mesaj kuyruğu bağlı",
-    "infraQueueOff": "toplu mesaj kuyruğu yapılandırılmamış"
+    "infraQueueOff": "toplu mesaj kuyruğu yapılandırılmamış",
+    "repairFailed": "Otomatik onarım başarısız oldu"
   },
   "botPlan": {
     "loading": "Plan yükleniyor…",

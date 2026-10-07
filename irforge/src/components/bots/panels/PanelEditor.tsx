@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUnsavedGuard } from "@/lib/unsaved-changes";
 import { buttonsToRows, rowsToButtons, overfullRows, type PanelButton } from "@/lib/panel-buttons";
 import { ButtonBuilder } from "./ButtonBuilder";
+import { PanelReplyKeyboardTab, panelRkFromSettings, panelRkToSettings, type PanelRkState } from "./PanelReplyKeyboardTab";
 import { PanelPreview } from "./PanelPreview";
 import { MediaList, type MediaMeta } from "./MediaList";
 import { panelTypeLabel } from "./labels";
@@ -43,7 +44,7 @@ import {
   type Panel, type PanelCatalog,
 } from "./api";
 
-type EditorTab = "content" | "buttons" | "advanced" | "references";
+type EditorTab = "content" | "buttons" | "replyKeyboard" | "advanced" | "references";
 
 /** فرم‌ها برای انتخابگرِ دکمه‌ی `form`. اگر اندپوینت نبود، لیست خالی. */
 function useFormOptions(botId: string) {
@@ -202,6 +203,9 @@ export function PanelEditor({
   const [mediaMeta, setMediaMeta] = useState<Record<string, MediaMeta>>(() => mediaMetaOf(panel));
   const [rows, setRows] = useState<PanelButton[][]>(() => buttonsToRows(panel.buttons ?? []));
   const [settings, setSettings] = useState<Record<string, unknown>>(() => ({ ...panel.settings }));
+  // کیبوردِ پایینِ مخصوصِ این پنل — جدا از `settings` نگه داشته می‌شود تا خانه‌ی خالیِ در حالِ تایپ حفظ شود؛
+  // موقعِ ذخیره به `settings.reply_keyboard` سریال می‌شود.
+  const [rk, setRk] = useState<PanelRkState>(() => panelRkFromSettings(panel.settings));
   const [walletMode, setWalletMode] = useState<"shared" | "personal">(() => panelWalletMode(panel));
   const [pendingType, setPendingType] = useState<string | null>(null);
 
@@ -237,9 +241,12 @@ export function PanelEditor({
       settings: panel.settings ?? {},
       walletMode: panelWalletMode(panel),
     };
-    const now = { title, type, content, media, buttons: rowsToButtons(rows), settings, walletMode };
+    const { reply_keyboard: _drop, ...settingsNoRk } = settings as Record<string, unknown>;
+    const rkValue = panelRkToSettings(rk);
+    const nowSettings = rkValue ? { ...settingsNoRk, reply_keyboard: rkValue } : settingsNoRk;
+    const now = { title, type, content, media, buttons: rowsToButtons(rows), settings: nowSettings, walletMode };
     return JSON.stringify(before) !== JSON.stringify(now);
-  }, [panel, title, type, content, media, rows, settings, walletMode]);
+  }, [panel, title, type, content, media, rows, settings, walletMode, rk]);
 
   // باگ B1: ترک صفحه با کار ذخیره‌نشده نباید بی‌صدا باشد.
   useUnsavedGuard(`panel:${panel.id}`, dirty);
@@ -342,7 +349,10 @@ export function PanelEditor({
     // مدیا همان‌جایی نوشته می‌شود که بات می‌خواند: `settings.media_items`
     // (نوعِ هر آیتم از mediaMeta، پیش‌فرضش «عکس»). حالتِ کیف‌پول فقط برایِ
     // نوعِ wallet نوشته می‌شود.
-    const nextSettings = { ...settings };
+    const nextSettings: Record<string, unknown> = { ...settings };
+    delete nextSettings.reply_keyboard;
+    const rkValue = panelRkToSettings(rk);
+    if (rkValue) nextSettings.reply_keyboard = rkValue;
     if (type === "media") {
       nextSettings.media_items = media.map((fileId) => ({
         type: mediaMeta[fileId]?.kind && mediaMeta[fileId].kind !== "unknown" ? mediaMeta[fileId].kind : "photo",
@@ -383,6 +393,7 @@ export function PanelEditor({
           setMediaMeta(mediaMetaOf(saved));
           setRows(buttonsToRows(saved.buttons ?? []));
           setSettings({ ...saved.settings });
+          setRk(panelRkFromSettings(saved.settings));
           setWalletMode(panelWalletMode(saved));
           toast({
             title: t.panelSaved,
@@ -403,6 +414,7 @@ export function PanelEditor({
     setMediaMeta(mediaMetaOf(panel));
     setRows(buttonsToRows(panel.buttons ?? []));
     setSettings({ ...panel.settings });
+    setRk(panelRkFromSettings(panel.settings));
     setWalletMode(panelWalletMode(panel));
   }
 
@@ -424,6 +436,7 @@ export function PanelEditor({
           <TabsList className="w-max">
             <TabsTrigger value="content">{t.tabContent}</TabsTrigger>
             <TabsTrigger value="buttons">{t.tabButtons}</TabsTrigger>
+            <TabsTrigger value="replyKeyboard" data-testid="panel-tab-reply-keyboard">{t.tabReplyKeyboard}</TabsTrigger>
             <TabsTrigger value="advanced">{t.tabAdvanced}</TabsTrigger>
             <TabsTrigger value="references">{t.tabReferences}</TabsTrigger>
           </TabsList>
@@ -498,6 +511,10 @@ export function PanelEditor({
                 />
               </CardContent>
             </Card>
+          )}
+
+          {tab === "replyKeyboard" && (
+            <PanelReplyKeyboardTab botId={botId} state={rk} onChange={setRk} />
           )}
 
           {tab === "advanced" && (

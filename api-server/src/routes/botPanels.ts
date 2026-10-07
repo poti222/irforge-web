@@ -4,10 +4,10 @@
  */
 import { Router } from "express";
 import { requireAuth } from "./auth.js";
+import { validatePanelReplyKeyboard } from "../lib/replyKeyboard.js";
 import {
   resolveBotSheet,
   putEntity,
-  assertSheetsAuthoritative,
   sendBotConfigError,
   BotConfigError,
 } from "../lib/botConfig.js";
@@ -132,6 +132,12 @@ function validateSettings(value: unknown): Record<string, unknown> {
     out.mode = s.mode;
   }
   if (s.password !== undefined && s.password !== null) out.password = String(s.password);
+  // کیبوردِ پایینِ مخصوصِ این پنل (فقط اگر ادمین تنظیمش کرده؛ نبودنش = «دست نزن»).
+  if ("reply_keyboard" in s) {
+    const rk = validatePanelReplyKeyboard(s.reply_keyboard);
+    if (rk) out.reply_keyboard = rk;
+    else delete out.reply_keyboard;
+  }
   return out;
 }
 
@@ -175,7 +181,10 @@ router.get("/bots/:botId/panels/health", requireAuth, async (req: any, res) => {
 router.post("/bots/:botId/panels/repair", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(PANELS_TAB);
+    // عمداً بدون `assertSheetsAuthoritative(PANELS_TAB)`: `repairPanels` فقط از
+    // `listEntity/putEntities/patchSettings` استفاده می‌کند که همگی PG-aware‌اند
+    // (مثلِ بقیه‌ی routeهای این فایل). آن گارد برای باتِ مهاجرت‌کرده به Postgres
+    // همیشه ۴۰۹ می‌داد و دکمه‌ی «رفع خودکار» هیچ‌کاری نمی‌کرد.
     res.json(await repairPanels(spreadsheetId));
   } catch (err) {
     sendBotConfigError(res, err, "Failed to repair panels");
