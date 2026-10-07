@@ -39,3 +39,25 @@ export async function sendUpdate(botId, update, secret) {
   return r.status;
 }
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Full school world: bot, class, teacher, 2 students (phones), parent linked to s1, subject, timetable today, assignment, exam, alert, announcement, attendance. */
+export async function buildWorld(sup) {
+  const A = await schoolWithBot(sup);
+  const mkc = await call("POST", `/schools/${A.schoolId}/classes`, { token: A.token, body: { name: "10A", grade: "10", academicYear: "1404-1405" } });
+  const cls = mkc.json;
+  const add = (u, role) => call("POST", `/schools/${A.schoolId}/classes/${cls.id}/members`, { token: A.token, body: { schoolMemberId: u.memberId, roleInClass: role } });
+  const T = await joinSchool(A, "teacher"), S1 = await joinSchool(A, "student"), S2 = await joinSchool(A, "student");
+  const P = await joinSchool(A, "parent"), DEP = await joinSchool(A, "deputy"), CO = await joinSchool(A, "counselor");
+  await add(T, "teacher"); await add(S1, "student"); await add(S2, "student");
+  const ph = () => "0912" + String(Math.floor(1000000 + Math.random() * 8999999));
+  for (const s of [S1, S2]) { s.phone = ph(); await pool.query("update users set phone=$1 where id=$2", ["+98" + s.phone.slice(1), s.id]); }
+  await call("POST", `/schools/${A.schoolId}/guardianships`, { token: A.token, body: { parentUserId: P.id, studentMemberId: S1.memberId } });
+  const dow = (new Date().getDay() + 1) % 7; // Saturday=0 as in the site's convention
+  await call("PUT", `/schools/${A.schoolId}/timetable/classes/${cls.id}/days/${dow}`, { token: A.token, body: { slots: [{ startTime: "08:00", endTime: "09:10", subject: "ریاضی", teacherUserId: T.id }, { startTime: "09:30", endTime: "10:50", subject: "ورزش" }] } });
+  const asg = await call("POST", `/schools/${A.schoolId}/assignments`, { token: T.token, body: { classId: cls.id, title: "تمرین فصل ۳", description: "صفحه ۱۰", dueDate: new Date(Date.now() + 3 * 864e5).toISOString() } });
+  const q = await call("POST", `/schools/${A.schoolId}/questions`, { token: T.token, body: { questionText: "۲+۲؟", choices: ["۳", "۴"], correctAnswer: "۴" } });
+  const ex = await call("POST", `/schools/${A.schoolId}/exams`, { token: T.token, body: { classId: cls.id, title: "آزمون میان‌ترم", questionIds: [q.json.id], scheduledAt: new Date(Date.now() + 5 * 864e5).toISOString(), durationMinutes: 30 } });
+  const al = await call("POST", `/schools/${A.schoolId}/alerts`, { token: A.token, body: { studentMemberId: S1.memberId, severity: "warning", title: "اخطار تست", body: "متن اخطار" } });
+  const an = await call("POST", `/schools/${A.schoolId}/announcements`, { token: A.token, body: { kind: "school", title: "اعلامیه تست", body: "همه بیایند" } });
+  return { A, cls, T, S1, S2, P, DEP, CO, asg: asg.json, ex: ex.json, al: al.json, an: an.json, dow };
+}

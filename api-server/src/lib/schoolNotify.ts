@@ -33,6 +33,8 @@ export type SchoolNotifyInput = {
   severity?: "info" | "warning" | "critical";
   /** ارجاعِ اختیاری به رکوردِ مبدأ (مثلاً id اخطار) تا بعداً بشود اعلانِ سایتِ مربوط را پاک کرد. */
   refId?: string;
+  /** دکمه‌هایِ شیشه‌ایِ اختیاری فقط برایِ پیامِ تلگرام (callback_data ≤ ۶۴ بایت؛ سمتِ بات دوباره مجوز سنجیده می‌شود). */
+  telegramButtons?: { text: string; callback_data?: string; url?: string }[][];
 };
 
 /** ایموجیِ ابتدایِ پیامِ تلگرامی — همان الگویِ notifyTelegram.ts، ساده‌تر چون kind های مدرسه‌ای همه اطلاع‌رسانی‌اند نه موفق/ناموفق. */
