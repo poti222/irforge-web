@@ -98,6 +98,35 @@ test("blubank ۱۰: هر دو علامتِ واریز و برداشت → مبه
   assert.equal(p.parsedOk, false);
 });
 
+test("blubank: نمونه‌ی واقعیِ تولید — حسابِ دریافت‌کننده نام دارد («به حساب آی آر فورج نشست») → deposit", () => {
+  // «شما» جایش را به نامِ حساب داده بود و پارسر قدیمی کلِ پیامک را unknown می‌کرد (مبلغ «—»، unmatched).
+  const p = parseBlubankSms("بلو واریز پول فاطمه عزیز،1,003,270 ریال به حساب آی آر فورج نشست. موجودی: 5,049,932 ریال ۵:۱۱ ۱۴۰۵.۰۷.۱۵");
+  assert.deepEqual(p, { direction: "deposit", amountRial: 1_003_270, balanceRial: 5_049_932, parsedOk: true });
+});
+
+test("blubank: همان نمونه با ارقامِ فارسی و چندخطی", () => {
+  const p = parseBlubankSms("بلو\nواریز پول\n فاطمه عزیز، ۱٬۰۰۱٬۸۱۰ ریال به حساب آی آر فورج نشست.\n موجودی: ۴٬۰۴۶٬۶۶۲ ریال\n۵:۰۹\n۱۴۰۵.۰۷.۱۵");
+  assert.equal(p.direction, "deposit");
+  assert.equal(p.amountRial, 1_001_810);
+  assert.equal(p.balanceRial, 4_046_662);
+});
+
+test("blubank: «… به حساب <نام> واریز شد» هم deposit است", () => {
+  const p = parseBlubankSms("واریز پول\n علی عزیز، 250,000 ریال به حساب فروشگاه من واریز شد. موجودی: 1,000,000 ریال");
+  assert.deepEqual(p, { direction: "deposit", amountRial: 250_000, balanceRial: 1_000_000, parsedOk: true });
+});
+
+test("blubank: برداشتِ همان مبلغ (جفتِ واریز/برداشت از حسابِ شخصیِ تستر) → withdraw، نه deposit", () => {
+  const p = parseBlubankSms("بلو برداشت پول فاطمه عزیز، 1,003,270 ریال از حساب شما پرید. موجودی: 2,717,260 ریال ۵:۱۱ ۱۴۰۵.۰۷.۱۵");
+  assert.equal(p.direction, "withdraw");
+  assert.equal(p.amountRial, 1_003_270);
+});
+
+test("blubank: نامِ حساب نباید از مرزِ یک «ریال» دیگر رد شود (مبلغِ دوم/موجودی هرگز مبلغِ واریز نمی‌شود)", () => {
+  const p = parseBlubankSms("واریز پول\n 100,000 ریال به حساب شما 50,000 ریال نشست.");
+  assert.equal(p.parsedOk, false);
+});
+
 test("blubank ۱۱: «به حساب شما نشست» بدونِ کلمه‌ی «واریز» → deposit نیست", () => {
   const p = parseBlubankSms("یک پیامِ دیگر: 100,000 ریال به حساب شما نشست.");
   assert.equal(p.parsedOk, false);
