@@ -5150,7 +5150,12 @@
     "botPanelCopyFail": "کپی نشد؛ متن را دستی انتخاب کنید",
     "botPanelMembersTitle": "اتصالِ اعضا (Start زده‌اند)",
     "botPanelBlocked": "بلاک‌کرده",
-    "botPanelNotStarted": "هنوز Start نزده‌اند"
+    "botPanelNotStarted": "هنوز Start نزده‌اند",
+    "subjectClassesField": "کلاس‌هایِ این درس",
+    "subjectClassesHint": "پیش‌فرض: درس در همهٔ کلاس‌ها هست. اگر فقط بعضی کلاس‌ها این درس را دارند، تیکِ «همهٔ کلاس‌ها» را بردارید و کلاس‌ها را انتخاب کنید.",
+    "subjectClassesAll": "همهٔ کلاس‌ها",
+    "subjectClassesNoneWarn": "هیچ کلاسی انتخاب نشده؛ ذخیره یعنی «همهٔ کلاس‌ها».",
+    "subjectClassesBadge": "فقط {n} کلاس"
   },
   "about": {
     "breadcrumbLabel": "مسیر صفحه",

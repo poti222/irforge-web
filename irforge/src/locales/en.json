@@ -5150,7 +5150,12 @@
     "botPanelCopyFail": "Copy failed; select the text manually",
     "botPanelMembersTitle": "Member connections (pressed Start)",
     "botPanelBlocked": "blocked",
-    "botPanelNotStarted": "Not started yet"
+    "botPanelNotStarted": "Not started yet",
+    "subjectClassesField": "Classes for this subject",
+    "subjectClassesHint": "Default: the subject exists in every class. If only some classes have it, untick “All classes” and pick them.",
+    "subjectClassesAll": "All classes",
+    "subjectClassesNoneWarn": "No class selected; saving means “All classes”.",
+    "subjectClassesBadge": "{n} classes only"
   },
   "about": {
     "breadcrumbLabel": "Breadcrumb",

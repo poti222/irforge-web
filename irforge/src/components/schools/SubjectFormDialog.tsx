@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { listSchoolClasses } from "@/lib/schools-api";
 import { useT } from "@/hooks/use-translation";
 import { SUBJECT_COLORS, SUBJECT_COLOR_KEYS, SUBJECT_ICONS, SUBJECT_ICON_KEYS, subjectStyle } from "@/lib/schools-subject-style";
 
@@ -14,23 +16,29 @@ export function SubjectFormDialog({
   initial,
   saving,
   onSubmit,
+  schoolId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initial: { name: string; icon: string | null; color: string | null } | null;
+  initial: { name: string; icon: string | null; color: string | null; classIds?: string[] | null } | null;
   saving: boolean;
-  onSubmit: (v: { name: string; icon: string; color: string }) => void;
+  onSubmit: (v: { name: string; icon: string; color: string; classIds: string[] | null }) => void;
+  schoolId?: string;
 }) {
   const t = useT("schools") as any;
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("book-open");
   const [color, setColor] = useState("blue");
+  /** null = همهٔ کلاس‌ها (پیش‌فرض)؛ وگرنه فقط همین کلاس‌ها. */
+  const [classIds, setClassIds] = useState<string[] | null>(null);
+  const { data: classes } = useQuery({ queryKey: ["schools", "classes", schoolId], queryFn: () => listSchoolClasses(schoolId!), enabled: open && !!schoolId });
 
   useEffect(() => {
     if (open) {
       setName(initial?.name ?? "");
       setIcon(initial?.icon && SUBJECT_ICONS[initial.icon] ? initial.icon : "book-open");
       setColor(initial?.color && SUBJECT_COLORS[initial.color] ? initial.color : "blue");
+      setClassIds(initial?.classIds ?? null);
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -93,9 +101,35 @@ export function SubjectFormDialog({
           </div>
         </div>
 
+        {schoolId && (classes?.length ?? 0) > 0 && (
+          <div className="flex flex-col gap-1.5" data-testid="subject-classes">
+            <Label>{t.subjectClassesField}</Label>
+            <p className="text-xs text-muted-foreground">{t.subjectClassesHint}</p>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={classIds === null} onChange={() => setClassIds(classIds === null ? [] : null)} data-testid="subject-classes-all" />
+              {t.subjectClassesAll}
+            </label>
+            {classIds !== null && (
+              <div className="grid max-h-40 grid-cols-2 gap-1 overflow-y-auto rounded-lg border p-2">
+                {classes!.map((k) => (
+                  <label key={k.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={classIds.includes(k.id)}
+                      onChange={() => setClassIds(classIds.includes(k.id) ? classIds.filter((x) => x !== k.id) : [...classIds, k.id])}
+                    />
+                    <span dir="auto">{k.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {classIds !== null && classIds.length === 0 && <p className="text-xs text-amber-600">{t.subjectClassesNoneWarn}</p>}
+          </div>
+        )}
+
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>{t.cancel}</Button>
-          <Button disabled={saving || !name.trim()} onClick={() => onSubmit({ name: name.trim(), icon, color })}>
+          <Button disabled={saving || !name.trim()} onClick={() => onSubmit({ name: name.trim(), icon, color, classIds: classIds && classIds.length ? classIds : null })}>
             {saving && <Loader2 className="me-2 size-4 animate-spin" />}
             {t.saveButton}
           </Button>

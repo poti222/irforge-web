@@ -142,6 +142,8 @@ export interface SchoolSubjectInfo {
   progress: { mastered: number; total: number };
   /** admin یا معلمِ تخصیص‌داده‌شده به همین درس. */
   canManage: boolean;
+  /** فقط برایِ مدیر: کلاس‌هایِ مجازِ درس؛ null = همهٔ کلاس‌ها (پیش‌فرض). */
+  classIds?: string[] | null;
   createdAt: string;
 }
 
@@ -153,11 +155,11 @@ export function getSchoolSubject(schoolId: string, subjectId: string) {
   return customFetch<SchoolSubjectInfo>(`/api/schools/${schoolId}/subjects/${subjectId}`);
 }
 
-export function createSchoolSubject(schoolId: string, input: { name: string; icon?: string | null; color?: string | null; enabledTypes?: SchoolContentType[] }) {
+export function createSchoolSubject(schoolId: string, input: { name: string; icon?: string | null; color?: string | null; enabledTypes?: SchoolContentType[]; classIds?: string[] | null }) {
   return customFetch<SchoolSubjectInfo>(`/api/schools/${schoolId}/subjects`, { method: "POST", body: JSON.stringify(input) });
 }
 
-export function updateSchoolSubject(schoolId: string, subjectId: string, patch: Partial<{ name: string; icon: string | null; color: string | null; enabledTypes: SchoolContentType[] }>) {
+export function updateSchoolSubject(schoolId: string, subjectId: string, patch: Partial<{ name: string; icon: string | null; color: string | null; enabledTypes: SchoolContentType[]; classIds: string[] | null }>) {
   return customFetch<SchoolSubjectInfo>(`/api/schools/${schoolId}/subjects/${subjectId}`, { method: "PATCH", body: JSON.stringify(patch) });
 }
 
