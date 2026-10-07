@@ -509,8 +509,9 @@ async function handleLoginStart(chatId: string, from: any, requestId: string) {
     .where(eq(usersTable.telegramId, telegramId))
     .limit(1);
 
-  if (!user) {
+  if (!user || user.isTelegramOnly) {
     // درخواست را می‌کُشیم تا مرورگر تا ابد نچرخد و پیام درست را نشان بدهد.
+    // (والدِ فقط-تلگرام = «کاربرِ ناموجود» برایِ ورودِ سایت.)
     await db
       .update(telegramLoginRequestsTable)
       .set({ status: "rejected", rejectedReason: "no_account" })

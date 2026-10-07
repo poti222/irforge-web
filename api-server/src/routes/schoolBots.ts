@@ -28,7 +28,13 @@ import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool, SCHOOL_ADMIN_ONLY } from "../lib/schoolAuth";
 import { encryptToken, decryptToken } from "../lib/tokenCrypto";
-import { tgApi, fetchBotIdentity, telegramWebhookSecret } from "../lib/telegram";
+import { resyncSchoolBot } from "../lib/schoolBotProfile";
+import { getSchoolBotDiagnostics, siteBaseUrl } from "../lib/schoolBotCore";
+import { requireSuperAdmin } from "./auth";
+import { requireSuperGate } from "../middleware/superGate";
+import { uploadedImagesTable } from "@workspace/db";
+import { sniff } from "../lib/schoolBotPhoto";
+import { getConnections, inviteText, adminGuideHtml, stripHtmlGuide } from "../lib/schoolBot/adminInfo";
 import { debitSchoolWallet, SchoolWalletInsufficientError } from "../lib/schoolWallet";
 import { rialToToman } from "../lib/currency";
 
@@ -203,38 +209,13 @@ router.post("/schools/:schoolId/bot/purchase", requireAuth, async (req: any, res
       return;
     }
 
-    // ─── بعد از commit: تغییرِ نام + شناسه‌یِ واقعیِ بات + webhook — best-effort ───
-    // شکستِ هرکدام خریدِ ثبت‌شده (که همین الان commit شده) را rollback نمی‌کند؛
-    // فقط لاگ می‌شود. مدیر می‌تواند بعداً از همین صفحه دوباره وضعیت را ببیند.
-    if (claimedTokenPlain) {
-      const token: string = claimedTokenPlain;
-      try {
-        await tgApi(token, "setMyName", { name: school.name });
-      } catch (err) {
-        logger.warn({ err, botId: createdBotId }, "school bot purchase: setMyName failed (non-fatal)");
-      }
-      const identity = await fetchBotIdentity(token);
-      if (identity.username) {
-        await db.update(schoolBotsTable)
-          .set({ telegramUsername: identity.username, telegramBotId: (await tgApi<{ id: number }>(token, "getMe")).result?.id?.toString() ?? null })
-          .where(eq(schoolBotsTable.id, createdBotId));
-      }
-      const siteUrl = process.env.PUBLIC_SITE_URL?.trim();
-      if (siteUrl) {
-        try {
-          const url = `${siteUrl.replace(/\/+$/, "")}/api/schools/bot-webhook/${createdBotId}`;
-          const result = await tgApi(token, "setWebhook", {
-            url,
-            secret_token: telegramWebhookSecret(token),
-            allowed_updates: ["message"],
-          });
-          if (!result.ok) logger.warn({ url, result, botId: createdBotId }, "school bot webhook setWebhook did not return ok");
-        } catch (err) {
-          logger.warn({ err, botId: createdBotId }, "school bot purchase: webhook registration failed (non-fatal)");
-        }
-      } else {
-        logger.info({ botId: createdBotId }, "school bot webhook not registered (PUBLIC_SITE_URL missing) — 'connect via bot' will be unavailable until it's set");
-      }
+    // ─── بعد از commit: همگام‌سازیِ کاملِ بات (هویت، webhook، نام، عکس، توضیح، دستورها) — best-effort ───
+    // شکستش خریدِ ثبت‌شده را rollback نمی‌کند؛ مدیر هر وقت بخواهد با «اتصال بات / بروزرسانی بات» دوباره می‌زند.
+    // (منتظر می‌مانیم تا username در پاسخ باشد.)
+    try {
+      await resyncSchoolBot(schoolId, req);
+    } catch (err) {
+      logger.warn({ err, botId: createdBotId }, "school bot purchase: resync failed (non-fatal)");
     }
 
     const [finalBot] = await db.select().from(schoolBotsTable).where(eq(schoolBotsTable.id, createdBotId)).limit(1);
@@ -288,6 +269,81 @@ router.get("/schools/:schoolId/bot/subscribed", requireAuth, async (req: any, re
     res.json({ subscribed: !!sub });
   } catch (err) {
     logger.error({ err }, "Get school bot subscription status error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── اتصال/بروزرسانی بات + عیب‌یابی (مدیر و سوپرادمین) ───────────────────────────────────────
+const superGuard = [requireSuperAdmin, requireSuperGate] as const;
+
+async function resyncHandler(req: any, res: any, schoolId: string) {
+  try {
+    const result = await resyncSchoolBot(schoolId, req);
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, "School bot resync error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+async function diagnosticsHandler(req: any, res: any, schoolId: string) {
+  try {
+    res.json(await getSchoolBotDiagnostics(schoolId, siteBaseUrl(req)));
+  } catch (err) {
+    logger.error({ err }, "School bot diagnostics error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+router.post("/schools/:schoolId/bot/resync", requireAuth, async (req: any, res) => {
+  const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_ONLY);
+  if (!ok) { res.status(403).json({ error: "Forbidden" }); return; }
+  await resyncHandler(req, res, req.params.schoolId);
+});
+router.get("/schools/:schoolId/bot/diagnostics", requireAuth, async (req: any, res) => {
+  const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_ONLY);
+  if (!ok) { res.status(403).json({ error: "Forbidden" }); return; }
+  await diagnosticsHandler(req, res, req.params.schoolId);
+});
+router.post("/super/schools/:schoolId/bot/resync", ...superGuard, (req: any, res) => resyncHandler(req, res, req.params.schoolId));
+router.get("/super/schools/:schoolId/bot/diagnostics", ...superGuard, (req: any, res) => diagnosticsHandler(req, res, req.params.schoolId));
+
+// GET /api/schools/:schoolId/bot/admin-info — مدیر: راهنما، متنِ دعوت (آمادهٔ کپی) و وضعیتِ اتصالِ اعضا (فقط نام‌ها).
+router.get("/schools/:schoolId/bot/admin-info", requireAuth, async (req: any, res) => {
+  try {
+    const { ok } = await canAccessSchool(req.userId, req.params.schoolId, ["admin", "deputy", "deputy_discipline"]);
+    if (!ok) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [bot] = await db.select().from(schoolBotsTable).where(eq(schoolBotsTable.schoolId, req.params.schoolId)).limit(1);
+    const [school] = await db.select({ name: schoolsTable.name }).from(schoolsTable).where(eq(schoolsTable.id, req.params.schoolId)).limit(1);
+    const uname = bot?.telegramUsername ?? null;
+    res.json({
+      botLink: uname ? `https://t.me/${uname}` : null,
+      inviteText: inviteText(school?.name ?? "مدرسه", uname),
+      guide: stripHtmlGuide(adminGuideHtml(school?.name ?? "مدرسه", uname)),
+      connections: await getConnections(req.params.schoolId),
+      photo: bot ? { status: bot.photoStatus, syncedUrl: bot.photoSyncedUrl, lastResyncAt: bot.lastResyncAt } : null,
+    });
+  } catch (err) {
+    logger.error({ err }, "School bot admin-info error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/schools/:schoolId/bot/photo { url: "/api/uploads/images/<uuid>" } — مرورگرِ مدیر عکسِ مدرسه را (WebP/GIF) به JPEG
+// تبدیل و با /api/uploads/images آپلود کرده؛ این‌جا فقط به عنوانِ عکسِ بات برایِ photoUrlِ *فعلیِ* مدرسه ثبت و اعمال می‌شود.
+router.post("/schools/:schoolId/bot/photo", requireAuth, async (req: any, res) => {
+  try {
+    const { ok } = await canAccessSchool(req.userId, req.params.schoolId, SCHOOL_ADMIN_ONLY);
+    if (!ok) { res.status(403).json({ error: "Forbidden" }); return; }
+    const m = /^\/api\/uploads\/images\/([0-9a-f-]{36})$/.exec(String(req.body?.url ?? ""));
+    if (!m) { res.status(400).json({ error: "Invalid url" }); return; }
+    const [img] = await db.select({ data: uploadedImagesTable.data }).from(uploadedImagesTable).where(eq(uploadedImagesTable.id, m[1])).limit(1);
+    if (!img || sniff(Buffer.from(img.data as any)) !== "jpeg") { res.status(400).json({ error: "Image must be a JPEG", code: "not_jpeg" }); return; }
+    const [school] = await db.select({ photoUrl: schoolsTable.photoUrl }).from(schoolsTable).where(eq(schoolsTable.id, req.params.schoolId)).limit(1);
+    const [bot] = await db.select({ id: schoolBotsTable.id }).from(schoolBotsTable).where(eq(schoolBotsTable.schoolId, req.params.schoolId)).limit(1);
+    if (!school || !bot) { res.status(404).json({ error: "Not found" }); return; }
+    await db.update(schoolBotsTable).set({ photoJpegImageId: m[1], photoJpegSourceUrl: school.photoUrl ?? null }).where(eq(schoolBotsTable.id, bot.id));
+    await resyncHandler(req, res, req.params.schoolId);
+  } catch (err) {
+    logger.error({ err }, "School bot photo error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

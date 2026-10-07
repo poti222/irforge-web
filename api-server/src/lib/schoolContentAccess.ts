@@ -20,6 +20,10 @@ import {
   schoolContentItemsTable,
   schoolContentProgressTable,
   schoolTeacherSubjectsTable,
+  schoolSubjectClassesTable,
+  schoolClassesTable,
+  schoolClassMembersTable,
+  schoolTimetableSlotsTable,
   SCHOOL_CONTENT_TYPE_KEYS,
   SCHOOL_MEMBER_ROLES,
   DEFAULT_SUBJECT_SEEDS,
@@ -83,11 +87,15 @@ export interface ContentScope {
   memberId: string | null;
   /** نامِ درس‌هایی که این کاربر (معلم) به آن‌ها تخصیص دارد. */
   assigned: Set<string>;
+  /** فقط برایِ دانش‌آموز/معلم پر می‌شود: کلاس‌هایی که در آن‌ها عضو/مدرس است (برایِ فیلترِ «درس در کدام کلاس‌ها»). */
+  classIds: Set<string>;
+  /** آیا فیلترِ کلاس اعمال می‌شود؟ (دانش‌آموز/معلم بله؛ مدیر، معاون، مشاور، والد خیر) */
+  classScoped: boolean;
 }
 
 export async function getContentScope(userId: string, schoolId: string): Promise<ContentScope> {
   const access = await canAccessSchool(userId, schoolId, SCHOOL_MEMBER_ROLES);
-  if (!access.ok) return { isMember: false, isAdmin: false, role: null, memberId: null, assigned: new Set() };
+  if (!access.ok) return { isMember: false, isAdmin: false, role: null, memberId: null, assigned: new Set(), classIds: new Set(), classScoped: false };
   const adminCheck = await canAccessSchool(userId, schoolId, ["admin"]);
   const assigned = new Set<string>();
   if (access.member?.role === "teacher") {
@@ -95,12 +103,28 @@ export async function getContentScope(userId: string, schoolId: string): Promise
       .where(and(eq(schoolTeacherSubjectsTable.teacherUserId, userId), eq(schoolTeacherSubjectsTable.schoolId, schoolId)));
     for (const r of rows) assigned.add(r.subject);
   }
+  const role = access.member?.role ?? null;
+  const classScoped = !adminCheck.ok && (role === "student" || role === "teacher");
+  const classIds = new Set<string>();
+  if (classScoped && access.member) {
+    const mem = await db.select({ classId: schoolClassMembersTable.classId }).from(schoolClassMembersTable)
+      .where(and(eq(schoolClassMembersTable.schoolMemberId, access.member.id), eq(schoolClassMembersTable.roleInClass, role === "teacher" ? "teacher" : "student")));
+    for (const m of mem) classIds.add(m.classId);
+    if (role === "teacher") {
+      // کلاس‌هایی که در برنامهٔ هفتگی مدرسِ آن‌اند هم «کلاسِ قابل‌دسترسِ معلم» حساب می‌شوند.
+      const slots = await db.select({ classId: schoolTimetableSlotsTable.classId }).from(schoolTimetableSlotsTable)
+        .where(and(eq(schoolTimetableSlotsTable.schoolId, schoolId), eq(schoolTimetableSlotsTable.teacherUserId, userId)));
+      for (const sl of slots) classIds.add(sl.classId);
+    }
+  }
   return {
     isMember: true,
     isAdmin: adminCheck.ok,
-    role: access.member?.role ?? null,
+    role,
     memberId: access.member?.id ?? null,
     assigned,
+    classIds,
+    classScoped,
   };
 }
 
@@ -112,16 +136,31 @@ export function canManageSubjectName(scope: ContentScope, subjectName: string | 
 
 export interface ContentContext {
   subjectsByName: Map<string, typeof schoolSubjectsTable.$inferSelect>;
+  /** نامِ درس → کلاس‌هایِ مجاز (فقط کلاس‌هایِ *موجود*). نبودنِ کلید = همهٔ کلاس‌ها. */
+  subjectClassesByName: Map<string, Set<string>>;
   lessonsById: Map<string, typeof schoolContentLessonsTable.$inferSelect>;
 }
 
 export async function loadContentContext(schoolId: string): Promise<ContentContext> {
   await ensureSchoolSubjectsSeeded(schoolId);
-  const [subjects, lessons] = await Promise.all([
+  const [subjects, lessons, links] = await Promise.all([
     db.select().from(schoolSubjectsTable).where(eq(schoolSubjectsTable.schoolId, schoolId)),
     db.select().from(schoolContentLessonsTable).where(eq(schoolContentLessonsTable.schoolId, schoolId)),
+    // فقط کلاس‌هایِ موجودِ همین مدرسه (ردیفِ کلاسِ حذف‌شده نباید درس را برایِ همه پنهان کند).
+    db.select({ subjectId: schoolSubjectClassesTable.subjectId, classId: schoolSubjectClassesTable.classId })
+      .from(schoolSubjectClassesTable)
+      .innerJoin(schoolClassesTable, eq(schoolClassesTable.id, schoolSubjectClassesTable.classId))
+      .where(eq(schoolClassesTable.schoolId, schoolId)),
   ]);
+  const nameById = new Map<string, string>(subjects.map((s: any) => [s.id, s.name]));
+  const subjectClassesByName = new Map<string, Set<string>>();
+  for (const l of links as any[]) {
+    const n = nameById.get(l.subjectId);
+    if (!n) continue;
+    (subjectClassesByName.get(n) ?? subjectClassesByName.set(n, new Set()).get(n)!).add(l.classId);
+  }
   return {
+    subjectClassesByName,
     subjectsByName: new Map(subjects.map((s: any) => [s.name, s])),
     lessonsById: new Map(lessons.map((l: any) => [l.id, l])),
   };
@@ -129,6 +168,19 @@ export async function loadContentContext(schoolId: string): Promise<ContentConte
 
 export function effectiveTypesForLesson(lesson: { subject: string; enabledTypes: string[] | null }, ctx: ContentContext): string[] | null {
   return effectiveTypes(lesson.enabledTypes, ctx.subjectsByName.get(lesson.subject)?.enabledTypes);
+}
+
+/**
+ * آیا این درس برایِ این کاربر «وجود دارد»؟ درسِ بدونِ محدودیتِ کلاس = برایِ همه. با محدودیت: دانش‌آموز/معلم فقط اگر در یکی
+ * از کلاس‌هایِ مجازِ درس باشند؛ معلمِ تخصیص‌داده‌شده به همان درس همیشه می‌بیند (تا بتواند مدیریتش کند). مدیر/معاون/مشاور/والد: بی‌قید.
+ */
+export function subjectVisibleTo(subjectName: string | null | undefined, ctx: ContentContext, scope: ContentScope): boolean {
+  if (!subjectName || scope.isAdmin || !scope.classScoped) return true;
+  const allowed = ctx.subjectClassesByName.get(subjectName);
+  if (!allowed || allowed.size === 0) return true;
+  if (scope.assigned.has(subjectName)) return true;
+  for (const c of scope.classIds) if (allowed.has(c)) return true;
+  return false;
 }
 
 export function itemVisibleTo(
@@ -139,6 +191,7 @@ export function itemVisibleTo(
   if (scope.isAdmin) return true;
   const lesson = item.lessonId ? ctx.lessonsById.get(item.lessonId) : undefined;
   const subjectName = lesson?.subject ?? item.subject;
+  if (!subjectVisibleTo(subjectName, ctx, scope)) return false;
   if (canManageSubjectName(scope, subjectName)) return true;
   const eff = lesson
     ? effectiveTypesForLesson(lesson, ctx)

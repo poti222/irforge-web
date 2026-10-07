@@ -18,7 +18,8 @@ import { eq, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { requireSuperAdmin } from "./auth";
 import { encryptToken, decryptToken } from "../lib/tokenCrypto";
-import { tgApi, fetchBotIdentity, telegramWebhookSecret } from "../lib/telegram";
+import { tgApi } from "../lib/telegram";
+import { resyncSchoolBotInBackground } from "../lib/schoolBotProfile";
 
 const router = Router();
 
@@ -158,28 +159,8 @@ router.post("/school-bot-pool/:id/replace", requireSuperAdmin, async (req: any, 
 
     const [linkedBot] = await db.select().from(schoolBotsTable).where(eq(schoolBotsTable.botTokenPoolId, id)).limit(1);
     if (linkedBot) {
-      const identity = await fetchBotIdentity(token);
-      await db.update(schoolBotsTable)
-        .set({
-          telegramUsername: identity.username ?? linkedBot.telegramUsername,
-          telegramBotId: me.result?.id?.toString() ?? linkedBot.telegramBotId,
-        })
-        .where(eq(schoolBotsTable.id, linkedBot.id));
-
-      const siteUrl = process.env.PUBLIC_SITE_URL?.trim();
-      if (siteUrl) {
-        try {
-          const url = `${siteUrl.replace(/\/+$/, "")}/api/schools/bot-webhook/${linkedBot.id}`;
-          const result = await tgApi(token, "setWebhook", {
-            url,
-            secret_token: telegramWebhookSecret(token),
-            allowed_updates: ["message"],
-          });
-          if (!result.ok) logger.warn({ url, result, schoolBotId: linkedBot.id }, "school bot pool replace: setWebhook did not return ok");
-        } catch (err) {
-          logger.warn({ err, schoolBotId: linkedBot.id }, "school bot pool replace: webhook registration failed (non-fatal)");
-        }
-      }
+      // توکنِ تازه: هویت + webhook + پروفایل را کامل دوباره اعمال کن (بی‌صدا؛ شکستش جایگزینیِ ذخیره‌شده را خراب نمی‌کند).
+      resyncSchoolBotInBackground(linkedBot.schoolId);
     }
 
     res.json({

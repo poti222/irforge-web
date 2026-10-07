@@ -75,7 +75,7 @@ export function SubjectsHub({ embedded = false }: { embedded?: boolean }) {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["schools", "subjects", schoolId] });
 
-  async function handleSubmit(v: { name: string; icon: string; color: string }) {
+  async function handleSubmit(v: { name: string; icon: string; color: string; classIds: string[] | null }) {
     if (!schoolId) return;
     setSaving(true);
     try {
@@ -176,6 +176,7 @@ export function SubjectsHub({ embedded = false }: { embedded?: boolean }) {
                       <p className="truncate text-lg font-bold" dir="auto">{s.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {t.subjectLessonCount.replace("{n}", s.lessonCount.toLocaleString("fa-IR"))}
+                        {s.classIds && s.classIds.length > 0 ? ` · ${t.subjectClassesBadge.replace("{n}", s.classIds.length.toLocaleString("fa-IR"))}` : ""}
                       </p>
                     </div>
                   </div>
@@ -218,7 +219,8 @@ export function SubjectsHub({ embedded = false }: { embedded?: boolean }) {
       <SubjectFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
-        initial={editing ? { name: editing.name, icon: editing.icon, color: editing.color } : null}
+        initial={editing ? { name: editing.name, icon: editing.icon, color: editing.color, classIds: editing.classIds ?? null } : null}
+        schoolId={schoolId}
         saving={saving}
         onSubmit={handleSubmit}
       />

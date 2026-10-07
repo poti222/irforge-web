@@ -23,7 +23,7 @@ import crypto from "crypto";
 import { requireAuth } from "./auth";
 import { canAccessSchool } from "../lib/schoolAuth";
 import {
-  describeLesson, getContentScope, loadContentContext, loadLessonStats, normalizeEnabledTypes,
+  describeLesson, getContentScope, loadContentContext, loadLessonStats, normalizeEnabledTypes, subjectVisibleTo,
   ensureSchoolSubjectsSeeded,
 } from "../lib/schoolContentAccess";
 
@@ -83,7 +83,8 @@ router.get("/schools/:schoolId/content-lessons", requireAuth, async (req: any, r
       .orderBy(asc(schoolContentLessonsTable.sortOrder), asc(schoolContentLessonsTable.createdAt));
     const scope = await getContentScope(req.userId, req.params.schoolId);
     const [ctx, stats] = await Promise.all([loadContentContext(req.params.schoolId), loadLessonStats(req.params.schoolId, scope.memberId)]);
-    res.json(rows.map((l: any) => describeLesson(l, ctx, scope, stats)));
+    // درسی که در کلاسِ این کاربر وجود ندارد، جلسه‌هایش هم دیده نمی‌شود.
+    res.json(rows.filter((l: any) => subjectVisibleTo(l.subject, ctx, scope)).map((l: any) => describeLesson(l, ctx, scope, stats)));
   } catch (err) {
     logger.error({ err }, "List school content lessons error");
     res.status(500).json({ error: "Internal server error" });
@@ -102,6 +103,11 @@ router.get("/schools/:schoolId/content-lessons/:id", requireAuth, async (req: an
       .where(and(eq(schoolContentLessonsTable.id, req.params.id), eq(schoolContentLessonsTable.schoolId, req.params.schoolId)))
       .limit(1);
     if (!lesson) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const scope = await getContentScope(req.userId, req.params.schoolId);
+    if (!subjectVisibleTo(lesson.subject, await loadContentContext(req.params.schoolId), scope)) {
       res.status(404).json({ error: "Not found" });
       return;
     }

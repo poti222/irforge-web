@@ -11,7 +11,7 @@
  * `botToken` دقیقاً مثلِ `bots.token` رمزنگاری‌شده ذخیره می‌شود
  * (encryptToken/decryptToken در lib/tokenCrypto.ts) — هرگز متنِ خام.
  */
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, jsonb, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { schoolsTable } from "./schools";
@@ -54,6 +54,13 @@ export const schoolBotsTable = pgTable("school_bots", {
   telegramUsername: text("telegram_username"),
   assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** JPEGِ عکسِ پروفایلِ بات که مرورگرِ مدیر از عکسِ WebPِ مدرسه ساخته (uploaded_images.id) و photoUrlِ مبدأش. */
+  photoJpegImageId: text("photo_jpeg_image_id"),
+  photoJpegSourceUrl: text("photo_jpeg_source_url"),
+  /** آخرین photoUrlی که واقعاً به پروفایلِ بات رفت + وضعیتِ آخرین تلاش (set|none|needs_jpeg|failed|unsafe_url). */
+  photoSyncedUrl: text("photo_synced_url"),
+  photoStatus: text("photo_status"),
+  lastResyncAt: timestamp("last_resync_at", { withTimezone: true }),
 });
 
 /**
@@ -69,6 +76,9 @@ export const schoolBotSubscribersTable = pgTable("school_bot_subscribers", {
   userId: text("user_id").notNull(),
   telegramChatId: text("telegram_chat_id").notNull(),
   linkedAt: timestamp("linked_at", { withTimezone: true }).notNull().defaultNow(),
+  /** شناسهٔ کاربرِ تلگرام (برابرِ chat_id در چتِ خصوصی) و زمانی که تلگرام گفت بات بلاک شده (۴۰۳) — ارسال متوقف. */
+  telegramUserId: text("telegram_user_id"),
+  unreachableAt: timestamp("unreachable_at", { withTimezone: true }),
 });
 
 /**
@@ -86,6 +96,15 @@ export const schoolBotLinkTokensTable = pgTable("school_bot_link_tokens", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
+
+/** وضعیتِ گفتگوی یک چت با بات (مثلاً منتظرِ شمارهٔ دانش‌آموز / متنِ پیامِ همگانی). */
+export const schoolBotChatStateTable = pgTable("school_bot_chat_state", {
+  schoolBotId: text("school_bot_id").notNull(),
+  telegramChatId: text("telegram_chat_id").notNull(),
+  state: text("state").notNull(),
+  data: jsonb("data").notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.schoolBotId, t.telegramChatId] })]);
 
 export const insertSchoolBotTokenPoolSchema = createInsertSchema(schoolBotTokenPoolTable).omit({ createdAt: true, updatedAt: true });
 export const insertSchoolBotSchema = createInsertSchema(schoolBotsTable).omit({ createdAt: true, assignedAt: true });

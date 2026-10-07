@@ -33,6 +33,7 @@ import {
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
+import { resyncSchoolBotInBackground } from "../lib/schoolBotProfile";
 import { requireAuth } from "./auth";
 import { canAccessSchool, isSuperAdminUser, SCHOOL_ADMIN_ONLY, SCHOOL_MEMBERS_READ_ROLES } from "../lib/schoolAuth";
 import { logSchoolAudit } from "../lib/schoolAuditLog";
@@ -360,6 +361,8 @@ router.patch("/schools/:id", requireAuth, async (req: any, res) => {
       res.status(404).json({ error: "School not found" });
       return;
     }
+    // نامِ مدرسه / عکسِ مدرسه عوض شد → پروفایلِ باتِ تلگرام (نام/عکس/توضیح) بی‌صدا همگام می‌شود؛ هرگز درخواست را خراب نمی‌کند.
+    if (patch.name !== undefined || patch.photoUrl !== undefined) resyncSchoolBotInBackground(updated.id);
     res.json(formatSchool(updated));
   } catch (err) {
     logger.error({ err }, "Update school error");

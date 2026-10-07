@@ -715,6 +715,8 @@ const TG_LOGIN_TICKET_TTL_MS = 10 * 60 * 1000;
  * `syncSessionUpsert` یا `lastLogin`.
  */
 async function issueSession(user: typeof usersTable.$inferSelect, req: { headers: Record<string, unknown> }) {
+  // والدِ «فقط-تلگرام» (ثبت‌شده از باتِ مدرسه) هرگز نشستِ سایت نمی‌گیرد؛ تنها نشستِ او کوتاه‌عمرِ باتِ داخلی است (lib/schoolBot/internalApi.ts).
+  if (user.isTelegramOnly) throw new Error("telegram_only_account_cannot_login");
   await db.update(usersTable).set({ lastLogin: new Date() }).where(eq(usersTable.id, user.id));
 
   const token = generateToken(user.id);

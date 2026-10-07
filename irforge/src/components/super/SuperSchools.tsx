@@ -1,3 +1,4 @@
+import { BotAdminPanel } from "@/components/schools/BotAdminPanel";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -189,6 +190,7 @@ function SchoolDialog({ school, onClose }: { school: SuperSchool; onClose: () =>
               {school.admins.length === 0 ? <p>{fa ? "هنوز مدیری ندارد — از «افزودنِ عضو» نقشِ «مدیر» بدهید." : "No admin yet — add a member with the “Admin” role."}</p>
                 : <ul className="space-y-0.5">{school.admins.map((a) => <li key={a.userId}>{a.name}{a.email ? <span dir="ltr" className="ms-2">{a.email}</span> : null}</li>)}</ul>}
               <p className="mt-2">{fa ? "باتِ مدرسه:" : "School bot:"} {school.bot ? <span dir="ltr">{school.bot.telegramUsername ? `@${school.bot.telegramUsername}` : (fa ? "متصل" : "connected")}</span> : (fa ? "ندارد (از «استخر بات مدرسه» اختصاص می‌یابد)" : "none (assigned from the school bot pool)")}</p>
+              {school.bot && <BotAdminPanel schoolId={school.id} photoUrl={(school as any).photoUrl} superMode />}
             </div>
           </TabsContent>
 
