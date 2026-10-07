@@ -1178,6 +1178,36 @@ export function getSchoolBotSubscribed(schoolId: string) {
   return customFetch<{ subscribed: boolean }>(`/api/schools/${schoolId}/bot/subscribed`);
 }
 
+export interface SchoolBotSyncStep { step: string; ok: boolean; detail?: string }
+export interface SchoolBotDiagnostics {
+  hasBot: boolean; username: string | null; tokenOk: boolean; webhookUrl: string | null; expectedWebhookUrl: string | null;
+  webhookMatches: boolean; allowedUpdatesOk: boolean; pendingUpdates: number | null; lastErrorMessage: string | null; lastErrorDate: string | null;
+  problems: string[];
+}
+export interface SchoolBotResyncResult {
+  ok: boolean; steps: SchoolBotSyncStep[]; photo: { status: "none" | "set" | "needs_jpeg" | "failed" | "unsafe_url"; message: string } | null;
+  diagnostics: SchoolBotDiagnostics;
+}
+export interface SchoolBotConnectionRole { role: string; roleFa: string; total: number; connected: number; blocked: number; notStarted: string[] }
+export interface SchoolBotAdminInfo {
+  botLink: string | null; inviteText: string; guide: string;
+  connections: { botId: string | null; roles: SchoolBotConnectionRole[]; totals: { total: number; connected: number } };
+  photo: { status: string | null; syncedUrl: string | null; lastResyncAt: string | null } | null;
+}
+const botBase = (schoolId: string, superMode?: boolean) => (superMode ? `/api/super/schools/${schoolId}/bot` : `/api/schools/${schoolId}/bot`);
+export function resyncSchoolBot(schoolId: string, superMode?: boolean) {
+  return customFetch<SchoolBotResyncResult>(`${botBase(schoolId, superMode)}/resync`, { method: "POST" });
+}
+export function getSchoolBotDiagnostics(schoolId: string, superMode?: boolean) {
+  return customFetch<SchoolBotDiagnostics>(`${botBase(schoolId, superMode)}/diagnostics`);
+}
+export function getSchoolBotAdminInfo(schoolId: string) {
+  return customFetch<SchoolBotAdminInfo>(`/api/schools/${schoolId}/bot/admin-info`);
+}
+export function setSchoolBotPhoto(schoolId: string, url: string) {
+  return customFetch<SchoolBotResyncResult>(`/api/schools/${schoolId}/bot/photo`, { method: "POST", body: JSON.stringify({ url }) });
+}
+
 export interface SchoolAbsenceSummary {
   date: string;
   absent: number;

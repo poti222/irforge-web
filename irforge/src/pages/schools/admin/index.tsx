@@ -1,3 +1,4 @@
+import { BotAdminPanel } from "@/components/schools/BotAdminPanel";
 import { useState } from "react";
 import { ImageUploadField } from "@/components/schools/ImageUploadField";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -194,7 +195,7 @@ export default function SchoolsAdminHome() {
 
           <AcademicStatusCard schoolId={school.id} />
           <SchoolWalletCard schoolId={school.id} />
-          <SchoolBotCard schoolId={school.id} />
+          <SchoolBotCard schoolId={school.id} photoUrl={school.photoUrl} />
           <AbsenceOverviewCard schoolId={school.id} />
           <CounselorReportsCard schoolId={school.id} />
           <InviteCodesCard schoolId={school.id} />
@@ -467,7 +468,7 @@ function InviteCodesCard({ schoolId }: { schoolId: string }) {
  * می‌کند — نه یک اندپوینتِ تازه)، و خطایِ insufficient یک پیامِ ماندگار +
  * لینک به «/wallet» می‌سازد (همان صفحه‌یِ شارژِ موجود)، نه فقط toast.
  */
-function SchoolBotCard({ schoolId }: { schoolId: string }) {
+function SchoolBotCard({ schoolId, photoUrl }: { schoolId: string; photoUrl?: string | null }) {
   const t = useT("schools") as any;
   const { lang } = useLanguage();
   const { toast } = useToast();
@@ -548,6 +549,7 @@ function SchoolBotCard({ schoolId }: { schoolId: string }) {
             </Button>
           </div>
         )}
+        {bot?.purchased && <BotAdminPanel schoolId={schoolId} photoUrl={photoUrl} />}
         <SchoolWalletTopupDialog schoolId={schoolId} open={topUpOpen} onOpenChange={setTopUpOpen} />
       </CardContent>
     </Card>

@@ -42,7 +42,7 @@ async function prepare(file: File): Promise<Blob> {
   return blob;
 }
 
-function upload(blob: Blob, onProgress: (p: number) => void): Promise<string> {
+export function uploadImageBlob(blob: Blob, onProgress: (p: number) => void): Promise<string> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${(import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "")}/api/uploads/images`);
@@ -89,7 +89,7 @@ export function ImageUploadField({
     try {
       const blob = await prepare(file);
       if (blob.size > MAX_BYTES) { setError(t.imageUploadTooLarge); return; }
-      const url = await upload(blob, setProgress);
+      const url = await uploadImageBlob(blob, setProgress);
       onChange(url);
     } catch (err: any) {
       setError(
