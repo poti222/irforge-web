@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { registerTelegramWebhookIfConfigured } from "./lib/telegram";
+import { healAllSchoolBotWebhooks } from "./lib/schoolBotCore";
 import { refreshExchangeRateFromApi } from "./lib/exchangeRate";
 import { startPaymentSweeper } from "./lib/paymentSweeper";
 import { migrateLegacyWalletTopups } from "./lib/walletTopupMigration";
@@ -32,6 +33,8 @@ app.listen(port, (err?: Error) => {
 // از حادثه‌ی امنیتی ۲۰۲۶-۰۹ به بعد، پشتِ TELEGRAM_WEBHOOK_ENABLED گارد شده — ببینید
 // docstringِ خودِ تابع در lib/telegram.ts.
 void registerTelegramWebhookIfConfigured();
+// باتِ مدرسه‌هایِ خریداری‌شده (حتی قبل از این نسخه): webhook را idempotent دوباره ثبت می‌کند تا «Start بی‌جواب» نماند.
+setTimeout(() => { void healAllSchoolBotWebhooks(); }, 5_000);
 
 // Phase 10 (identityverificationspec.md): نرخ دلار به ریال هر ساعت تازه
 // می‌شود. کرون جداگانه‌ای روی Railway نیست (همان دلیلی که migrate.mjs's

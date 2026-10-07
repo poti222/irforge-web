@@ -22,7 +22,7 @@ import crypto from "crypto";
 import { db, schoolBotsTable, schoolBotLinkTokensTable, schoolBotSubscribersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { decryptToken } from "../lib/tokenCrypto";
+import { getSchoolBotToken } from "../lib/schoolBotCore";
 import { tgApi, telegramWebhookSecret } from "../lib/telegram";
 
 const router = Router();
@@ -35,28 +35,23 @@ function timingEqual(a: string, b: string): boolean {
 }
 
 router.post("/schools/bot-webhook/:schoolBotId", async (req: any, res) => {
-  // همیشه سریع 200 — همان قراردادِ routes/telegramWebhook.ts.
-  res.status(200).end();
-
   try {
     const { schoolBotId } = req.params;
     const [bot] = await db.select().from(schoolBotsTable).where(eq(schoolBotsTable.id, schoolBotId)).limit(1);
-    if (!bot) return;
-
-    let token: string;
-    try {
-      token = decryptToken(bot.botToken as unknown as string);
-    } catch (err) {
-      logger.warn({ err, schoolBotId }, "school bot webhook: token decrypt failed");
-      return;
-    }
+    if (!bot) { res.status(404).end(); return; }
+    // باگِ ریشه‌ای: توکن در school_bots نیست (در استخر است) — `bot.botToken` همیشه undefined بود.
+    const token = await getSchoolBotToken(bot);
+    if (!token) { res.status(200).end(); return; }
 
     const expected = telegramWebhookSecret(token);
     const received = req.header("X-Telegram-Bot-Api-Secret-Token") ?? "";
     if (!received || !timingEqual(received, expected)) {
-      logger.warn({ schoolBotId }, "school bot webhook: secret token mismatch, ignoring");
+      logger.warn({ schoolBotId }, "school bot webhook: secret token mismatch, rejecting");
+      res.status(401).end();
       return;
     }
+    // از این‌جا به بعد سریع 200 (retry-stormِ تلگرام را نمی‌خواهیم) و پردازش بعدش.
+    res.status(200).end();
 
     const message = req.body?.message;
     const text: string | undefined = message?.text;
@@ -99,6 +94,7 @@ router.post("/schools/bot-webhook/:schoolBotId", async (req: any, res) => {
     await tgApi(token, "sendMessage", { chat_id: chatId, text: "✅ اتصال برقرار شد. از این پس اعلان‌های مدرسه از همین‌جا برایتان ارسال می‌شود." });
   } catch (err) {
     logger.error({ err }, "school bot webhook handler error");
+    if (!res.headersSent) res.status(200).end();
   }
 });
 

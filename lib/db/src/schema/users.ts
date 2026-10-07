@@ -172,6 +172,8 @@ export const usersTable = pgTable("users", {
    * سیستمِ جعلِ هویتِ موجود.
    */
   isPlatformTestAccount: boolean("is_platform_test_account").notNull().default(false),
+  /** والدی که فقط از تلگرامِ باتِ مدرسه ثبت شده؛ هرگز نمی‌تواند وارد سایت شود (ایمیلِ ساختگیِ .invalid + هشِ غیرقابل‌استفاده). */
+  isTelegramOnly: boolean("is_telegram_only").notNull().default(false),
   /** کدام سوپرادمینِ واقعی این حسابِ آزمایشی را ساخته — فقط برایِ ردگیری/پاکسازی. */
   createdByUserId: text("created_by_user_id"),
 });

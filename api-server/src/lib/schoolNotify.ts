@@ -20,7 +20,7 @@ import crypto from "crypto";
 import { eq, and, inArray } from "drizzle-orm";
 import { db, notificationsTable, schoolBotsTable, schoolBotSubscribersTable } from "@workspace/db";
 import { logger } from "./logger";
-import { decryptToken } from "./tokenCrypto";
+import { getSchoolBotToken } from "./schoolBotCore";
 import { tgApi } from "./telegram";
 
 export type SchoolNotifyInput = {
@@ -79,13 +79,8 @@ async function deliverTelegramNotifications(input: SchoolNotifyInput): Promise<v
       .where(and(eq(schoolBotSubscribersTable.schoolBotId, bot.id), inArray(schoolBotSubscribersTable.userId, input.userIds)));
     if (subscribers.length === 0) return;
 
-    let token: string;
-    try {
-      token = decryptToken(bot.botToken as unknown as string);
-    } catch (err) {
-      logger.warn({ err, schoolId: input.schoolId }, "schoolNotify: bot token decrypt failed (non-fatal)");
-      return;
-    }
+    const token = await getSchoolBotToken(bot);
+    if (!token) return;
 
     const text = `${iconFor(input.severity ?? "info")} <b>${esc(input.title)}</b>\n\n${esc(input.body)}`;
     // پشت‌سرهم، نه Promise.all — همان دلیلِ notifyTelegram.ts (سقفِ نرخِ تلگرام).
