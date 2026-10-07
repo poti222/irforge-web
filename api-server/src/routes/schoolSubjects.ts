@@ -23,6 +23,8 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
   schoolSubjectsTable,
+  schoolSubjectClassesTable,
+  schoolClassesTable,
   schoolContentLessonsTable,
   schoolContentItemsTable,
   schoolTeacherSubjectsTable,
@@ -37,6 +39,7 @@ import {
   loadContentContext,
   loadLessonStats,
   normalizeEnabledTypes,
+  subjectVisibleTo,
 } from "../lib/schoolContentAccess";
 
 const router = Router();
@@ -46,7 +49,7 @@ const NAME_MAX = 60;
 
 function formatSubject(
   s: typeof schoolSubjectsTable.$inferSelect,
-  extra: { lessonCount: number; progress: { mastered: number; total: number }; canManage: boolean },
+  extra: { lessonCount: number; progress: { mastered: number; total: number }; canManage: boolean; classIds?: string[] | null },
 ) {
   return {
     id: s.id,
@@ -59,6 +62,8 @@ function formatSubject(
     lessonCount: extra.lessonCount,
     progress: extra.progress,
     canManage: extra.canManage,
+    /** فقط برایِ مدیر: کلاس‌هایِ مجازِ درس (null = همهٔ کلاس‌ها). */
+    ...(extra.classIds !== undefined ? { classIds: extra.classIds } : {}),
     createdAt: s.createdAt.toISOString(),
   };
 }
@@ -106,6 +111,8 @@ async function buildSubjectView(schoolId: string, userId: string, onlyId?: strin
   const lessons = [...ctx.lessonsById.values()];
   let subjects = [...ctx.subjectsByName.values()].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "fa"));
   if (onlyId) subjects = subjects.filter((s) => s.id === onlyId);
+  // درس فقط در کلاس‌هایِ انتخاب‌شده وجود دارد: دانش‌آموز/معلمِ کلاس‌هایِ دیگر آن را نمی‌بینند (مدیر همه را).
+  subjects = subjects.filter((s) => subjectVisibleTo(s.name, ctx, scope));
   return subjects.map((s) => {
     const own = lessons.filter((l) => l.subject === s.name);
     let mastered = 0;
@@ -119,8 +126,24 @@ async function buildSubjectView(schoolId: string, userId: string, onlyId?: strin
       lessonCount: own.length,
       progress: { mastered, total },
       canManage: canManageSubjectName(scope, s.name),
+      classIds: scope.isAdmin ? (ctx.subjectClassesByName.get(s.name) ? [...ctx.subjectClassesByName.get(s.name)!] : null) : undefined,
     });
   });
+}
+
+/** ورودیِ classIds: آرایهٔ idِ کلاس‌هایِ *همین مدرسه* یا null/[] = همهٔ کلاس‌ها. نامعتبر → undefined. */
+async function parseClassIds(schoolId: string, input: unknown): Promise<string[] | null | undefined> {
+  if (input === null || (Array.isArray(input) && input.length === 0)) return null;
+  if (!Array.isArray(input) || !input.every((x) => typeof x === "string") || input.length > 500) return undefined;
+  const ids = [...new Set(input as string[])];
+  const own = await db.select({ id: schoolClassesTable.id }).from(schoolClassesTable)
+    .where(and(eq(schoolClassesTable.schoolId, schoolId), inArray(schoolClassesTable.id, ids)));
+  return own.length === ids.length ? ids : undefined;
+}
+
+async function replaceSubjectClasses(tx: any, subjectId: string, classIds: string[] | null) {
+  await tx.delete(schoolSubjectClassesTable).where(eq(schoolSubjectClassesTable.subjectId, subjectId));
+  if (classIds?.length) await tx.insert(schoolSubjectClassesTable).values(classIds.map((classId) => ({ subjectId, classId })));
 }
 
 // GET /api/schools/:schoolId/subjects — هر عضوِ مدرسه
@@ -165,7 +188,9 @@ router.post("/schools/:schoolId/subjects", requireAuth, async (req: any, res) =>
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const { name, icon, color, enabledTypes } = req.body ?? {};
+    const { name, icon, color, enabledTypes, classIds } = req.body ?? {};
+    const parsedClassIds = classIds === undefined ? null : await parseClassIds(req.params.schoolId, classIds);
+    if (parsedClassIds === undefined) { res.status(400).json({ error: "Invalid classIds", code: "invalid_class_ids" }); return; }
     const cleanName = typeof name === "string" ? name.trim().replace(/\s+/g, " ") : "";
     if (!cleanName || cleanName.length > NAME_MAX) {
       res.status(400).json({ error: "name is required (max 60 chars)" });
@@ -190,16 +215,20 @@ router.post("/schools/:schoolId/subjects", requireAuth, async (req: any, res) =>
     }
     const [{ max }] = await db.select({ max: sql<number>`coalesce(max(${schoolSubjectsTable.sortOrder}), -1)::int` })
       .from(schoolSubjectsTable).where(eq(schoolSubjectsTable.schoolId, req.params.schoolId));
-    const [row] = await db.insert(schoolSubjectsTable).values({
-      id: randomUUID(),
-      schoolId: req.params.schoolId,
-      name: cleanName,
-      icon: icon ?? null,
-      color: color ?? null,
-      enabledTypes: types,
-      sortOrder: max + 1,
-    }).returning();
-    res.status(201).json(formatSubject(row, { lessonCount: 0, progress: { mastered: 0, total: 0 }, canManage: true }));
+    const row = await db.transaction(async (tx: any) => {
+      const [r] = await tx.insert(schoolSubjectsTable).values({
+        id: randomUUID(),
+        schoolId: req.params.schoolId,
+        name: cleanName,
+        icon: icon ?? null,
+        color: color ?? null,
+        enabledTypes: types,
+        sortOrder: max + 1,
+      }).returning();
+      await replaceSubjectClasses(tx, r.id, parsedClassIds);
+      return r;
+    });
+    res.status(201).json(formatSubject(row, { lessonCount: 0, progress: { mastered: 0, total: 0 }, canManage: true, classIds: parsedClassIds }));
   } catch (err) {
     if (isUniqueViolation(err)) {
       const existing = await findNameConflict(req.params.schoolId, String(req.body?.name ?? "").trim().replace(/\s+/g, " ")).catch(() => null);
@@ -226,8 +255,8 @@ router.patch("/schools/:schoolId/subjects/:id", requireAuth, async (req: any, re
       res.status(404).json({ error: "Not found" });
       return;
     }
-    const { name, icon, color, sortOrder, enabledTypes } = req.body ?? {};
-    const touchesAdminFields = name !== undefined || icon !== undefined || color !== undefined || sortOrder !== undefined;
+    const { name, icon, color, sortOrder, enabledTypes, classIds } = req.body ?? {};
+    const touchesAdminFields = name !== undefined || icon !== undefined || color !== undefined || sortOrder !== undefined || classIds !== undefined;
     if (touchesAdminFields && !scope.isAdmin) {
       res.status(403).json({ error: "Forbidden" });
       return;
@@ -268,12 +297,18 @@ router.patch("/schools/:schoolId/subjects/:id", requireAuth, async (req: any, re
       if (!types) { res.status(400).json({ error: "Invalid enabledTypes" }); return; }
       patch.enabledTypes = types;
     }
-    if (Object.keys(patch).length === 0) {
+    let parsedClassIds: string[] | null | undefined;
+    if (classIds !== undefined) {
+      parsedClassIds = await parseClassIds(schoolId, classIds);
+      if (parsedClassIds === undefined) { res.status(400).json({ error: "Invalid classIds", code: "invalid_class_ids" }); return; }
+    }
+    if (Object.keys(patch).length === 0 && classIds === undefined) {
       res.status(400).json({ error: "Nothing to update" });
       return;
     }
     await db.transaction(async (tx: any) => {
-      await tx.update(schoolSubjectsTable).set(patch).where(eq(schoolSubjectsTable.id, id));
+      if (Object.keys(patch).length) await tx.update(schoolSubjectsTable).set(patch).where(eq(schoolSubjectsTable.id, id));
+      if (classIds !== undefined) await replaceSubjectClasses(tx, id, parsedClassIds ?? null);
       if (newName && newName !== existing.name) {
         // نام ارجاعِ متنیِ سه ستونِ دیگر است — همه در همین تراکنش هم‌گام می‌شوند.
         await tx.update(schoolContentLessonsTable).set({ subject: newName })
@@ -334,6 +369,7 @@ router.delete("/schools/:schoolId/subjects/:id", requireAuth, async (req: any, r
         .where(and(eq(schoolContentLessonsTable.schoolId, schoolId), eq(schoolContentLessonsTable.subject, existing.name)));
       await tx.delete(schoolTeacherSubjectsTable)
         .where(and(eq(schoolTeacherSubjectsTable.schoolId, schoolId), eq(schoolTeacherSubjectsTable.subject, existing.name)));
+      await tx.delete(schoolSubjectClassesTable).where(eq(schoolSubjectClassesTable.subjectId, id));
       await tx.delete(schoolSubjectsTable).where(eq(schoolSubjectsTable.id, id));
     });
     res.json({ ok: true, deleted: counts });

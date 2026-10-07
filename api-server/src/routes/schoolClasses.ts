@@ -6,7 +6,7 @@
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, schoolClassesTable, schoolClassMembersTable, schoolMembersTable, SCHOOL_MEMBER_ROLES } from "@workspace/db";
+import { db, schoolClassesTable, schoolClassMembersTable, schoolSubjectClassesTable, schoolMembersTable, SCHOOL_MEMBER_ROLES } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
@@ -125,6 +125,11 @@ router.delete("/schools/:schoolId/classes/:classId", requireAuth, async (req: an
   try {
     const allowed = await requireSchoolWrite(req, res, req.params.schoolId);
     if (!allowed) return;
+    // کلاس باید متعلق به همین مدرسه باشد؛ قبلاً روسترِ هر classIdی (حتی مدرسهٔ دیگر) پاک می‌شد.
+    const [own] = await db.select({ id: schoolClassesTable.id }).from(schoolClassesTable)
+      .where(and(eq(schoolClassesTable.id, req.params.classId), eq(schoolClassesTable.schoolId, req.params.schoolId))).limit(1);
+    if (!own) { res.status(204).end(); return; }
+    await db.delete(schoolSubjectClassesTable).where(eq(schoolSubjectClassesTable.classId, req.params.classId));
     await db.delete(schoolClassMembersTable).where(eq(schoolClassMembersTable.classId, req.params.classId));
     await db.delete(schoolClassesTable).where(and(eq(schoolClassesTable.id, req.params.classId), eq(schoolClassesTable.schoolId, req.params.schoolId)));
     res.status(204).end();

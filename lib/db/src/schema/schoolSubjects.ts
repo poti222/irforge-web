@@ -18,7 +18,7 @@
  * می‌تواند یک override داشته باشد (NULL = از درس ارث ببرد). مجموعه‌ی مؤثر =
  * `lesson.enabledTypes ?? subject.enabledTypes`.
  */
-import { pgTable, text, timestamp, integer, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, jsonb, unique, primaryKey } from "drizzle-orm/pg-core";
 import { SCHOOL_SUBJECTS } from "./schoolContent";
 
 export const SCHOOL_CONTENT_TYPE_KEYS = ["dictionary", "poem", "formula", "note", "book"] as const;
@@ -39,6 +39,15 @@ export const schoolSubjectsTable = pgTable("school_subjects", {
 }, (t) => ({
   uniqueName: unique("school_subjects_school_name_unique").on(t.schoolId, t.name),
 }));
+
+/**
+ * کلاس‌هایی که یک درس در آن‌ها «وجود دارد». قرارداد: درسِ بدونِ هیچ ردیف = برایِ همهٔ کلاس‌ها (پیش‌فرض، پس درس‌هایِ موجود
+ * دست‌نخورده‌اند)؛ با ردیف‌ها = فقط همان کلاس‌ها. اعمال سمتِ سرور: lib/schoolContentAccess.ts (subjectVisibleTo).
+ */
+export const schoolSubjectClassesTable = pgTable("school_subject_classes", {
+  subjectId: text("subject_id").notNull(),
+  classId: text("class_id").notNull(),
+}, (t) => [primaryKey({ columns: [t.subjectId, t.classId] })]);
 
 export type SchoolSubjectRow = typeof schoolSubjectsTable.$inferSelect;
 
