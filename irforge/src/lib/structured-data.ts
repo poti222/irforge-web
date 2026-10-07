@@ -167,7 +167,7 @@ function breadcrumbs(lang: Lang, route: string, s: SchemaStrings) {
  * destinations belong; everything else in the app is behind auth and noindex'd,
  * and advertising those would point crawlers at pages they must not index.
  */
-const PRIMARY_NAV_ROUTES = ["/", "/learn", "/pricing", "/docs", "/about"] as const;
+const PRIMARY_NAV_ROUTES = ["/", "/learn", "/pricing", "/school-management", "/docs", "/about"] as const;
 
 function siteNavigation(lang: Lang, s: SchemaStrings) {
   return PRIMARY_NAV_ROUTES.filter((route) => (PUBLIC_ROUTES as readonly string[]).includes(route)).map(
@@ -331,8 +331,8 @@ export function structuredData(
 
   if (route === "/learn") graph.push(collectionNode(lang, s));
 
-  // the landing FAQ only exists on the landing page
-  if (route === "/" && faq.length) graph.push(faqPage(faq));
+  // the landing FAQ only exists on the landing page; the school page renders its own FAQ
+  if ((route === "/" || route === "/school-management") && faq.length) graph.push(faqPage(faq));
 
   return { "@context": "https://schema.org", "@graph": graph };
 }

@@ -1255,3 +1255,91 @@ export function selectStudentClass(schoolId: string, classId: string) {
 export function saveTeacherAssignments(schoolId: string, assignments: { classId: string; subjects: string[] }[]) {
   return customFetch<{ ok: true; classes: number; combos: number }>(`/api/schools/${schoolId}/enrollment/teacher`, { method: "PUT", body: JSON.stringify({ assignments }) });
 }
+
+// ─── برنامه‌یِ هفتگی (زنگ‌ها) ───────────────────────────────────────────────
+/** ۰=شنبه … ۶=جمعه (هفته‌یِ ایرانی). */
+export interface TimetableSlot {
+  id: string;
+  classId: string;
+  className: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  subject: string;
+  teacherUserId: string | null;
+  teacherName: string | null;
+  note: string | null;
+  /** فقط در `/timetable/mine` برایِ معلم: خودِ او معلمِ این زنگ است. */
+  mine?: boolean;
+}
+export interface TimetableRowInput {
+  startTime: string;
+  endTime: string;
+  subject: string;
+  teacherUserId?: string | null;
+  note?: string | null;
+}
+export interface TimetableRowError { index: number; field?: string; code: string; message: string; conflictsWith?: number }
+export interface MyTimetable {
+  role: SchoolMemberRole | string;
+  slots: TimetableSlot[];
+  children?: { childMemberId: string; childName: string; slots: TimetableSlot[] }[];
+}
+
+export function getClassTimetable(schoolId: string, classId: string) {
+  return customFetch<{ slots: TimetableSlot[] }>(`/api/schools/${schoolId}/timetable?classId=${encodeURIComponent(classId)}`);
+}
+export function getMyTimetable(schoolId: string) {
+  return customFetch<MyTimetable>(`/api/schools/${schoolId}/timetable/mine`);
+}
+/** جایگزینیِ کاملِ یک روز (اتمیک)؛ خطا: `err.data.rowErrors`. */
+export function replaceTimetableDay(schoolId: string, classId: string, day: number, slots: TimetableRowInput[]) {
+  return customFetch<{ slots: TimetableSlot[] }>(`/api/schools/${schoolId}/timetable/classes/${classId}/days/${day}`, {
+    method: "PUT",
+    body: JSON.stringify({ slots }),
+  });
+}
+export function copyTimetableDay(schoolId: string, classId: string, fromDay: number, toDays: number[]) {
+  return customFetch<{ slots: TimetableSlot[] }>(`/api/schools/${schoolId}/timetable/classes/${classId}/copy`, {
+    method: "POST",
+    body: JSON.stringify({ fromDay, toDays }),
+  });
+}
+
+// ─── اتصالِ والد↔دانش‌آموز با شماره (درخواست/تأیید) ─────────────────────────────
+export type GuardianRequestStatus = "pending" | "approved" | "rejected" | "expired" | "cancelled";
+export interface MyGuardianRequests {
+  requests: { id: string; phone: string; status: GuardianRequestStatus; createdAt: string; decidedAt: string | null }[];
+  limits: { perPhone: number; dailyPhones: number; dailyPhonesUsed: number; usedByPhone: { phone: string; used: number; remaining: number }[] };
+}
+export function submitGuardianRequest(schoolId: string, phone: string) {
+  return customFetch<{ ok: true; message: string; requestId: string; status: "pending"; remainingForPhone: number }>(`/api/schools/${schoolId}/guardian-requests`, {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+export function getMyGuardianRequests(schoolId: string) {
+  return customFetch<MyGuardianRequests>(`/api/schools/${schoolId}/guardian-requests/mine`);
+}
+export function cancelGuardianRequest(schoolId: string, id: string) {
+  return customFetch<{ ok: true }>(`/api/schools/${schoolId}/guardian-requests/${id}/cancel`, { method: "POST" });
+}
+export function listIncomingGuardianRequests(schoolId: string) {
+  return customFetch<{ id: string; parentName: string; createdAt: string }[]>(`/api/schools/${schoolId}/guardian-requests/incoming`);
+}
+export function decideGuardianRequest(schoolId: string, id: string, decision: "approve" | "reject") {
+  return customFetch<{ ok: true; status: GuardianRequestStatus; idempotent: boolean }>(`/api/schools/${schoolId}/guardian-requests/${id}/decision`, {
+    method: "POST",
+    body: JSON.stringify({ decision }),
+  });
+}
+
+// ─── کیف‌پولِ مدرسه (جدا از کیف‌پولِ شخصی/باتِ پلتفرم) ─────────────────────────────
+export interface SchoolWalletTxn { id: string; type: "credit" | "spend" | "admin_credit" | "admin_debit"; amountRial: number; balanceAfterRial: number; description: string; refId: string | null; createdAt: string }
+export interface SchoolWalletSummary { balanceRial: number; transactions: SchoolWalletTxn[]; hasMore: boolean }
+export function getSchoolWallet(schoolId: string) {
+  return customFetch<SchoolWalletSummary>(`/api/schools/${schoolId}/wallet`);
+}
+export function listSchoolWalletTransactions(schoolId: string, before?: string) {
+  return customFetch<{ transactions: SchoolWalletTxn[]; hasMore: boolean }>(`/api/schools/${schoolId}/wallet/transactions?limit=20${before ? `&before=${encodeURIComponent(before)}` : ""}`);
+}

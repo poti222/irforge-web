@@ -54,10 +54,13 @@ export type TopupOrder = {
 export const TOPUP_CONFIG_KEY = ["wallet-topup-config"] as const;
 const ACTIVE: TopupStatus[] = ["queued", "pending", "awaiting_review"];
 
-export function useTopupConfig() {
+const PERSONAL_BASE = "/api/wallet/topup";
+
+/** `apiBase` پیش‌فرض همان کیف‌پولِ شخصی است؛ کیف‌پولِ مدرسه همین پنل را با `/api/schools/:id/wallet/topup` می‌سازد. */
+export function useTopupConfig(apiBase: string = PERSONAL_BASE) {
   return useQuery({
-    queryKey: TOPUP_CONFIG_KEY,
-    queryFn: () => customFetch<TopupConfig>("/api/wallet/topup/config"),
+    queryKey: apiBase === PERSONAL_BASE ? TOPUP_CONFIG_KEY : [...TOPUP_CONFIG_KEY, apiBase],
+    queryFn: () => customFetch<TopupConfig>(`${apiBase}/config`),
     staleTime: 60_000,
   });
 }
@@ -118,10 +121,12 @@ function channelLabel(c: TopupChannel, fa: boolean, i: number): string {
   return parts.length ? parts.join(" — ") : `${fa ? "حساب" : "Account"} ${i + 1}`;
 }
 
-export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
+export function PlatformTopupPanel({ fa, lang, apiBase = PERSONAL_BASE, target = "personal", onCredited }: {
+  fa: boolean; lang: Lang; apiBase?: string; target?: "personal" | "school"; onCredited?: () => void;
+}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: config } = useTopupConfig();
+  const { data: config } = useTopupConfig(apiBase);
   const [amount, setAmount] = useState("");
   const [channelId, setChannelId] = useState<string | null>(null);
   const [order, setOrder] = useState<TopupOrder | null>(null);
@@ -130,8 +135,8 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
 
   // بعد از refresh، درخواستِ فعالِ قبلی برمی‌گردد.
   const { data: recent } = useQuery({
-    queryKey: ["wallet-topup-recent"],
-    queryFn: () => customFetch<{ items: TopupOrder[] }>("/api/wallet/topup"),
+    queryKey: apiBase === PERSONAL_BASE ? ["wallet-topup-recent"] : ["wallet-topup-recent", apiBase],
+    queryFn: () => customFetch<{ items: TopupOrder[] }>(apiBase),
     staleTime: 0,
   });
   useEffect(() => {
@@ -154,12 +159,13 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
     if (!order || !isActive) return;
     const t = setInterval(async () => {
       try {
-        const fresh = await customFetch<TopupOrder>(`/api/wallet/topup/${order.id}/status`);
+        const fresh = await customFetch<TopupOrder>(`${apiBase}/${order.id}/status`);
         setOrder(fresh);
         if (fresh.status === "confirmed") {
           toast({ title: fa ? "شارژ تأیید شد" : "Top-up confirmed", description: fa ? "موجودی شما اضافه شد." : "Your balance has been credited." });
           queryClient.invalidateQueries({ queryKey: ["wallet"] });
           queryClient.invalidateQueries({ queryKey: ["wallet-tx"] });
+          onCredited?.();
         } else if (fresh.status === "expired") {
           toast({ variant: "destructive", title: fa ? "مهلت پرداخت تمام شد" : "Payment window expired" });
         } else if (fresh.status === "rejected") {
@@ -188,7 +194,7 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
     if (!amount || amountError) { toast({ variant: "destructive", title: amountError ?? (fa ? "مبلغ نامعتبر" : "Invalid amount") }); return; }
     setBusy("request");
     try {
-      const created = await customFetch<TopupOrder>("/api/wallet/topup/request", {
+      const created = await customFetch<TopupOrder>(`${apiBase}/request`, {
         method: "POST", body: JSON.stringify({ amount: amountNum, channelId }),
       });
       setOrder(created);
@@ -203,7 +209,7 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
     if (!order) return;
     setBusy("cancel");
     try {
-      await customFetch(`/api/wallet/topup/${order.id}/cancel`, { method: "POST" });
+      await customFetch(`${apiBase}/${order.id}/cancel`, { method: "POST" });
       reset();
     } catch (err: any) {
       toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: err?.message });
@@ -220,7 +226,7 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
     setBusy("receipt");
     try {
       const receiptUrl = await toWebpDataUrl(file);
-      const fresh = await customFetch<TopupOrder>(`/api/wallet/topup/${order.id}/receipt`, {
+      const fresh = await customFetch<TopupOrder>(`${apiBase}/${order.id}/receipt`, {
         method: "POST", body: JSON.stringify({ receiptUrl }),
       });
       setOrder(fresh);
@@ -236,6 +242,7 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
     setOrder(null);
     setAmount("");
     queryClient.invalidateQueries({ queryKey: ["wallet-topup-recent"] });
+    onCredited?.();
   }
 
   if (!config) return <div className="h-40 animate-pulse rounded-md bg-muted" />;
@@ -301,7 +308,7 @@ export function PlatformTopupPanel({ fa, lang }: { fa: boolean; lang: Lang }) {
             </div>
             <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive" data-testid="topup-warning">
               {order.suffixRial > 0
-                ? (fa ? "حتی یک ریال کمتر یا بیشتر باعث می‌شود تأییدِ خودکار انجام نشود. این عدد با مبلغِ درخواستی فرق دارد چون یک پسوندِ کوچک برایِ تشخیصِ پرداختِ شما به آن اضافه شده؛ همان مبلغِ درخواستی به کیف‌پولتان اضافه می‌شود."
+                ? (fa ? `حتی یک ریال کمتر یا بیشتر باعث می‌شود تأییدِ خودکار انجام نشود. این عدد با مبلغِ درخواستی فرق دارد چون یک پسوندِ کوچک برایِ تشخیصِ پرداختِ شما به آن اضافه شده؛ همان مبلغِ درخواستی به ${target === "school" ? "کیف‌پولِ مدرسه" : "کیف‌پولتان"} اضافه می‌شود.`
                   : "Even one Rial more or less prevents automatic confirmation. The number differs from your requested amount by a small suffix used to identify your payment; exactly the requested amount is credited.")
                 : (fa ? "مبلغ را عیناً همین‌طور وارد کنید."
                   : "Enter the amount exactly as shown.")}

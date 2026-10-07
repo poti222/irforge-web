@@ -27,6 +27,13 @@ import LearnSupportBot from "@/pages/learn/telegram-support-bot";
 import LearnWithoutCoding from "@/pages/learn/telegram-bot-without-coding";
 import LearnGoogleSheets from "@/pages/learn/telegram-bot-google-sheets";
 import LearnBotCost from "@/pages/learn/telegram-bot-cost";
+import LearnBuyTelegramBot from "@/pages/learn/buy-telegram-bot";
+import LearnTelegramBookingBot from "@/pages/learn/telegram-booking-bot";
+import LearnTelegramGiveawayBot from "@/pages/learn/telegram-giveaway-bot";
+import LearnTelegramSurveyQuizBot from "@/pages/learn/telegram-survey-quiz-bot";
+import LearnTelegramBotCardPayment from "@/pages/learn/telegram-bot-card-payment";
+import LearnTelegramBotWallet from "@/pages/learn/telegram-bot-wallet";
+import LearnTelegramBotCrmScheduledMessages from "@/pages/learn/telegram-bot-crm-scheduled-messages";
 import LearnBotFather from "@/pages/learn/botfather-commands";
 import LearnWebhook from "@/pages/learn/telegram-bot-webhook-vs-polling";
 import LearnWhatIs from "@/pages/learn/what-is-a-telegram-bot";
@@ -34,6 +41,7 @@ import LearnChooseBuilder from "@/pages/learn/choose-a-telegram-bot-builder";
 import LearnMenuButtons from "@/pages/learn/telegram-bot-menu-buttons";
 import LearnBroadcast from "@/pages/learn/telegram-bot-broadcast";
 import About from "@/pages/about";
+import SchoolManagement from "@/pages/school-management";
 import Pricing from "@/pages/pricing";
 
 /**
@@ -92,6 +100,8 @@ const SchoolMembersPage = lazy(() => import("@/pages/schools/admin/members"));
 const SchoolClassesPage = lazy(() => import("@/pages/schools/admin/classes"));
 const SchoolClassDetailPage = lazy(() => import("@/pages/schools/admin/class-detail"));
 const SchoolProgramsPage = lazy(() => import("@/pages/schools/admin/programs"));
+const ParentLinkPage = lazy(() => import("@/pages/schools/parent/link"));
+const SchoolTimetablePage = lazy(() => import("@/pages/schools/timetable"));
 const SchoolAnnouncementsPage = lazy(() => import("@/pages/schools/announcements"));
 const TeacherClassesPage = lazy(() => import("@/pages/schools/teacher/classes"));
 const CounselorStudentsPage = lazy(() => import("@/pages/schools/counselor/students"));
@@ -357,6 +367,13 @@ function Router() {
       <Route path="/learn/telegram-bot-without-coding" component={LearnWithoutCoding} />
       <Route path="/learn/telegram-bot-google-sheets" component={LearnGoogleSheets} />
       <Route path="/learn/telegram-bot-cost" component={LearnBotCost} />
+      <Route path="/learn/buy-telegram-bot" component={LearnBuyTelegramBot} />
+      <Route path="/learn/telegram-booking-bot" component={LearnTelegramBookingBot} />
+      <Route path="/learn/telegram-giveaway-bot" component={LearnTelegramGiveawayBot} />
+      <Route path="/learn/telegram-survey-quiz-bot" component={LearnTelegramSurveyQuizBot} />
+      <Route path="/learn/telegram-bot-card-payment" component={LearnTelegramBotCardPayment} />
+      <Route path="/learn/telegram-bot-wallet" component={LearnTelegramBotWallet} />
+      <Route path="/learn/telegram-bot-crm-scheduled-messages" component={LearnTelegramBotCrmScheduledMessages} />
       <Route path="/learn/botfather-commands" component={LearnBotFather} />
       <Route path="/learn/telegram-bot-webhook-vs-polling" component={LearnWebhook} />
       <Route path="/learn/what-is-a-telegram-bot" component={LearnWhatIs} />
@@ -365,6 +382,7 @@ function Router() {
       <Route path="/learn/telegram-bot-broadcast" component={LearnBroadcast} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/about" component={About} />
+      <Route path="/school-management" component={SchoolManagement} />
       {/* The guide used to live at /learn/bot-token and that URL was public and
           prerendered, so it must not simply 404. wouter can only redirect once
           the SPA has booted — a real 301 has to be configured at the host.
@@ -444,6 +462,8 @@ function Router() {
       <Route path="/schools/admin/classes"><SchoolProtectedRoute component={SchoolClassesPage} /></Route>
       <Route path="/schools/admin/classes/:id"><SchoolProtectedRoute component={SchoolClassDetailPage} /></Route>
       <Route path="/schools/admin/programs"><SchoolProtectedRoute component={SchoolProgramsPage} /></Route>
+      <Route path="/schools/parent/link"><SchoolProtectedRoute component={ParentLinkPage} /></Route>
+      <Route path="/schools/timetable"><SchoolProtectedRoute component={SchoolTimetablePage} /></Route>
       <Route path="/schools/announcements"><SchoolProtectedRoute component={SchoolAnnouncementsPage} /></Route>
       <Route path="/schools/teacher/classes"><SchoolProtectedRoute component={TeacherClassesPage} /></Route>
       <Route path="/schools/counselor/students"><SchoolProtectedRoute component={CounselorStudentsPage} /></Route>

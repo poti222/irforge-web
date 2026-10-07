@@ -1,0 +1,24 @@
+# IrForge
+
+> IrForge (ایرفورج) is a Persian-first Telegram bot builder with a management panel, plus a school management system. Build a shop, support, booking, giveaway, survey or broadcast bot without code by connecting your own BotFather token; every account gets a free 7-day trial bot. The school system gives admins, teachers, students, parents and counselors separate panels with grades, attendance, assignments, exams and Telegram notifications. The site is available in Persian (root), English, Arabic, Turkish and Russian.
+
+## Products
+- [Telegram bot builder (home)](https://irforge.ir/): build or buy a Telegram bot without code
+- [Pricing — buy a Telegram bot](https://irforge.ir/pricing): Standard and Pro plans, extra plugins, monthly renewal from the wallet
+- [School management system](https://irforge.ir/school-management): school panels for every role with Telegram notifications
+
+## Guides (Persian at the root; /en, /ar, /tr, /ru for other languages)
+- [How to make a Telegram bot](https://irforge.ir/learn/how-to-make-a-telegram-bot)
+- [Buy a Telegram bot](https://irforge.ir/learn/buy-telegram-bot)
+- [Telegram bot without coding](https://irforge.ir/learn/telegram-bot-without-coding)
+- [Telegram shop bot](https://irforge.ir/learn/telegram-shop-bot)
+- [Card-to-card payment in a bot](https://irforge.ir/learn/telegram-bot-card-payment)
+- [Telegram bot wallet](https://irforge.ir/learn/telegram-bot-wallet)
+- [Telegram support bot](https://irforge.ir/learn/telegram-support-bot)
+- [Telegram booking bot](https://irforge.ir/learn/telegram-booking-bot)
+- [Telegram giveaway bot](https://irforge.ir/learn/telegram-giveaway-bot)
+- [Telegram survey and quiz bot](https://irforge.ir/learn/telegram-survey-quiz-bot)
+- [CRM and scheduled messages](https://irforge.ir/learn/telegram-bot-crm-scheduled-messages)
+- [Telegram bot broadcast](https://irforge.ir/learn/telegram-bot-broadcast)
+- [Cost of a Telegram bot](https://irforge.ir/learn/telegram-bot-cost)
+- [Full guide index](https://irforge.ir/learn)

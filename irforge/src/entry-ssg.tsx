@@ -147,7 +147,7 @@ export function renderPage(lang: Lang, route: string): RenderedPage {
     lang,
     route,
     { title, description, routeLabels: routeLabels(lang), article, articles, image },
-    faqFor(lang)
+    route === "/school-management" ? schoolFaqFor(lang) : faqFor(lang)
   );
 
   return {
@@ -170,6 +170,11 @@ export function renderPage(lang: Lang, route: string): RenderedPage {
  * Shared with `components/landing/FaqSection.tsx` via `lib/faq-content.ts` so
  * the schema can never declare a question the page doesn't render.
  */
+function schoolFaqFor(lang: Lang): { q: string; a: string }[] {
+  const own = (LOCALES[lang] as any)?.schoolPage?.faq;
+  return (own ?? (LOCALES.en as any).schoolPage?.faq ?? []) as { q: string; a: string }[];
+}
+
 function faqFor(lang: Lang): { q: string; a: string }[] {
   return faqEntries(lang);
 }

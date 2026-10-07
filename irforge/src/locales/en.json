@@ -549,13 +549,13 @@
   "admin": {},
   "botLanguageSettings": {},
   "seo": {
-    "homeTitle": "Telegram Bot Builder | Create a Bot Without Code | IrForge",
-    "homeDescription": "Build a Telegram bot without code with IrForge: shop bot, support tickets, broadcasts, booking and a Persian admin panel. Enter your token and try it free for 7 days.",
+    "homeTitle": "Telegram Bot Builder | Buy & Build Bots Without Code | IrForge",
+    "homeDescription": "Build or buy a Telegram bot without code: shop, support, broadcast and booking bots with a Persian-first panel, plus a school system. Free for 7 days.",
     "docsTitle": "IrForge Docs | Telegram Bot Builder Guide & SDK",
     "docsDescription": "Complete IrForge documentation: quick start, defining commands with arguments, writing plugins, and finding your way around the management panel.",
     "navHome": "Home",
     "navDocs": "Documentation",
-    "keywords": "telegram bot builder, build a telegram bot, no-code telegram bot, telegram shop bot, telegram support bot, telegram broadcast, buy a telegram bot, ready-made telegram bot, telegram bot admin panel, school management bot, IrForge",
+    "keywords": "telegram bot builder, buy telegram bot, telegram bot price, build telegram bot without code, telegram shop bot, telegram support bot, telegram broadcast bot, school management system, school management with telegram, IrForge",
     "botTokenTitle": "How to Get a Telegram Bot Token from BotFather | IrForge",
     "botTokenDescription": "Get a Telegram bot token in seven steps with @BotFather, learn what the token actually is, how to keep it safe, and how to revoke one that has leaked.",
     "navBotToken": "Bot token",
@@ -586,8 +586,8 @@
     "webhookTitle": "Telegram Webhook vs Polling: Which to Use | IrForge",
     "webhookDescription": "Telegram webhook vs polling explained: how each delivers updates, what each costs you in latency and infrastructure, and which one your bot should use.",
     "navWebhook": "Webhook vs polling",
-    "pricingTitle": "Telegram Bot Pricing & Packages | IrForge",
-    "pricingDescription": "IrForge pricing and packages for Telegram bots: a free 7-day trial bot, Standard and Pro packages, monthly renewal from your wallet, and what each package includes.",
+    "pricingTitle": "Buy a Telegram Bot | Standard & Pro Plans and Prices | IrForge",
+    "pricingDescription": "Buy a Telegram bot on IrForge: a free 7-day trial bot, Standard and Pro plans renewed monthly from your wallet, with the features of each plan laid out clearly.",
     "navPricing": "Pricing",
     "whatIsTitle": "What Is a Telegram Bot? Uses, Types & How to Build One | IrForge",
     "whatIsDescription": "What is a Telegram bot and what can it do? A plain-language intro to bot types (shop, support, notifications), how bots work and how to build one without code.",
@@ -603,7 +603,33 @@
     "navBroadcast": "Broadcast",
     "aboutTitle": "About IrForge | Telegram Bot Builder",
     "aboutDescription": "What IrForge is, what it does and how to reach us: a Telegram bot builder with a Persian-first panel, how tokens and data are handled, costs and support channels.",
-    "navAbout": "About"
+    "navAbout": "About",
+    "schoolTitle": "School Management System via Telegram | IrForge",
+    "schoolDescription": "IrForge school management system: panels for admins, teachers, students, parents and counselors, with grades, attendance and Telegram alerts to families.",
+    "schoolKeywords": "school management system, school management software, school management with Telegram, school Telegram bot, school notification bot, student grades and attendance system, parent and teacher portal, online attendance, IrForge",
+    "navSchool": "School management",
+    "pricingKeywords": "buy telegram bot, telegram bot price, telegram bot builder pricing, telegram bot cost, Standard and Pro plans, IrForge",
+    "buyBotTitle": "Buy a Telegram Bot | Ready-Made & Custom Bots | IrForge",
+    "buyBotDescription": "Buy a Telegram bot on IrForge: a free 7-day trial, Standard and Pro plans, extra plugins and monthly renewal from your wallet. Steps and what to check first.",
+    "navBuyBot": "buy a telegram bot",
+    "bookingBotTitle": "Telegram Booking Bot | Appointment System Without Code | IrForge",
+    "bookingBotDescription": "Build a Telegram booking bot: weekly schedule, capacity per slot, calendar, confirm and cancel reservations, CSV export and digital invitations.",
+    "navBookingBot": "booking",
+    "giveawayBotTitle": "Telegram Giveaway Bot | Run Prize Campaigns | IrForge",
+    "giveawayBotDescription": "Build a Telegram giveaway bot: number of winners, end time, channel membership requirement, loyalty points and a list of entrants and winners.",
+    "navGiveawayBot": "giveaway",
+    "surveyBotTitle": "Telegram Survey & Quiz Bot | Build Without Code | IrForge",
+    "surveyBotDescription": "Build a Telegram survey and quiz bot: multiple choice, rating and text questions, anonymous answers, quiz scoring and results.",
+    "navSurveyBot": "survey and quiz",
+    "cardPaymentTitle": "Card-to-Card Payment in a Telegram Bot | Auto-Confirm | IrForge",
+    "cardPaymentDescription": "Card-to-card payment in a Telegram bot: manual receipts or automatic confirmation with bank SMS, payment channels, minimum amount, links and gateway.",
+    "navCardPayment": "card payment",
+    "botWalletTitle": "Telegram Bot Wallet | User Balance & In-Bot Payments | IrForge",
+    "botWalletDescription": "Telegram bot wallet: per-user balance and history, credit and debit, freezing, charging and refunding orders, and receipt messages.",
+    "navBotWallet": "bot wallet",
+    "crmBotTitle": "Telegram Bot CRM & Scheduled Messages | Tags & Campaigns | IrForge",
+    "crmBotDescription": "Tag your Telegram bot users and send automatic messages by event, date or weekly repeat, with quiet hours and a per-user cap.",
+    "navCrmBot": "CRM and scheduled messages"
   },
   "faq": {
     "title": "Frequently asked questions",
@@ -1757,6 +1783,409 @@
         ],
         "nextTitle": "Next step",
         "next": "If you have no bot yet, follow [how to make a Telegram bot](/learn/how-to-make-a-telegram-bot). For a menu that brings users back to the bot, see [menus and inline buttons](/learn/telegram-bot-menu-buttons); and if you sell, a [shop bot](/learn/telegram-shop-bot) is the natural home for discount messages."
+      },
+      "buy-telegram-bot": {
+        "h1": "Buy a Telegram Bot: Ready-Made, Custom or Bot Builder?",
+        "lead": "If you want to buy a Telegram bot you have three real options: hire a developer, buy a ready-made bot with fixed code, or use a bot builder with a management panel. This guide explains exactly how buying a Telegram bot works on IrForge, what each plan includes and what to check before you pay.",
+        "sections": [
+          {
+            "h2": "What does buying a Telegram bot mean?",
+            "items": [
+              "**Hire a developer:** the bot is written to your exact needs, but build, hosting and maintenance costs are yours. See [the real cost of a Telegram bot](/learn/telegram-bot-cost).",
+              "**Ready-made bot with fixed code:** cheap and fast, but you usually cannot change menus, texts or buttons yourself.",
+              "**Bot builder and panel:** you connect your own bot with a BotFather token and set it up without code. This is what IrForge is. [Build a bot without coding](/learn/telegram-bot-without-coding)"
+            ]
+          },
+          {
+            "h2": "What do you get on IrForge?",
+            "items": [
+              "**Free trial:** every account gets one free 7-day bot to try everything before paying.",
+              "**Standard plan:** 1 active bot, 1 GB RAM and 1 core, up to 50 concurrent users, 3 free plugins of your choice and ticket support.",
+              "**Pro plan:** up to 3 active bots, 3 GB RAM and 3 cores, up to 250 concurrent users, 6 free plugins and priority support.",
+              "**Custom:** choose RAM, CPU and plugins yourself and see the price calculated on the spot.",
+              "Current prices are always on the [pricing page](/pricing)."
+            ]
+          },
+          {
+            "h2": "Steps to buy a Telegram bot",
+            "items": [
+              "Sign up and get your bot token from BotFather. [How to get a bot token](/learn/telegram-bot-token)",
+              "Create the trial bot and try menus, commands and plugins.",
+              "Pick a plan from the buy-a-bot page and finish the cart.",
+              "Payment is taken from your account wallet; top it up first if the balance is low."
+            ]
+          },
+          {
+            "h2": "Ask yourself before paying",
+            "items": [
+              "What should the bot do: sell, support, take bookings, run giveaways or send broadcasts? See the [shop bot](/learn/telegram-shop-bot) and [support bot](/learn/telegram-support-bot) guides.",
+              "How many concurrent users do you expect? Plans cap at 50 and 250.",
+              "Do you need a Persian panel and local payments? [Choosing a bot builder](/learn/choose-a-telegram-bot-builder) has a checklist."
+            ]
+          },
+          {
+            "h2": "Monthly renewal and the wallet",
+            "body": [
+              "Plans are monthly and renew from your wallet. If the balance is not enough the bot stays off until renewal and turns back on after you top up, so keep an eye on your wallet balance."
+            ]
+          }
+        ],
+        "faqTitle": "Frequently asked questions",
+        "faq": [
+          {
+            "q": "How much does it cost to buy a Telegram bot?",
+            "a": "Telegram itself is free; you pay for the monthly plan and any extra plugins. Check today's prices on the pricing page; every account also has a free 7-day trial bot."
+          },
+          {
+            "q": "Is the bot mine after I buy it?",
+            "a": "Yes. It is created with your own BotFather token, and you can revoke that token at any time."
+          },
+          {
+            "q": "Can I change plans later?",
+            "a": "Yes. Start with the smallest plan that covers your needs and upgrade when you need to."
+          },
+          {
+            "q": "Do I need programming skills?",
+            "a": "No. Menus, buttons, shop, bookings and broadcasts are all set up in the panel."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "See plans on the [pricing page](/pricing), and if you do not have a bot yet follow the [guide to building a Telegram bot](/learn/how-to-make-a-telegram-bot)."
+      },
+      "telegram-booking-bot": {
+        "h1": "Telegram Booking Bot: Build an Appointment System Without Code",
+        "lead": "A Telegram booking bot lets customers pick a free time and reserve it without phone calls or scattered messages. This guide covers what IrForge's booking plugin offers, how you set up working hours and capacity, and how you manage reservations.",
+        "sections": [
+          {
+            "h2": "How does booking in a Telegram bot work?",
+            "body": [
+              "Once you turn the booking plugin on, customers choose a service and a free slot inside the bot, and the reservation shows up in your panel with a status such as pending. You do not build slots by hand; they are generated from your weekly schedule."
+            ]
+          },
+          {
+            "h2": "Working hours and booking rules",
+            "items": [
+              "Opening hours for each weekday, with several windows per day and the option to close a day entirely.",
+              "Appointment length, buffer between appointments and a minimum lead time before the start.",
+              "A daily cap and a default capacity per slot, for services that take several people at once.",
+              "How many days ahead people can book, and a cancellation cutoff in hours (0 means no limit)."
+            ]
+          },
+          {
+            "h2": "Calendar, exceptions and services",
+            "body": [
+              "The weekly calendar colors each day: free, partly booked, and closed or full. For a specific date you can add an exception, either closing the day or replacing the weekly hours with custom windows. Each service is defined separately in the services tab."
+            ]
+          },
+          {
+            "h2": "Managing reservations",
+            "items": [
+              "Statuses: pending, confirmed, canceled, done and overbooked.",
+              "Actions: confirm, cancel, mark done and record a no-show.",
+              "Search by customer name, phone or user id, and export reservations to CSV.",
+              "After confirming you can send a digital invitation with a \"view route\" button and a contact number."
+            ]
+          },
+          {
+            "h2": "Where is the data stored?",
+            "body": [
+              "Reservations live in the bot's own dedicated sheet. More in [Telegram bot and Google Sheets](/learn/telegram-bot-google-sheets)."
+            ]
+          }
+        ],
+        "faqTitle": "Frequently asked questions",
+        "faq": [
+          {
+            "q": "Which businesses is a booking bot for?",
+            "a": "Anything with appointments: salons, clinics, consulting, classes or table reservations. Duration, capacity and services are configurable."
+          },
+          {
+            "q": "What if two people book the same time?",
+            "a": "A reservation beyond capacity appears as overbooked so you can decide."
+          },
+          {
+            "q": "Can customers cancel?",
+            "a": "Yes, up to the cancellation cutoff you set; 0 means no limit."
+          },
+          {
+            "q": "Can booking be limited to certain customers?",
+            "a": "Yes. You can restrict booking to specific invite codes (the bot start link with a code)."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "Booking is one of the [bot plugins](/learn/telegram-bot-without-coding). To build a bot from scratch read [how to make a Telegram bot](/learn/how-to-make-a-telegram-bot), and to notify customers see [broadcasts](/learn/telegram-bot-broadcast)."
+      },
+      "telegram-giveaway-bot": {
+        "h1": "Telegram Giveaway Bot: Run Prize Campaigns Automatically",
+        "lead": "A Telegram giveaway bot automates a prize campaign from entry to winner announcement. This guide explains which conditions IrForge's giveaway plugin supports, how to set up a campaign and how winners are announced.",
+        "sections": [
+          {
+            "h2": "How does a giveaway in the bot work?",
+            "body": [
+              "You create and edit the campaign in the panel; entering, the draw and announcing the winner happen inside the bot. Each campaign is a draft, running, drawn or canceled."
+            ]
+          },
+          {
+            "h2": "Campaign settings",
+            "items": [
+              "Title, prize and an optional description",
+              "Number of winners",
+              "End time; if left empty the campaign stays open until you cancel or delete it",
+              "Channel membership requirement (write it with @; the bot must be an admin of that channel)",
+              "Minimum loyalty points needed to enter"
+            ]
+          },
+          {
+            "h2": "Entrants and winners",
+            "body": [
+              "The entrant list of each campaign is visible in the panel, and after the draw winners are marked. If nobody entered, the panel says so."
+            ]
+          },
+          {
+            "h2": "Tips for a campaign people trust",
+            "items": [
+              "State the prize and rules clearly in the description.",
+              "Set an end time so entrants know the deadline.",
+              "If you want more channel members, turn the membership requirement on.",
+              "Tell winners with a [broadcast](/learn/telegram-bot-broadcast) too."
+            ]
+          }
+        ],
+        "faqTitle": "Frequently asked questions",
+        "faq": [
+          {
+            "q": "Is a Telegram giveaway bot free?",
+            "a": "Telegram is free. The giveaway plugin is one of IrForge's low-priced plugins and each plan includes some free plugins; see the pricing page."
+          },
+          {
+            "q": "Can I see who entered?",
+            "a": "Yes. The entrant list is shown in the panel."
+          },
+          {
+            "q": "Can only channel members enter?",
+            "a": "Yes, with the channel membership requirement; the bot just has to be an admin there."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "To build a bot from scratch read [how to make a Telegram bot](/learn/how-to-make-a-telegram-bot), and for more features see [building a bot without coding](/learn/telegram-bot-without-coding)."
+      },
+      "telegram-survey-quiz-bot": {
+        "h1": "Telegram Survey and Quiz Bot: Build One Without Code",
+        "lead": "A Telegram survey bot collects customer opinions right where they talk to you, and a quiz bot scores answers for teaching or fun. This guide covers the question types in IrForge's survey and quiz plugin and how you read the results.",
+        "sections": [
+          {
+            "h2": "Survey vs quiz",
+            "body": [
+              "Both are built with the same tool. A survey just collects answers; a quiz has a correct option per question and answers are scored. Questions are built in the panel and answers are collected only inside the bot."
+            ]
+          },
+          {
+            "h2": "Question types",
+            "items": [
+              "**Multiple choice:** one option per line; for a quiz you mark the correct one.",
+              "**Rating:** 1 to 5, good for satisfaction.",
+              "**Text:** free-form answers."
+            ]
+          },
+          {
+            "h2": "Settings and publishing",
+            "items": [
+              "Title and optional description",
+              "Quiz mode (scored)",
+              "Anonymous answers",
+              "Draft and publish; a survey cannot be published without at least one question, and you can unpublish it."
+            ]
+          },
+          {
+            "h2": "Reading results",
+            "body": [
+              "The results view shows how many people answered, the average of rating questions and correct answers for quizzes."
+            ]
+          }
+        ],
+        "faqTitle": "Frequently asked questions",
+        "faq": [
+          {
+            "q": "Can a survey be anonymous?",
+            "a": "Yes, turn on the anonymous option."
+          },
+          {
+            "q": "Does a quiz give scores?",
+            "a": "Yes. You set the correct option for multiple-choice questions and correct answers are counted in the results."
+          },
+          {
+            "q": "How do I ask for feedback after a purchase?",
+            "a": "Create a survey and send its link with a [broadcast](/learn/telegram-bot-broadcast) or a scheduled message."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "To build a bot from scratch read [how to make a Telegram bot](/learn/how-to-make-a-telegram-bot), and to send a survey to users see [broadcasts](/learn/telegram-bot-broadcast)."
+      },
+      "telegram-bot-card-payment": {
+        "h1": "Card-to-Card Payment in a Telegram Bot: Auto-Confirm with Bank SMS",
+        "lead": "Card-to-card payment is the simplest way to get paid by Iranian customers in a Telegram bot, but checking receipts by hand takes time. IrForge supports card-to-card with manual receipts and automatic confirmation from bank SMS. This guide explains both.",
+        "sections": [
+          {
+            "h2": "Simple card-to-card with receipts",
+            "body": [
+              "You enter the card number (16 or 19 digits) and the account holder's name in the payment settings. The customer transfers money and sends the receipt to the bot, and the receipt goes to admins or the orders group to approve or reject. You can write the payment information text and the buttons shown after a receipt is received, an order is approved or rejected."
+            ]
+          },
+          {
+            "h2": "Automatic confirmation with bank SMS",
+            "body": [
+              "In automatic mode the customer pays a unique amount to your own card. Your phone forwards the bank SMS and the payment is confirmed without manual checks. Money always goes straight to your card."
+            ]
+          },
+          {
+            "h2": "Payment channel settings",
+            "items": [
+              "Channel type: a card with a unique amount, a payment link with a fixed amount, or a link with an open amount; a card and a link can be used together.",
+              "Minimum amount in Toman",
+              "Allowed SMS senders (empty accepts any sender) and a bank SMS format",
+              "A description next to the card number and a preview of what the customer sees"
+            ]
+          },
+          {
+            "h2": "Online gateway",
+            "body": [
+              "If you have an online gateway, add its https address and a button label in settings so it appears next to card-to-card."
+            ]
+          },
+          {
+            "h2": "Safety tips",
+            "items": [
+              "Set the card number and amounts only from the panel, and test the payment text before publishing.",
+              "Send a test message to the orders group to check that the bot is a member."
+            ]
+          }
+        ],
+        "faqTitle": "Frequently asked questions",
+        "faq": [
+          {
+            "q": "Where does the money go?",
+            "a": "With card-to-card it always goes directly to your own card."
+          },
+          {
+            "q": "What does automatic confirmation need?",
+            "a": "Your phone has to forward the bank SMS; the rest is automatic."
+          },
+          {
+            "q": "Can I still approve receipts manually?",
+            "a": "Yes. Leave manual receipt verification turned on."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "This is part of [building a Telegram shop bot](/learn/telegram-shop-bot). For user balances see the [Telegram bot wallet](/learn/telegram-bot-wallet)."
+      },
+      "telegram-bot-wallet": {
+        "h1": "Telegram Bot Wallet: User Balance and In-Bot Payments",
+        "lead": "A Telegram bot wallet gives every user a balance so the next purchase needs no receipt and no follow-up. This guide covers what IrForge's wallet plugin does: credit and debit, freezing, charging and refunding orders, and receipt messages.",
+        "sections": [
+          {
+            "h2": "What does the wallet do?",
+            "body": [
+              "Each user's wallet has a balance and a transaction history. From the panel you can find a user by name, username or id, see their balance and credit or debit it manually."
+            ]
+          },
+          {
+            "h2": "Freeze and unfreeze",
+            "body": [
+              "You can freeze and then unfreeze a user's wallet; every change stays in the history."
+            ]
+          },
+          {
+            "h2": "Linking to orders",
+            "body": [
+              "For a given order you can charge the user's wallet or refund the amount, the same as the /wallet_charge_order and /wallet_refund_order commands in the bot."
+            ]
+          },
+          {
+            "h2": "Receipts and admin notices",
+            "items": [
+              "Receipts for credit, debit, freeze and unfreeze go to the wallet owner.",
+              "Admins, a group or a channel can get a log of actions.",
+              "All message templates are editable and support parameters such as amount, balance before and after, and reason."
+            ]
+          },
+          {
+            "h2": "Wallet next to the shop",
+            "body": [
+              "The wallet usually works with the catalog; the \"Storefront\" bundle gives you both in one purchase. [Telegram shop bot](/learn/telegram-shop-bot)"
+            ]
+          }
+        ],
+        "faqTitle": "Frequently asked questions",
+        "faq": [
+          {
+            "q": "How do I increase a user's balance?",
+            "a": "Find the user in the wallet panel and credit the amount; you can add a reason and the receipt is sent to the user."
+          },
+          {
+            "q": "Is there a transaction history?",
+            "a": "Yes, each user's recent transactions are shown in the panel."
+          },
+          {
+            "q": "Is the wallet connected to card-to-card payment?",
+            "a": "They complement each other. See [card-to-card payment](/learn/telegram-bot-card-payment) for ways of receiving money."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "Complete your shop with the [Telegram shop bot guide](/learn/telegram-shop-bot), and see the [pricing page](/pricing) for costs."
+      },
+      "telegram-bot-crm-scheduled-messages": {
+        "h1": "CRM and Scheduled Messages in a Telegram Bot",
+        "lead": "If your bot's users are just a long list, you cannot talk to them properly. With the CRM plugin you tag users, and with scheduled messages you send automatic messages only to the right group. This guide covers both.",
+        "sections": [
+          {
+            "h2": "CRM: tags and notes",
+            "body": [
+              "Each tag is a segment of your audience (for example \"loyal customer\"), with an emoji and optional description. You find a user by name, username or id, tag them and leave notes."
+            ]
+          },
+          {
+            "h2": "What are scheduled messages?",
+            "items": [
+              "**Event-based:** after something happens in the bot, with a delay you choose (0 is immediate) and an option to send only once per user.",
+              "**One time at a set moment:** with a date and time.",
+              "**Weekly repeat:** on chosen days with an end date."
+            ]
+          },
+          {
+            "h2": "Audience and content",
+            "items": [
+              "Audience: all users, one specific chat, or a CRM tag.",
+              "Content: text, a photo or audio, and buttons under the message.",
+              "You can send a test to one chat before going live."
+            ]
+          },
+          {
+            "h2": "Avoiding annoyance",
+            "items": [
+              "Quiet hours: nothing is sent in that window and pending messages wait.",
+              "A per-user cap on messages per hour."
+            ]
+          },
+          {
+            "h2": "Campaign stats",
+            "body": [
+              "Each campaign shows how many are active, queued, sent and failed."
+            ]
+          }
+        ],
+        "faqTitle": "Frequently asked questions",
+        "faq": [
+          {
+            "q": "What is the difference between a broadcast and a scheduled message?",
+            "a": "A broadcast is one-off and goes to everyone; scheduled messages run on an event, a date or a weekly repeat and can target a single tag."
+          },
+          {
+            "q": "Can I send a message to just one group?",
+            "a": "Yes. Create a tag in CRM and choose it as the audience."
+          }
+        ],
+        "nextTitle": "Next step",
+        "next": "For a one-off announcement see [broadcasts](/learn/telegram-bot-broadcast), and to get started read [how to make a Telegram bot](/learn/how-to-make-a-telegram-bot)."
       }
     },
     "topCtaButton": "Build your own bot",
@@ -4575,7 +5004,126 @@
     "alertDeleteConfirmTitle": "Delete this alert?",
     "alertDeleteConfirmBody": "The alert text will be hidden from the student, parents and staff; only “This alert was deleted” with the date remains. This cannot be undone.",
     "alertDeleteSuccess": "Alert deleted",
-    "alertDeleteError": "Couldn't delete the alert"
+    "alertDeleteError": "Couldn't delete the alert",
+    "ttDescription": "Enter each class's weekly timetable period by period; every day can have a different schedule.",
+    "ttPickClass": "Class",
+    "ttNoClasses": "No classes yet. Create a class in Class Management first.",
+    "ttDay0": "Saturday",
+    "ttDay1": "Sunday",
+    "ttDay2": "Monday",
+    "ttDay3": "Tuesday",
+    "ttDay4": "Wednesday",
+    "ttDay5": "Thursday",
+    "ttDay6": "Friday",
+    "ttAddPeriod": "Add period",
+    "ttSaveDay": "Save this day",
+    "ttSaved": "This day's schedule was saved",
+    "ttSaveError": "Could not save the schedule",
+    "ttFixErrors": "Fix the highlighted errors",
+    "ttCopyDay": "Copy this day to…",
+    "ttCopyTitle": "Copy this day's schedule",
+    "ttCopyHint": "The saved schedule of this day replaces the schedule of the selected days.",
+    "ttCopyConfirm": "Copy",
+    "ttCopied": "Schedule copied",
+    "ttCopyNeedsSave": "Save this day's changes first.",
+    "ttClearDay": "Clear day",
+    "ttClearConfirm": "Remove all periods of this day?",
+    "ttStart": "Start",
+    "ttEnd": "End",
+    "ttSubject": "Subject",
+    "ttTeacher": "Teacher",
+    "ttNoTeacher": "No teacher",
+    "ttNote": "Note / room (optional)",
+    "ttRemove": "Remove period",
+    "ttOther": "Other…",
+    "ttBreak": "Break",
+    "ttPrayer": "Prayer",
+    "ttLunch": "Lunch",
+    "ttCustomSubject": "Custom title",
+    "ttGap": "Gap before next period",
+    "ttGapNone": "No gap",
+    "ttGapMinutes": "{n} min",
+    "ttEmptyDay": "No periods yet for this day.",
+    "ttDirty": "Unsaved",
+    "ttErrBadTime": "Invalid time",
+    "ttErrEndBeforeStart": "End must be after start",
+    "ttErrSubject": "Subject is required",
+    "ttErrOverlap": "Overlaps with {label}",
+    "ttErrTeacherNotInClass": "This teacher is not in this class",
+    "ttErrTeacherBusy": "This teacher has another class at this time",
+    "ttLegacyTitle": "Older programs and announcements",
+    "navTimetable": "Timetable",
+    "ttMyTitle": "My timetable",
+    "ttTeacherTitle": "Teaching timetable",
+    "ttParentTitle": "Child's class timetable",
+    "ttMyDescription": "Weekly schedule; today is highlighted.",
+    "ttNow": "Now",
+    "ttNext": "Next",
+    "ttToday": "Today",
+    "ttNothingNow": "No period in progress right now",
+    "ttNoMore": "No more periods today",
+    "ttEmptyMine": "No timetable has been set yet.",
+    "ttNoSchedule": "Nothing to show",
+    "ttAllClassesLabel": "My periods",
+    "ttWeekFor": "Week of class {name}",
+    "ttMineBadge": "I teach",
+    "ttOpen": "View timetable",
+    "navLinkStudent": "Link to student",
+    "grTitle": "Link to a student",
+    "grDescription": "Enter the student's mobile number. A request is sent to them; once they approve, your child appears on your dashboard.",
+    "grPhoneLabel": "Student's mobile number",
+    "grPhonePlaceholder": "09123456789",
+    "grSend": "Send request",
+    "grSent": "If this number belongs to a student of this school, the request was sent to them",
+    "grInvalidPhone": "The mobile number is not valid",
+    "grAlreadyPending": "You already have a request for this number awaiting a reply.",
+    "grLimitReached": "Ask the school admin to register you as a parent",
+    "grLimitDaily": "You have reached the limit of numbers tried in the last 24 hours. Try again later, or ask the school admin to register you as a parent.",
+    "grAttemptsLeft": "You can request {n} more time(s) for this number",
+    "grAttemptsRule": "You can send at most 3 requests per number.",
+    "grRequestsTitle": "My requests",
+    "grNoRequests": "You have not sent any requests yet.",
+    "grStatusPending": "Awaiting reply",
+    "grStatusApproved": "Approved",
+    "grStatusRejected": "Rejected",
+    "grStatusExpired": "Expired",
+    "grStatusCancelled": "Cancelled",
+    "grCancel": "Cancel request",
+    "grSendError": "Could not send the request",
+    "grIncomingTitle": "Parent link request",
+    "grIncomingBody": "{name} wants to be registered as your parent.",
+    "grApprove": "Approve",
+    "grReject": "Reject",
+    "grDecided": "Saved",
+    "grDecideError": "Could not save your answer",
+    "grNotifCta": "View request",
+    "grNotifCtaParent": "View children",
+    "grNoChildrenHint": "No child linked yet; send a request from “Link to student”.",
+    "grGoLink": "Link to student",
+    "swTitle": "School wallet",
+    "swDescription": "A balance that belongs to this school only; it is used solely to buy the school notification bot.",
+    "swSeparateNote": "This wallet is completely separate from your personal wallet and the site's bots wallet, and has nothing to do with the “Wallet” page.",
+    "swBalance": "Balance",
+    "swTopUp": "Top up school wallet",
+    "swTopUpDescription": "Enter the amount and a note. After the payment is made and support approves it, the amount is added to the school wallet.",
+    "swAmountLabel": "Amount (Toman)",
+    "swNoteLabel": "Note (e.g. payment reference)",
+    "swSendRequest": "Send top-up request",
+    "swRequestSent": "Top-up request submitted; the balance is added once support approves it.",
+    "swRequestError": "Could not submit the request",
+    "swRequestTooMany": "You have several pending requests; wait for them to be reviewed or cancel one.",
+    "swRequestInvalid": "The amount must be at least 10,000 Toman.",
+    "swPendingRequests": "Pending requests",
+    "swCancelRequest": "Cancel",
+    "swTransactions": "Transactions",
+    "swNoTransactions": "No transactions yet.",
+    "swLoadMore": "Show more",
+    "swTypeCredit": "Top-up",
+    "swTypeSpend": "Purchase",
+    "swTypeAdminCredit": "Credited by support",
+    "swTypeAdminDebit": "Debited by support",
+    "swBotInsufficient": "The school wallet balance is not enough to buy the bot.",
+    "botCardSchoolWalletBalance": "School wallet balance"
   },
   "about": {
     "breadcrumbLabel": "Breadcrumb",
@@ -4625,5 +5173,82 @@
     "ctaBody": "Try it free for 7 days — no coding, no servers.",
     "ctaButton": "Build your own bot",
     "ctaPricing": "See pricing"
+  },
+  "schoolPage": {
+    "breadcrumbLabel": "Breadcrumb",
+    "h1": "School Management System with Telegram Notifications",
+    "lead": "IrForge is more than a Telegram bot builder: it also includes a school management system. Admins, deputies, teachers, counselors, students and parents each get their own panel, grades, attendance, assignments and exams live in one place, and the school's notification bot delivers alerts straight to families on Telegram.",
+    "sections": [
+      {
+        "h2": "What does the IrForge school management system do?",
+        "body": [
+          "You create the school, define classes and programs, and invite members with invite codes. A code can have an expiry date and a usage cap, and can be limited to one role or open to all. From then on the daily work — attendance, grades, assignments, exams and announcements — happens in this panel instead of notebooks and scattered chat groups."
+        ]
+      },
+      {
+        "h2": "What does each role see?",
+        "items": [
+          "**Admins and deputies:** member, class and program management, alerts, broadcast messages, closure announcements and a change history.",
+          "**Teachers:** today's classes, attendance, the gradebook, assignments, exams and a question bank, and chat with students.",
+          "**Students:** subjects, assignments, exams, their own attendance and grades, and contact with the counselor, admin and teachers.",
+          "**Parents:** their child's status, reports, grades and attendance, without waiting for a call or a report card.",
+          "**Counselors:** the student list, reports, a schedule and chat with students and families."
+        ]
+      },
+      {
+        "h2": "School system features",
+        "items": [
+          "Attendance and a gradebook for every class and subject",
+          "Assignments and exams, with a question bank for teachers",
+          "Announcements, broadcast messages and closure notices for everyone or a group",
+          "Two-way chat between students and the admin, teachers and counselor",
+          "Discipline alerts and a recorded history of important changes",
+          "Learning content: dictionary, notes, books, formulas and poems, with a study mode and flashcards"
+        ]
+      },
+      {
+        "h2": "School notifications on Telegram",
+        "body": [
+          "Most families already have Telegram, so there is no new app to install. A school can have a notification bot named after itself; exam, assignment, attendance and alert notices go straight to members' Telegram. Each member connects once with the \"Connect with Telegram\" button. The bot is bought from the school wallet, and if no bot capacity is available the system tells you so.",
+          "If you also want a Telegram bot for a business, see the [guide to building a Telegram bot](/learn/how-to-make-a-telegram-bot) and the [pricing page](/pricing)."
+        ]
+      },
+      {
+        "h2": "Where do I start?",
+        "items": [
+          "Sign up and choose your role in the School section.",
+          "If you have your school's invite code, enter it to join directly; otherwise create your own school.",
+          "Add classes and members, and create invite codes for each role.",
+          "If you want Telegram notifications, buy the notification bot and ask members to connect to it."
+        ]
+      }
+    ],
+    "faq": [
+      {
+        "q": "Who is the IrForge school management system for?",
+        "a": "Schools and educational institutes that want to manage grades, attendance, assignments, exams and announcements in one panel. Admins, deputies, teachers, counselors, students and parents each have their own role and panel."
+      },
+      {
+        "q": "Do we need to install an app?",
+        "a": "No. The panel works in the browser, and notifications arrive through Telegram, which families usually already have."
+      },
+      {
+        "q": "How do school notifications reach Telegram?",
+        "a": "The school buys a notification bot named after itself and members connect to it with the \"Connect with Telegram\" button. After that, exam, assignment, attendance and alert notices are also sent to their Telegram."
+      },
+      {
+        "q": "How do members join a school?",
+        "a": "With an invite code. The admin creates codes for a single role or for all roles, and can set an expiry date and a usage cap."
+      },
+      {
+        "q": "Can I also build a regular Telegram bot on IrForge?",
+        "a": "Yes. IrForge is first of all a Telegram bot builder: shop, support, broadcast and booking bots without code. Every account gets a free 7-day trial bot."
+      }
+    ],
+    "ctaTitle": "Try the school system",
+    "ctaBody": "Sign up, choose your role, and create your school or join one with an invite code.",
+    "ctaButton": "Open the school system",
+    "ctaBots": "Buy and build a Telegram bot",
+    "faqTitle": "School system FAQ"
   }
 }

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, CalendarDays, Megaphone } from "lucide-react";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
+import { TimetableNowCard } from "@/components/schools/TimetableView";
 import { getSchoolMe, listSchoolClasses, listSchoolAnnouncements } from "@/lib/schools-api";
 
 /**
@@ -32,6 +33,7 @@ export default function TeacherTodayPage() {
         <h1 className="text-xl font-bold">{t.navToday}</h1>
         <p className="text-sm text-muted-foreground">{t.teacherTodayDescription}</p>
       </div>
+      <TimetableNowCard schoolId={schoolId} />
       {!myClasses || myClasses.length === 0 ? (
         <div className="flex h-32 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">{t.classesEmpty}</div>
       ) : (

@@ -119,3 +119,10 @@ export const SCHOOL_ADMIN_LINKS: { path: string; fa: string; en: string }[] = [
   { path: "/schools/admin/alerts", fa: "هشدارهای دانش‌آموز", en: "Student alerts" },
   { path: "/schools/admin/audit-log", fa: "تاریخچه‌یِ رخدادها", en: "Audit log" },
 ];
+
+// ─── کیف‌پولِ مدرسه (جدا از کیف‌پولِ شخصی) ──────────────────────────────────────
+export interface SchoolWalletTxn { id: string; type: "credit" | "spend" | "admin_credit" | "admin_debit"; amountRial: number; balanceAfterRial: number; description: string; refId: string | null; createdAt: string }
+export const getSuperSchoolWallet = (schoolId: string) =>
+  customFetch<{ school: { id: string; name: string }; balanceRial: number; transactions: SchoolWalletTxn[]; hasMore: boolean }>(`/api/super/schools/${schoolId}/wallet`, opts);
+export const adjustSuperSchoolWallet = (schoolId: string, body: { direction: "credit" | "debit"; amountRial: number; reason: string }) =>
+  customFetch<{ ok: true; balanceRial: number }>(`/api/super/schools/${schoolId}/wallet/adjust`, { ...opts, method: "POST", body: JSON.stringify(body) });

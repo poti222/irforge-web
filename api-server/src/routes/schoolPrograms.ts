@@ -11,7 +11,7 @@ import { db, schoolProgramsTable, SCHOOL_MEMBER_ROLES } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAuth } from "./auth";
-import { canAccessSchool, SCHOOL_ADMIN_DEPUTY_DISCIPLINE } from "../lib/schoolAuth";
+import { canAccessSchool, SCHOOL_ADMIN_DEPUTY_DISCIPLINE, classBelongsToSchool } from "../lib/schoolAuth";
 
 const router = Router();
 
@@ -53,6 +53,10 @@ router.post("/schools/:schoolId/programs", requireAuth, async (req: any, res) =>
       return;
     }
     const { title, description, classId, dayOfWeek, startTime, endTime } = req.body ?? {};
+    if (classId && !(await classBelongsToSchool(classId, req.params.schoolId))) {
+      res.status(404).json({ error: "Class not found" });
+      return;
+    }
     if (!title?.trim()) {
       res.status(400).json({ error: "title is required" });
       return;
@@ -83,6 +87,10 @@ router.patch("/schools/:schoolId/programs/:programId", requireAuth, async (req: 
       return;
     }
     const { title, description, classId, dayOfWeek, startTime, endTime } = req.body ?? {};
+    if (classId && !(await classBelongsToSchool(classId, req.params.schoolId))) {
+      res.status(404).json({ error: "Class not found" });
+      return;
+    }
     const patch: Record<string, unknown> = {};
     if (title !== undefined) patch.title = title;
     if (description !== undefined) patch.description = description;

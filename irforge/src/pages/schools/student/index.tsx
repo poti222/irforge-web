@@ -6,6 +6,8 @@ import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
 import { getSchoolMe, listMyAlerts } from "@/lib/schools-api";
 import { AlertsFeed } from "@/pages/schools/admin/alerts";
+import { GuardianRequestsCard } from "@/components/schools/GuardianRequestsCard";
+import { TimetableNowCard } from "@/components/schools/TimetableView";
 import { SubjectsHub } from "@/pages/schools/content-subjects";
 
 /**
@@ -58,6 +60,8 @@ export default function SchoolsStudentHome() {
         <p className="text-sm text-muted-foreground">{t.studentHomeDescription}</p>
       </div>
       {alerts && alerts.length > 0 && <AlertsFeed alerts={alerts} isLoading={alertsLoading} />}
+      <GuardianRequestsCard schoolId={schoolId} />
+      <TimetableNowCard schoolId={schoolId} />
       <SubjectsHub embedded />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
         {TILES.map((tile) => (

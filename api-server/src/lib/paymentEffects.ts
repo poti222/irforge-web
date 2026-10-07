@@ -23,7 +23,7 @@ export type PaymentEffect = (c: ClientLike, request: PaymentRequestRow) => Promi
 const registry = new Map<string, PaymentEffect>();
 const keyOf = (scope: string, purpose: string) => `${scope}:${purpose}`;
 
-export function registerPaymentEffect(scope: "platform" | "bot", purpose: "wallet_topup" | "order", effect: PaymentEffect): void {
+export function registerPaymentEffect(scope: "platform" | "bot", purpose: "wallet_topup" | "order" | "school_wallet_topup", effect: PaymentEffect): void {
   const key = keyOf(scope, purpose);
   const existing = registry.get(key);
   if (existing && existing !== effect) {

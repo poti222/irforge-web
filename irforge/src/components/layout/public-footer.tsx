@@ -36,6 +36,7 @@ export function PublicFooter() {
             <li><Link href="/" className="hover:text-foreground">{seo.navHome}</Link></li>
             <li><Link href="/docs" className="hover:text-foreground">{seo.navDocs}</Link></li>
             <li><Link href="/pricing" className="hover:text-foreground">{seo.navPricing}</Link></li>
+            <li><Link href="/school-management" className="hover:text-foreground">{seo.navSchool}</Link></li>
             <li><Link href="/register" className="hover:text-foreground">{t.getStarted}</Link></li>
           </ul>
         </div>

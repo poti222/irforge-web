@@ -210,6 +210,9 @@ export default function Landing() {
             <Button asChild variant="ghost" size="sm" className="hidden rounded-full md:inline-flex">
               <Link href="/pricing">{seo.navPricing}</Link>
             </Button>
+            <Button asChild variant="ghost" size="sm" className="hidden rounded-full lg:inline-flex">
+              <Link href="/school-management">{seo.navSchool}</Link>
+            </Button>
             <PaletteButton className="rounded-full" />
             <ThemeToggleButton className="rounded-full" />
 
@@ -513,8 +516,11 @@ export default function Landing() {
                 </ul>
 
                 <RevealItem variants={sectionItem}>
-                  <div className="mt-4">
+                  <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
                     <PillCTA href={user ? "/dashboard" : "/register"}>{tr.schoolCta}</PillCTA>
+                    <Link href="/school-management" className="text-sm font-semibold text-primary hover:underline">
+                      {seo.navSchool}
+                    </Link>
                   </div>
                 </RevealItem>
               </div>
