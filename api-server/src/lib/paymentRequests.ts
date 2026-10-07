@@ -77,7 +77,7 @@ export interface PaymentRequestRow {
   scope: "platform" | "bot";
   botId: string | null;
   userId: string;
-  purpose: "wallet_topup" | "order";
+  purpose: "wallet_topup" | "order" | "school_wallet_topup";
   orderId: string | null;
   baseAmountRial: number;
   suffixRial: number;
@@ -198,8 +198,10 @@ export interface CreateRequestInput {
   /** scope مورد انتظار — با scope/bot_id خودِ کانال تطبیق داده می‌شود. */
   channelScope: ChannelScope;
   userId: string;
-  purpose: "wallet_topup" | "order";
+  purpose: "wallet_topup" | "order" | "school_wallet_topup";
   orderId?: string | null;
+  /** فقط برایِ purpose=school_wallet_topup (کیف‌پولِ مدرسه). */
+  schoolId?: string | null;
   baseAmountRial: number;
   expiryMs?: number;
   queueTtlMs?: number;
@@ -240,7 +242,19 @@ export async function createPaymentRequest(pool: PoolLike, input: CreateRequestI
     const id = `pr_${crypto.randomBytes(9).toString("hex")}`;
 
     const insert = (status: "pending" | "queued", suffix: number, exp: Date, queuePosition: number | null) =>
-      c.query(
+      input.schoolId
+        // مسیرِ مدرسه: همان INSERT با ستونِ school_id. مسیرِ شخصی/بات (else) عیناً مثلِ قبل است.
+        ? c.query(
+          `INSERT INTO payment_requests
+             (id, channel_id, channel_kind, scope, bot_id, user_id, purpose, order_id,
+              base_amount_rial, suffix_rial, final_amount_rial, status, expires_at, queue_position, created_at,
+              account_id_snapshot, school_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::bigint,$10::bigint,$9::bigint + $10::bigint,$11,$12,$13,$14,$2,$15)
+           RETURNING *`,
+          [id, ch.id, kind, ch.scope, ch.bot_id, input.userId, input.purpose, input.orderId ?? null,
+            base, suffix, status, exp, queuePosition, now, input.schoolId],
+        )
+        : c.query(
         `INSERT INTO payment_requests
            (id, channel_id, channel_kind, scope, bot_id, user_id, purpose, order_id,
             base_amount_rial, suffix_rial, final_amount_rial, status, expires_at, queue_position, created_at,

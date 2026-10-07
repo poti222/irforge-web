@@ -13,6 +13,7 @@
  */
 import { registerPaymentEffect } from "./paymentEffects";
 import { platformWalletTopupEffect } from "./platformWalletEffect";
+import { schoolWalletTopupEffect } from "./schoolWalletEffect";
 
 const stateOnly = async () => { /* بات از طریقِ claim اثرِ تجاری را اعمال می‌کند */ };
 
@@ -21,4 +22,6 @@ export function registerDefaultPaymentEffects(): void {
   registerPaymentEffect("bot", "wallet_topup", stateOnly);
   registerPaymentEffect("bot", "order", stateOnly);
   registerPaymentEffect("platform", "wallet_topup", platformWalletTopupEffect);
+  // کیف‌پولِ مدرسه: همان الگوی platform، ولی school_wallets را شارژ می‌کند (schoolWalletEffect.ts).
+  registerPaymentEffect("platform", "school_wallet_topup", schoolWalletTopupEffect);
 }
