@@ -155,6 +155,17 @@ class QueueItem {
       m['status'] as String);
 }
 
+/// یک پیامکِ دریافتی و تصمیمِ اپ. decision: queued | not_allowed | not_bank_like | no_config | blank
+class SmsEvent {
+  const SmsEvent(this.ts, this.sender, this.decision);
+  final DateTime ts;
+  final String sender, decision;
+  static SmsEvent fromMap(Map m) => SmsEvent(
+      DateTime.fromMillisecondsSinceEpoch((m['ts'] as num).toInt()),
+      (m['sender'] as String?) ?? '',
+      (m['decision'] as String?) ?? '');
+}
+
 class TestResult {
   const TestResult(this.ok, this.message);
   final bool ok;
@@ -235,6 +246,26 @@ class Native {
   static Future<void> saveSettings(AgentSettings s) async {
     _fakeSettings = s;
     if (isAndroid && _real) await _ch.invokeMethod('saveSettings', s.toMap());
+  }
+
+  // ── لاگِ دریافتِ پیامک ──────────────────────────────────────────────────────────
+  static Future<List<SmsEvent>> events() async {
+    if (!isAndroid) return const [];
+    if (!_real) {
+      final now = DateTime.now();
+      return [
+        SmsEvent(
+            now.subtract(const Duration(minutes: 1)), 'Blubank', 'not_allowed'),
+        SmsEvent(
+            now.subtract(const Duration(minutes: 30)), 'Blubank', 'queued'),
+      ];
+    }
+    final l = await _ch.invokeMethod<List>('events') ?? const [];
+    return l.map((e) => SmsEvent.fromMap(e as Map)).toList();
+  }
+
+  static Future<void> clearEvents() async {
+    if (isAndroid && _real) await _ch.invokeMethod('clearEvents');
   }
 
   // ── مدیریتِ صف ──────────────────────────────────────────────────────────────────

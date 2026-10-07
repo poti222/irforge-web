@@ -169,4 +169,26 @@ object Store {
 
     fun delete(ctx: Context, id: String) =
         db(ctx).writableDatabase.execSQL("DELETE FROM sms WHERE id=?", arrayOf(id))
+
+    // ── لاگِ دریافتِ پیامک (برای عیب‌یابی در خودِ اپ) ───────────────────────────────
+    /** فقط فرستنده + تصمیم؛ متنِ پیامکِ ردشده هرگز ذخیره نمی‌شود. */
+    @Synchronized
+    fun logEvent(ctx: Context, sender: String, decision: String) {
+        val p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val arr = JSONArray(p.getString("events", "[]"))
+        val o = org.json.JSONObject().put("ts", System.currentTimeMillis()).put("sender", sender).put("decision", decision)
+        val out = JSONArray().put(o)
+        for (i in 0 until minOf(arr.length(), 39)) out.put(arr.get(i))
+        p.edit().putString("events", out.toString()).apply()
+    }
+
+    fun events(ctx: Context): List<Map<String, Any>> {
+        val arr = JSONArray(ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("events", "[]"))
+        return (0 until arr.length()).map {
+            val o = arr.getJSONObject(it)
+            mapOf("ts" to o.getLong("ts"), "sender" to o.getString("sender"), "decision" to o.getString("decision"))
+        }
+    }
+
+    fun clearEvents(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove("events").apply()
 }

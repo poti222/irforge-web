@@ -49,6 +49,8 @@ class MainActivity : FlutterActivity() {
                     Store.saveSettings(this, settingsFrom(call.arguments as Map<*, *>))
                     UpdateWorker.schedule(this); result.success(null)
                 }
+                "events" -> result.success(Store.events(this))
+                "clearEvents" -> { Store.clearEvents(this); result.success(null) }
                 "queue" -> result.success(Store.all(this))
                 "queueRetry" -> { Store.retry(this, call.arguments as String); SendWorker.kick(this); result.success(null) }
                 "queueRetryAll" -> { Store.retryAll(this); SendWorker.kick(this); result.success(null) }

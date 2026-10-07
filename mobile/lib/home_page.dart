@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'ios_guide_page.dart';
 import 'manual_page.dart';
 import 'native.dart';
+import 'events_page.dart';
 import 'queue_page.dart';
 import 'scan_page.dart';
 import 'setup_link.dart';
@@ -180,6 +181,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final cfg = _cfg;
     return Scaffold(
       appBar: AppBar(title: const Text('IrForge Pay Agent'), actions: [
+        if (Native.isAndroid)
+          IconButton(
+            tooltip: 'پیامک‌های دریافتی',
+            icon: const Icon(Icons.sms_outlined),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const EventsPage())),
+          ),
         if (Native.isAndroid)
           IconButton(
             tooltip: 'صف پیامک‌ها',
@@ -399,6 +407,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'مجوز پیامک داده نشده',
         'بدون مجوز، پیامک بانک به سایت نمی‌رسد.'
       );
+    if (cfg.senders.isEmpty) {
+      return (
+        Colors.orange,
+        'فرستنده‌ی مجاز تنظیم نشده',
+        'فعلاً فقط پیامک‌های شبیه بانکی ارسال می‌شود. در «پیامک‌های دریافتی» فرستنده‌ی بانک را به لیست مجاز اضافه کنید.'
+      );
+    }
     if (_st.blocked > 0)
       return (
         Colors.red,
