@@ -21,6 +21,8 @@ export async function addPoolToken(sup, token = fakeToken()) {
 export async function schoolWithBot(sup, name = "مدرسه بات") {
   const admin = await newSchoolAdmin(name);
   // make sure THIS purchase claims our token: drain others is impossible, so add one and accept FIFO-ish; tests read the token back from the bot row.
+  // other suites (schoolwallet) leave plaintext "dummy-…" tokens 'available'; the claim is unordered, so park them to make sure THIS purchase claims our own token.
+  await pool.query("update school_bot_token_pool set status='retired' where status='available'");
   const { token } = await addPoolToken(sup);
   await pool.query("insert into school_wallets (school_id,balance) values ($1,100000000) on conflict (school_id) do update set balance=100000000", [admin.schoolId]).catch(async () => {
     await pool.query("update school_wallets set balance=100000000 where school_id=$1", [admin.schoolId]);
