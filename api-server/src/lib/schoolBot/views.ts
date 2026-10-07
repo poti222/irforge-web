@@ -228,7 +228,7 @@ export async function viewLesson(c: VCtx, lessonId: string, type: string): Promi
     return { text: kb.length ? `${b(lesson.title)}\nیک بخش را انتخاب کنید.` : `${b(lesson.title)}\nهنوز محتوایی ثبت نشده است.`, kb: withNav(kb, back) };
   }
   if (!types.includes(type)) return DENIED(`s:ls:${lessonId}:-`); // فقط typeهایِ روشن
-  const ir = await apiAs(c.actor.userId, "GET", `${sid(c)}/content?schoolId=${c.schoolId}&lessonId=${lessonId}&type=${encodeURIComponent(type)}`);
+  const ir = await apiAs(c.actor.userId, "GET", `/schools/content?schoolId=${c.schoolId}&lessonId=${lessonId}&type=${encodeURIComponent(type)}`);
   if (ir.status !== 200) return FAIL(`s:ls:${lessonId}:-`);
   const items: any[] = ir.json ?? [];
   const lines = [`${b(lesson.title)} — ${TYPE_FA[type] ?? esc(type)}`, ""];
