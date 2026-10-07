@@ -2,8 +2,6 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Wallet, Info } from "lucide-react";
@@ -11,10 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
 import { useLanguage } from "@/hooks/use-language";
 import { formatToman } from "@/lib/format";
-import {
-  getSchoolWallet, listSchoolWalletTransactions, createSchoolWalletTopupRequest, cancelSchoolWalletTopupRequest,
-  type SchoolWalletTxn,
-} from "@/lib/schools-api";
+import { PlatformTopupPanel } from "@/components/wallet/PlatformTopupPanel";
+import { getSchoolWallet, listSchoolWalletTransactions, type SchoolWalletTxn } from "@/lib/schools-api";
 
 /**
  * کیف پولِ مدرسه — کاملاً جدا از «کیف پول» شخصی (/wallet). مبالغ در API ریال‌اند؛ در UI تومان (÷۱۰) نمایش داده می‌شود.
@@ -26,48 +22,28 @@ export function useSchoolWallet(schoolId: string) {
   return useQuery({ queryKey: schoolWalletKey(schoolId), queryFn: () => getSchoolWallet(schoolId) });
 }
 
+/** همان پنلِ «شارژ خودکار» کیف‌پولِ شخصی، فقط رویِ APIِ کیف‌پولِ مدرسه؛ بعد از تأیید موجودیِ مدرسه تازه می‌شود. */
+export function SchoolWalletTopupPanel({ schoolId }: { schoolId: string }) {
+  const qc = useQueryClient();
+  const { lang } = useLanguage();
+  return (
+    <PlatformTopupPanel
+      fa={lang === "fa"} lang={lang} target="school" apiBase={`/api/schools/${schoolId}/wallet/topup`}
+      onCredited={() => { qc.invalidateQueries({ queryKey: schoolWalletKey(schoolId) }); }}
+    />
+  );
+}
+
 export function SchoolWalletTopupDialog({ schoolId, open, onOpenChange }: { schoolId: string; open: boolean; onOpenChange: (v: boolean) => void }) {
   const t = useT("schools") as any;
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const toman = Number(amount.replace(/[^\d۰-۹]/g, "").replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))) || 0;
-
-  async function submit() {
-    setBusy(true);
-    try {
-      await createSchoolWalletTopupRequest(schoolId, { amountRial: toman * 10, note: note.trim() || undefined });
-      await qc.invalidateQueries({ queryKey: schoolWalletKey(schoolId) });
-      toast({ title: t.swRequestSent });
-      setAmount(""); setNote(""); onOpenChange(false);
-    } catch (err: any) {
-      const code = err?.data?.code;
-      toast({ variant: "destructive", title: t.swRequestError, description: code === "too_many_pending" ? t.swRequestTooMany : code === "invalid_amount" ? t.swRequestInvalid : err?.data?.error });
-    } finally { setBusy(false); }
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t.swTopUp}</DialogTitle>
           <DialogDescription>{t.swTopUpDescription}</DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="sw-topup-amount">{t.swAmountLabel}</Label>
-            <Input id="sw-topup-amount" dir="ltr" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} data-testid="sw-topup-amount" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="sw-topup-note">{t.swNoteLabel}</Label>
-            <Input id="sw-topup-note" value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
-          </div>
-          <Button onClick={submit} disabled={busy || toman < 10000} data-testid="sw-topup-submit">
-            {busy && <Loader2 className="me-2 size-4 animate-spin" />}{t.swSendRequest}
-          </Button>
-        </div>
+        {open && <SchoolWalletTopupPanel schoolId={schoolId} />}
       </DialogContent>
     </Dialog>
   );
@@ -80,10 +56,7 @@ function typeLabel(t: any, type: SchoolWalletTxn["type"]) {
 export function SchoolWalletCard({ schoolId }: { schoolId: string }) {
   const t = useT("schools") as any;
   const { lang } = useLanguage();
-  const { toast } = useToast();
-  const qc = useQueryClient();
   const { data, isLoading } = useSchoolWallet(schoolId);
-  const [open, setOpen] = useState(false);
   const [extra, setExtra] = useState<SchoolWalletTxn[]>([]);
   const [hasMore, setHasMore] = useState<boolean | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -100,15 +73,6 @@ export function SchoolWalletCard({ schoolId }: { schoolId: string }) {
       setExtra((x) => [...x, ...r.transactions]);
       setHasMore(r.hasMore);
     } finally { setLoadingMore(false); }
-  }
-
-  async function cancel(id: string) {
-    try {
-      await cancelSchoolWalletTopupRequest(schoolId, id);
-      await qc.invalidateQueries({ queryKey: schoolWalletKey(schoolId) });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: t.swRequestError, description: err?.data?.error });
-    }
   }
 
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(lang === "fa" ? "fa-IR" : "en-US");
@@ -130,20 +94,12 @@ export function SchoolWalletCard({ schoolId }: { schoolId: string }) {
                 <div className="text-xs text-muted-foreground">{t.swBalance}</div>
                 <div className="text-2xl font-bold" data-testid="school-wallet-balance">{formatToman(data.balanceRial / 10, lang)}</div>
               </div>
-              <Button onClick={() => setOpen(true)} data-testid="school-wallet-topup"><Wallet className="me-2 size-4" />{t.swTopUp}</Button>
             </div>
 
-            {data.pendingRequests.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="text-sm font-medium">{t.swPendingRequests}</div>
-                {data.pendingRequests.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
-                    <span>{formatToman(r.amountRial / 10, lang)}{r.note ? <span className="ms-2 text-xs text-muted-foreground">{r.note}</span> : null}</span>
-                    <Button size="sm" variant="ghost" onClick={() => cancel(r.id)}>{t.swCancelRequest}</Button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="rounded-lg border p-3" data-testid="school-wallet-topup">
+              <div className="mb-1 flex items-center gap-2 text-sm font-medium"><Wallet className="size-4" />{t.swTopUp}</div>
+              <SchoolWalletTopupPanel schoolId={schoolId} />
+            </div>
 
             <div className="space-y-1.5">
               <div className="text-sm font-medium">{t.swTransactions}</div>
@@ -169,7 +125,6 @@ export function SchoolWalletCard({ schoolId }: { schoolId: string }) {
             </div>
           </>
         )}
-        <SchoolWalletTopupDialog schoolId={schoolId} open={open} onOpenChange={setOpen} />
       </CardContent>
     </Card>
   );

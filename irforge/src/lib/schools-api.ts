@@ -1336,17 +1336,10 @@ export function decideGuardianRequest(schoolId: string, id: string, decision: "a
 
 // ─── کیف‌پولِ مدرسه (جدا از کیف‌پولِ شخصی/باتِ پلتفرم) ─────────────────────────────
 export interface SchoolWalletTxn { id: string; type: "credit" | "spend" | "admin_credit" | "admin_debit"; amountRial: number; balanceAfterRial: number; description: string; refId: string | null; createdAt: string }
-export interface SchoolWalletTopupRequest { id: string; amountRial: number; note: string | null; status: "pending" | "approved" | "rejected" | "cancelled"; decisionNote: string | null; createdAt: string; decidedAt: string | null }
-export interface SchoolWalletSummary { balanceRial: number; transactions: SchoolWalletTxn[]; hasMore: boolean; pendingRequests: SchoolWalletTopupRequest[] }
+export interface SchoolWalletSummary { balanceRial: number; transactions: SchoolWalletTxn[]; hasMore: boolean }
 export function getSchoolWallet(schoolId: string) {
   return customFetch<SchoolWalletSummary>(`/api/schools/${schoolId}/wallet`);
 }
 export function listSchoolWalletTransactions(schoolId: string, before?: string) {
   return customFetch<{ transactions: SchoolWalletTxn[]; hasMore: boolean }>(`/api/schools/${schoolId}/wallet/transactions?limit=20${before ? `&before=${encodeURIComponent(before)}` : ""}`);
-}
-export function createSchoolWalletTopupRequest(schoolId: string, input: { amountRial: number; note?: string }) {
-  return customFetch<SchoolWalletTopupRequest>(`/api/schools/${schoolId}/wallet/topup-requests`, { method: "POST", body: JSON.stringify(input) });
-}
-export function cancelSchoolWalletTopupRequest(schoolId: string, id: string) {
-  return customFetch<SchoolWalletTopupRequest>(`/api/schools/${schoolId}/wallet/topup-requests/${id}/cancel`, { method: "POST" });
 }

@@ -118,6 +118,18 @@ export function createPaymentAlerts(notifiers: AlertNotifiers = {}): Required<Ma
           logger.warn({ err, requestId: e.request.id }, "wallet top-up user notification failed (non-fatal)");
         }
       }
+      // کیف‌پولِ مدرسه: به درخواست‌دهنده (مدیرِ مدرسه) خبر بده؛ مسیرِ شخصیِ بالا دست‌نخورده است.
+      if (e.request.scope === "platform" && e.request.purpose === "school_wallet_topup" && notifiers.notifyPlatformUser) {
+        try {
+          await notifiers.notifyPlatformUser(e.request.userId, {
+            severity: "info", type: "school_wallet_topup_confirmed", title: "شارژ کیف پول مدرسه تأیید شد",
+            message: `واریز ${Math.round(e.request.baseAmountRial / 10).toLocaleString("fa-IR")} تومان تأیید شد و به کیف پول مدرسه اضافه شد.`,
+            scope: "platform", botId: null, dedupeKey: `school_wallet_topup_confirmed:${e.request.id}`, refId: e.request.id,
+          });
+        } catch (err) {
+          logger.warn({ err, requestId: e.request.id }, "school wallet top-up notification failed (non-fatal)");
+        }
+      }
     },
     async onAmbiguous(e) {
       await record({

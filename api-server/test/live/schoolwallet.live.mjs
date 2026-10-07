@@ -20,8 +20,8 @@ const sbal = async (s) => (await q("select balance from school_wallets where sch
 // ── دسترسی
 const par = await joinSchool(A, "parent"), tea = await joinSchool(A, "teacher"), stu = await joinSchool(A, "student"), dep = await joinSchool(A, "deputy");
 let ok = true;
-for (const u of [par, tea, stu, dep]) ok &&= (await sw(u)).status === 403 && (await call("POST", `/schools/${A.schoolId}/wallet/topup-requests`, { token: u.token, body: { amountRial: 1000000 } })).status === 403 && (await call("GET", `/schools/${A.schoolId}/wallet/transactions`, { token: u.token })).status === 403;
-check("parent/teacher/student/deputy: wallet view, transactions, top-up request all 403", ok);
+for (const u of [par, tea, stu, dep]) ok &&= (await sw(u)).status === 403 && (await call("GET", `/schools/${A.schoolId}/wallet/transactions`, { token: u.token })).status === 403;
+check("parent/teacher/student/deputy: wallet view and transactions both 403", ok);
 check("admin of ANOTHER school: 403 on A's wallet", (await sw(B)).status === 403);
 check("admin sees own wallet: 200, balance 0", (await sw(A)).status === 200 && (await sw(A)).json.balanceRial === 0);
 const plainUser = await joinSchool(A, "counselor");
@@ -81,25 +81,10 @@ check("empty pool → 409 pool_empty and school wallet NOT charged", r.status ==
 await pool.query("update school_bot_token_pool set status='available' where status='x_hold'");
 check("after pool refilled the same school can buy (nothing was burned)", (await buy(E)).status === 201 && (await sbal(E)) === 0);
 
-// ── درخواستِ شارژ
+// ── جریانِ قدیمیِ «درخواستِ دستیِ شارژ» حذف شده است (جایش را شارژِ خودکارِ واقعی گرفته: topup.live.mjs SCHOOL=1)
 const F = await newSchoolAdmin("و");
-const rq = (body, u = F) => call("POST", `/schools/${F.schoolId}/wallet/topup-requests`, { token: u.token, body });
-check("request below minimum / non-integer → 400", (await rq({ amountRial: 10 })).status === 400 && (await rq({ amountRial: 1e6 + 0.5 })).status === 400);
-const q1 = await rq({ amountRial: 5_000_000, note: "نیاز به بات" });
-check("admin creates top-up request → 201 pending", q1.status === 201 && q1.json.status === "pending" && q1.json.amountRial === 5_000_000, q1.text);
-await rq({ amountRial: 1_000_000 }); await rq({ amountRial: 1_000_000 });
-check("4th pending request → 429 too_many_pending", (await rq({ amountRial: 1_000_000 })).status === 429);
-const pend = await call("GET", `/super/school-wallet-requests?status=pending`, { token: sup.token, cookie: sup.cookie });
-check("super sees the pending requests with school name", pend.status === 200 && pend.json.some((x) => x.id === q1.json.id && x.schoolName), pend.text.slice(0, 200));
-const dec = (id, decision, extra = {}) => call("POST", `/super/school-wallet-requests/${id}/decision`, { token: sup.token, cookie: sup.cookie, body: { decision, ...extra } });
-const dd = await Promise.all([dec(q1.json.id, "approve"), dec(q1.json.id, "approve")]);
-check("concurrent double-approve → exactly one 200 and one 409; credited ONCE (5,000,000)", dd.map((x) => x.status).sort().join() === "200,409" && (await sbal(F)) === 5_000_000 && (await q("select 1 from school_wallet_transactions where school_id=$1 and type='credit' and ref_id=$2", [F.schoolId, q1.json.id])).length === 1, dd.map((x) => x.text));
-const q2 = (await call("GET", `/schools/${F.schoolId}/wallet/topup-requests`, { token: F.token })).json.find((x) => x.status === "pending");
-check("reject → no credit; second decision → 409", (await dec(q2.id, "reject", { note: "بدون رسید" })).status === 200 && (await sbal(F)) === 5_000_000 && (await dec(q2.id, "approve")).status === 409);
-const q3 = (await call("GET", `/schools/${F.schoolId}/wallet/topup-requests`, { token: F.token })).json.find((x) => x.status === "pending");
-check("admin cancels own pending; super can't approve it afterwards (409)", (await call("POST", `/schools/${F.schoolId}/wallet/topup-requests/${q3.id}/cancel`, { token: F.token })).status === 200 && (await dec(q3.id, "approve")).status === 409 && (await sbal(F)) === 5_000_000);
-check("other school's admin can't cancel/list F's requests (403)", (await call("POST", `/schools/${F.schoolId}/wallet/topup-requests/${q3.id}/cancel`, { token: B.token })).status === 403 && (await call("GET", `/schools/${F.schoolId}/wallet/topup-requests`, { token: B.token })).status === 403);
-check("non-super can't decide (admin token) ", (await dec(q2.id, "approve").then(() => call("POST", `/super/school-wallet-requests/${q2.id}/decision`, { token: F.token, body: { decision: "approve" } }))).status >= 401);
+check("manual top-up-request endpoints are gone (404) for admin and super", (await call("POST", `/schools/${F.schoolId}/wallet/topup-requests`, { token: F.token, body: { amountRial: 5000000 } })).status === 404 && (await call("GET", "/super/school-wallet-requests", { token: sup.token, cookie: sup.cookie })).status === 404);
+await adj(F, { direction: "credit", amountRial: 5_000_000, reason: "برایِ صفحه‌بندی" });
 
 // ── تاریخچه + صفحه‌بندی
 for (let i = 0; i < 24; i++) await pool.query("insert into school_wallet_transactions (id,school_id,type,amount,balance_after,description,created_at) values ($1,$2,'credit',1000,5000000,$3, now() - ($4 || ' minutes')::interval)", [crypto.randomUUID(), F.schoolId, "bulk" + i, String(i + 1)]);

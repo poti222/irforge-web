@@ -16,7 +16,7 @@ import { Bot, ExternalLink, Loader2, Plus, Search, Settings2, UserPlus, Wallet }
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
 import { rememberViewedSchool } from "@/hooks/use-viewed-school";
-import { PendingWalletRequests, SchoolWalletTab } from "./SuperSchoolWallet";
+import { SchoolWalletTab } from "./SuperSchoolWallet";
 import {
   SCHOOL_ADMIN_LINKS, SCHOOL_ROLE_LABELS, SCHOOL_ROLE_ORDER, SUPER_QUERY_ROOT, addSuperSchoolMember, createSuperSchool, listSuperSchools,
   updateSuperSchool, type SuperSchool,
@@ -263,7 +263,6 @@ export function SuperSchools() {
   return (
     <Card>
       <CardContent className="space-y-4 p-4">
-        <PendingWalletRequests />
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="me-auto text-base font-semibold">{fa ? "همه‌یِ مدارس" : "All schools"}{data ? <span className="ms-2 text-sm font-normal text-muted-foreground">({data.length})</span> : null}</h2>
           <div className="relative">

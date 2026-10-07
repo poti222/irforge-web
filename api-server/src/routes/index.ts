@@ -133,6 +133,7 @@ import schoolSubjectsRouter from "./schoolSubjects.js";
 import schoolTimetableRouter from "./schoolTimetable.js";
 import schoolGuardianRequestsRouter from "./schoolGuardianRequests.js";
 import schoolWalletRouter from "./schoolWallet.js";
+import schoolWalletTopupRouter from "./schoolWalletTopup.js";
 // حالتِ مطالعه/فلش‌کارت — پیشرفتِ سرور-محورِ هر دانش‌آموز رویِ آیتم‌های محتوا
 import schoolContentProgressRouter from "./schoolContentProgress.js";
 // `/super` — گیتِ رمزِ دوم + داشبوردِ یکجایِ سوپرادمین + هویت‌های آزمایشی
@@ -251,6 +252,7 @@ router.use(schoolSubjectsRouter);
 router.use(schoolTimetableRouter);
 router.use(schoolGuardianRequestsRouter);
 router.use(schoolWalletRouter);
+router.use(schoolWalletTopupRouter);
 router.use(schoolContentProgressRouter);
 router.use(superGateRouter);
 router.use(superDashboardRouter);

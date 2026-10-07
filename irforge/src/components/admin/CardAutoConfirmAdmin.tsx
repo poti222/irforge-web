@@ -377,7 +377,7 @@ function RequestDetailDialog({ id, onClose }: { id: string | null; onClose: () =
           <div className="space-y-4 text-sm">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
               <dt className="text-muted-foreground">{tr("مالک", "Owner")}</dt><dd>{d.request.scope === "platform" ? `${d.request.userName ?? ""} ${d.request.userEmail ?? ""}` : `${d.request.botName ?? d.request.botId} · ${tr("مشتری", "customer")} ${d.request.userId}`}</dd>
-              <dt className="text-muted-foreground">{tr("هدف", "Purpose")}</dt><dd>{d.request.purpose === "wallet_topup" ? tr("شارژ کیف‌پول", "Wallet top-up") : `${tr("سفارش", "Order")} ${d.request.orderId}`}</dd>
+              <dt className="text-muted-foreground">{tr("هدف", "Purpose")}</dt><dd>{d.request.purpose === "wallet_topup" ? tr("شارژ کیف‌پول", "Wallet top-up") : d.request.purpose === "school_wallet_topup" ? tr("شارژ کیف‌پولِ مدرسه", "School wallet top-up") : `${tr("سفارش", "Order")} ${d.request.orderId}`}</dd>
               <dt className="text-muted-foreground">{tr("مبلغِ درخواستی (تومان)", "Requested (Toman)")}</dt><dd>{num(d.request.baseAmountToman)}</dd>
               <dt className="text-muted-foreground">{tr("مبلغِ نهایی (ریال)", "Final (Rial)")}</dt><dd dir="ltr" className="font-mono">{d.request.finalAmountRial.toLocaleString("en-US")} <span className="text-muted-foreground">(+{d.request.suffixRial})</span></dd>
               <dt className="text-muted-foreground">{tr("کانال", "Channel")}</dt><dd dir="ltr" className="font-mono">{d.channel.cardMasked ?? d.channel.kind} <span className="text-muted-foreground">{d.channel.holderName}</span></dd>
@@ -483,7 +483,7 @@ function RequestsTab() {
                 <tr key={r.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => setOpenId(r.id)} data-testid="request-row">
                   <td className="p-2 whitespace-nowrap">{time(r.createdAt)}</td>
                   <td className="p-2"><p>{r.scope === "platform" ? (r.userName ?? r.userId) : (r.botName ?? r.botId)}</p><p className="text-muted-foreground">{r.scope === "platform" ? r.userEmail : `${tr("مشتری", "customer")} ${r.userId}`}</p></td>
-                  <td className="p-2">{r.purpose === "wallet_topup" ? tr("شارژ کیف‌پول", "Top-up") : `${tr("سفارش", "Order")} ${r.orderId}`}</td>
+                  <td className="p-2">{r.purpose === "wallet_topup" ? tr("شارژ کیف‌پول", "Top-up") : r.purpose === "school_wallet_topup" ? tr("شارژ کیف‌پولِ مدرسه", "School wallet top-up") : `${tr("سفارش", "Order")} ${r.orderId}`}</td>
                   <td className="p-2">{num(r.baseAmountToman)}</td>
                   <td className="p-2 font-mono" dir="ltr">{r.finalAmountRial.toLocaleString("en-US")}</td>
                   <td className="p-2"><StatusBadge status={r.status} />{r.hasReceipt && <span className="ms-1" title="receipt">🧾</span>}</td>

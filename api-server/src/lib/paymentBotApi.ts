@@ -54,7 +54,7 @@ export interface BotChannelInfo {
 export interface BotPaymentView {
   id: string;
   status: string;
-  purpose: PaymentPurpose;
+  purpose: PaymentPurpose | "school_wallet_topup";
   orderId: string | null;
   userId: string;
   baseAmountRial: number;
