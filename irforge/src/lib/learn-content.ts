@@ -74,6 +74,13 @@ export const ARTICLE_SLUGS = [
   "telegram-bot-cost",
   "botfather-commands",
   "telegram-bot-webhook-vs-polling",
+  "buy-telegram-bot",
+  "telegram-booking-bot",
+  "telegram-giveaway-bot",
+  "telegram-survey-quiz-bot",
+  "telegram-bot-card-payment",
+  "telegram-bot-wallet",
+  "telegram-bot-crm-scheduled-messages",
 ] as const;
 
 export type ArticleSlug = (typeof ARTICLE_SLUGS)[number];
@@ -108,6 +115,13 @@ export const ARTICLE_DATES: Record<ArticleSlug, { published: string; modified: s
   "telegram-bot-cost": { published: "2026-08-10", modified: "2026-10-04" },
   "botfather-commands": { published: "2026-08-10", modified: "2026-08-10" },
   "telegram-bot-webhook-vs-polling": { published: "2026-08-10", modified: "2026-08-10" },
+  "buy-telegram-bot": { published: "2026-10-07", modified: "2026-10-07" },
+  "telegram-booking-bot": { published: "2026-10-07", modified: "2026-10-07" },
+  "telegram-giveaway-bot": { published: "2026-10-07", modified: "2026-10-07" },
+  "telegram-survey-quiz-bot": { published: "2026-10-07", modified: "2026-10-07" },
+  "telegram-bot-card-payment": { published: "2026-10-07", modified: "2026-10-07" },
+  "telegram-bot-wallet": { published: "2026-10-07", modified: "2026-10-07" },
+  "telegram-bot-crm-scheduled-messages": { published: "2026-10-07", modified: "2026-10-07" },
 };
 
 /**
@@ -126,6 +140,7 @@ export const RELATED: Record<ArticleSlug, ArticleSlug[]> = {
     "telegram-bot-without-coding",
     "telegram-bot-token",
     "telegram-shop-bot",
+    "buy-telegram-bot",
   ],
   "telegram-bot-token": [
     "how-to-make-a-telegram-bot",
@@ -143,12 +158,16 @@ export const RELATED: Record<ArticleSlug, ArticleSlug[]> = {
     "telegram-bot-cost",
     "telegram-shop-bot",
     "telegram-bot-google-sheets",
+    "buy-telegram-bot",
   ],
   "telegram-shop-bot": [
     "telegram-bot-menu-buttons",
     "telegram-bot-google-sheets",
     "telegram-bot-broadcast",
     "telegram-bot-cost",
+    "telegram-bot-card-payment",
+    "telegram-bot-wallet",
+    "telegram-booking-bot",
   ],
   "telegram-support-bot": [
     "telegram-bot-menu-buttons",
@@ -166,12 +185,16 @@ export const RELATED: Record<ArticleSlug, ArticleSlug[]> = {
     "telegram-shop-bot",
     "telegram-bot-menu-buttons",
     "telegram-support-bot",
+    "telegram-bot-crm-scheduled-messages",
+    "telegram-giveaway-bot",
   ],
   "telegram-bot-without-coding": [
     "how-to-make-a-telegram-bot",
     "choose-a-telegram-bot-builder",
     "telegram-bot-cost",
     "telegram-shop-bot",
+    "telegram-booking-bot",
+    "telegram-giveaway-bot",
   ],
   "telegram-bot-google-sheets": [
     "telegram-shop-bot",
@@ -184,6 +207,7 @@ export const RELATED: Record<ArticleSlug, ArticleSlug[]> = {
     "choose-a-telegram-bot-builder",
     "telegram-shop-bot",
     "how-to-make-a-telegram-bot",
+    "buy-telegram-bot",
   ],
   "botfather-commands": [
     "telegram-bot-token",
@@ -194,6 +218,48 @@ export const RELATED: Record<ArticleSlug, ArticleSlug[]> = {
     "how-to-make-a-telegram-bot",
     "botfather-commands",
     "telegram-bot-google-sheets",
+  ],
+  "buy-telegram-bot": [
+    "telegram-bot-cost",
+    "choose-a-telegram-bot-builder",
+    "how-to-make-a-telegram-bot",
+    "telegram-shop-bot",
+  ],
+  "telegram-booking-bot": [
+    "telegram-bot-google-sheets",
+    "telegram-bot-broadcast",
+    "telegram-bot-without-coding",
+    "buy-telegram-bot",
+  ],
+  "telegram-giveaway-bot": [
+    "telegram-bot-broadcast",
+    "telegram-survey-quiz-bot",
+    "telegram-bot-without-coding",
+    "buy-telegram-bot",
+  ],
+  "telegram-survey-quiz-bot": [
+    "telegram-bot-broadcast",
+    "telegram-giveaway-bot",
+    "telegram-bot-crm-scheduled-messages",
+    "how-to-make-a-telegram-bot",
+  ],
+  "telegram-bot-card-payment": [
+    "telegram-shop-bot",
+    "telegram-bot-wallet",
+    "telegram-support-bot",
+    "buy-telegram-bot",
+  ],
+  "telegram-bot-wallet": [
+    "telegram-shop-bot",
+    "telegram-bot-card-payment",
+    "telegram-bot-cost",
+    "buy-telegram-bot",
+  ],
+  "telegram-bot-crm-scheduled-messages": [
+    "telegram-bot-broadcast",
+    "telegram-survey-quiz-bot",
+    "telegram-shop-bot",
+    "telegram-bot-without-coding",
   ],
 };
 

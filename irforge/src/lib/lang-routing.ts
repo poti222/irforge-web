@@ -44,6 +44,13 @@ export const PUBLIC_ROUTES = [
   "/learn/telegram-bot-cost",
   "/learn/botfather-commands",
   "/learn/telegram-bot-webhook-vs-polling",
+  "/learn/buy-telegram-bot",
+  "/learn/telegram-booking-bot",
+  "/learn/telegram-giveaway-bot",
+  "/learn/telegram-survey-quiz-bot",
+  "/learn/telegram-bot-card-payment",
+  "/learn/telegram-bot-wallet",
+  "/learn/telegram-bot-crm-scheduled-messages",
   "/pricing",
   "/school-management",
   "/about",
@@ -173,6 +180,41 @@ export const ROUTE_SEO: Record<string, RouteSeo> = {
     titleKey: "webhookTitle",
     descKey: "webhookDescription",
     navKey: "navWebhook",
+  },
+  "/learn/buy-telegram-bot": {
+    titleKey: "buyBotTitle",
+    descKey: "buyBotDescription",
+    navKey: "navBuyBot",
+  },
+  "/learn/telegram-booking-bot": {
+    titleKey: "bookingBotTitle",
+    descKey: "bookingBotDescription",
+    navKey: "navBookingBot",
+  },
+  "/learn/telegram-giveaway-bot": {
+    titleKey: "giveawayBotTitle",
+    descKey: "giveawayBotDescription",
+    navKey: "navGiveawayBot",
+  },
+  "/learn/telegram-survey-quiz-bot": {
+    titleKey: "surveyBotTitle",
+    descKey: "surveyBotDescription",
+    navKey: "navSurveyBot",
+  },
+  "/learn/telegram-bot-card-payment": {
+    titleKey: "cardPaymentTitle",
+    descKey: "cardPaymentDescription",
+    navKey: "navCardPayment",
+  },
+  "/learn/telegram-bot-wallet": {
+    titleKey: "botWalletTitle",
+    descKey: "botWalletDescription",
+    navKey: "navBotWallet",
+  },
+  "/learn/telegram-bot-crm-scheduled-messages": {
+    titleKey: "crmBotTitle",
+    descKey: "crmBotDescription",
+    navKey: "navCrmBot",
   },
   "/pricing": {
     titleKey: "pricingTitle",
@@ -350,7 +392,7 @@ export const APP_SEGMENTS = [
  * build date — rebuilding without a content change shouldn't tell crawlers
  * the page was modified.
  */
-export const SITEMAP_LASTMOD = "2026-10-04";
+export const SITEMAP_LASTMOD = "2026-10-07";
 
 export const ALL_LANGS: readonly Lang[] = LANGUAGES.map((l) => l.code);
 

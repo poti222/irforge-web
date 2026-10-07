@@ -27,6 +27,13 @@ import LearnSupportBot from "@/pages/learn/telegram-support-bot";
 import LearnWithoutCoding from "@/pages/learn/telegram-bot-without-coding";
 import LearnGoogleSheets from "@/pages/learn/telegram-bot-google-sheets";
 import LearnBotCost from "@/pages/learn/telegram-bot-cost";
+import LearnBuyTelegramBot from "@/pages/learn/buy-telegram-bot";
+import LearnTelegramBookingBot from "@/pages/learn/telegram-booking-bot";
+import LearnTelegramGiveawayBot from "@/pages/learn/telegram-giveaway-bot";
+import LearnTelegramSurveyQuizBot from "@/pages/learn/telegram-survey-quiz-bot";
+import LearnTelegramBotCardPayment from "@/pages/learn/telegram-bot-card-payment";
+import LearnTelegramBotWallet from "@/pages/learn/telegram-bot-wallet";
+import LearnTelegramBotCrmScheduledMessages from "@/pages/learn/telegram-bot-crm-scheduled-messages";
 import LearnBotFather from "@/pages/learn/botfather-commands";
 import LearnWebhook from "@/pages/learn/telegram-bot-webhook-vs-polling";
 import LearnWhatIs from "@/pages/learn/what-is-a-telegram-bot";
@@ -360,6 +367,13 @@ function Router() {
       <Route path="/learn/telegram-bot-without-coding" component={LearnWithoutCoding} />
       <Route path="/learn/telegram-bot-google-sheets" component={LearnGoogleSheets} />
       <Route path="/learn/telegram-bot-cost" component={LearnBotCost} />
+      <Route path="/learn/buy-telegram-bot" component={LearnBuyTelegramBot} />
+      <Route path="/learn/telegram-booking-bot" component={LearnTelegramBookingBot} />
+      <Route path="/learn/telegram-giveaway-bot" component={LearnTelegramGiveawayBot} />
+      <Route path="/learn/telegram-survey-quiz-bot" component={LearnTelegramSurveyQuizBot} />
+      <Route path="/learn/telegram-bot-card-payment" component={LearnTelegramBotCardPayment} />
+      <Route path="/learn/telegram-bot-wallet" component={LearnTelegramBotWallet} />
+      <Route path="/learn/telegram-bot-crm-scheduled-messages" component={LearnTelegramBotCrmScheduledMessages} />
       <Route path="/learn/botfather-commands" component={LearnBotFather} />
       <Route path="/learn/telegram-bot-webhook-vs-polling" component={LearnWebhook} />
       <Route path="/learn/what-is-a-telegram-bot" component={LearnWhatIs} />

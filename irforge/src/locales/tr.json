@@ -606,7 +606,28 @@
     "schoolDescription": "IrForge okul yönetim sistemi: yönetici, öğretmen, öğrenci, veli ve rehber için ayrı paneller; not, devamsızlık kaydı ve ailelere Telegram bildirimleri.",
     "schoolKeywords": "okul yönetim sistemi, okul yönetim yazılımı, Telegram ile okul yönetimi, okul Telegram botu, okul bildirim botu, not ve devamsızlık sistemi, veli paneli, IrForge",
     "navSchool": "Okul yönetimi",
-    "pricingKeywords": "Telegram botu satın al, Telegram botu fiyatı, Telegram bot oluşturucu fiyatları, Telegram bot maliyeti, Standard ve Pro paketleri, IrForge"
+    "pricingKeywords": "Telegram botu satın al, Telegram botu fiyatı, Telegram bot oluşturucu fiyatları, Telegram bot maliyeti, Standard ve Pro paketleri, IrForge",
+    "buyBotTitle": "Telegram Botu Satın Al | Hazır ve Özel Botlar | IrForge",
+    "buyBotDescription": "IrForge'da Telegram botu satın alın: 7 gün ücretsiz deneme, Standard ve Pro paketler, ek eklentiler ve cüzdandan aylık yenileme. Adımlar ve ödeme öncesi kontroller.",
+    "navBuyBot": "Bot satın al",
+    "bookingBotTitle": "Telegram Randevu Botu | Kodsuz Randevu Sistemi | IrForge",
+    "bookingBotDescription": "Telegram randevu botu oluşturun: haftalık program, randevu kapasitesi, takvim, rezervasyon onayı ve iptali, CSV ve dijital davetiye.",
+    "navBookingBot": "Randevu botu",
+    "giveawayBotTitle": "Telegram Çekiliş Botu | Ödül Kampanyaları | IrForge",
+    "giveawayBotDescription": "Telegram çekiliş botu oluşturun: kazanan sayısı, bitiş zamanı, kanal üyeliği şartı, sadakat puanı, katılımcı ve kazanan listesi.",
+    "navGiveawayBot": "Çekiliş botu",
+    "surveyBotTitle": "Telegram Anket ve Test Botu | Kodsuz | IrForge",
+    "surveyBotDescription": "Telegram anket ve test botu oluşturun: çoktan seçmeli, puanlama ve metin soruları, anonim cevap, test puanı ve sonuçlar.",
+    "navSurveyBot": "Anket ve test",
+    "cardPaymentTitle": "Telegram Botunda Karttan Karta Ödeme | Otomatik Onay | IrForge",
+    "cardPaymentDescription": "Telegram botunda karttan karta ödeme: elle makbuz ya da banka SMS'iyle otomatik onay, ödeme kanalları, en düşük tutar, bağlantı ve geçit.",
+    "navCardPayment": "Karttan karta",
+    "botWalletTitle": "Telegram Bot Cüzdanı | Kullanıcı Bakiyesi ve Ödeme | IrForge",
+    "botWalletDescription": "Telegram bot cüzdanı: kullanıcı başına bakiye ve geçmiş, yatırma ve çekme, dondurma, sipariş tahsilatı ve iadesi, makbuz mesajları.",
+    "navBotWallet": "Cüzdan",
+    "crmBotTitle": "Telegram Bot CRM ve Zamanlanmış Mesaj | Etiket ve Kampanya | IrForge",
+    "crmBotDescription": "Telegram bot kullanıcılarını etiketleyin ve olaya, tarihe ya da haftalık tekrara göre otomatik mesaj gönderin; sessiz saat ve kullanıcı başına sınırla.",
+    "navCrmBot": "CRM"
   },
   "faq": {
     "title": "Sık sorulan sorular",
@@ -1760,6 +1781,409 @@
         ],
         "nextTitle": "Sonraki adım",
         "next": "Henüz botunuz yoksa [Telegram botu nasıl yapılır](/learn/how-to-make-a-telegram-bot) rehberini izleyin. Kullanıcıları bota geri getiren bir menü için [menüler ve satır içi düğmeler](/learn/telegram-bot-menu-buttons) yazısına bakın; satış yapıyorsanız indirim mesajlarının doğal yeri [mağaza botu](/learn/telegram-shop-bot)."
+      },
+      "buy-telegram-bot": {
+        "h1": "Telegram Botu Satın Al: Hazır, Özel ya da Bot Oluşturucu?",
+        "lead": "Telegram botu satın almak istiyorsanız üç gerçek seçeneğiniz var: yazılımcı tutmak, sabit kodlu hazır bir bot almak ya da yönetim panelli bir bot oluşturucu kullanmak. Bu rehber IrForge'da Telegram botu satın almanın tam olarak nasıl işlediğini, her paketin neler içerdiğini ve ödemeden önce nelere bakmanız gerektiğini anlatır.",
+        "sections": [
+          {
+            "h2": "Telegram botu satın almak ne demek?",
+            "items": [
+              "**Yazılımcı tutmak:** bot tam ihtiyacınıza göre yazılır ama geliştirme, barındırma ve bakım maliyeti sizdedir. Bkz. [Telegram botu maliyeti](/learn/telegram-bot-cost).",
+              "**Sabit kodlu hazır bot:** ucuz ve hızlıdır ama menü, metin ve düğmeleri genelde kendiniz değiştiremezsiniz.",
+              "**Bot oluşturucu ve panel:** kendi botunuzu BotFather jetonuyla bağlar, kod yazmadan kurarsınız. IrForge budur. [Kodsuz bot oluşturma](/learn/telegram-bot-without-coding)"
+            ]
+          },
+          {
+            "h2": "IrForge'da ne alırsınız?",
+            "items": [
+              "**Ücretsiz deneme:** her hesap 7 günlük ücretsiz bir bot alır.",
+              "**Standard paket:** 1 aktif bot, 1 GB RAM ve 1 çekirdek, 50 eşzamanlı kullanıcıya kadar, seçeceğiniz 3 ücretsiz eklenti ve bilet desteği.",
+              "**Pro paket:** 3 aktif bota kadar, 3 GB RAM ve 3 çekirdek, 250 eşzamanlı kullanıcıya kadar, 6 ücretsiz eklenti ve öncelikli destek.",
+              "**Özel:** RAM, işlemci ve eklentileri kendiniz seçersiniz; fiyat anında hesaplanır.",
+              "Güncel fiyatlar her zaman [fiyat sayfasında](/pricing)."
+            ]
+          },
+          {
+            "h2": "Telegram botu satın alma adımları",
+            "items": [
+              "Kayıt olun ve BotFather'dan bot jetonunuzu alın. [Jeton nasıl alınır](/learn/telegram-bot-token)",
+              "Deneme botunu oluşturup menü, komut ve eklentileri deneyin.",
+              "Bot satın alma sayfasından paketi seçin ve sepeti tamamlayın.",
+              "Ödeme hesap cüzdanınızdan alınır; bakiye azsa önce yükleyin."
+            ]
+          },
+          {
+            "h2": "Ödemeden önce kendinize sorun",
+            "items": [
+              "Bot ne yapacak: satış, destek, randevu, çekiliş ya da toplu mesaj? [Mağaza botu](/learn/telegram-shop-bot) ve [destek botu](/learn/telegram-support-bot) rehberlerine bakın.",
+              "Kaç eşzamanlı kullanıcı bekliyorsunuz? Paketlerin sınırı 50 ve 250.",
+              "Farsça panel ve yerel ödeme gerekiyor mu? [Bot oluşturucu seçimi](/learn/choose-a-telegram-bot-builder) bir kontrol listesi verir."
+            ]
+          },
+          {
+            "h2": "Aylık yenileme ve cüzdan",
+            "body": [
+              "Paketler aylıktır ve cüzdandan yenilenir. Bakiye yetmezse bot yenilemeye kadar kapalı kalır, yükleme yapınca tekrar açılır; bu yüzden cüzdan bakiyenizi takip edin."
+            ]
+          }
+        ],
+        "faqTitle": "Sık sorulan sorular",
+        "faq": [
+          {
+            "q": "Telegram botu satın almak ne kadar?",
+            "a": "Telegram'ın kendisi ücretsizdir; aylık paket ve ek eklentiler için ödeme yaparsınız. Güncel fiyatlar fiyat sayfasında; her hesapta 7 günlük ücretsiz deneme botu da var."
+          },
+          {
+            "q": "Satın aldıktan sonra bot benim mi?",
+            "a": "Evet. Kendi BotFather jetonunuzla oluşturulur ve jetonu istediğiniz zaman iptal edebilirsiniz."
+          },
+          {
+            "q": "Paketi sonra değiştirebilir miyim?",
+            "a": "Evet. İhtiyacınızı karşılayan en küçük paketle başlayın, gerekirse yükseltin."
+          },
+          {
+            "q": "Programlama bilmem gerekir mi?",
+            "a": "Hayır. Menü, düğme, mağaza, randevu ve toplu mesaj panelden ayarlanır."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Paketleri [fiyat sayfasında](/pricing) görün; henüz botunuz yoksa [Telegram botu oluşturma rehberini](/learn/how-to-make-a-telegram-bot) izleyin."
+      },
+      "telegram-booking-bot": {
+        "h1": "Telegram Randevu Botu: Kodsuz Randevu Sistemi",
+        "lead": "Telegram randevu botu, müşterinin telefon görüşmesi ya da dağınık mesajlar olmadan boş bir saati seçip ayırtmasını sağlar. Bu rehber IrForge randevu eklentisinin neler sunduğunu, çalışma saatleri ve kapasiteyi nasıl ayarladığınızı ve rezervasyonları nasıl yönettiğinizi anlatır.",
+        "sections": [
+          {
+            "h2": "Bot içinde randevu nasıl çalışır?",
+            "body": [
+              "Randevu eklentisini açtıktan sonra müşteri bot içinde hizmeti ve boş saati seçer; rezervasyon panelinizde \"onay bekliyor\" gibi bir durumla görünür. Zaman dilimlerini elle oluşturmazsınız; haftalık programınızdan otomatik üretilir."
+            ]
+          },
+          {
+            "h2": "Çalışma saatleri ve kurallar",
+            "items": [
+              "Haftanın her günü için çalışma saatleri, bir günde birden çok aralık ve bir günü tamamen kapatma imkânı.",
+              "Randevu süresi, randevular arası boşluk ve başlangıçtan önce en az süre.",
+              "Günlük sınır ve aynı anda birden çok kişiyi alan hizmetler için varsayılan kapasite.",
+              "Kaç gün önceden ayırtılabileceği ve saat cinsinden iptal süresi (0 sınırsız)."
+            ]
+          },
+          {
+            "h2": "Takvim, istisnalar ve hizmetler",
+            "body": [
+              "Haftalık takvim günleri renklendirir: boş, kısmen dolu, kapalı ya da dolu. Belirli bir tarih için istisna ekleyebilir, günü kapatabilir veya haftalık saatlerin yerine özel saatler koyabilirsiniz. Her hizmet ayrı bir sekmede tanımlanır."
+            ]
+          },
+          {
+            "h2": "Rezervasyonları yönetme",
+            "items": [
+              "Durumlar: onay bekliyor, onaylandı, iptal, tamamlandı ve çakışma (kapasite aşımı).",
+              "İşlemler: onayla, iptal et, tamamlandı ve gelmedi kaydı.",
+              "Müşteri adı, telefon ya da kullanıcı kimliğiyle arama ve CSV dışa aktarma.",
+              "Onaydan sonra \"yolu gör\" düğmeli dijital davetiye ve iletişim numarası gönderebilirsiniz."
+            ]
+          },
+          {
+            "h2": "Veri nerede saklanır?",
+            "body": [
+              "Rezervasyonlar botun kendi özel sayfasında tutulur. Ayrıntı: [Telegram botu ve Google Sheets](/learn/telegram-bot-google-sheets)."
+            ]
+          }
+        ],
+        "faqTitle": "Sık sorulan sorular",
+        "faq": [
+          {
+            "q": "Randevu botu hangi işletmeler için?",
+            "a": "Randevusu olan her iş: kuaför, klinik, danışmanlık, kurs ya da masa rezervasyonu. Süre, kapasite ve hizmetler ayarlanabilir."
+          },
+          {
+            "q": "İki kişi aynı saati ayırtırsa?",
+            "a": "Kapasiteyi aşan rezervasyon \"çakışma\" olarak görünür, kararı siz verirsiniz."
+          },
+          {
+            "q": "Müşteri iptal edebilir mi?",
+            "a": "Evet, belirlediğiniz iptal süresine kadar; 0 sınırsız demektir."
+          },
+          {
+            "q": "Randevu belirli müşterilerle sınırlanabilir mi?",
+            "a": "Evet. Randevuyu belirli davet kodlarıyla (kodlu bot başlangıç bağlantısı) sınırlayabilirsiniz."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Randevu [bot eklentilerinden](/learn/telegram-bot-without-coding) biridir. Sıfırdan bot için [Telegram botu oluşturma rehberine](/learn/how-to-make-a-telegram-bot), müşterileri bilgilendirmek için [toplu mesaja](/learn/telegram-bot-broadcast) bakın."
+      },
+      "telegram-giveaway-bot": {
+        "h1": "Telegram Çekiliş Botu: Ödül Kampanyalarını Otomatikleştirin",
+        "lead": "Telegram çekiliş botu, ödül kampanyasını katılımdan kazananı duyurmaya kadar otomatikleştirir. Bu rehber IrForge çekiliş eklentisinin hangi koşulları desteklediğini, kampanyayı nasıl kurduğunuzu ve kazananın nasıl duyurulduğunu anlatır.",
+        "sections": [
+          {
+            "h2": "Botta çekiliş nasıl çalışır?",
+            "body": [
+              "Kampanyayı panelde oluşturur ve düzenlersiniz; katılım, çekiliş ve kazanan duyurusu bot içinde yapılır. Her kampanya taslak, devam ediyor, çekilişi yapıldı ya da iptal durumundadır."
+            ]
+          },
+          {
+            "h2": "Kampanya ayarları",
+            "items": [
+              "Başlık, ödül ve isteğe bağlı açıklama",
+              "Kazanan sayısı",
+              "Bitiş zamanı; boş bırakılırsa kampanya siz iptal edene ya da silene kadar açık kalır",
+              "Kanal üyeliği şartı (@ ile yazın, bot o kanalda yönetici olmalı)",
+              "Katılmak için en az sadakat puanı"
+            ]
+          },
+          {
+            "h2": "Katılımcılar ve kazananlar",
+            "body": [
+              "Her kampanyanın katılımcı listesi panelde görünür, çekilişten sonra kazananlar işaretlenir. Kimse katılmadıysa panel bunu belirtir."
+            ]
+          },
+          {
+            "h2": "Güven veren kampanya için ipuçları",
+            "items": [
+              "Ödülü ve kuralları açıklamada net yazın.",
+              "Katılımcılar son tarihi bilsin diye bitiş zamanı koyun.",
+              "Kanal üyesi artırmak istiyorsanız üyelik şartını açın.",
+              "Kazananlara [toplu mesajla](/learn/telegram-bot-broadcast) da haber verin."
+            ]
+          }
+        ],
+        "faqTitle": "Sık sorulan sorular",
+        "faq": [
+          {
+            "q": "Telegram çekiliş botu ücretsiz mi?",
+            "a": "Telegram ücretsizdir. Çekiliş eklentisi IrForge'un düşük fiyatlı eklentilerinden biridir ve her pakette bir miktar ücretsiz eklenti vardır; fiyat sayfasına bakın."
+          },
+          {
+            "q": "Katılanları görebilir miyim?",
+            "a": "Evet. Katılımcı listesi panelde gösterilir."
+          },
+          {
+            "q": "Sadece kanal üyeleri katılabilir mi?",
+            "a": "Evet, kanal üyeliği şartıyla; botun orada yönetici olması yeterli."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Sıfırdan bot için [Telegram botu oluşturma rehberine](/learn/how-to-make-a-telegram-bot), diğer özellikler için [kodsuz bot oluşturmaya](/learn/telegram-bot-without-coding) bakın."
+      },
+      "telegram-survey-quiz-bot": {
+        "h1": "Telegram Anket ve Test Botu: Kodsuz Oluşturun",
+        "lead": "Telegram anket botu müşteri görüşlerini sizinle konuştukları yerde toplar, test botu ise öğretim ya da eğlence için cevapları puanlar. Bu rehber IrForge anket ve test eklentisindeki soru türlerini ve sonuçları nasıl göreceğinizi anlatır.",
+        "sections": [
+          {
+            "h2": "Anket ile test arasındaki fark",
+            "body": [
+              "İkisi de aynı araçla yapılır. Anket yalnızca cevap toplar; testte her sorunun doğru bir seçeneği vardır ve cevaplar puanlanır. Sorular panelde hazırlanır, cevaplar yalnızca bot içinde alınır."
+            ]
+          },
+          {
+            "h2": "Soru türleri",
+            "items": [
+              "**Çoktan seçmeli:** her satıra bir seçenek; testte doğru olanı işaretlersiniz.",
+              "**Puanlama:** 1'den 5'e, memnuniyet ölçmek için.",
+              "**Metin:** serbest cevap."
+            ]
+          },
+          {
+            "h2": "Ayarlar ve yayınlama",
+            "items": [
+              "Başlık ve isteğe bağlı açıklama",
+              "Test modu (puanlı)",
+              "Anonim cevaplar",
+              "Taslak ve yayın; en az bir soru olmadan anket yayınlanamaz, yayını durdurabilirsiniz."
+            ]
+          },
+          {
+            "h2": "Sonuçları görme",
+            "body": [
+              "Sonuç ekranı kaç kişinin cevapladığını, puan sorularının ortalamasını ve testlerdeki doğru cevapları gösterir."
+            ]
+          }
+        ],
+        "faqTitle": "Sık sorulan sorular",
+        "faq": [
+          {
+            "q": "Anket anonim olabilir mi?",
+            "a": "Evet, anonim seçeneğini açın."
+          },
+          {
+            "q": "Test puan verir mi?",
+            "a": "Evet. Çoktan seçmeli sorularda doğru seçeneği belirlersiniz, doğru cevaplar sonuçlarda sayılır."
+          },
+          {
+            "q": "Satın alma sonrası görüşü nasıl isterim?",
+            "a": "Bir anket oluşturup bağlantısını [toplu mesajla](/learn/telegram-bot-broadcast) ya da zamanlanmış mesajla gönderin."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Sıfırdan bot için [Telegram botu oluşturma rehberine](/learn/how-to-make-a-telegram-bot), anketi kullanıcılara göndermek için [toplu mesaja](/learn/telegram-bot-broadcast) bakın."
+      },
+      "telegram-bot-card-payment": {
+        "h1": "Telegram Botunda Karttan Karta Ödeme: Banka SMS'iyle Otomatik Onay",
+        "lead": "Karttan karta ödeme, Telegram botunda İranlı müşterilerden para almanın en basit yoludur ama makbuzları elle kontrol etmek zaman alır. IrForge hem elle makbuzlu karttan karta hem de banka SMS'iyle otomatik onayı destekler. Bu rehber ikisini anlatır.",
+        "sections": [
+          {
+            "h2": "Makbuzlu basit karttan karta",
+            "body": [
+              "Ödeme ayarlarına kart numarasını (16 ya da 19 hane) ve hesap sahibinin adını girersiniz. Müşteri parayı yatırır ve makbuzu bota gönderir; makbuz onaylamak ya da reddetmek için yöneticilere veya sipariş grubuna gider. Ödeme bilgisi metnini ve makbuz alındığında, sipariş onaylandığında ya da reddedildiğinde görünen düğmeleri yazabilirsiniz."
+            ]
+          },
+          {
+            "h2": "Banka SMS'iyle otomatik onay",
+            "body": [
+              "Otomatik modda müşteri kendi kartınıza benzersiz bir tutar yatırır. Telefonunuz banka SMS'ini iletir ve ödeme elle kontrol olmadan onaylanır. Para her zaman doğrudan kartınıza gider."
+            ]
+          },
+          {
+            "h2": "Ödeme kanalı ayarları",
+            "items": [
+              "Kanal türü: benzersiz tutarlı kart, sabit tutarlı ödeme bağlantısı ya da açık tutarlı bağlantı; kart ve bağlantı birlikte kullanılabilir.",
+              "Tuman cinsinden en düşük tutar",
+              "İzin verilen SMS göndericileri (boşsa herkes kabul) ve banka SMS biçimi",
+              "Kart numarasının yanındaki açıklama ve müşterinin göreceği önizleme"
+            ]
+          },
+          {
+            "h2": "Çevrimiçi ödeme geçidi",
+            "body": [
+              "Çevrimiçi bir geçidiniz varsa ayarlara https adresini ve düğme metnini ekleyin; karttan karta ödemenin yanında görünür."
+            ]
+          },
+          {
+            "h2": "Güvenlik ipuçları",
+            "items": [
+              "Kart numarasını ve tutarları yalnızca panelden ayarlayın, yayından önce ödeme metnini deneyin.",
+              "Botun üye olduğunu doğrulamak için sipariş grubuna deneme mesajı gönderin."
+            ]
+          }
+        ],
+        "faqTitle": "Sık sorulan sorular",
+        "faq": [
+          {
+            "q": "Para nereye gider?",
+            "a": "Karttan karta ödemede her zaman doğrudan kendi kartınıza."
+          },
+          {
+            "q": "Otomatik onay için ne gerekir?",
+            "a": "Telefonunuzun banka SMS'lerini iletmesi gerekir; gerisi otomatiktir."
+          },
+          {
+            "q": "Makbuzu yine elle onaylayabilir miyim?",
+            "a": "Evet. Elle makbuz doğrulamasını açık bırakın."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Bu konu [Telegram mağaza botu oluşturmanın](/learn/telegram-shop-bot) bir parçasıdır. Kullanıcı bakiyeleri için [Telegram bot cüzdanına](/learn/telegram-bot-wallet) bakın."
+      },
+      "telegram-bot-wallet": {
+        "h1": "Telegram Bot Cüzdanı: Kullanıcı Bakiyesi ve Bot İçi Ödeme",
+        "lead": "Telegram bot cüzdanı her kullanıcıya bir bakiye verir; sonraki alışveriş makbuzsuz ve takipsiz tamamlanır. Bu rehber IrForge cüzdan eklentisinin neler yaptığını anlatır: yatırma ve çekme, dondurma, sipariş tahsilatı ve iadesi, makbuz mesajları.",
+        "sections": [
+          {
+            "h2": "Cüzdan ne yapar?",
+            "body": [
+              "Her kullanıcının cüzdanında bakiye ve işlem geçmişi vardır. Panelden kullanıcıyı ad, kullanıcı adı ya da kimlikle bulur, bakiyesini görür ve elle yatırma veya çekme yaparsınız."
+            ]
+          },
+          {
+            "h2": "Dondurma ve çözme",
+            "body": [
+              "Bir kullanıcının cüzdanını dondurup sonra çözebilirsiniz; her değişiklik geçmişte kalır."
+            ]
+          },
+          {
+            "h2": "Siparişlere bağlama",
+            "body": [
+              "Belirli bir sipariş için kullanıcının cüzdanından tahsilat yapabilir ya da tutarı iade edebilirsiniz; botta /wallet_charge_order ve /wallet_refund_order komutlarının karşılığıdır."
+            ]
+          },
+          {
+            "h2": "Makbuzlar ve yönetici bildirimleri",
+            "items": [
+              "Yatırma, çekme, dondurma ve çözme makbuzları cüzdan sahibine gider.",
+              "İşlem günlüğü yöneticilere, bir gruba ya da kanala gönderilebilir.",
+              "Tüm mesaj şablonları düzenlenebilir; tutar, önceki ve sonraki bakiye, neden gibi parametreleri destekler."
+            ]
+          },
+          {
+            "h2": "Mağazanın yanında cüzdan",
+            "body": [
+              "Cüzdan genelde katalogla birlikte çalışır; \"Mağaza kurucu\" paketi ikisini tek alımda verir. [Telegram mağaza botu](/learn/telegram-shop-bot)"
+            ]
+          }
+        ],
+        "faqTitle": "Sık sorulan sorular",
+        "faq": [
+          {
+            "q": "Kullanıcının bakiyesini nasıl artırırım?",
+            "a": "Cüzdan panelinde kullanıcıyı bulup tutarı yatırırsınız; neden yazabilirsiniz ve makbuz kullanıcıya gider."
+          },
+          {
+            "q": "İşlem geçmişi var mı?",
+            "a": "Evet, her kullanıcının son işlemleri panelde görünür."
+          },
+          {
+            "q": "Cüzdan karttan karta ödemeye bağlı mı?",
+            "a": "Birbirini tamamlarlar. Para alma yolları için [karttan karta ödemeye](/learn/telegram-bot-card-payment) bakın."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Mağazanızı [Telegram mağaza botu rehberiyle](/learn/telegram-shop-bot) tamamlayın, maliyet için [fiyatlara](/pricing) bakın."
+      },
+      "telegram-bot-crm-scheduled-messages": {
+        "h1": "Telegram Botunda CRM ve Zamanlanmış Mesajlar",
+        "lead": "Botunuzun kullanıcıları uzun bir listeyse onlarla düzgün konuşamazsınız. CRM eklentisiyle kullanıcıları etiketler, zamanlanmış mesajlarla yalnızca doğru gruba otomatik mesaj gönderirsiniz. Bu rehber ikisini anlatır.",
+        "sections": [
+          {
+            "h2": "CRM: etiket ve not",
+            "body": [
+              "Her etiket kitlenizin bir kesimidir (örneğin \"sadık müşteri\"); emoji ve isteğe bağlı açıklaması olur. Kullanıcıyı ad, kullanıcı adı ya da kimlikle bulur, etiketler ve not bırakırsınız."
+            ]
+          },
+          {
+            "h2": "Zamanlanmış mesaj nedir?",
+            "items": [
+              "**Olaya göre:** botta bir şey olunca, seçtiğiniz gecikmeyle (0 anında) ve \"kullanıcı başına bir kez\" seçeneğiyle.",
+              "**Belirli anda bir kez:** tarih ve saatle.",
+              "**Haftalık tekrar:** seçtiğiniz günlerde ve bitiş tarihiyle."
+            ]
+          },
+          {
+            "h2": "Kitle ve içerik",
+            "items": [
+              "Kitle: tüm kullanıcılar, belirli bir sohbet ya da bir CRM etiketi.",
+              "İçerik: metin, fotoğraf ya da ses ve mesajın altındaki düğmeler.",
+              "Yayına almadan önce tek bir sohbete deneme gönderebilirsiniz."
+            ]
+          },
+          {
+            "h2": "Rahatsızlığı önleme",
+            "items": [
+              "Sessiz saatler: o aralıkta hiçbir şey gönderilmez, bekleyenler bekler.",
+              "Kullanıcı başına saatlik mesaj sınırı."
+            ]
+          },
+          {
+            "h2": "Kampanya istatistikleri",
+            "body": [
+              "Her kampanya kaç tanesinin aktif, sırada, gönderilmiş ve başarısız olduğunu gösterir."
+            ]
+          }
+        ],
+        "faqTitle": "Sık sorulan sorular",
+        "faq": [
+          {
+            "q": "Toplu mesajla zamanlanmış mesaj arasındaki fark nedir?",
+            "a": "Toplu mesaj tek seferliktir ve herkese gider; zamanlanmış mesaj olaya, tarihe ya da haftalık tekrara göre çalışır ve tek bir etiketi hedefleyebilir."
+          },
+          {
+            "q": "Mesajı yalnızca bir gruba gönderebilir miyim?",
+            "a": "Evet. CRM'de bir etiket oluşturup kitle olarak seçin."
+          }
+        ],
+        "nextTitle": "Sonraki adım",
+        "next": "Tek seferlik duyuru için [toplu mesaja](/learn/telegram-bot-broadcast), başlamak için [Telegram botu oluşturma rehberine](/learn/how-to-make-a-telegram-bot) bakın."
       }
     },
     "topCtaButton": "Kendi botunu yap",
