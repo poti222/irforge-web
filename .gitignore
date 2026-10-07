@@ -21,3 +21,6 @@ lib/db/_repro_migrations/
 
 # /brag skill output (generated launch video, plan, composition, share copy)
 **/brag-output*/
+
+# generated marketing/channel-post drafts (images, captions) — not app content
+irforge/channel-posts/
