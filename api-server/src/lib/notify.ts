@@ -16,7 +16,7 @@ import crypto from "crypto";
 import { and, eq } from "drizzle-orm";
 import { db, notificationsTable, usersTable } from "@workspace/db";
 import { logger } from "./logger";
-import { deliverToTelegramInBackground } from "./notifyTelegram";
+import { deliverToTelegramInBackground, type TelegramOverride } from "./notifyTelegram";
 
 export type NotificationSeverity = "info" | "warning" | "critical";
 
@@ -34,6 +34,8 @@ export type NotificationInput = {
    * قابل مسیریابی بود و نمی‌شد به یک رکورد مشخص اشاره کرد.
    */
   refId?: string | null;
+  /** فقط تلگرام (در جدول ذخیره نمی‌شود): متنِ کوتاه‌تر / دکمه‌ی اختصاصی. */
+  telegram?: TelegramOverride;
 };
 
 /**

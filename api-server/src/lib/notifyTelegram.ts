@@ -27,6 +27,16 @@ import { db, usersTable } from "@workspace/db";
 import { logger } from "./logger";
 import { tgApi } from "./telegram";
 
+/**
+ * فقط برای تحویلِ تلگرام (ذخیره نمی‌شود): متنِ کوتاه‌تر و/یا دکمه‌ی اختصاصی.
+ * `path` نسبت به `PUBLIC_SITE_URL` است. `style` همان رنگِ دکمه‌ی Bot API است
+ * (`danger` = قرمز).
+ */
+export type TelegramOverride = {
+  message?: string;
+  button?: { text: string; path: string; style?: "primary" | "success" | "danger" };
+};
+
 export type TelegramNotificationInput = {
   type: string;
   severity: "info" | "warning" | "critical";
@@ -34,6 +44,7 @@ export type TelegramNotificationInput = {
   message: string;
   refId?: string | null;
   botId?: string | null;
+  telegram?: TelegramOverride;
 };
 
 function platformToken(): string | null {
@@ -79,7 +90,21 @@ export function deepLink(siteUrl: string, input: TelegramNotificationInput): str
 }
 
 export function renderMessage(input: TelegramNotificationInput): string {
-  return `${icon(input.severity, input.type)} <b>${esc(input.title)}</b>\n\n${esc(input.message)}`;
+  const body = input.telegram?.message ?? input.message;
+  return `${icon(input.severity, input.type)} <b>${esc(input.title)}</b>\n\n${esc(body)}`;
+}
+
+/** دکمه‌ی زیرِ پیام: اختصاصیِ اعلان (`telegram.button`) یا «مشاهده در سایت». */
+export function telegramKeyboard(siteUrl: string, input: TelegramNotificationInput) {
+  const custom = input.telegram?.button;
+  if (custom) {
+    const base = siteUrl.replace(/\/+$/, "");
+    const path = custom.path.startsWith("/") ? custom.path : `/${custom.path}`;
+    return {
+      inline_keyboard: [[{ text: custom.text, url: `${base}${path}`, ...(custom.style ? { style: custom.style } : {}) }]],
+    };
+  }
+  return { inline_keyboard: [[{ text: "مشاهده در سایت", url: deepLink(siteUrl, input) }]] };
 }
 
 /**
@@ -115,9 +140,7 @@ export async function deliverToTelegram(
 
     const siteUrl = process.env.PUBLIC_SITE_URL?.trim();
     const text = renderMessage(input);
-    const reply_markup = siteUrl
-      ? { inline_keyboard: [[{ text: "مشاهده در سایت", url: deepLink(siteUrl, input) }]] }
-      : undefined;
+    const reply_markup = siteUrl ? telegramKeyboard(siteUrl, input) : undefined;
 
     let delivered = 0;
     for (const recipient of recipients) {

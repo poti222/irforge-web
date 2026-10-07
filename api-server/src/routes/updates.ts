@@ -32,6 +32,7 @@ import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "./auth";
 import { logger } from "../lib/logger";
 import { createNotificationsBulk } from "../lib/notify";
+import { updateTeaser } from "../lib/updateTeaser";
 
 const router = Router();
 
@@ -556,10 +557,16 @@ router.post("/admin/updates/:id/publish", requireAdmin, async (req: any, res) =>
         type: "site_update",
         severity: "info",
         title: update.title,
-        // متن کامل در صفحه‌ی خود آپدیت است؛ اعلان فقط خلاصه را حمل می‌کند.
-        message: update.body.slice(0, 500),
+        // متن کامل در صفحه‌ی خود آپدیت است؛ اعلان فقط خلاصه (پاراگرافِ اول) را حمل می‌کند —
+        // نه ۵۰۰ نویسه‌ی بریده‌شده وسطِ جمله.
+        message: updateTeaser(update.body, 500).text,
         dedupeKey: "site_update:" + update.id,
         refId: update.id,
+        // تلگرام: پاراگرافِ اول + یک دکمه‌ی قرمز به داشبورد (همان‌جا پنجره‌ی آپدیتِ دیده‌نشده باز می‌شود).
+        telegram: {
+          message: updateTeaser(update.body).text,
+          button: { text: "مشاهده‌ی آپدیت کامل از سایت", path: "/dashboard", style: "danger" },
+        },
       },
     );
 
