@@ -2,6 +2,16 @@ import crypto from "crypto";
 import { logger } from "./logger";
 
 /**
+ * Base URL of the Telegram Bot API. Override with TELEGRAM_API_BASE ONLY for
+ * local mock-server tests (test/live/mock-telegram.mjs); unset in production
+ * => https://api.telegram.org exactly as before.
+ */
+export function telegramApiBase(): string {
+  const o = process.env.TELEGRAM_API_BASE?.trim();
+  return o ? o.replace(/\/+$/, "") : "https://api.telegram.org";
+}
+
+/**
  * Send a Telegram message through a given bot token.
  *
  * Factored out of bots.ts so both the tenant-bot flows (approve payment,
@@ -15,7 +25,7 @@ export async function sendTelegramMessage(
   text: string
 ): Promise<void> {
   try {
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    await fetch(`${telegramApiBase()}/bot${botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
@@ -32,7 +42,7 @@ export async function tgApi<T = any>(
   method: string,
   body?: Record<string, unknown>
 ): Promise<{ ok: boolean; result?: T; description?: string }> {
-  const res = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+  const res = await fetch(`${telegramApiBase()}/bot${botToken}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body ?? {}),
@@ -69,7 +79,7 @@ export async function tgSetProfilePhoto(
     form.set("photo", JSON.stringify({ type: "static", photo: "attach://photo_file" }));
     form.set("photo_file", new Blob([fileBuffer], { type: mimeType }), "profile.jpg");
   }
-  const res = await fetch(`https://api.telegram.org/bot${botToken}/setMyProfilePhoto`, {
+  const res = await fetch(`${telegramApiBase()}/bot${botToken}/setMyProfilePhoto`, {
     method: "POST",
     body: form,
   });
@@ -188,7 +198,7 @@ export async function downloadTelegramFile(
     const filePath = await getTelegramFilePath(botToken, fileId);
     if (!filePath) return null;
 
-    const res = await fetch(`https://api.telegram.org/file/bot${botToken}/${filePath}`);
+    const res = await fetch(`${telegramApiBase()}/file/bot${botToken}/${filePath}`);
     if (!res.ok) {
       logger.warn({ status: res.status }, "downloadTelegramFile: file fetch failed");
       return null;
