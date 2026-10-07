@@ -138,12 +138,15 @@ export async function decideGuardianRequest(schoolId: string, student: { id: str
   if (result.status === 404) return { status: 404 };
   if (result.status === 409) return { status: 409, requestStatus: result.row.status };
   if (!result.idempotent) {
+    const [stu] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, student.userId)).limit(1);
+    const kid = stu?.name ? `«${stu.name}»` : "";
     void logSchoolAudit(schoolId, student.userId, target === "approved" ? "guardian.approved" : "guardian.rejected", `request ${result.row.id}`);
     void notifySchoolUsers({
       userIds: [result.row.parentUserId], schoolId, kind: "school_guardian_decision", refId: result.row.id,
       severity: target === "approved" ? "info" : "warning",
       title: target === "approved" ? "درخواست اتصال تأیید شد" : "درخواست اتصال رد شد",
-      body: target === "approved" ? "دانش‌آموز درخواست شما را تأیید کرد؛ فرزند در داشبورد (یا منوی بات) شما نمایش داده می‌شود." : "دانش‌آموز درخواست شما را رد کرد. در صورت نیاز از مدیر مدرسه بخواهید شما را ثبت کند.",
+      body: target === "approved" ? `فرزند شما ${kid} متصل شد؛ از این پس در داشبورد (یا منوی بات) شما نمایش داده می‌شود.` : "درخواستِ اتصال انجام نشد. در صورت نیاز از مدیر مدرسه بخواهید شما را ثبت کند.",
+      telegramButtons: target === "approved" ? [[{ text: "👪 فرزندان من", callback_data: "p:kids" }]] : undefined,
     }).catch((err) => logger.warn({ err }, "guardian decision notify failed (non-fatal)"));
   }
   return { status: 200, requestStatus: result.row.status, idempotent: result.idempotent, parentUserId: result.row.parentUserId, requestId: result.row.id };

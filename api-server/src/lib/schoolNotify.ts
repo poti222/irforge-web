@@ -21,7 +21,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import { db, notificationsTable, schoolBotsTable, schoolBotSubscribersTable } from "@workspace/db";
 import { logger } from "./logger";
 import { getSchoolBotToken } from "./schoolBotCore";
-import { tgApi } from "./telegram";
+import { BotSender } from "./schoolBot/tg";
 
 export type SchoolNotifyInput = {
   userIds: string[];
@@ -70,33 +70,30 @@ async function deliverSiteNotifications(input: SchoolNotifyInput): Promise<void>
   }
 }
 
-/** تحویلِ تلگرامی از طریقِ باتِ **همان مدرسه** — فقط اگر مدرسه بات دارد و کاربر واقعاً به آن وصل شده. */
+/**
+ * تحویلِ تلگرامی از طریقِ باتِ **همان مدرسه** — فقط اگر مدرسه بات دارد و کاربر «Start» زده (ردیفِ مشترک).
+ * مشترکِ دسترس‌ناپذیر (بلاک‌کرده/۴۰۳) رد می‌شود و دیگر تلاش نمی‌شود؛ ۴۰۳ خطا نیست (فقط مشترک علامت می‌خورد).
+ */
 async function deliverTelegramNotifications(input: SchoolNotifyInput): Promise<void> {
   try {
     if (input.userIds.length === 0) return;
     const [bot] = await db.select().from(schoolBotsTable).where(eq(schoolBotsTable.schoolId, input.schoolId)).limit(1);
     if (!bot) return; // مدرسه بات ندارد — فقط تحویلِ سایت کافی است.
 
-    const subscribers = await db.select().from(schoolBotSubscribersTable)
-      .where(and(eq(schoolBotSubscribersTable.schoolBotId, bot.id), inArray(schoolBotSubscribersTable.userId, input.userIds)));
+    const subscribers = (await db.select().from(schoolBotSubscribersTable)
+      .where(and(eq(schoolBotSubscribersTable.schoolBotId, bot.id), inArray(schoolBotSubscribersTable.userId, input.userIds))))
+      .filter((s: any) => !s.unreachableAt);
     if (subscribers.length === 0) return;
 
     const token = await getSchoolBotToken(bot);
     if (!token) return;
 
+    const sender = new BotSender(bot.id, token);
     const text = `${iconFor(input.severity ?? "info")} <b>${esc(input.title)}</b>\n\n${esc(input.body)}`;
-    // پشت‌سرهم، نه Promise.all — همان دلیلِ notifyTelegram.ts (سقفِ نرخِ تلگرام).
+    // پشت‌سرهم و با سقفِ نرخِ ≈۲۵ پیام/ثانیه (BotSender.throttle).
     for (const sub of subscribers) {
-      const result = await tgApi(token, "sendMessage", {
-        chat_id: sub.telegramChatId,
-        text,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      });
-      if (!result.ok) {
-        logger.debug({ userId: sub.userId, description: result.description }, "schoolNotify: telegram delivery not ok");
-      }
-      if (subscribers.length > 1) await new Promise((r) => setTimeout(r, 40));
+      const r = await sender.send(sub.telegramChatId, text, input.telegramButtons);
+      if (!r.ok && !r.blocked) logger.debug({ userId: sub.userId, description: r.description }, "schoolNotify: telegram delivery not ok");
     }
   } catch (err) {
     logger.warn({ err, kind: input.kind }, "schoolNotify: telegram delivery failed (non-fatal)");
