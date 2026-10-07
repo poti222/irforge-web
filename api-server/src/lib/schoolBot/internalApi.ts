@@ -55,11 +55,11 @@ export async function apiAs<T = any>(userId: string, method: "GET" | "POST" | "P
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(15_000),
     });
-    let json: any = null;
+    let json: any = null as any;
     try { json = await r.json(); } catch { /* no body */ }
     return { status: r.status, json };
   } catch (err) {
     logger.warn({ err, path }, "school bot internal api call failed");
-    return { status: 599, json: null };
+    return { status: 599, json: null as any };
   }
 }
