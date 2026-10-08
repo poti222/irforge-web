@@ -10,6 +10,7 @@ import {
   SidebarGroupContent,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { SidebarBrandHeader } from "@/components/layout/brand-home";
 import {
@@ -54,6 +55,7 @@ import { useT } from "@/hooks/use-translation";
 import { isRtlLang } from "@/lib/i18n";
 import { useNotifications } from "@/hooks/use-notifications";
 import { severityDotClass } from "@/lib/notification-severity";
+import { navDotSeverities, navKeyForNotification, navKeyForPath, type NavDotKey } from "@/lib/notification-nav";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -69,8 +71,23 @@ export function AppSidebar() {
   // همان کوئری‌ای که زنگوله‌ی هدر استفاده می‌کند (react-query کش مشترک دارد،
   // پس این یک درخواست اضافه نیست). روی موبایل که هدر اسکرول می‌شود و از دید
   // خارج، این نقطه‌ها تنها نشانه‌ی وجود اعلان خوانده‌نشده‌اند.
-  const { topSeverity } = useNotifications();
-  const severityDot = severityDotClass(topSeverity);
+  const { notifications, markRead } = useNotifications();
+  const dots = navDotSeverities(notifications);
+  const dotFor = (key: NavDotKey) => severityDotClass(dots[key] ?? null);
+  const navDot = (key: NavDotKey) => {
+    const cls = dotFor(key);
+    return cls ? <span className={`ms-auto size-2 shrink-0 rounded-full ${cls}`} aria-hidden data-testid={`nav-dot-${key}`} /> : null;
+  };
+
+  // باز کردنِ صفحه‌ی مربوط = دیدنِ اعلان‌هایش؛ نقطه همان‌جا خاموش می‌شود (زنگوله هم کم می‌شود).
+  const openKey = navKeyForPath(location);
+  useEffect(() => {
+    if (!openKey) return;
+    for (const n of notifications) {
+      if (!n.read && navKeyForNotification(n.type) === openKey) void markRead(n.id).catch(() => undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openKey, notifications.length]);
 
   if (!user) return null;
 
@@ -118,6 +135,7 @@ export function AppSidebar() {
                   <Link href="/bots" data-testid="nav-bots" onClick={closeMobileMenu}>
                     <Bot />
                     <span>{nav.myBots}</span>
+                    {navDot("bots")}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -134,6 +152,7 @@ export function AppSidebar() {
                   <Link href="/wallet" data-testid="nav-wallet" onClick={closeMobileMenu}>
                     <Wallet />
                     <span>{nav.myWallet}</span>
+                    {navDot("billing")}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -142,6 +161,7 @@ export function AppSidebar() {
                   <Link href="/invoices" data-testid="nav-invoices" onClick={closeMobileMenu}>
                     <Receipt />
                     <span>{nav.myInvoices}</span>
+                    {navDot("billing")}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -150,7 +170,7 @@ export function AppSidebar() {
                   <Link href="/tickets" data-testid="nav-tickets" onClick={closeMobileMenu}>
                     <LifeBuoy />
                     <span>{nav.tickets}</span>
-                    {severityDot && <span className={`ms-auto size-2 shrink-0 rounded-full ${severityDot}`} aria-hidden />}
+                    {navDot("tickets")}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -159,7 +179,6 @@ export function AppSidebar() {
                   <Link href="/support" data-testid="nav-support" onClick={closeMobileMenu}>
                     <Headset />
                     <span>{nav.support}</span>
-                    {severityDot && <span className={`ms-auto size-2 shrink-0 rounded-full ${severityDot}`} aria-hidden />}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -168,6 +187,7 @@ export function AppSidebar() {
                   <Link href="/updates" data-testid="nav-updates" onClick={closeMobileMenu}>
                     <Sparkles />
                     <span>{nav.updates}</span>
+                    {navDot("updates")}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -278,14 +298,6 @@ export function AppSidebar() {
                     {user.name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
-                {/* وقتی منوی کناری جمع است، آواتار تنها چیزی‌ست که دیده می‌شود —
-                    نشانگر باید همین‌جا هم باشد. */}
-                {severityDot && (
-                  <span
-                    className={`absolute -end-0.5 -top-0.5 size-2.5 rounded-full border border-sidebar ${severityDot}`}
-                    aria-hidden
-                  />
-                )}
               </div>
               <div className="flex flex-1 flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
                 <span className="truncate text-sm font-medium">{user.platformUsername ?? user.name}</span>

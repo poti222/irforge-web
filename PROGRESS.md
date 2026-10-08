@@ -4627,3 +4627,7 @@ Why two halves: the bot is polling-only with no inbound HTTP and its data (Sheet
 
 ## Pro card: removed the "up to 3 active bots" line (2026-10-08)
 - `botTiers.pro.features[0]` removed in fa/en/ar/tr/ru (marketing copy only; the plan-table `max_bots` enforcement for legacy plans is untouched). The detail page's «تعداد بات» comes from the product's `metadata.maxBots`, now editable in admin → Products (Standard/Pro became fully editable).
+
+## Sidebar notification dots per item (2026-10-08)
+- Bug: any unread notification put a dot next to BOTH «تیکت‌ها» and «پشتیبانی» (and the avatar). Now `lib/notification-nav.ts` maps notification types → one nav item: tickets (`ticket_*`) → تیکت‌ها; bot purchase/status/tier/trial/sql → ربات‌های من; wallet top-up/deposit/payment → کیف پول + فاکتورها; `site_update`/`plugin_release_note` → آپدیت‌ها. Other types stay bell-only; پشتیبانی and the avatar dot removed.
+- Opening a section marks its unread notifications read (`app-sidebar.tsx`), so the dot clears. Test: `irforge/src/lib/notification-nav.test.ts`.
