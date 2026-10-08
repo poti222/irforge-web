@@ -430,7 +430,7 @@ export default function Checkout() {
             <Button variant="outline" className="flex-1" disabled={busy} onClick={clear}>
               {t.clearCart}
             </Button>
-            <GlowButton className="flex-1" wrapperClassName="flex-1" disabled={!canPay || busy} onClick={checkout}>
+            <GlowButton className="w-full" wrapperClassName="flex-1" disabled={!canPay || busy} onClick={checkout}>
               {busy ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Wallet className="me-2 h-4 w-4" />}
               {t.payFromWallet}
             </GlowButton>
