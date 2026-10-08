@@ -725,3 +725,12 @@ html[data-palette] .forge-dark {
 *::-webkit-scrollbar { width: 9px; height: 9px; }
 *::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / .3); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
 *::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / .5); background-clip: padding-box; border: 2px solid transparent; }
+
+/* ── Mixed Persian/English text (server messages, bot names, «catalog» identifiers…) ──
+   در صفحه‌ی LTR (UI انگلیسی) جمله‌ی فارسیِ حاویِ کلمه‌ی انگلیسی/گیومه/نقطه با base-direction چپ‌به‌راست چیده می‌شد و کلمه‌ها
+   به‌هم می‌ریختند. `unicode-bidi: plaintext` جهتِ هر بلوکِ متن را از اولین حرفِ قوی‌اش می‌گیرد (مثل dir="auto").
+   در صفحه‌ی RTL (fa/ar) چیزی عوض نمی‌شود: همان base راست‌به‌چپ می‌ماند. */
+html[dir="ltr"] :is(p, li, h1, h2, h3, h4, h5, h6, td, th, label, dd, dt, blockquote, figcaption, summary),
+.bidi-text {
+  unicode-bidi: plaintext;
+}

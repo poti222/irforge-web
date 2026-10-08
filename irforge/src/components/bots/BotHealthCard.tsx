@@ -120,7 +120,7 @@ export function BotHealthCard({ bot }: { bot: Bot }) {
               ) : (
                 <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
               )}
-              <span className="min-w-0 flex-1">{issue.detail}</span>
+              <span className="bidi-text min-w-0 flex-1" dir="auto">{issue.detail}</span>
               <Button variant="ghost" size="sm" onClick={() => goToSection(issue.section)}>
                 {t.fixCta} <ArrowLeft className="ms-1.5 size-3.5 rtl-flip" />
               </Button>

@@ -4631,3 +4631,7 @@ Why two halves: the bot is polling-only with no inbound HTTP and its data (Sheet
 ## Sidebar notification dots per item (2026-10-08)
 - Bug: any unread notification put a dot next to BOTH «تیکت‌ها» and «پشتیبانی» (and the avatar). Now `lib/notification-nav.ts` maps notification types → one nav item: tickets (`ticket_*`) → تیکت‌ها; bot purchase/status/tier/trial/sql → ربات‌های من; wallet top-up/deposit/payment → کیف پول + فاکتورها; `site_update`/`plugin_release_note` → آپدیت‌ها. Other types stay bell-only; پشتیبانی and the avatar dot removed.
 - Opening a section marks its unread notifications read (`app-sidebar.tsx`), so the dot clears. Test: `irforge/src/lib/notification-nav.test.ts`.
+
+## Mixed Persian/English text scrambled in LTR pages (2026-10-08)
+- Persian server messages containing English identifiers/quotes («catalog», `catalog_items`) were laid out with an LTR base direction on English-UI pages, so word order was scrambled (bot-health issues list etc.). `index.css`: `html[dir="ltr"] :is(p, li, h1-h6, td, th, label, …)` + `.bidi-text` get `unicode-bidi: plaintext` (direction from the block's first strong char); applied explicitly to the health-issue rows and toasts. RTL pages unchanged. Verified in Chromium with the exact failing sentence.
+- Also: moved the notification-nav test to `irforge/test/notificationNav.test.mjs` (the previous `src/lib/*.test.ts` broke `tsc` — vitest isn't a dependency).
