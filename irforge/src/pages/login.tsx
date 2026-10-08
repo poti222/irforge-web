@@ -474,7 +474,8 @@ export default function Login() {
   return (
     <>
       <AuthShell>
-          <div className="rounded-3xl border border-border/70 bg-card px-5 py-8 shadow-[var(--shadow-pop)] sm:px-9">
+          <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card/90 px-5 py-8 shadow-[var(--shadow-pop)] backdrop-blur sm:px-9">
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
           {step === "credentials" && (
             <form
               className="space-y-4"
@@ -571,53 +572,42 @@ export default function Login() {
                 شرطِ همان پرچم زیرِ گرید هم دقیقاً همین رفتار را تضمین می‌کند.
               */}
               {!EMAIL_AUTH_CLOSED && (
-                <div className="space-y-2.5">
-                  <motion.button
-                    type="button"
-                    {...(reduceMotion ? {} : hoverLiftMotion)}
-                    disabled={busy}
-                    onClick={() => setLoginMethod("email")}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-md border px-3.5 py-3 text-start transition-colors disabled:pointer-events-none disabled:opacity-50",
-                      loginMethod === "email"
-                        ? "border-primary bg-primary/5 ring-1 ring-primary"
-                        : "border-border hover:border-primary/50"
-                    )}
-                  >
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
-                      <Mail className="size-5" aria-hidden="true" />
-                    </span>
-                    <span className="flex flex-col">
-                      <span className="font-medium">{t.email}</span>
-                      <span className="text-xs text-muted-foreground">{t.loginPassword}</span>
-                    </span>
-                  </motion.button>
-
-                  <motion.button
-                    type="button"
-                    {...(reduceMotion ? {} : hoverLiftMotion)}
-                    disabled={busy}
-                    onClick={() => setLoginMethod("phone")}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-md border px-3.5 py-3 text-start transition-colors disabled:pointer-events-none disabled:opacity-50",
-                      loginMethod === "phone"
-                        ? "border-primary bg-primary/5 ring-1 ring-primary"
-                        : "border-border hover:border-primary/50"
-                    )}
-                  >
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
-                      <Phone className="size-5" aria-hidden="true" />
-                    </span>
-                    <span className="flex flex-col">
-                      <span className="font-medium">{t.loginPhone}</span>
-                      <span className="text-xs text-muted-foreground">{t.loginPassword}</span>
-                    </span>
-                  </motion.button>
+                <div
+                  role="tablist"
+                  aria-label={t.signInAccount}
+                  className="relative grid grid-cols-2 gap-1 rounded-xl border border-border/70 bg-muted/50 p-1"
+                >
+                  {([
+                    { key: "email", label: t.email, Icon: Mail },
+                    { key: "phone", label: t.loginPhone, Icon: Phone },
+                  ] as const).map(({ key, label, Icon }) => {
+                    const on = loginMethod === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        role="tab"
+                        aria-selected={on}
+                        disabled={busy}
+                        onClick={() => setLoginMethod(key)}
+                        data-testid={`login-method-${key}`}
+                        className={cn(
+                          "relative flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50",
+                          on
+                            ? "bg-background text-foreground shadow-sm ring-1 ring-border"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Icon className={cn("size-4", on && "text-primary")} aria-hidden="true" />
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
               {/* شناسه (شماره/ایمیل) و رمز عبور: از سایز تبلت به بالا کنار هم، روی موبایل زیر هم — گرید ثابتِ دوستونه اینجا را روی گوشی می‌شکست. */}
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-3">
                 {EMAIL_AUTH_CLOSED || loginMethod === "phone" ? (
                   <div className="space-y-1.5">
                     <Label htmlFor="login-phone">{t.loginPhone}</Label>
@@ -657,7 +647,7 @@ export default function Login() {
                 </div>
               </div>
 
-              <GlowButton type="submit" className="w-full" disabled={busy}>
+              <GlowButton type="submit" size="lg" className="h-11 w-full text-base" wrapperClassName="block w-full" disabled={busy}>
                 {busy && <Loader2 className="me-2 size-4 animate-spin" />}
                 {t.loginContinue}
               </GlowButton>
@@ -665,10 +655,10 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => setStep("sms_phone")}
-                className="flex w-full items-center gap-2 rounded-lg border p-3 text-start transition-colors hover:border-primary/60"
+                className="group flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground"
               >
-                <MessageSquareText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span className="text-sm">{t.smsLoginButton}</span>
+                <MessageSquareText className="size-4 shrink-0 text-primary/80 transition-transform group-hover:scale-110" aria-hidden="true" />
+                <span>{t.smsLoginButton}</span>
               </button>
 
               <p className="text-center text-sm text-muted-foreground">
