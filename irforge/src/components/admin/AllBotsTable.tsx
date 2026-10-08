@@ -215,7 +215,7 @@ export function AllBotsTable() {
 
   // ─── Change trial expiry ────────────────────────────────────────────────
   // سوپرادمین می‌تواند تاریخِ انقضایِ یک بات تریالی را دستی تمدید/کوتاه کند —
-  // مثلاً انقضا از دهم به پانزدهم. فقط باتِ تریالی این کنترل را نشان می‌دهد.
+  // مثلاً انقضا از دهم به پانزدهم. برای باتِ تریالی تاریخِ پایانِ تریال، برای Standard/Pro تاریخِ پایانِ دوره‌ی پکیج را عوض می‌کند.
   const [changingExpiryId, setChangingExpiryId] = useState<string | null>(null);
 
   function toDateInputValue(iso: string | null | undefined): string {
@@ -322,18 +322,15 @@ export function AllBotsTable() {
                     </Select>
                   </TableCell>
                   <TableCell>
-                    {bot.isTrial ? (
-                      <Input
-                        type="date"
-                        className="h-8 w-36"
-                        dir="ltr"
-                        value={toDateInputValue(bot.trialExpiresAt)}
-                        onChange={(e) => e.target.value && changeTrialExpiry(bot, e.target.value)}
-                        disabled={changingExpiryId === bot.id}
-                      />
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
+                    <Input
+                      type="date"
+                      className="h-8 w-36"
+                      dir="ltr"
+                      value={toDateInputValue(bot.isTrial ? bot.trialExpiresAt : (bot as any).tierExpiresAt)}
+                      onChange={(e) => e.target.value && changeTrialExpiry(bot, e.target.value)}
+                      disabled={changingExpiryId === bot.id}
+                      data-testid={`bot-expiry-${bot.id}`}
+                    />
                   </TableCell>
                   <TableCell className="hidden lg:table-cell text-muted-foreground">
                     {new Date(bot.createdAt).toLocaleDateString(fa ? "fa-IR" : "en-US")}

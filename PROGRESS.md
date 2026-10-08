@@ -4635,3 +4635,7 @@ Why two halves: the bot is polling-only with no inbound HTTP and its data (Sheet
 ## Mixed Persian/English text scrambled in LTR pages (2026-10-08)
 - Persian server messages containing English identifiers/quotes («catalog», `catalog_items`) were laid out with an LTR base direction on English-UI pages, so word order was scrambled (bot-health issues list etc.). `index.css`: `html[dir="ltr"] :is(p, li, h1-h6, td, th, label, …)` + `.bidi-text` get `unicode-bidi: plaintext` (direction from the block's first strong char); applied explicitly to the health-issue rows and toasts. RTL pages unchanged. Verified in Chromium with the exact failing sentence.
 - Also: moved the notification-nav test to `irforge/test/notificationNav.test.mjs` (the previous `src/lib/*.test.ts` broke `tsc` — vitest isn't a dependency).
+
+## Admin bots table: expiry editable for Standard/Pro too (2026-10-08)
+- `AllBotsTable.tsx`: the expiry date input is shown for every bot (trial → `trialExpiresAt`, paid → `tierExpiresAt`); previously paid bots showed «—».
+- `PATCH /admin/bots/:id/trial-expiry` now writes `tierExpiresAt` for non-trial bots (the column the expiry sweep/renewal read), still clears `purgeAfter`.

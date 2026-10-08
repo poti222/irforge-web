@@ -2412,8 +2412,8 @@ router.patch("/admin/bots/:botId/tier", requireSuperAdmin, async (req: any, res)
 
 // ─── PATCH /api/admin/bots/:botId/trial-expiry ──────────────────────────────
 // سوپرادمین می‌تواند تاریخِ انقضایِ تریالِ یک بات را عوض کند — مثلاً برای
-// تمدیدِ دستیِ یک تریالِ ۷ روزه. فقط `trialExpiresAt` را عوض می‌کند؛ خریدِ
-// عادی (`isTrial: false`) اصلاً انقضا ندارد، پس این روت رویش اثری ندارد.
+// تمدیدِ دستیِ یک تریالِ ۷ روزه. برایِ تریال `trialExpiresAt`، و برایِ باتِ پولی
+// (`isTrial: false`) `tierExpiresAt` (پایانِ دوره‌یِ Standard/Pro) را عوض می‌کند.
 router.patch("/admin/bots/:botId/trial-expiry", requireSuperAdmin, async (req: any, res) => {
   try {
     const date = String(req.body?.date ?? "").trim();
@@ -2426,9 +2426,16 @@ router.patch("/admin/bots/:botId/trial-expiry", requireSuperAdmin, async (req: a
       res.status(400).json({ error: "Invalid date" });
       return;
     }
+    // تریال → trialExpiresAt؛ باتِ پولیِ Standard/Pro → tierExpiresAt (همان ستونی که جاروی انقضا و تمدید می‌خوانند).
+    const [current] = await db.select({ isTrial: botsTable.isTrial }).from(botsTable)
+      .where(eq(botsTable.id, req.params.botId)).limit(1);
+    if (!current) {
+      res.status(404).json({ error: "Bot not found" });
+      return;
+    }
     const [bot] = await db
       .update(botsTable)
-      .set({ trialExpiresAt, purgeAfter: null })
+      .set(current.isTrial ? { trialExpiresAt, purgeAfter: null } : { tierExpiresAt: trialExpiresAt, purgeAfter: null })
       .where(eq(botsTable.id, req.params.botId))
       .returning();
     if (!bot) {
