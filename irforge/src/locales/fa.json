@@ -460,6 +460,12 @@
     "otherProductsTitle": "سایرِ محصولاتِ من"
   },
   "botWorkspace": {
+    "tokenInvalidTitle": "توکنِ بات نامعتبر شد — بات خاموش است",
+    "tokenInvalidDesc": "تلگرام توکنِ این بات را قبول نمی‌کند (از BotFather عوض یا باطل شده). تا وارد کردنِ توکنِ معتبر، بات خاموش می‌ماند و بقیه‌ی بخش‌ها قفل است. توکنِ جدید را از BotFather بردارید و اینجا بگذارید.",
+    "tokenInvalidCta": "فعال‌سازیِ دوباره",
+    "tokenInvalidFixed": "توکن تأیید شد؛ بات دوباره روشن می‌شود.",
+    "tokenInvalidFailed": "ثبتِ توکن ناموفق بود.",
+    "tokenInvalidLocked": "قفل تا ثبتِ توکنِ معتبر",
     "loadingWorkspace": "در حال بارگذاری...",
     "botNotFound": "ربات پیدا نشد",
     "startBot": "شروع ربات",

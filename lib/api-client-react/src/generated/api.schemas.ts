@@ -170,6 +170,8 @@ export const BotStatus = {
   // شده و شارژِ خودکار ناموفق بوده؛ فقط lib/tierExpiry.ts یا POST
   // .../renew این را عوض می‌کند.
   tier_expired: 'tier_expired',
+  // توکنِ بات از نظرِ تلگرام نامعتبر شد؛ بات خاموش و بخش‌ها قفل تا ثبتِ توکنِ معتبر (lib/botTokenHealth.ts).
+  token_invalid: 'token_invalid',
 } as const;
 
 export interface Bot {

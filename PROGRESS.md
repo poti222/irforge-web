@@ -4642,3 +4642,9 @@ Why two halves: the bot is polling-only with no inbound HTTP and its data (Sheet
 
 ## Panels: "New panel" skips the 3-step wizard (2026-10-08)
 - `PanelsSection.tsx`: the button now creates an empty numbered panel («پنل N» / "Panel N", N = highest trailing number + 1) immediately and opens the main panel editor. `CreatePanelDialog.tsx` removed; new locale key `botPanels.quickPanelTitle` (5 locales).
+
+## Invalid bot token ⇒ bot off + locked workspace + token form (2026-10-08)
+- Bot runtime already sets the registry tenant to `token_invalid` on Telegram Unauthorized (never auto-restarted). New `lib/botTokenHealth.ts` makes the SITE match: `markBotTokenInvalid` → `bots.status = "token_invalid"` + registry tenant status `token_invalid` (immediate shutdown) + critical notification «توکنِ بات نامعتبر شد». `sweepBotTokens` (called from `sweepBotLifecycle`, every 10 min) `getMe`-checks up to 40 active bots/sweep (≥1h apart per bot); ONLY HTTP 401 counts (network/429/5xx never switch a bot off).
+- `PATCH /bots/:id` with a new token: validated with `getMe` (400 `invalid_token`), and a `token_invalid` bot flips back to `active` (registry synced by the existing tenant upsert). `PATCH /bots/:id/status → active` on a `token_invalid` bot is refused (409 `token_invalid`).
+- UI: `BotWorkspaceDocument` locks every section except Overview when `status === "token_invalid"`; Overview shows `TokenRecoveryCard` (paste token → reactivate). Status label added in `bot-status.ts`; `BotStatus.token_invalid` added to the generated types; 6 new `botWorkspace.tokenInvalid*` keys in all 5 locales. The notification type `bot_token_invalid` lights the «ربات‌های من» sidebar dot.
+- Tests: `api-server/test/botTokenHealth.test.mjs` (only 401 ⇒ rejected).

@@ -460,6 +460,12 @@
     "otherProductsTitle": "Other Products"
   },
   "botWorkspace": {
+    "tokenInvalidTitle": "Bot token is invalid — the bot is off",
+    "tokenInvalidDesc": "Telegram no longer accepts this bot's token (it was changed or revoked in BotFather). The bot stays off and every other section is locked until you enter a valid token. Copy the new token from BotFather and paste it here.",
+    "tokenInvalidCta": "Reactivate",
+    "tokenInvalidFixed": "Token accepted — the bot is starting again.",
+    "tokenInvalidFailed": "Couldn't save the token.",
+    "tokenInvalidLocked": "Locked until a valid token is saved",
     "loadingWorkspace": "Loading bot workspace...",
     "botNotFound": "Bot not found",
     "startBot": "Start Bot",

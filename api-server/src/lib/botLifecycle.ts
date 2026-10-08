@@ -19,6 +19,7 @@ import { createNotification } from "./notify.js";
 import { evaluateBotTrial } from "./trial.js";
 import { purgeBotFully } from "./botPurge.js";
 import { writeAudit } from "./audit.js";
+import { sweepBotTokens } from "./botTokenHealth.js";
 import {
   addTierPeriod, botExpiry, computePurgeAfter, purgeDaysLeft, purgeStage, PURGE_FINAL_WARNING_DAYS, PURGE_RETENTION_DAYS,
   TIER_PERIOD_DAYS,
@@ -123,6 +124,11 @@ async function advanceBot(initial: BotRow, now: Date): Promise<boolean> {
 
 /** یک دورِ جارو — هرگز throw نمی‌کند. */
 export async function sweepBotLifecycle(): Promise<{ purged: number }> {
+  try {
+    await sweepBotTokens();
+  } catch (err) {
+    logger.error({ err }, "sweepBotLifecycle: sweepBotTokens failed");
+  }
   try {
     await ensureTierExpiry();
   } catch (err) {

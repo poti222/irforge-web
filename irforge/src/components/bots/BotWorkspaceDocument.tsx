@@ -85,6 +85,7 @@ import { GiveawaySection } from "@/components/bots/giveaway/GiveawaySection";
 import { LoyaltySection } from "@/components/bots/loyalty/LoyaltySection";
 // سکشن عمومیِ پلاگین‌های تازه — جدول‌هایش از اسکیمای سرور ساخته می‌شوند.
 import { PluginSection } from "@/components/bots/plugins/PluginSection";
+import { TokenRecoveryCard } from "@/components/bots/TokenRecoveryCard";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotOverview } from "@/components/bots/BotOverview";
 import { TutorialButton } from "@/components/tutorial/TutorialButton";
@@ -378,7 +379,9 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
   // bookmark from when it was on must not land on a section the server will
   // 403. A `showWhenDisabled` section is always a valid destination — it
   // handles its own "plugin is off" state instead of relying on this gate.
-  const section: SectionKey = match && !match.locked && visible(match) ? match.key : "overview";
+  // توکنِ نامعتبر ⇒ بات خاموش است و همه‌ی بخش‌ها (به‌جز «نمای کلی» که فرمِ توکنِ جدید را دارد) قفل‌اند.
+  const tokenLocked = bot.status === "token_invalid";
+  const section: SectionKey = !tokenLocked && match && !match.locked && visible(match) ? match.key : "overview";
 
   /** سکشن مقصدی که منتظر تأیید «دور ریختن تغییرات» است. */
   const [pendingSection, setPendingSection] = useState<SectionKey | null>(null);
@@ -476,12 +479,12 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
                   return (
                     <button
                       key={s.key}
-                      onClick={() => !s.locked && goTo(s.key)}
-                      disabled={s.locked}
-                      title={s.locked ? t.comingSoon : undefined}
+                      onClick={() => !(s.locked || (tokenLocked && s.key !== "overview")) && goTo(s.key)}
+                      disabled={s.locked || (tokenLocked && s.key !== "overview")}
+                      title={s.locked ? t.comingSoon : tokenLocked && s.key !== "overview" ? t.tokenInvalidLocked : undefined}
                       aria-current={active ? "page" : undefined}
                       className={`relative flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-colors md:w-full ${
-                        s.locked
+                        s.locked || (tokenLocked && s.key !== "overview")
                           ? "cursor-not-allowed text-muted-foreground/45"
                           : active
                             ? "bg-primary/10 text-primary before:absolute before:inset-y-2 before:start-0 before:hidden before:w-[3px] before:rounded-full before:bg-primary md:before:block"
@@ -490,7 +493,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
                     >
                       <s.icon className="h-4 w-4 shrink-0" />
                       <span className="whitespace-nowrap">{t[s.labelKey]}</span>
-                      {s.locked && <Lock className="ms-auto h-3 w-3 shrink-0" />}
+                      {(s.locked || (tokenLocked && s.key !== "overview")) && <Lock className="ms-auto h-3 w-3 shrink-0" />}
                     </button>
                   );
                 })}
@@ -525,6 +528,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             the top, which is what the cross-fade was meant to look like. */}
         <AnimatePresence>
           <motion.div key={section} {...anim}>
+            {section === "overview" && tokenLocked && <TokenRecoveryCard bot={bot} />}
             {section === "overview" && (
               <BotOverview
                 bot={bot}

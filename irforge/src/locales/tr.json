@@ -460,6 +460,12 @@
     "otherProductsTitle": "Diğer Ürünler"
   },
   "botWorkspace": {
+    "tokenInvalidTitle": "Bot belirteci geçersiz — bot kapalı",
+    "tokenInvalidDesc": "Telegram bu botun belirtecini artık kabul etmiyor (BotFather'da değiştirilmiş veya iptal edilmiş). Geçerli bir belirteç girene kadar bot kapalı kalır ve diğer tüm bölümler kilitlidir. Yeni belirteci BotFather'dan kopyalayıp buraya yapıştırın.",
+    "tokenInvalidCta": "Yeniden etkinleştir",
+    "tokenInvalidFixed": "Belirteç kabul edildi — bot yeniden başlıyor.",
+    "tokenInvalidFailed": "Belirteç kaydedilemedi.",
+    "tokenInvalidLocked": "Geçerli belirteç kaydedilene kadar kilitli",
     "loadingWorkspace": "Bot çalışma alanı yükleniyor...",
     "botNotFound": "Bot bulunamadı",
     "startBot": "Botu Başlat",

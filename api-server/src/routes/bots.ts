@@ -38,6 +38,7 @@ import { requireAuth } from "./auth";
 import { perUserRateLimit, authRateLimit, clientIp } from "../middleware/rateLimit.js";
 import { writeAudit } from "../lib/audit.js";
 import { encryptToken, decryptToken } from "../lib/tokenCrypto";
+import { isTokenRejectedByTelegram, TOKEN_INVALID_STATUS } from "../lib/botTokenHealth.js";
 import { sendTelegramMessage, tgApi, tgSetProfilePhoto, fetchBotIdentity, getTelegramFilePath } from "../lib/telegram";
 import {
   syncBotUpsert,
@@ -2677,10 +2678,22 @@ router.patch("/bots/:botId", requireAuth, async (req: any, res) => {
       return;
     }
 
+    // توکنِ جدید باید همین الان از نظرِ تلگرام معتبر باشد (قبلاً هر رشته‌ای ذخیره می‌شد و بات بی‌صدا از کار می‌افتاد).
+    if (newToken !== undefined && newToken.length > 0 && (await isTokenRejectedByTelegram(newToken))) {
+      res.status(400).json({ error: "تلگرام این توکن را قبول نکرد. توکن را دوباره از BotFather کپی کنید.", code: "invalid_token" });
+      return;
+    }
+
     const update: Record<string, any> = {};
     if (name !== undefined) update.name = name;
     if (description !== undefined) update.description = description;
     if (newToken !== undefined) update.token = encryptToken(newToken);
+    // باتی که به‌خاطرِ توکنِ نامعتبر خاموش شده بود با توکنِ معتبرِ جدید دوباره روشن می‌شود.
+    if (newToken !== undefined && newToken.length > 0) {
+      const [prev] = await db.select({ status: botsTable.status }).from(botsTable)
+        .where(and(eq(botsTable.id, req.params.botId), eq(botsTable.userId, req.userId))).limit(1);
+      if (prev?.status === TOKEN_INVALID_STATUS) update.status = "active";
+    }
     // BUG FIX: Drizzle crashes if SET has no fields
     if (Object.keys(update).length === 0) {
       res.status(400).json({ error: "No fields to update" });
@@ -2855,6 +2868,13 @@ router.patch("/bots/:botId/status", requireAuth, async (req: any, res) => {
     const [existing] = await db.select({ status: botsTable.status, userId: botsTable.userId })
       .from(botsTable).where(eq(botsTable.id, req.params.botId)).limit(1);
     if (!existing) { res.status(404).json({ error: "Bot not found" }); return; }
+    if (existing.status === TOKEN_INVALID_STATUS && status === "active") {
+      res.status(409).json({
+        error: "توکنِ این بات نامعتبر است؛ برای روشن‌کردنش توکنِ معتبرِ جدید را در «نمای کلی» وارد کنید.",
+        code: "token_invalid",
+      });
+      return;
+    }
     if (existing.status === "tier_expired" && status === "active") {
       const [requester] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, req.userId)).limit(1);
       if (requester?.role !== "super_admin") {

@@ -460,6 +460,12 @@
     "otherProductsTitle": "منتجات أخرى"
   },
   "botWorkspace": {
+    "tokenInvalidTitle": "رمز البوت غير صالح — البوت متوقف",
+    "tokenInvalidDesc": "لم يعد تيليجرام يقبل رمز هذا البوت (تم تغييره أو إبطاله في BotFather). يبقى البوت متوقفًا وتُقفل بقية الأقسام حتى تُدخل رمزًا صالحًا. انسخ الرمز الجديد من BotFather والصقه هنا.",
+    "tokenInvalidCta": "إعادة التفعيل",
+    "tokenInvalidFixed": "تم قبول الرمز — سيعمل البوت من جديد.",
+    "tokenInvalidFailed": "تعذّر حفظ الرمز.",
+    "tokenInvalidLocked": "مقفل حتى حفظ رمز صالح",
     "loadingWorkspace": "جارٍ تحميل مساحة عمل البوت...",
     "botNotFound": "البوت غير موجود",
     "startBot": "تشغيل البوت",
