@@ -4624,3 +4624,6 @@ Why two halves: the bot is polling-only with no inbound HTTP and its data (Sheet
 ## Receipt uploads + huge amounts → 500 (2026-10-08)
 - Receipt routes (`POST /wallet/deposit`, `/wallet/topup/:id/receipt`, school top-up receipt) were on the 256KB JSON tier while `toWebpDataUrl` output + `MAX_RECEIPT_DATA_URL=190KB` rejected normal phone photos → "can't upload anywhere". `app.ts`: `RECEIPT_UPLOAD_PATH` gets the 10MB tier; `MAX_RECEIPT_DATA_URL` → 3MB; body-parser errors now return 413/400 instead of a generic 500.
 - `amount` columns are integer Rial: a huge Toman value overflowed → 500 (wallet deposit, admin wallet-adjust). Both now 400 (`amount_too_large`; max 200,000,000 Toman), adjust also maps PG 22003 → 400. Deposit validates the receipt is an image data-URL.
+
+## Pro card: removed the "up to 3 active bots" line (2026-10-08)
+- `botTiers.pro.features[0]` removed in fa/en/ar/tr/ru (marketing copy only; the plan-table `max_bots` enforcement for legacy plans is untouched). The detail page's «تعداد بات» comes from the product's `metadata.maxBots`, now editable in admin → Products (Standard/Pro became fully editable).
