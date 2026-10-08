@@ -171,23 +171,24 @@ test("isBotCategoryId: فقط رشته‌ی دقیقِ 'bot' را تشخیص م�
   assert.equal(isBotCategoryId(null), false);
 });
 
-test("botCategoryPatchViolation: محصولِ دسته‌ی بات — تغییرِ فقط price مجاز است", () => {
-  assert.deepEqual(botCategoryPatchViolation("bot", { price: 600000 }), []);
+test("botCategoryPatchViolation: محصولِ دسته‌ی بات — name/description/icon/sortOrder/metadata/price آزادند", () => {
+  assert.deepEqual(
+    botCategoryPatchViolation("bot", { price: 600000, name: "New name", nameFa: "x", description: "d", icon: "crown", sortOrder: 3, metadata: { a: 1 }, isActive: true }),
+    [],
+  );
 });
 
-test("botCategoryPatchViolation: محصولِ دسته‌ی بات — تغییرِ isActive رد می‌شود (حذفِ نرم/افزودنِ پلنِ سوم)", () => {
+test("botCategoryPatchViolation: محصولِ دسته‌ی بات — غیرفعال‌کردن رد می‌شود (حذفِ نرمِ پلن)", () => {
   assert.deepEqual(botCategoryPatchViolation("bot", { isActive: false }), ["isActive"]);
-  assert.deepEqual(botCategoryPatchViolation("bot", { isActive: true }), ["isActive"]);
 });
 
-test("botCategoryPatchViolation: محصولِ دسته‌ی بات — تغییرِ name/categoryId/metadata همراهِ price هم رد می‌شود", () => {
-  const violation = botCategoryPatchViolation("bot", { price: 600000, name: "New name", categoryId: "api" });
-  assert.deepEqual(violation.sort(), ["categoryId", "name"]);
+test("botCategoryPatchViolation: محصولِ دسته‌ی بات — خروج از دسته رد می‌شود، ماندن در «bot» مجاز", () => {
+  assert.deepEqual(botCategoryPatchViolation("bot", { price: 1, categoryId: "api" }), ["categoryId"]);
+  assert.deepEqual(botCategoryPatchViolation("bot", { categoryId: "bot", name: "x" }), []);
 });
 
-test("botCategoryPatchViolation: محصولِ یک دسته‌ی دیگر که با این درخواست به «بات» منتقل می‌شود هم قفل می‌خورد", () => {
-  const violation = botCategoryPatchViolation("api", { categoryId: "bot", name: "x" });
-  assert.deepEqual(violation.sort(), ["categoryId", "name"]);
+test("botCategoryPatchViolation: محصولِ یک دسته‌ی دیگر که با این درخواست به «بات» منتقل می‌شود قفل می‌خورد", () => {
+  assert.deepEqual(botCategoryPatchViolation("api", { categoryId: "bot", name: "x" }), ["categoryId"]);
 });
 
 test("botCategoryPatchViolation: محصولِ دسته‌های دیگر آزادانه ویرایش می‌شود", () => {

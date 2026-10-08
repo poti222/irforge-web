@@ -41,7 +41,7 @@ import type { Product, ProductCategory } from "@/hooks/use-products";
  * see PROGRESS.md). This component enforces the same rule in the UI so an
  * admin sees *why* a button is missing instead of just getting a 403: no
  * "New product" while viewing the bot category, no delete button on a bot
- * product row, and the edit dialog locks every field but price for one.
+ * product row, and the edit dialog keeps a bot product always active and in its category (everything else is editable).
  */
 
 const BOT_CATEGORY_ID = "bot";
@@ -139,26 +139,6 @@ export function ProductsManager() {
   }
 
   async function saveProduct() {
-    if (editingBotProduct) {
-      // فقط قیمت — همان قفلِ سرور، اینجا هم تکرار می‌شود تا خطای احتمالیِ
-      // ۴۰۳ اصلاً پیش نیاید.
-      setBusy(true);
-      try {
-        await customFetch(`/api/admin/products/${productForm.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ price: Number(productForm.price) || 0 }),
-        });
-        invalidate();
-        setProductDialogOpen(false);
-        toast({ title: fa ? "قیمت به‌روزرسانی شد" : "Price updated" });
-      } catch (err: any) {
-        toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: err?.message });
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-
     if (!productForm.name.trim() || !productForm.categoryId) {
       toast({ variant: "destructive", title: fa ? "نام و دسته الزامی‌اند" : "Name and category are required" });
       return;
@@ -346,8 +326,8 @@ export function ProductsManager() {
         {categoryFilter === BOT_CATEGORY_ID && (
           <p className="text-xs text-muted-foreground">
             {fa
-              ? "دسته‌ی «بات» به Standard/Pro ثابت است (همان دو پکیجی که هنگامِ خریدِ بات شارژ می‌شوند) — فقط قیمتشان قابل‌ویرایش است."
-              : "The bot category is fixed to Standard/Pro (the same two packages bot purchases charge) — only their price can be edited."}
+              ? "دسته‌ی «بات» به Standard/Pro ثابت است (همان دو پکیجی که هنگامِ خریدِ بات شارژ می‌شوند) — همه‌ی فیلدهایشان قابل‌ویرایش است، ولی غیرفعال‌کردن یا حذفشان ممکن نیست."
+              : "The bot category is fixed to Standard/Pro (the same two packages bot purchases charge) — every field is editable, but they can't be deactivated or deleted."}
           </p>
         )}
 
@@ -411,8 +391,8 @@ export function ProductsManager() {
           {editingBotProduct && (
             <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
               {fa
-                ? "این محصول در دسته‌ی «بات» است — فقط قیمت قابل‌ویرایش است."
-                : "This product is in the bot category — only price can be edited."}
+                ? "این محصول در دسته‌ی «بات» است — همه‌چیز قابل‌ویرایش است، به‌جز غیرفعال‌کردن و تغییرِ دسته."
+                : "This product is in the bot category — everything is editable except deactivating it or changing its category."}
             </p>
           )}
 
@@ -433,15 +413,15 @@ export function ProductsManager() {
               </Select>
               {!productForm.id && <p className="text-xs text-muted-foreground">{fa ? "دسته‌ی «بات» اینجا قابل‌انتخاب نیست — پلنِ سوم ساخته نمی‌شود." : "The bot category isn't selectable here — no third plan can be created."}</p>}
             </div>
-            <div className="space-y-1.5"><Label>{fa ? "نام (انگلیسی)" : "Name (English)"}</Label><Input dir="ltr" disabled={editingBotProduct} value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>{fa ? "نام (فارسی)" : "Name (Farsi)"}</Label><Input disabled={editingBotProduct} value={productForm.nameFa} onChange={(e) => setProductForm({ ...productForm, nameFa: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>{fa ? "نام (انگلیسی)" : "Name (English)"}</Label><Input dir="ltr" value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>{fa ? "نام (فارسی)" : "Name (Farsi)"}</Label><Input value={productForm.nameFa} onChange={(e) => setProductForm({ ...productForm, nameFa: e.target.value })} /></div>
             <div className="space-y-1.5">
               <Label>{fa ? "قیمت (تومان)" : "Price (Toman)"}</Label>
               <AmountInput value={productForm.price} onChange={(e) => setProductForm({ ...productForm, price: e.target.value })} />
             </div>
             <div className="space-y-1.5">
               <Label>{fa ? "آیکون" : "Icon"}</Label>
-              <Select value={productForm.icon || "__none"} onValueChange={(v) => setProductForm({ ...productForm, icon: v === "__none" ? "" : v })} disabled={editingBotProduct}>
+              <Select value={productForm.icon || "__none"} onValueChange={(v) => setProductForm({ ...productForm, icon: v === "__none" ? "" : v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">{fa ? "بدونِ آیکون" : "No icon"}</SelectItem>
@@ -449,23 +429,23 @@ export function ProductsManager() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5"><Label>{fa ? "ترتیبِ نمایش" : "Sort order"}</Label><Input type="number" dir="ltr" disabled={editingBotProduct} value={productForm.sortOrder} onChange={(e) => setProductForm({ ...productForm, sortOrder: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>{fa ? "ترتیبِ نمایش" : "Sort order"}</Label><Input type="number" dir="ltr" value={productForm.sortOrder} onChange={(e) => setProductForm({ ...productForm, sortOrder: e.target.value })} /></div>
             <div className="flex items-end gap-2 pb-1">
               <Switch checked={productForm.isActive} onCheckedChange={(v) => setProductForm({ ...productForm, isActive: v })} id="product-active" disabled={editingBotProduct} />
               <Label htmlFor="product-active">{fa ? "فعال" : "Active"}</Label>
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label>{fa ? "توضیحات (انگلیسی)" : "Description (English)"}</Label>
-              <Textarea dir="ltr" disabled={editingBotProduct} value={productForm.description} onChange={(e) => setProductForm({ ...productForm, description: e.target.value })} className="min-h-[60px]" />
+              <Textarea dir="ltr" value={productForm.description} onChange={(e) => setProductForm({ ...productForm, description: e.target.value })} className="min-h-[60px]" />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label>{fa ? "توضیحات (فارسی)" : "Description (Farsi)"}</Label>
-              <Textarea disabled={editingBotProduct} value={productForm.descriptionFa} onChange={(e) => setProductForm({ ...productForm, descriptionFa: e.target.value })} className="min-h-[60px]" />
+              <Textarea value={productForm.descriptionFa} onChange={(e) => setProductForm({ ...productForm, descriptionFa: e.target.value })} className="min-h-[60px]" />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label>{fa ? "متادیتا (JSON، اختیاری)" : "Metadata (JSON, optional)"}</Label>
               <Textarea
-                dir="ltr" disabled={editingBotProduct} value={productForm.metadataText}
+                dir="ltr" value={productForm.metadataText}
                 onChange={(e) => setProductForm({ ...productForm, metadataText: e.target.value })}
                 className="min-h-[80px] font-mono text-xs"
               />

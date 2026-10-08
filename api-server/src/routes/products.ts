@@ -61,18 +61,23 @@ function isBotCategoryId(categoryId: unknown): boolean {
 }
 
 /**
- * PATCH guard for the same rule: a product that is (or would become, via a
- * `categoryId` change) a bot-category product may only have its `price`
- * touched — not `isActive` (soft-remove/add-a-third-plan by another name),
- * not `categoryId` (smuggle a plan in/out of the category), not name/desc/
- * icon/metadata either, since the prompt's own wording is "only editing
- * ... price is allowed", not "price plus cosmetic fields". Returns the
- * disallowed keys actually present in the body, or [] if the request is fine.
+ * PATCH guard for the same rule. 2026-10-08: the owner asked for Standard/Pro
+ * to be fully editable (name, description, icon, sort order, metadata, price),
+ * so only the two things that would break the fixed two-plan roster stay
+ * locked: moving a bot product out of the category (`categoryId`), moving a
+ * product INTO it (a third, never-chargeable plan), and deactivating one
+ * (`isActive: false` — soft-removal by another name). Returns the disallowed
+ * keys actually present in the body, or [] if the request is fine.
  */
 function botCategoryPatchViolation(existingCategoryId: string, body: Record<string, unknown>): string[] {
-  const targetCategoryId = body.categoryId !== undefined ? body.categoryId : existingCategoryId;
-  if (existingCategoryId !== BOT_CATEGORY_ID && !isBotCategoryId(targetCategoryId)) return [];
-  return Object.keys(body).filter((k) => k !== "price");
+  const out: string[] = [];
+  if (existingCategoryId !== BOT_CATEGORY_ID) {
+    if (isBotCategoryId(body.categoryId)) out.push("categoryId");
+    return out;
+  }
+  if (body.categoryId !== undefined && !isBotCategoryId(body.categoryId)) out.push("categoryId");
+  if (body.isActive === false) out.push("isActive");
+  return out;
 }
 
 function formatCategory(c: typeof productCategoriesTable.$inferSelect) {
@@ -364,7 +369,7 @@ router.patch("/admin/products/:id", requireSuperAdmin, async (req: any, res) => 
     const body = req.body ?? {};
     if (botCategoryPatchViolation(existing.categoryId, body).length > 0) {
       res.status(403).json({
-        error: "دسته‌ی «بات» ثابت است: فقط قیمتِ Standard/Pro قابل‌ویرایش است؛ نام، فعال‌سازی یا جابه‌جاییِ دسته مجاز نیست.",
+        error: "Standard/Pro را می‌شود ویرایش کرد، ولی غیرفعال‌کردن یا جابه‌جاییِ دسته‌شان مجاز نیست (پلنِ سوم/حذفِ پلن ممکن نیست).",
         code: "bot_category_locked",
       });
       return;

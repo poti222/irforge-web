@@ -4616,3 +4616,7 @@ Why two halves: the bot is polling-only with no inbound HTTP and its data (Sheet
 ## Bot delete: wipe the bot's Postgres data too (لایوباگ ۲۰۲۶-۱۰-۰۸)
 - `lib/botPurge.ts`: `purgeBotFully` only reset the Google Sheet. Cut-over tenants keep their data in Postgres (`tenant_id = spreadsheet_id`), so it survived the delete (and the per-tenant `entity_cutover_flags` would attach the sheet's next bot to the old data). New `purgeTenantPostgresData(sheetId)` deletes every `tenant_id` table row (discovered via information_schema, one tx with `app.tenant_id` for RLS) + the cutover flags, then invalidates the flag cache. Runs only when the bot was the sheet's sole owner; failures are logged, non-fatal.
 - Test: `api-server/test/botPurgePostgres.test.mjs` (live PG; other tenant untouched).
+
+## Products: Standard/Pro fully editable (2026-10-08)
+- `routes/products.ts` `botCategoryPatchViolation`: bot-category products (standard/pro) may now change name/nameFa/description/icon/sortOrder/metadata/price. Still blocked: `isActive:false`, moving out of / into the `bot` category; POST/DELETE for the category unchanged (fixed two-plan roster).
+- `ProductsManager.tsx`: edit dialog no longer price-only for bot products (active switch + category stay locked); texts updated. Tests in `test/products.test.mjs`.
