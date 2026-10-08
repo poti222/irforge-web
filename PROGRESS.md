@@ -4612,3 +4612,7 @@ Why two halves: the bot is polling-only with no inbound HTTP and its data (Sheet
 
 ## Checkout "Pay from wallet" button (desktop)
 - `pages/checkout.tsx`: GlowButton's inner Button used `flex-1`, which does nothing inside the glow wrapper, so on wide screens the button shrank while the glow halo spanned the whole column (red smear beside it). Now `className="w-full"` like every other GlowButton.
+
+## Bot delete: wipe the bot's Postgres data too (لایوباگ ۲۰۲۶-۱۰-۰۸)
+- `lib/botPurge.ts`: `purgeBotFully` only reset the Google Sheet. Cut-over tenants keep their data in Postgres (`tenant_id = spreadsheet_id`), so it survived the delete (and the per-tenant `entity_cutover_flags` would attach the sheet's next bot to the old data). New `purgeTenantPostgresData(sheetId)` deletes every `tenant_id` table row (discovered via information_schema, one tx with `app.tenant_id` for RLS) + the cutover flags, then invalidates the flag cache. Runs only when the bot was the sheet's sole owner; failures are logged, non-fatal.
+- Test: `api-server/test/botPurgePostgres.test.mjs` (live PG; other tenant untouched).

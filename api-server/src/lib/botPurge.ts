@@ -10,6 +10,8 @@ import { logger } from "./logger";
 import { decryptToken } from "./tokenCrypto";
 import { syncBotDelete, syncSheetPoolUpsert, syncTenantDeleteAwait, syncDeletionQueueAdd } from "./sheetsSync";
 import { renameSpreadsheet, resetSpreadsheet } from "./sheets";
+import { getBusinessPool } from "./businessDbPool.js";
+import { invalidateCutoverCache } from "./botConfig.js";
 
 /**
  * وقتی شیتی از یک بات آزاد می‌شه (چه با حذف بات، چه با release دستی توسط
@@ -23,6 +25,46 @@ export async function markSheetTitleFreed(sheetId: string | null | undefined) {
   } catch (err) {
     logger.warn({ err, sheetId }, "sheet title freed-rename failed (non-fatal)");
   }
+}
+
+/**
+ * داده‌ی بات‌هایی که به Postgres مهاجرت کرده‌اند (`entity_cutover_flags`) در
+ * جدول‌های `tenant_id = spreadsheet_id` است، نه در گوگل‌شیت؛ پس ریست‌کردنِ شیت
+ * به‌تنهایی چیزی از آن‌ها پاک نمی‌کرد و (۱) داده‌ی بات حذف‌شده می‌ماند و
+ * (۲) پرچم‌های cutover باعث می‌شد باتِ بعدیِ همین شیت به داده‌ی قبلی وصل شود.
+ * همه‌ی جدول‌هایی که ستون `tenant_id` دارند از information_schema خوانده و
+ * در یک تراکنش (با ست‌کردن `app.tenant_id` برای RLS) پاک می‌شوند.
+ * Best-effort: خطا فقط لاگ می‌شود.
+ */
+export async function purgeTenantPostgresData(tenantId: string): Promise<number> {
+  const pool = getBusinessPool();
+  if (!pool || !tenantId) return 0;
+  const client = await pool.connect();
+  let deleted = 0;
+  try {
+    const { rows } = await client.query<{ table_name: string }>(
+      `SELECT c.table_name FROM information_schema.columns c
+         JOIN information_schema.tables t
+           ON t.table_schema = c.table_schema AND t.table_name = c.table_name AND t.table_type = 'BASE TABLE'
+        WHERE c.table_schema = current_schema() AND c.column_name = 'tenant_id'`
+    );
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+    for (const { table_name } of rows) {
+      const ident = `"${table_name.replace(/"/g, '""')}"`;
+      const res = await client.query(`DELETE FROM ${ident} WHERE tenant_id = $1`, [tenantId]);
+      deleted += res.rowCount ?? 0;
+    }
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    logger.error({ err, tenantId }, "purgeTenantPostgresData failed (non-fatal) — bot's Postgres rows may remain");
+    return 0;
+  } finally {
+    client.release();
+    invalidateCutoverCache();
+  }
+  return deleted;
 }
 
 // ─── Shared full-purge logic (manual delete + expiry-triggered internal purge) ─
@@ -88,6 +130,8 @@ export async function purgeBotFully(
       // نمی‌شد، پس بات بعدی که این شیت بهش assign می‌شد تب‌ها و دیتای بات
       // قبلی رو می‌دید. حالا قبل از available کردن، خودِ شیت کاملاً ریست
       // می‌شه (انگار تازه ساخته شده).
+      await purgeTenantPostgresData(bot.sheetId);
+
       try {
         await resetSpreadsheet(bot.sheetId);
       } catch (err) {
