@@ -126,7 +126,7 @@ export default function BotWorkspace() {
 
   const st = botStatusMeta(bot.status, lang);
   const life = botLifetime(bot, lang);
-  const tierLabel = bot.tier === "standard" ? tt.standard.name : bot.tier === "pro" ? tt.pro.name : bot.tier === "custom" ? tt.custom.name : "";
+  const tierLabel = bot.tier === "standard" ? tt.standard.name : bot.tier === "pro" ? tt.pro.name : bot.tier === "custom" ? tt.custom.name : (bot.tier ?? "");
   const nf = (n: number | undefined) => (n ?? 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US");
 
   return (

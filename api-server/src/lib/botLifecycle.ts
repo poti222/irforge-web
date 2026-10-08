@@ -13,7 +13,7 @@
  * هرگز ده‌ها بات را یک‌جا نبرد.
  */
 import { db, botsTable } from "@workspace/db";
-import { and, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { logger } from "./logger.js";
 import { createNotification } from "./notify.js";
 import { evaluateBotTrial } from "./trial.js";
@@ -34,7 +34,8 @@ const day = (d: Date) => d.toISOString().slice(0, 10);
 /** استاندارد/پرو بدونِ تاریخِ پایان ⇒ ۳۰ روز از الان. */
 async function ensureTierExpiry(): Promise<void> {
   const rows = await db.select().from(botsTable).where(and(
-    inArray(botsTable.tier, ["standard", "pro"]),
+    isNotNull(botsTable.tier),
+    ne(botsTable.tier, "custom"),
     isNull(botsTable.tierExpiresAt),
     eq(botsTable.isTrial, false),
   ));
@@ -49,7 +50,7 @@ async function ensureTierExpiry(): Promise<void> {
       type: "tier_period_started",
       severity: "info",
       title: "مدتِ اعتبارِ پکیجِ بات مشخص شد",
-      message: `پکیجِ «${bot.tier === "pro" ? "پرو" : "استاندارد"}» بات «${bot.name}» ${TIER_PERIOD_DAYS} روز اعتبار دارد و تا ${day(expiry)} تمدید می‌شود (از کیف پول، یا دستی از صفحه‌یِ بات).`,
+      message: `پکیجِ «${bot.tier === "pro" ? "پرو" : bot.tier === "standard" ? "استاندارد" : bot.tier}» بات «${bot.name}» ${TIER_PERIOD_DAYS} روز اعتبار دارد و تا ${day(expiry)} تمدید می‌شود (از کیف پول، یا دستی از صفحه‌یِ بات).`,
       dedupeKey: `tier-period-start:${bot.id}`,
     });
   }
@@ -139,7 +140,7 @@ export async function sweepBotLifecycle(): Promise<{ purged: number }> {
   try {
     candidates = await db.select().from(botsTable).where(or(
       eq(botsTable.isTrial, true),
-      inArray(botsTable.tier, ["standard", "pro"]),
+      and(isNotNull(botsTable.tier), ne(botsTable.tier, "custom")),
       isNotNull(botsTable.purgeAfter),
     ));
   } catch (err) {

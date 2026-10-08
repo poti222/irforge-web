@@ -10,7 +10,7 @@
  */
 import { logger } from "../lib/logger";
 import { Router } from "express";
-import { db, productsTable, productCategoriesTable, productPurchasesTable } from "@workspace/db";
+import { db, productsTable, productCategoriesTable, productPurchasesTable, botsTable } from "@workspace/db";
 import { eq, and, ne, desc, count } from "drizzle-orm";
 import crypto from "crypto";
 import { requireAdmin, requireSuperAdmin, requireAuth } from "./auth";
@@ -48,35 +48,28 @@ function coerceMetadata(value: unknown): Record<string, unknown> {
 
 const BOT_CATEGORY_ID = "bot";
 
-/**
- * IRFORGE_PRODUCTS_PHASES_3_TO_6_PROMPT Phase 4, section D: the "bot"
- * category's product roster is fixed at exactly the two rows Phase 2 seeded
- * (Standard/Pro, id="standard"/"pro") — `bots.tier`/`buildSpec.tierId` and
- * `getBotTierProduct()` all assume those two literal ids exist and nothing
- * else does. A third bot-category product would be a real row that can
- * never actually be charged through, so POST/DELETE reject it outright.
- */
+/** دو پکیجِ اصلیِ دسته‌ی «بات» که `upgrade-tier`، seed و خریدهای قدیمی به‌طورِ ثابت به آن‌ها تکیه دارند. */
+const CORE_BOT_PRODUCT_IDS = new Set(["standard", "pro"]);
+
 function isBotCategoryId(categoryId: unknown): boolean {
   return categoryId === BOT_CATEGORY_ID;
 }
 
 /**
- * PATCH guard for the same rule. 2026-10-08: the owner asked for Standard/Pro
- * to be fully editable (name, description, icon, sort order, metadata, price),
- * so only the two things that would break the fixed two-plan roster stay
- * locked: moving a bot product out of the category (`categoryId`), moving a
- * product INTO it (a third, never-chargeable plan), and deactivating one
- * (`isActive: false` — soft-removal by another name). Returns the disallowed
- * keys actually present in the body, or [] if the request is fine.
+ * PATCH guard. 2026-10-08: ادمین می‌تواند در دسته‌ی «بات» پلنِ تازه بسازد (خرید، ساختِ بات، انقضا و تمدیدِ ماهانه
+ * برای هر محصولِ این دسته کار می‌کند)، پس فقط Standard/Pro محافظت می‌شوند: غیرفعال نشوند و از دسته خارج نشوند؛ و هیچ
+ * محصولِ دیگری هم نباید با تغییرِ `categoryId` وارد «بات» شود (محصولِ بدونِ متادیتای منابع قابل‌خرید نمی‌شود —
+ * برایِ پلنِ بات آن را مستقیم در دسته‌ی «بات» بساز). `productId` ندادن = محصولِ اصلی (سازگاریِ تست‌ها).
  */
-function botCategoryPatchViolation(existingCategoryId: string, body: Record<string, unknown>): string[] {
+function botCategoryPatchViolation(existingCategoryId: string, body: Record<string, unknown>, productId?: string): string[] {
   const out: string[] = [];
   if (existingCategoryId !== BOT_CATEGORY_ID) {
     if (isBotCategoryId(body.categoryId)) out.push("categoryId");
     return out;
   }
   if (body.categoryId !== undefined && !isBotCategoryId(body.categoryId)) out.push("categoryId");
-  if (body.isActive === false) out.push("isActive");
+  const core = productId === undefined || CORE_BOT_PRODUCT_IDS.has(productId);
+  if (core && body.isActive === false) out.push("isActive");
   return out;
 }
 
@@ -314,12 +307,15 @@ router.post("/admin/products", requireSuperAdmin, async (req: any, res) => {
       res.status(400).json({ error: "name and categoryId are required" });
       return;
     }
+    // شناسه‌ی پلنِ بات همان `bots.tier` و `buildSpec.tierId` می‌شود: slug ساده، یکتا و غیرِ رزروشده.
+    let botProductId: string | null = null;
     if (isBotCategoryId(categoryId)) {
-      res.status(403).json({
-        error: "دسته‌ی «بات» ثابت است (فقط Standard/Pro): افزودنِ پلنِ سوم مجاز نیست.",
-        code: "bot_category_locked",
-      });
-      return;
+      const candidate = String(id ?? "").trim() || slugify(String(name));
+      if (!/^[a-z0-9][a-z0-9_-]{1,39}$/.test(candidate) || ["custom", "trial", "free"].includes(candidate)) {
+        res.status(400).json({ error: "شناسه‌ی پلنِ بات باید ۲ تا ۴۰ حرفِ انگلیسیِ کوچک/عدد/خط‌تیره باشد (و custom/trial/free نباشد).", code: "bad_bot_product_id" });
+        return;
+      }
+      botProductId = candidate;
     }
     let priceToman: number;
     try {
@@ -335,7 +331,7 @@ router.post("/admin/products", requireSuperAdmin, async (req: any, res) => {
       return;
     }
     const [product] = await db.insert(productsTable).values({
-      id: id?.trim() || crypto.randomUUID(),
+      id: botProductId ?? (id?.trim() || crypto.randomUUID()),
       categoryId,
       name,
       nameFa: nameFa ?? "",
@@ -367,7 +363,7 @@ router.patch("/admin/products/:id", requireSuperAdmin, async (req: any, res) => 
     if (!existing) { res.status(404).json({ error: "Product not found" }); return; }
 
     const body = req.body ?? {};
-    if (botCategoryPatchViolation(existing.categoryId, body).length > 0) {
+    if (botCategoryPatchViolation(existing.categoryId, body, req.params.id).length > 0) {
       res.status(403).json({
         error: "Standard/Pro را می‌شود ویرایش کرد، ولی غیرفعال‌کردن یا جابه‌جاییِ دسته‌شان مجاز نیست (پلنِ سوم/حذفِ پلن ممکن نیست).",
         code: "bot_category_locked",
@@ -420,11 +416,15 @@ router.delete("/admin/products/:id", requireSuperAdmin, async (req: any, res) =>
       .where(eq(productsTable.id, req.params.id)).limit(1);
     if (!product) { res.status(404).json({ error: "Product not found" }); return; }
     if (isBotCategoryId(product.categoryId)) {
-      res.status(403).json({
-        error: "دسته‌ی «بات» ثابت است (فقط Standard/Pro): حذفِ محصولاتِ این دسته مجاز نیست.",
-        code: "bot_category_locked",
-      });
-      return;
+      if (CORE_BOT_PRODUCT_IDS.has(product.id)) {
+        res.status(403).json({ error: "Standard و Pro حذف نمی‌شوند.", code: "bot_category_locked" });
+        return;
+      }
+      const [inUse] = await db.select({ n: count() }).from(botsTable).where(eq(botsTable.tier, product.id));
+      if ((inUse?.n ?? 0) > 0) {
+        res.status(409).json({ error: `${inUse.n} بات با این پلن فعال/ثبت است؛ ابتدا آن‌ها را به پلنِ دیگری منتقل کنید یا فقط پلن را غیرفعال کنید.`, code: "bot_product_in_use" });
+        return;
+      }
     }
     await db.delete(productsTable).where(eq(productsTable.id, req.params.id));
     res.status(204).end();

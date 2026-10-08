@@ -38,7 +38,7 @@ function tierName(tt: Record<string, any>, tier: BotTierId | null): string {
   if (tier === "standard") return tt.standard.name;
   if (tier === "pro") return tt.pro.name;
   if (tier === "custom") return tt.custom.name;
-  return "";
+  return tier ?? "";
 }
 
 export function BotPlanCard({ bot }: { bot: Bot }) {

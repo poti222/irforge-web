@@ -45,6 +45,7 @@ import type { Product, ProductCategory } from "@/hooks/use-products";
  */
 
 const BOT_CATEGORY_ID = "bot";
+const CORE_BOT_PRODUCT_IDS = ["standard", "pro"];
 
 export const ADMIN_PRODUCTS_KEY = ["admin-products"] as const;
 export const ADMIN_PRODUCT_CATEGORIES_KEY = ["admin-product-categories"] as const;
@@ -122,10 +123,11 @@ export function ProductsManager() {
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const editingBotProduct = productForm.id !== null && productForm.categoryId === BOT_CATEGORY_ID;
+  const editingBotProduct = productForm.id !== null && productForm.categoryId === BOT_CATEGORY_ID && CORE_BOT_PRODUCT_IDS.includes(productForm.id);
+  const editingAnyBotProduct = productForm.id !== null && productForm.categoryId === BOT_CATEGORY_ID;
 
   function openCreateProduct() {
-    setProductForm({ ...EMPTY_PRODUCT, categoryId: categoryFilter !== "all" && categoryFilter !== BOT_CATEGORY_ID ? categoryFilter : "" });
+    setProductForm({ ...EMPTY_PRODUCT, categoryId: categoryFilter !== "all" ? categoryFilter : "" });
     setProductDialogOpen(true);
   }
   function openEditProduct(p: Product) {
@@ -314,20 +316,14 @@ export function ProductsManager() {
                 ))}
               </SelectContent>
             </Select>
-            {categoryFilter === BOT_CATEGORY_ID ? (
-              <Button size="sm" disabled title={fa ? "دسته‌ی «بات» ثابت است: فقط Standard/Pro، بدونِ پلنِ سوم." : "The bot category is fixed: Standard/Pro only, no third plan."}>
-                <Lock className="me-2 h-4 w-4" /> {fa ? "قفل" : "Locked"}
-              </Button>
-            ) : (
-              <Button size="sm" onClick={openCreateProduct} className="shrink-0"><Plus className="me-2 h-4 w-4" /> {fa ? "محصولِ جدید" : "New product"}</Button>
-            )}
+            <Button size="sm" onClick={openCreateProduct} className="shrink-0"><Plus className="me-2 h-4 w-4" /> {fa ? "محصولِ جدید" : "New product"}</Button>
           </div>
         </div>
         {categoryFilter === BOT_CATEGORY_ID && (
           <p className="text-xs text-muted-foreground">
             {fa
-              ? "دسته‌ی «بات» به Standard/Pro ثابت است (همان دو پکیجی که هنگامِ خریدِ بات شارژ می‌شوند) — همه‌ی فیلدهایشان قابل‌ویرایش است، ولی غیرفعال‌کردن یا حذفشان ممکن نیست."
-              : "The bot category is fixed to Standard/Pro (the same two packages bot purchases charge) — every field is editable, but they can't be deactivated or deleted."}
+              ? "هر محصولِ این دسته یک پلنِ بات است (خرید، انقضا و تمدیدِ ماهانه برایش کار می‌کند). متادیتا: ramGb، cpuCores، maxFreePlugins، maxConcurrentUsers، maxBots، popular، و features (آرایه‌ی متن برایِ لیستِ ویژگی‌ها). Standard/Pro اصلی‌اند: غیرفعال یا حذف نمی‌شوند."
+              : "Every product here is a bot plan (purchase, expiry and monthly renewal all work for it). Metadata: ramGb, cpuCores, maxFreePlugins, maxConcurrentUsers, maxBots, popular, and features (array of strings for the bullet list). Standard/Pro are core: they can't be deactivated or deleted."}
           </p>
         )}
 
@@ -350,7 +346,7 @@ export function ProductsManager() {
                   <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">{fa ? "محصولی نیست" : "No products"}</TableCell></TableRow>
                 )}
                 {filteredProducts.map((p) => {
-                  const isBot = p.categoryId === BOT_CATEGORY_ID;
+                  const isBot = p.categoryId === BOT_CATEGORY_ID && CORE_BOT_PRODUCT_IDS.includes(p.id);
                   return (
                     <TableRow key={p.id}>
                       <TableCell className="font-medium">
@@ -366,7 +362,7 @@ export function ProductsManager() {
                         <Button variant="ghost" size="icon" onClick={() => openEditProduct(p)}><Pencil className="h-4 w-4" /></Button>
                         <Button
                           variant="ghost" size="icon" disabled={isBot}
-                          title={isBot ? (fa ? "محصولاتِ دسته‌ی بات حذف نمی‌شوند" : "Bot-category products can't be deleted") : undefined}
+                          title={isBot ? (fa ? "Standard/Pro حذف نمی‌شوند" : "Standard/Pro can't be deleted") : undefined}
                           onClick={() => setDeletingProduct(p)}
                         >
                           <Trash2 className={`h-4 w-4 ${isBot ? "text-muted-foreground" : "text-red-500"}`} />
@@ -407,11 +403,9 @@ export function ProductsManager() {
                 <SelectTrigger><SelectValue placeholder={fa ? "انتخاب دسته" : "Select category"} /></SelectTrigger>
                 <SelectContent>
                   {(categories ?? [])
-                    .filter((c) => c.id !== BOT_CATEGORY_ID || editingBotProduct)
-                    .map((c) => <SelectItem key={c.id} value={c.id}>{fa ? c.labelFa : c.labelEn}</SelectItem>)}
+                                        .map((c) => <SelectItem key={c.id} value={c.id}>{fa ? c.labelFa : c.labelEn}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {!productForm.id && <p className="text-xs text-muted-foreground">{fa ? "دسته‌ی «بات» اینجا قابل‌انتخاب نیست — پلنِ سوم ساخته نمی‌شود." : "The bot category isn't selectable here — no third plan can be created."}</p>}
             </div>
             <div className="space-y-1.5"><Label>{fa ? "نام (انگلیسی)" : "Name (English)"}</Label><Input dir="ltr" value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>{fa ? "نام (فارسی)" : "Name (Farsi)"}</Label><Input value={productForm.nameFa} onChange={(e) => setProductForm({ ...productForm, nameFa: e.target.value })} /></div>

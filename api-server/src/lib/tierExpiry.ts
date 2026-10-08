@@ -36,6 +36,7 @@
 import { db, botsTable, usersTable } from "@workspace/db";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { getBotTierProduct } from "./pluginPricing.js";
+import { isPackageTier } from "./botLifetime.js";
 import { deductWallet } from "./wallet.js";
 import { tomanToRial } from "./currency.js";
 import { createNotification, formatTomanFa } from "./notify.js";
@@ -92,7 +93,7 @@ async function warnUpcomingExpiry(bot: BotRow): Promise<void> {
     type: "tier_expiry_warning",
     severity: "warning",
     title: "دوره‌ی پکیج باتتان رو به پایان است",
-    message: `پکیج «${bot.tier === "pro" ? "پرو" : "استاندارد"}» بات «${bot.name}» تا ${dateKey} تمدید می‌شود. اگر موجودی کیف پول کافی نباشد، بات خاموش خواهد شد تا تمدید کنید.`,
+    message: `پکیج «${tierLabelFa(bot.tier)}» بات «${bot.name}» تا ${dateKey} تمدید می‌شود. اگر موجودی کیف پول کافی نباشد، بات خاموش خواهد شد تا تمدید کنید.`,
     // یک‌بار به‌ازای هر مهلت، نه هر تیکِ sweep — کلیدش خودِ تاریخِ انقضا است،
     // پس یک تمدیدِ موفق (که تاریخ را عوض می‌کند) خودش‌به‌خود یک هشدارِ تازه
     // برای دوره‌ی بعدی را دوباره ممکن می‌کند.
@@ -143,6 +144,10 @@ async function handleExpiredBot(bot: BotRow): Promise<void> {
 
 /** One sweep pass — call periodically. Never throws; a single bot's failure
  * is logged and skipped so it can't stop every other bot's check. */
+function tierLabelFa(tier: string | null): string {
+  return tier === "pro" ? "پرو" : tier === "standard" ? "استاندارد" : (tier ?? "");
+}
+
 export async function sweepTierExpiry(): Promise<void> {
   const now = new Date();
   const warnThreshold = new Date(now.getTime() + WARN_DAYS_BEFORE * ONE_DAY_MS);
@@ -158,7 +163,7 @@ export async function sweepTierExpiry(): Promise<void> {
 
   for (const bot of bots) {
     if (!bot.tierExpiresAt) continue;
-    if (bot.tier !== "standard" && bot.tier !== "pro") continue; // custom/unknown never auto-billed
+    if (!isPackageTier(bot.tier)) continue; // custom never auto-billed
 
     try {
       if (bot.tierExpiresAt > now) {

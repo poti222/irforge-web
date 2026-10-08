@@ -187,6 +187,12 @@ test("botCategoryPatchViolation: محصولِ دسته‌ی بات — خروج 
   assert.deepEqual(botCategoryPatchViolation("bot", { categoryId: "bot", name: "x" }), []);
 });
 
+test("botCategoryPatchViolation: پلنِ تازه‌ی دسته‌ی بات (غیرِ standard/pro) قابل‌غیرفعال‌شدن است ولی از دسته خارج نمی‌شود", () => {
+  assert.deepEqual(botCategoryPatchViolation("bot", { isActive: false }, "gold"), []);
+  assert.deepEqual(botCategoryPatchViolation("bot", { isActive: false }, "pro"), ["isActive"]);
+  assert.deepEqual(botCategoryPatchViolation("bot", { categoryId: "api" }, "gold"), ["categoryId"]);
+});
+
 test("botCategoryPatchViolation: محصولِ یک دسته‌ی دیگر که با این درخواست به «بات» منتقل می‌شود قفل می‌خورد", () => {
   assert.deepEqual(botCategoryPatchViolation("api", { categoryId: "bot", name: "x" }), ["categoryId"]);
 });

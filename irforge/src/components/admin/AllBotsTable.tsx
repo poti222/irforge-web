@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { customFetch, useAdminListUsers, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useListProducts } from "@/hooks/use-products";
 import type { Bot } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -56,6 +57,7 @@ export function AllBotsTable() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const tt = useT("botTiers");
+  const { data: botPlans } = useListProducts("bot");
 
   const { data: bots, isLoading } = useQuery({
     queryKey: ADMIN_BOTS_KEY,
@@ -314,8 +316,12 @@ export function AllBotsTable() {
                     >
                       <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="standard">{tt.standard.name}</SelectItem>
-                        <SelectItem value="pro">{tt.pro.name}</SelectItem>
+                        {(botPlans ?? []).map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.id === "standard" ? tt.standard.name : p.id === "pro" ? tt.pro.name : (fa ? p.nameFa || p.name : p.name)}
+                          </SelectItem>
+                        ))}
+                        {bot.tier && !bot.isTrial && !(botPlans ?? []).some((p) => p.id === bot.tier) && <SelectItem value={bot.tier} disabled>{bot.tier}</SelectItem>}
                         {bot.isTrial && <SelectItem value="trial" disabled>{fa ? "تریال" : "Trial"}</SelectItem>}
                         {!bot.tier && !bot.isTrial && <SelectItem value="__none__" disabled>{fa ? "نامشخص" : "Unknown"}</SelectItem>}
                       </SelectContent>

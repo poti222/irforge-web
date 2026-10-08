@@ -66,7 +66,7 @@ import { marketplaceItemIdFor } from "../lib/marketplaceSync.js";
 import { getUserPlanLimits, countUserBots } from "../lib/planLimits.js";
 import { deductWallet, creditWallet, InsufficientBalanceError } from "../lib/wallet.js";
 import { tomanToRial, rialToToman } from "../lib/currency.js";
-import { addTierPeriod, trialEndDate } from "../lib/botLifetime.js";
+import { addTierPeriod, trialEndDate, isPackageTier } from "../lib/botLifetime.js";
 import { verifyCaptchaToken } from "../lib/captchaVerify.js";
 import { buildSheetPoolView } from "../lib/sheetPoolView.js";
 import {
@@ -1362,7 +1362,7 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
     // getBotTierProduct() صدایش بزند برایِ شارژِ خودکار). همان addOneMonth
     // که خودِ sweep/تمدید استفاده می‌کند، تا هر سه‌جا با هم یکی باشند.
     const tierExpiresAt =
-      purchasedTier === "standard" || purchasedTier === "pro"
+      isPackageTier(purchasedTier)
         ? addTierPeriod(new Date())
         : null;
 

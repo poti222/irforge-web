@@ -49,11 +49,19 @@ export type BotExpiry = { kind: "trial" | "tier"; expiredAt: Date };
  *    تمدید هنوز به آن نرسیده هرگز اشتباهی حذف نشود.
  *  - سفارشی/بی‌پکیج: هرگز.
  */
+/**
+ * «پکیجِ ماهانه» = هر محصولِ دسته‌ی بات (standard/pro یا هر پلنی که ادمین بعداً بسازد). سفارشی و تریال از این مفهوم مستثنا
+ * هستند. قبلاً فقط دو literal بود؛ پلنِ تازه‌ی ادمین هرگز انقضا/تمدید/حذفِ خودکار نمی‌گرفت.
+ */
+export function isPackageTier(tier: string | null | undefined): boolean {
+  return !!tier && tier !== "custom" && tier !== "trial";
+}
+
 export function botExpiry(bot: BotLike, now: Date = new Date()): BotExpiry | null {
   if (bot.isTrial && bot.trialExpiresAt) {
     return bot.trialExpiresAt.getTime() <= now.getTime() ? { kind: "trial", expiredAt: bot.trialExpiresAt } : null;
   }
-  if ((bot.tier === "standard" || bot.tier === "pro") && bot.tierExpiresAt) {
+  if (isPackageTier(bot.tier) && bot.tierExpiresAt) {
     if (bot.tierExpiresAt.getTime() <= now.getTime() && bot.status === "tier_expired") {
       return { kind: "tier", expiredAt: bot.tierExpiresAt };
     }

@@ -176,8 +176,8 @@ function BotCategoryGrid({
                 <div className={`mb-2 flex size-11 items-center justify-center rounded-lg bg-gradient-to-br ${accent} text-white`}>
                   <Icon className="size-5" />
                 </div>
-                <CardTitle className="text-xl">{text?.name ?? product.name}</CardTitle>
-                <p className="text-sm text-muted-foreground">{text?.tagline ?? product.description}</p>
+                <CardTitle className="text-xl">{text?.name ?? (fa ? product.nameFa || product.name : product.name)}</CardTitle>
+                <p className="text-sm text-muted-foreground">{text?.tagline ?? (fa ? product.descriptionFa || product.description : product.description)}</p>
                 <div className="mt-3 flex items-baseline gap-1 text-2xl font-extrabold">
                   {formatToman(product.price, lang)}
                 </div>
@@ -185,7 +185,7 @@ function BotCategoryGrid({
               <CardContent className="flex-1 space-y-3">
                 <ResourceRow ramGb={Number(meta.ramGb)} cpuCores={Number(meta.cpuCores)} maxUsers={Number(meta.maxConcurrentUsers)} />
                 <ul className="space-y-2.5 text-sm">
-                  {(text?.features ?? []).map((f: string) => (
+                  {(text?.features ?? (Array.isArray(meta.features) ? (meta.features as unknown[]).map(String) : [])).map((f: string) => (
                     <li key={f} className="flex items-start gap-2">
                       <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                       <span>{f}</span>

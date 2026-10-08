@@ -182,7 +182,7 @@ export default function BuyBotDetail() {
       // از همین `buildSpec` دوباره حساب می‌کند (lib/pluginPricing.ts).
       price: packagePrice,
       tierId: isCustom ? "custom" : product?.id,
-      tierName: isCustom ? tt.custom.name : tierText?.name,
+      tierName: isCustom ? tt.custom.name : tierText?.name ?? (fa ? product?.nameFa || product?.name : product?.name),
       buildSpec: {
         tierId: isCustom ? "custom" : (product?.id ?? ""),
         ramGb: isCustom ? customRam : undefined,
@@ -216,9 +216,9 @@ export default function BuyBotDetail() {
                 <Icon className="size-6" />
               </div>
               <div>
-                <CardTitle className="text-2xl">{isCustom ? tt.custom.name : tierText?.name}</CardTitle>
+                <CardTitle className="text-2xl">{isCustom ? tt.custom.name : tierText?.name ?? (fa ? product?.nameFa || product?.name : product?.name)}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {isCustom ? tt.custom.tagline : tierText?.tagline}
+                  {isCustom ? tt.custom.tagline : tierText?.tagline ?? (fa ? product?.descriptionFa || product?.description : product?.description)}
                 </p>
               </div>
             </div>
@@ -251,7 +251,7 @@ export default function BuyBotDetail() {
                 <div>
                   <p className="mb-2 text-sm font-medium">{tb.whatsIncluded}</p>
                   <ul className="space-y-2.5 text-sm">
-                    {(tierText?.features ?? []).map((f: string) => (
+                    {(tierText?.features ?? (Array.isArray(meta.features) ? (meta.features as unknown[]).map(String) : [])).map((f: string) => (
                       <li key={f} className="flex items-start gap-2">
                         <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                         <span>{f}</span>
