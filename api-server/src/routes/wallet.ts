@@ -10,6 +10,7 @@ import { createNotification, notifySuperAdmins, formatTomanFa } from "../lib/not
 import { getPaymentMethods, setPaymentMethods } from "../lib/platformSettings";
 import { ensureWallet } from "../lib/wallet.js";
 import { tomanToRial, rialToToman } from "../lib/currency.js";
+import { MAX_RECEIPT_DATA_URL } from "../lib/platformWallet.js";
 
 const router = Router();
 
@@ -98,6 +99,8 @@ router.put("/admin/payment-settings", requireSuperAdmin, blockWhileImpersonating
   }
 });
 
+const WALLET_DEPOSIT_MAX_TOMAN = 200_000_000;
+
 // POST /api/wallet/deposit — card-to-card or USDT (gateway is disabled/coming soon)
 router.post("/wallet/deposit", requireAuth, blockWhileImpersonating, requireCompleteProfile(), async (req: any, res) => {
   try {
@@ -107,6 +110,11 @@ router.post("/wallet/deposit", requireAuth, blockWhileImpersonating, requireComp
       res.status(400).json({ error: "A positive amount is required" });
       return;
     }
+    // ستونِ amount ریال و از نوعِ integer است؛ مبلغِ بزرگ‌تر از ~۲۱۴ میلیون تومان به‌جایِ ۴۰۰ یک ۵۰۰ می‌داد (overflow).
+    if (!Number.isFinite(amt) || amt > WALLET_DEPOSIT_MAX_TOMAN) {
+      res.status(400).json({ error: `حداکثر مبلغِ هر واریز ${WALLET_DEPOSIT_MAX_TOMAN.toLocaleString("en-US")} تومان است.`, code: "amount_too_large" });
+      return;
+    }
     // روشی که سوپرادمین خاموشش کرده نباید از راه API باز بماند — فرانت تبش
     // را پنهان می‌کند، ولی تصمیم واقعی باید سمت سرور گرفته شود.
     const methods = await getPaymentMethods();
@@ -114,6 +122,10 @@ router.post("/wallet/deposit", requireAuth, blockWhileImpersonating, requireComp
     if (method === "card") {
       if (!methods.card.enabled) { res.status(400).json({ error: "Card deposits are currently disabled" }); return; }
       if (!receiptUrl) { res.status(400).json({ error: "Receipt is required for card deposits" }); return; }
+      if (typeof receiptUrl !== "string" || receiptUrl.length > MAX_RECEIPT_DATA_URL || !/^data:image\/(webp|png|jpeg|jpg|gif);base64,[A-Za-z0-9+/=]+$/.test(receiptUrl)) {
+        res.status(400).json({ error: "فیش باید یک تصویرِ معتبر (webp/png/jpeg) و کوچک‌تر از ۲ مگابایت باشد.", code: "invalid_receipt" });
+        return;
+      }
       type = "deposit_card";
     } else if (method === "usdt") {
       if (!methods.usdt.enabled) { res.status(400).json({ error: "USDT deposits are currently disabled" }); return; }

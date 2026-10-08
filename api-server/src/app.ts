@@ -101,8 +101,15 @@ const MEDIA_BODY_LIMIT = "42mb";
 const LARGE_BODY_PREFIXES = ["/api/bots", "/api/admin/updates"];
 const MEDIA_UPLOAD_PATH = /^\/api\/bots\/[^/]+\/(media|telegram-profile\/photo)$/;
 
+// فیشِ واریز (data-URL تصویر) — کیف‌پولِ پلتفرم/مدرسه و واریزِ دستیِ کیف‌پول؛ با ۲۵۶KB آپلودِ عکسِ معمولیِ موبایل رد می‌شد.
+const RECEIPT_UPLOAD_PATH =
+  /^\/api\/(wallet\/deposit|wallet\/topup\/[^/]+\/receipt|schools\/[^/]+\/wallet\/topup\/[^/]+\/receipt)$/;
+
 function needsLargeBody(req: Request): boolean {
-  return LARGE_BODY_PREFIXES.some((p) => req.path.startsWith(p));
+  return (
+    LARGE_BODY_PREFIXES.some((p) => req.path.startsWith(p)) ||
+    (req.method === "POST" && RECEIPT_UPLOAD_PATH.test(req.path))
+  );
 }
 
 function needsMediaBody(req: Request): boolean {
@@ -147,6 +154,16 @@ app.use("/api", router);
 // every route it's meant to protect, and before the SPA catch-all below.
 app.use("/api", (err: unknown, req: Request, res: Response, next: NextFunction) => {
   if (res.headersSent) { next(err); return; }
+  // خطایِ body-parser (بدنه‌یِ بزرگ/JSON خراب) خطایِ کلاینت است، نه ۵۰۰؛ پیامِ قابل‌فهم بده.
+  const e = err as { type?: string; status?: number } | null;
+  if (e?.type === "entity.too.large" || e?.status === 413) {
+    res.status(413).json({ error: "حجمِ فایل/تصویر زیاد است. تصویرِ کوچک‌تری انتخاب کنید.", code: "payload_too_large" });
+    return;
+  }
+  if (e?.type === "entity.parse.failed") {
+    res.status(400).json({ error: "درخواست نامعتبر است.", code: "invalid_body" });
+    return;
+  }
   const correlationId = crypto.randomUUID();
   logger.error({ err, correlationId, url: req.originalUrl, method: req.method }, "unhandled API error");
   res.status(500).json({ error: "خطای غیرمنتظره روی سرور. لطفاً دوباره تلاش کنید.", correlationId });

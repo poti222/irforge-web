@@ -821,6 +821,11 @@ router.post("/superadmin/users/:id/wallet-adjust", requireSuperAdmin, async (req
       res.status(400).json({ error: "amount باید عددی مثبت باشد" });
       return;
     }
+    // موجودیِ کیف‌پول ریال و integer است (حداکثر ۲٫۱ میلیارد ریال ≈ ۲۱۴ میلیون تومان)؛ عددِ بزرگ‌تر قبلاً ۵۰۰ می‌داد.
+    if (amount > 200_000_000) {
+      res.status(400).json({ error: "حداکثر مبلغِ هر تغییر ۲۰۰,۰۰۰,۰۰۰ تومان است.", code: "amount_too_large" });
+      return;
+    }
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.params.id)).limit(1);
     if (!user) {
@@ -871,6 +876,10 @@ router.post("/superadmin/users/:id/wallet-adjust", requireSuperAdmin, async (req
   } catch (err) {
     if (err instanceof ValidationError) {
       res.status(400).json({ error: err.message });
+      return;
+    }
+    if ((err as any)?.code === "22003" || /out of range/i.test(String((err as any)?.cause?.message ?? (err as any)?.message ?? ""))) {
+      res.status(400).json({ error: "مبلغ از سقفِ موجودیِ کیف‌پول بیشتر می‌شود.", code: "balance_overflow" });
       return;
     }
     logger.error({ err }, "superadmin wallet-adjust error");

@@ -4620,3 +4620,7 @@ Why two halves: the bot is polling-only with no inbound HTTP and its data (Sheet
 ## Products: Standard/Pro fully editable (2026-10-08)
 - `routes/products.ts` `botCategoryPatchViolation`: bot-category products (standard/pro) may now change name/nameFa/description/icon/sortOrder/metadata/price. Still blocked: `isActive:false`, moving out of / into the `bot` category; POST/DELETE for the category unchanged (fixed two-plan roster).
 - `ProductsManager.tsx`: edit dialog no longer price-only for bot products (active switch + category stay locked); texts updated. Tests in `test/products.test.mjs`.
+
+## Receipt uploads + huge amounts → 500 (2026-10-08)
+- Receipt routes (`POST /wallet/deposit`, `/wallet/topup/:id/receipt`, school top-up receipt) were on the 256KB JSON tier while `toWebpDataUrl` output + `MAX_RECEIPT_DATA_URL=190KB` rejected normal phone photos → "can't upload anywhere". `app.ts`: `RECEIPT_UPLOAD_PATH` gets the 10MB tier; `MAX_RECEIPT_DATA_URL` → 3MB; body-parser errors now return 413/400 instead of a generic 500.
+- `amount` columns are integer Rial: a huge Toman value overflowed → 500 (wallet deposit, admin wallet-adjust). Both now 400 (`amount_too_large`; max 200,000,000 Toman), adjust also maps PG 22003 → 400. Deposit validates the receipt is an image data-URL.

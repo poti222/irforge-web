@@ -24,8 +24,12 @@ import type { MatchAlerts } from "./paymentAlerts";
 export const TOPUP_PRESETS_TOMAN = [100_000, 200_000, 500_000, 700_000, 1_000_000] as const;
 export const TOPUP_MIN_TOMAN = 100_000;
 export const TOPUP_MAX_TOMAN = 50_000_000;
-/** سقفِ اندازه‌ی فیش (data URL webp/png/jpeg) — بدنه‌ی JSONِ مسیرهای عادی ۲۵۶KB است. */
-export const MAX_RECEIPT_DATA_URL = 190_000;
+/**
+ * سقفِ اندازه‌ی فیش (data URL webp/png/jpeg). قبلاً ۱۹۰KB بود چون بدنه‌ی JSONِ مسیرهای عادی ۲۵۶KB است؛ ولی یک عکسِ
+ * موبایل حتی بعد از تبدیل به WebP از آن بزرگ‌تر می‌شد و آپلودِ فیش «هیچ‌جا» کار نمی‌کرد. حالا مسیرهایِ فیش
+ * (app.ts → RECEIPT_UPLOAD_PATH) بدنه‌یِ ۱۰MB می‌گیرند و سقفِ فیش ۳MB است.
+ */
+export const MAX_RECEIPT_DATA_URL = 3_000_000;
 const ACTIVE = ["queued", "pending", "awaiting_review"];
 const RECEIPT_RE = /^data:image\/(webp|png|jpeg|jpg);base64,[A-Za-z0-9+/=]+$/;
 
