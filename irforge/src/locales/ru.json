@@ -2573,6 +2573,7 @@
     "badgeInactive": "Отключена",
     "badgeLocked": "Защищена паролем",
     "createPanelCta": "Новая панель",
+    "quickPanelTitle": "Панель {n}",
     "createPanelTitle": "Создать панель",
     "createStepOf": "Шаг {step} из {total}",
     "panelCreated": "Панель создана",

@@ -2573,6 +2573,7 @@
     "badgeInactive": "Inactive",
     "badgeLocked": "Password protected",
     "createPanelCta": "New panel",
+    "quickPanelTitle": "Panel {n}",
     "createPanelTitle": "Create a panel",
     "createStepOf": "Step {step} of {total}",
     "panelCreated": "Panel created",

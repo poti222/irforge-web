@@ -4639,3 +4639,6 @@ Why two halves: the bot is polling-only with no inbound HTTP and its data (Sheet
 ## Admin bots table: expiry editable for Standard/Pro too (2026-10-08)
 - `AllBotsTable.tsx`: the expiry date input is shown for every bot (trial → `trialExpiresAt`, paid → `tierExpiresAt`); previously paid bots showed «—».
 - `PATCH /admin/bots/:id/trial-expiry` now writes `tierExpiresAt` for non-trial bots (the column the expiry sweep/renewal read), still clears `purgeAfter`.
+
+## Panels: "New panel" skips the 3-step wizard (2026-10-08)
+- `PanelsSection.tsx`: the button now creates an empty numbered panel («پنل N» / "Panel N", N = highest trailing number + 1) immediately and opens the main panel editor. `CreatePanelDialog.tsx` removed; new locale key `botPanels.quickPanelTitle` (5 locales).

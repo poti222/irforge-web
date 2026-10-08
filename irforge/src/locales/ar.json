@@ -2573,6 +2573,7 @@
     "badgeInactive": "معطّلة",
     "badgeLocked": "محمية بكلمة مرور",
     "createPanelCta": "لوحة جديدة",
+    "quickPanelTitle": "لوحة {n}",
     "createPanelTitle": "إنشاء لوحة",
     "createStepOf": "الخطوة {step} من {total}",
     "panelCreated": "تم إنشاء اللوحة",

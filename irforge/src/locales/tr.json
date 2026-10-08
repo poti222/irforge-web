@@ -2573,6 +2573,7 @@
     "badgeInactive": "Pasif",
     "badgeLocked": "Parola korumalı",
     "createPanelCta": "Yeni panel",
+    "quickPanelTitle": "Panel {n}",
     "createPanelTitle": "Panel oluştur",
     "createStepOf": "Adım {step}/{total}",
     "panelCreated": "Panel oluşturuldu",

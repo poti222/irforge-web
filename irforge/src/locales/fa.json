@@ -2573,6 +2573,7 @@
     "badgeInactive": "غیرفعال",
     "badgeLocked": "رمزدار",
     "createPanelCta": "پنل جدید",
+    "quickPanelTitle": "پنل {n}",
     "createPanelTitle": "ساخت پنل",
     "createStepOf": "مرحله {step} از {total}",
     "panelCreated": "پنل ساخته شد",

@@ -30,11 +30,10 @@ import { useBotSettings } from "@/components/bots/settings/api";
 import { TabReplyKeyboard } from "@/components/bots/settings/TabReplyKeyboard";
 import { PanelTree } from "./PanelTree";
 import { PanelEditor } from "./PanelEditor";
-import { CreatePanelDialog } from "./CreatePanelDialog";
 import { panelTypeLabel } from "./labels";
 import {
   apiErrorCode, apiErrorMessage, useDeletePanel, usePanelCatalog, usePanelHealth,
-  usePanelReferences, usePanels, useRepairPanels,
+  usePanelReferences, usePanels, useRepairPanels, useCreatePanel,
   type ButtonStrategy, type DeleteStrategy, type Panel,
 } from "./api";
 
@@ -165,18 +164,31 @@ export function PanelsSection({ bot }: { bot: Bot }) {
   const { data: catalog } = usePanelCatalog(bot.id);
   const health = usePanelHealth(bot.id);
   const repair = useRepairPanels(bot.id);
+  const createPanel = useCreatePanel(bot.id);
   const settings = useBotSettings(bot.id);
 
   const [view, setView] = useState<View>("tree");
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Panel | null>(null);
 
   const selectedId = new URLSearchParams(search).get("panel");
   const panels = data?.panels ?? [];
   const selected = panels.find((p) => p.id === selectedId) ?? null;
+
+  // ساختِ پنل بدونِ ویزارد: یک پنلِ خالیِ شماره‌دار می‌سازد و مستقیم وارد ویرایشگرِ اصلیِ همان پنل می‌شود.
+  function quickCreatePanel() {
+    const used = panels.map((p) => Number(/(\d+)\s*$/.exec(p.title)?.[1] ?? 0));
+    const n = Math.max(panels.length, ...used) + 1;
+    createPanel.mutate(
+      { title: t.quickPanelTitle.replace("{n}", String(n)), type: "media", content: "", media_file_id: "", settings: { media_items: [] }, parent_id: null },
+      {
+        onSuccess: ({ panel }) => { toast({ title: t.panelCreated }); openPanel(panel.id); },
+        onError: (err: any) => toast({ variant: "destructive", title: t.errorGeneric, description: apiErrorMessage(err, t.errorGeneric) }),
+      },
+    );
+  }
 
   function openPanel(panelId: string | null) {
     if (!confirmDiscardUnsaved()) return;
@@ -324,8 +336,8 @@ export function PanelsSection({ bot }: { bot: Bot }) {
           </Button>
         </div>
 
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="me-1.5 size-4" /> {t.createPanelCta}
+        <Button onClick={quickCreatePanel} disabled={createPanel.isPending} data-testid="panel-create">
+          {createPanel.isPending ? <Loader2 className="me-1.5 size-4 animate-spin" /> : <Plus className="me-1.5 size-4" />} {t.createPanelCta}
         </Button>
       </div>
 
@@ -390,15 +402,6 @@ export function PanelsSection({ bot }: { bot: Bot }) {
         هر دو هم رنگ می‌پذیرند (سبز/قرمز/آبی) — همان `style` که Bot API دارد.
       */}
       {settings.data && <TabReplyKeyboard bot={bot} data={settings.data} />}
-
-      <CreatePanelDialog
-        botId={bot.id}
-        panels={panels}
-        catalog={catalog}
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreated={(panel) => openPanel(panel.id)}
-      />
 
       <DeletePanelDialog
         botId={bot.id}
