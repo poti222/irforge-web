@@ -1,0 +1,956 @@
+diff --git a/.claude/launch.json b/a/.claude/launch.json
+deleted file mode 100644
+index 368b2e9..0000000
+--- a/.claude/launch.json
++++ /dev/null
+@@ -1,11 +0,0 @@
+-{
+-  "version": "0.0.1",
+-  "configurations": [
+-    {
+-      "name": "irforge-web",
+-      "runtimeExecutable": "pnpm",
+-      "runtimeArgs": ["--filter", "@workspace/irforge", "dev"],
+-      "port": 5173
+-    }
+-  ]
+-}
+diff --git a/api-server/src/index.ts b/api-server/src/index.ts
+index 794d124..a4974df 100644
+--- a/api-server/src/index.ts
++++ b/api-server/src/index.ts
+@@ -29,6 +29,13 @@ app.listen(port, (err?: Error) => {
+   logger.info({ port }, "Server listening");
+ });
+ 
++// توسعه‌یِ لوکال: با `DISABLE_BACKGROUND_JOBS=1` همه‌یِ کارهایِ پس‌زمینه (جاروِ انقضایِ پلن/بات، حذفِ باتِ منقضی،
++// جاروِ پرداخت، ثبتِ webhook، نرخِ ارز) خاموش می‌شوند و فقط سرورِ HTTP بالا می‌آید. این کارها «تغییرِ واقعی» روی
++// دیتابیس می‌دهند (مثلاً `sweepBotLifecycle` باتِ منقضی را حذف می‌کند)؛ سرورِ لوکال هرگز نباید آن‌ها را روی
++// دیتابیسِ مشترک/واقعی اجرا کند.
++if (process.env.DISABLE_BACKGROUND_JOBS === "1") {
++  logger.warn("DISABLE_BACKGROUND_JOBS=1 — background jobs are OFF (local dev mode)");
++} else {
+ // G8: بی‌صدا و best-effort — نبودش فقط یعنی «اتصال با ربات» غیرفعاله، سرور رو نمی‌خوابونه.
+ // از حادثه‌ی امنیتی ۲۰۲۶-۰۹ به بعد، پشتِ TELEGRAM_WEBHOOK_ENABLED گارد شده — ببینید
+ // docstringِ خودِ تابع در lib/telegram.ts.
+@@ -79,3 +86,4 @@ setInterval(runBotLifecycleSweep, 10 * 60 * 1000);
+ setInterval(() => {
+   void sweepSqlDatabaseExpiry().catch((err) => logger.error({ err }, "sweepSqlDatabaseExpiry failed"));
+ }, 10 * 60 * 1000);
++}
+diff --git a/api-server/src/lib/botTypes.ts b/api-server/src/lib/botTypes.ts
+index a8d6282..a29b86b 100644
+--- a/api-server/src/lib/botTypes.ts
++++ b/api-server/src/lib/botTypes.ts
+@@ -324,6 +324,8 @@ export type BotSettings = {
+    * بلافاصله بعد از رفرش دوباره خاموش).
+    */
+   bot_commands: BotCommandMenuEntry[];
++  /** کاتالوگِ ایموجیِ سفارشی/متحرکِ تلگرام (`:name:` در متن‌ها). ر.ک. routes/botCustomEmoji.ts */
++  custom_emojis: CustomEmojiEntry[];
+   force_join_channels: string[];
+   force_join_message: string;
+   working_hours: WorkingHours;
+@@ -462,6 +464,7 @@ export function defaultBotSettings(): BotSettings {
+     maintenance: false,
+     reply_keyboard: null,
+     bot_commands: [],
++    custom_emojis: [],
+     force_join_channels: [],
+     force_join_message: "برای استفاده از ربات ابتدا در کانال‌های زیر عضو شوید:",
+     working_hours: defaultWorkingHours(),
+@@ -604,3 +607,13 @@ export function rowsToButtons(rows: PanelButton[][]): PanelButton[] {
+   }
+   return normalizeButtonLayout(flat);
+ }
++
++/** یک ردیفِ کاتالوگِ ایموجیِ سفارشی — آینه‌یِ `utils/custom_emoji.py::_norm_entry` در بات. */
++export type CustomEmojiEntry = {
++  name: string;
++  id: string;
++  fallback: string;
++  animated: boolean;
++  enabled: boolean;
++  pack: string;
++};
+diff --git a/api-server/src/lib/catalogHtml.ts b/api-server/src/lib/catalogHtml.ts
+index 75dab96..fc097d4 100644
+--- a/api-server/src/lib/catalogHtml.ts
++++ b/api-server/src/lib/catalogHtml.ts
+@@ -23,7 +23,7 @@
+  */
+ 
+ export const CANONICAL_TAGS = new Set([
+-  "b", "i", "u", "s", "code", "pre", "a", "blockquote", "tg-spoiler",
++  "b", "i", "u", "s", "code", "pre", "a", "blockquote", "tg-spoiler", "tg-emoji",
+ ]);
+ 
+ /** Common synonyms a rich-text editor or pasted HTML might emit. */
+@@ -131,6 +131,10 @@ export function sanitizeTelegramHtml(raw: string): string {
+         const href = attrs.href || "";
+         if (!SAFE_URL_SCHEMES.some((scheme) => href.startsWith(scheme))) continue; // unsafe/unrecognized scheme: drop the tag, keep the link text
+         out.push(`<a href="${escapeAttr(href)}">`);
++      } else if (canonical === "tg-emoji") {
++        const emojiId = (attrs["emoji-id"] || "").trim();
++        if (!/^\d+$/.test(emojiId)) continue; // بدونِ شناسه‌یِ عددی: تگ حذف، متنِ fallback می‌ماند
++        out.push(`<tg-emoji emoji-id="${emojiId}">`);
+       } else {
+         out.push(`<${canonical}>`);
+       }
+diff --git a/b/api-server/src/routes/botCustomEmoji.ts b/api-server/src/routes/botCustomEmoji.ts
+new file mode 100644
+index 0000000..3f402d2
+--- /dev/null
++++ b/api-server/src/routes/botCustomEmoji.ts
+@@ -0,0 +1,156 @@
++/**
++ * routes/botCustomEmoji.ts — کاتالوگِ ایموجیِ سفارشی/متحرکِ تلگرام
++ * ─────────────────────────────────────────────────────────────────────────────
++ * ادمین اینجا ایموجی‌ها را مدیریت می‌کند (`bot_settings.custom_emojis`) و در هر متنی `:name:` می‌نویسد؛ بات قبل از
++ * ارسال آن را به `<tg-emoji>` تبدیل می‌کند (`utils/emoji_session.py`).
++ *
++ *   GET  /bots/:botId/custom-emojis              → { emojis[] }
++ *   PUT  /bots/:botId/custom-emojis              → کلِ لیست را جایگزین می‌کند (اعتبارسنجی سمتِ سرور)
++ *   POST /bots/:botId/custom-emojis/import-pack  → { pack } یا { packs[] }؛ از t.me/addemoji/NAME یا خودِ نام
++ *   POST /bots/:botId/custom-emojis/import-ids   → { ids[] } شناسه‌هایِ خام (getCustomEmojiStickers)
++ *
++ * محدودیتِ تلگرام: ایموجیِ سفارشی فقط برایِ باتی که یوزرنیمِ اضافه از Fragment خریده (یا پیامِ مستقیمِ بات‌ی که صاحبش
++ * Premium دارد) نمایش داده می‌شود؛ وگرنه ایموجیِ معمولیِ `fallback` دیده می‌شود و پیام سالم می‌ماند.
++ */
++import { Router } from "express";
++import { db, botsTable } from "@workspace/db";
++import { eq } from "drizzle-orm";
++import { requireAuth } from "./auth.js";
++import { decryptToken } from "../lib/tokenCrypto.js";
++import { tgApi } from "../lib/telegram.js";
++import { resolveBotSheet, readSettings, patchSettings, sendBotConfigError, BotConfigError } from "../lib/botConfig.js";
++import type { CustomEmojiEntry } from "../lib/botTypes.js";
++
++const router = Router();
++const MAX_EMOJIS = 2000;
++const NAME_RE = /^[a-z][a-z0-9_]{1,31}$/;
++const ID_RE = /^\d{5,32}$/;
++
++const bad = (message: string, code?: string) => new BotConfigError(400, message, code);
++
++function cleanList(raw: unknown): CustomEmojiEntry[] {
++  if (!Array.isArray(raw)) throw bad("«emojis» باید یک آرایه باشد.");
++  const out: CustomEmojiEntry[] = [];
++  const seen = new Set<string>();
++  for (const item of raw) {
++    if (!item || typeof item !== "object") continue;
++    const r = item as Record<string, unknown>;
++    const name = String(r.name ?? "").trim().toLowerCase();
++    const id = String(r.id ?? "").trim();
++    if (!NAME_RE.test(name)) throw bad(`نامِ «${name}» معتبر نیست؛ فقط حروفِ لاتین کوچک، عدد و _ (۲ تا ۳۲ کاراکتر، شروع با حرف).`);
++    if (!ID_RE.test(id)) throw bad(`شناسه‌یِ ایموجیِ «${name}» معتبر نیست.`);
++    if (seen.has(name)) throw bad(`نامِ «${name}» تکراری است.`);
++    seen.add(name);
++    out.push({
++      name, id,
++      fallback: String(r.fallback ?? "").trim().slice(0, 8) || "⭐",
++      animated: r.animated !== false,
++      enabled: r.enabled !== false,
++      pack: String(r.pack ?? "").slice(0, 64),
++    });
++  }
++  if (out.length > MAX_EMOJIS) throw bad(`حداکثر ${MAX_EMOJIS} ایموجی مجاز است.`);
++  return out;
++}
++
++async function tokenFor(botId: string): Promise<string> {
++  const [bot] = await db.select({ token: botsTable.token }).from(botsTable).where(eq(botsTable.id, botId)).limit(1);
++  try {
++    const t = decryptToken(bot?.token ?? "");
++    if (t) return t;
++  } catch { /* افتاد پایین */ }
++  throw new BotConfigError(409, "توکنِ این بات روی سرور در دسترس نیست.", "no_token");
++}
++
++function packName(input: string): string {
++  const s = input.trim().replace(/^https?:\/\/t\.me\/(addemoji|addstickers)\//i, "").replace(/^@/, "");
++  return /^[A-Za-z0-9_]{1,64}$/.test(s) ? s : "";
++}
++
++async function current(spreadsheetId: string): Promise<CustomEmojiEntry[]> {
++  const s = (await readSettings(spreadsheetId)) as unknown as Record<string, unknown>;
++  try { return cleanList(s.custom_emojis ?? []); } catch { return []; }
++}
++
++/** نامِ یکتا برایِ ایموجیِ واردشده: `<prefix>_<n>` که با موجودها برخورد نکند. */
++function uniqueName(prefix: string, taken: Set<string>, start: number): [string, number] {
++  let n = start;
++  let name = `${prefix}_${n}`;
++  while (taken.has(name)) name = `${prefix}_${++n}`;
++  taken.add(name);
++  return [name, n + 1];
++}
++
++router.get("/bots/:botId/custom-emojis", requireAuth, async (req: any, res) => {
++  try {
++    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
++    res.json({ emojis: await current(spreadsheetId) });
++  } catch (err) { sendBotConfigError(res, err, "Failed to read custom emojis"); }
++});
++
++router.put("/bots/:botId/custom-emojis", requireAuth, async (req: any, res) => {
++  try {
++    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
++    const emojis = cleanList(req.body?.emojis);
++    await patchSettings(spreadsheetId, { custom_emojis: emojis } as Record<string, unknown>);
++    res.json({ emojis });
++  } catch (err) { sendBotConfigError(res, err, "Failed to save custom emojis"); }
++});
++
++router.post("/bots/:botId/custom-emojis/import-pack", requireAuth, async (req: any, res) => {
++  try {
++    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
++    const inputs: string[] = (Array.isArray(req.body?.packs) ? req.body.packs : [req.body?.pack]).map((p: unknown) => String(p ?? ""));
++    const names = [...new Set(inputs.map(packName).filter(Boolean))].slice(0, 20);
++    if (!names.length) throw bad("نامِ پک یا لینکِ t.me/addemoji/… را وارد کنید.");
++    const token = await tokenFor(req.params.botId);
++    const list = await current(spreadsheetId);
++    const taken = new Set(list.map((e) => e.name));
++    const usedIds = new Set(list.map((e) => e.id));
++    const report: Array<{ pack: string; added: number; error?: string }> = [];
++    for (const pack of names) {
++      const r = await tgApi<{ sticker_type?: string; stickers?: Array<{ custom_emoji_id?: string; emoji?: string; is_animated?: boolean; is_video?: boolean }> }>(token, "getStickerSet", { name: pack });
++      if (!r.ok || !r.result) { report.push({ pack, added: 0, error: r.description ?? "پک پیدا نشد" }); continue; }
++      if (r.result.sticker_type !== "custom_emoji") { report.push({ pack, added: 0, error: "این پک ایموجیِ سفارشی نیست (استیکر است)" }); continue; }
++      const prefix = pack.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").replace(/^(\d)/, "e$1").slice(0, 24) || "emoji";
++      let n = 1, added = 0;
++      for (const st of r.result.stickers ?? []) {
++        if (!st.custom_emoji_id || usedIds.has(st.custom_emoji_id) || list.length >= MAX_EMOJIS) continue;
++        let name: string;
++        [name, n] = uniqueName(prefix, taken, n);
++        usedIds.add(st.custom_emoji_id);
++        list.push({ name, id: st.custom_emoji_id, fallback: st.emoji || "⭐", animated: Boolean(st.is_animated || st.is_video), enabled: true, pack: pack.slice(0, 64) });
++        added++;
++      }
++      report.push({ pack, added });
++    }
++    await patchSettings(spreadsheetId, { custom_emojis: list } as Record<string, unknown>);
++    res.json({ emojis: list, report });
++  } catch (err) { sendBotConfigError(res, err, "Failed to import emoji pack"); }
++});
++
++router.post("/bots/:botId/custom-emojis/import-ids", requireAuth, async (req: any, res) => {
++  try {
++    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
++    const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map((x: unknown) => String(x).trim()).filter((x: string) => ID_RE.test(x)))].slice(0, 200) as string[];
++    if (!ids.length) throw bad("حداقل یک شناسه‌یِ عددیِ معتبر لازم است.");
++    const token = await tokenFor(req.params.botId);
++    const r = await tgApi<Array<{ custom_emoji_id?: string; emoji?: string; is_animated?: boolean; is_video?: boolean; set_name?: string }>>(token, "getCustomEmojiStickers", { custom_emoji_ids: ids });
++    if (!r.ok) throw new BotConfigError(409, `تلگرام قبول نکرد: ${r.description ?? "خطای نامشخص"} (این متد فقط برایِ باتی که یوزرنیمِ Fragment دارد کار می‌کند؛ از «افزودنِ پک» استفاده کنید)`, "telegram_rejected");
++    const list = await current(spreadsheetId);
++    const taken = new Set(list.map((e) => e.name));
++    const usedIds = new Set(list.map((e) => e.id));
++    let n = 1;
++    for (const st of r.result ?? []) {
++      if (!st.custom_emoji_id || usedIds.has(st.custom_emoji_id) || list.length >= MAX_EMOJIS) continue;
++      let name: string;
++      [name, n] = uniqueName("emoji", taken, n);
++      usedIds.add(st.custom_emoji_id);
++      list.push({ name, id: st.custom_emoji_id, fallback: st.emoji || "⭐", animated: Boolean(st.is_animated || st.is_video), enabled: true, pack: String(st.set_name ?? "").slice(0, 64) });
++    }
++    await patchSettings(spreadsheetId, { custom_emojis: list } as Record<string, unknown>);
++    res.json({ emojis: list });
++  } catch (err) { sendBotConfigError(res, err, "Failed to import emoji ids"); }
++});
++
++export default router;
+diff --git a/api-server/src/routes/index.ts b/api-server/src/routes/index.ts
+index 9a2171e..f3b1349 100644
+--- a/api-server/src/routes/index.ts
++++ b/api-server/src/routes/index.ts
+@@ -49,6 +49,7 @@ import uploadsRouter from "./uploads.js";
+ import schoolEnrollmentRouter from "./schoolEnrollment.js";
+ import botFormsRouter from "./botForms.js";
+ import botCommandsRouter from "./botCommands.js";
++import botCustomEmojiRouter from "./botCustomEmoji.js";
+ import botAdminsRouter from "./botAdmins.js";
+ import botUsersRouter from "./botUsers.js";
+ import botBroadcastRouter from "./botBroadcast.js";
+@@ -188,6 +189,7 @@ router.use(uploadsRouter);
+ router.use(schoolEnrollmentRouter);
+ router.use(botFormsRouter);
+ router.use(botCommandsRouter);
++router.use(botCustomEmojiRouter);
+ router.use(botAdminsRouter);
+ router.use(botUsersRouter);
+ router.use(botBroadcastRouter);
+diff --git a/irforge/src/components/bots/BotWorkspaceDocument.tsx b/irforge/src/components/bots/BotWorkspaceDocument.tsx
+index df50d51..ddd7e9c 100644
+--- a/irforge/src/components/bots/BotWorkspaceDocument.tsx
++++ b/irforge/src/components/bots/BotWorkspaceDocument.tsx
+@@ -37,6 +37,7 @@ import {
+   GitBranch,
+   Database,
+   Gamepad2,
++  Smile,
+   ChevronDown,
+   type LucideIcon,
+ } from "lucide-react";
+@@ -54,6 +55,7 @@ import {
+   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+ } from "@/components/ui/alert-dialog";
+ import { CommandsEditor } from "@/components/bots/CommandsEditor";
++import { CustomEmojiManager } from "@/components/emoji/CustomEmojiManager";
+ import { PluginsManager } from "@/components/bots/PluginsManager";
+ import { BotStatsPanel } from "@/components/bots/BotStatsPanel";
+ import { BotSettingsSection } from "@/components/bots/settings/BotSettingsSection";
+@@ -99,6 +101,7 @@ type SectionKey =
+   | "panels"
+   | "forms"
+   | "commands"
++  | "emojis"
+   | "users"
+   | "admins"
+   | "orders"
+@@ -200,6 +203,7 @@ const SECTION_GROUPS: SectionGroup[] = [
+       { key: "panels", icon: LayoutPanelLeft, labelKey: "sectionPanels" },
+       { key: "forms", icon: FileText, labelKey: "sectionForms" },
+       { key: "commands", icon: Terminal, labelKey: "sectionCommands" },
++      { key: "emojis", icon: Smile, labelKey: "sectionEmojis" },
+     ],
+   },
+   {
+@@ -570,6 +574,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
+             {section === "database" && <DatabaseSection bot={bot} />}
+             {section === "profile" && <BotProfileForm bot={bot} />}
+             {section === "commands" && <CommandsEditor botId={bot.id} />}
++            {section === "emojis" && <CustomEmojiManager />}
+             {section === "plugins" && <PluginsManager botId={bot.id} />}
+             {section === "stats" && <BotStatsPanel botId={bot.id} status={bot.status} />}
+             {section === "settings" && <BotSettingsSection bot={bot} />}
+diff --git a/b/irforge/src/components/emoji/CustomEmojiManager.tsx b/irforge/src/components/emoji/CustomEmojiManager.tsx
+new file mode 100644
+index 0000000..768116a
+--- /dev/null
++++ b/irforge/src/components/emoji/CustomEmojiManager.tsx
+@@ -0,0 +1,182 @@
++import { useMemo, useState } from "react";
++import { useMutation, useQueryClient } from "@tanstack/react-query";
++import { AlertTriangle, Check, Loader2, Plus, Save, Search, Trash2 } from "lucide-react";
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++import { Switch } from "@/components/ui/switch";
++import { Badge } from "@/components/ui/badge";
++import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
++import { useToast } from "@/hooks/use-toast";
++import { useEmojiContext, customEmojiQueryKey } from "./emoji-context";
++import {
++  EMOJI_NAME_RE, emojiToken, importEmojiIds, importEmojiPacks, saveCustomEmojis, type CustomEmoji,
++} from "@/lib/custom-emoji";
++
++/**
++ * مدیریتِ ایموجیِ سفارشی/متحرک: افزودن با پک (t.me/addemoji/…) یا شناسه، فعال/غیرفعال‌کردنِ دسته‌جمعی،
++ * تغییرِ نامِ توکن، حذف. فقط ایموجی‌هایِ فعال در انتخابگرِ همه‌یِ متن‌ها دیده می‌شوند.
++ */
++export function CustomEmojiManager() {
++  const ctx = useEmojiContext();
++  const { toast } = useToast();
++  const qc = useQueryClient();
++  const botId = ctx?.botId ?? "";
++  const server = ctx?.emojis ?? [];
++
++  const [draft, setDraft] = useState<CustomEmoji[] | null>(null);
++  const list = draft ?? server;
++  const dirty = draft !== null;
++  const [packs, setPacks] = useState("");
++  const [ids, setIds] = useState("");
++  const [q, setQ] = useState("");
++
++  const refresh = (emojis: CustomEmoji[]) => {
++    qc.setQueryData(customEmojiQueryKey(botId), { emojis });
++    setDraft(null);
++  };
++  const fail = (err: any) => toast({ variant: "destructive", title: "خطا", description: err?.message ?? "عملیات ناموفق بود" });
++
++  const save = useMutation({
++    mutationFn: () => saveCustomEmojis(botId, list),
++    onSuccess: (r) => { refresh(r.emojis); toast({ title: "ذخیره شد" }); },
++    onError: fail,
++  });
++  const importPack = useMutation({
++    mutationFn: () => importEmojiPacks(botId, packs.split(/[\s,\n]+/).filter(Boolean)),
++    onSuccess: (r) => {
++      refresh(r.emojis);
++      setPacks("");
++      const ok = r.report.filter((x) => !x.error);
++      const errs = r.report.filter((x) => x.error);
++      toast({
++        title: `${ok.reduce((n, x) => n + x.added, 0)} ایموجی اضافه شد`,
++        description: errs.length ? errs.map((e) => `${e.pack}: ${e.error}`).join(" — ") : undefined,
++        variant: errs.length && !ok.length ? "destructive" : undefined,
++      });
++    },
++    onError: fail,
++  });
++  const importIds = useMutation({
++    mutationFn: () => importEmojiIds(botId, ids.split(/[\s,\n]+/).filter(Boolean)),
++    onSuccess: (r) => { refresh(r.emojis); setIds(""); toast({ title: "شناسه‌ها اضافه شد" }); },
++    onError: fail,
++  });
++
++  const edit = (fn: (l: CustomEmoji[]) => CustomEmoji[]) => setDraft(fn(list));
++  const patch = (name: string, p: Partial<CustomEmoji>) => edit((l) => l.map((e) => (e.name === name ? { ...e, ...p } : e)));
++
++  const shown = useMemo(() => {
++    const s = q.trim().toLowerCase();
++    return s ? list.filter((e) => e.name.includes(s) || e.pack.toLowerCase().includes(s) || e.fallback.includes(s)) : list;
++  }, [list, q]);
++
++  const nameClash = (e: CustomEmoji) => list.filter((x) => x.name === e.name).length > 1;
++  const invalid = list.some((e) => !EMOJI_NAME_RE.test(e.name) || nameClash(e));
++  const enabledCount = list.filter((e) => e.enabled).length;
++  const setAll = (enabled: boolean) => edit((l) => l.map((e) => (shown.some((s) => s.name === e.name) ? { ...e, enabled } : e)));
++
++  if (!ctx) return null;
++
++  return (
++    <div className="space-y-4" dir="rtl" data-testid="custom-emoji-manager">
++      <Card>
++        <CardHeader className="space-y-1.5">
++          <CardTitle>ایموجی‌هایِ متحرک</CardTitle>
++          <CardDescription className="leading-7">
++            ایموجی‌ها را اضافه و فعال کنید؛ بعد در هر متنِ پیام دکمه‌یِ 🙂 را بزنید یا مثلاً <code dir="ltr">:fire:</code> بنویسید. ربات هنگامِ ارسال آن را به ایموجیِ متحرکِ تلگرام تبدیل می‌کند.
++          </CardDescription>
++          <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-6 text-amber-600 dark:text-amber-400">
++            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
++            <span>
++              تلگرام ایموجیِ سفارشی را فقط برایِ باتی نشان می‌دهد که یوزرنیمِ اضافه از Fragment خریده (یا پیام‌هایِ مستقیمِ بات‌ی که صاحبش Premium دارد). در غیرِ این صورت ایموجیِ معمولیِ کنارِ هر ردیف نمایش داده می‌شود و پیام سالم می‌ماند. دکمه‌هایِ شیشه‌ای و نامِ کامند ایموجیِ متحرکِ متنی نمی‌گیرند.
++            </span>
++          </div>
++        </CardHeader>
++        <CardContent className="grid gap-4 md:grid-cols-2">
++          <div className="space-y-2">
++            <label className="text-sm font-medium">افزودنِ پک (لینک یا نام)</label>
++            <textarea
++              value={packs}
++              onChange={(e) => setPacks(e.target.value)}
++              dir="ltr"
++              rows={3}
++              placeholder={"https://t.me/addemoji/PackName\nیا فقط PackName"}
++              className="w-full rounded-lg border border-input bg-background/60 px-3 py-2 text-sm outline-none focus-visible:border-primary/60"
++            />
++            <Button size="sm" onClick={() => importPack.mutate()} disabled={!packs.trim() || importPack.isPending}>
++              {importPack.isPending ? <Loader2 className="me-2 size-4 animate-spin" /> : <Plus className="me-2 size-4" />}
++              افزودنِ پک
++            </Button>
++          </div>
++          <div className="space-y-2">
++            <label className="text-sm font-medium">افزودن با شناسه‌یِ ایموجی</label>
++            <textarea
++              value={ids}
++              onChange={(e) => setIds(e.target.value)}
++              dir="ltr"
++              rows={3}
++              placeholder="5368324170671202286, …"
++              className="w-full rounded-lg border border-input bg-background/60 px-3 py-2 text-sm outline-none focus-visible:border-primary/60"
++            />
++            <Button size="sm" variant="outline" onClick={() => importIds.mutate()} disabled={!ids.trim() || importIds.isPending}>
++              {importIds.isPending ? <Loader2 className="me-2 size-4 animate-spin" /> : <Plus className="me-2 size-4" />}
++              افزودن
++            </Button>
++          </div>
++        </CardContent>
++      </Card>
++
++      <Card>
++        <CardHeader className="space-y-3">
++          <div className="flex flex-wrap items-center justify-between gap-2">
++            <CardTitle className="text-base">
++              فهرست <Badge variant="outline" className="ms-2">{enabledCount} فعال از {list.length}</Badge>
++            </CardTitle>
++            <div className="flex flex-wrap items-center gap-2">
++              <Button size="sm" variant="outline" onClick={() => setAll(true)} disabled={!shown.length}><Check className="me-1 size-4" />فعال‌کردنِ نتایج</Button>
++              <Button size="sm" variant="outline" onClick={() => setAll(false)} disabled={!shown.length}>غیرفعال‌کردنِ نتایج</Button>
++              <Button size="sm" onClick={() => save.mutate()} disabled={!dirty || invalid || save.isPending}>
++                {save.isPending ? <Loader2 className="me-2 size-4 animate-spin" /> : <Save className="me-2 size-4" />}ذخیره
++              </Button>
++              {dirty && <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>لغوِ تغییرات</Button>}
++            </div>
++          </div>
++          <div className="relative">
++            <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
++            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجو در نام، پک یا ایموجی…" className="ps-9" />
++          </div>
++          {invalid && <p className="text-xs text-destructive">نامِ هر ایموجی باید یکتا و فقط حروفِ لاتین کوچک/عدد/_ باشد (۲ تا ۳۲ کاراکتر، شروع با حرف).</p>}
++        </CardHeader>
++        <CardContent>
++          {ctx.isLoading ? (
++            <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" />
++          ) : list.length === 0 ? (
++            <p className="py-6 text-center text-sm text-muted-foreground">هنوز ایموجی‌ای اضافه نشده؛ بالا یک پک اضافه کنید.</p>
++          ) : (
++            <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
++              {shown.map((e) => (
++                <li key={e.id} className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/40 p-2">
++                  <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-xl" title={e.animated ? "متحرک" : "ثابت"}>{e.fallback}</span>
++                  <div className="min-w-0 flex-1">
++                    <Input
++                      value={e.name}
++                      dir="ltr"
++                      onChange={(ev) => patch(e.name, { name: ev.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
++                      className={`h-8 text-xs ${nameClash(e) || !EMOJI_NAME_RE.test(e.name) ? "border-destructive" : ""}`}
++                      aria-label={`نامِ ${emojiToken(e.name)}`}
++                    />
++                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground" dir="ltr">{e.pack || "—"}{e.animated ? " · animated" : ""}</p>
++                  </div>
++                  <Switch checked={e.enabled} onCheckedChange={(v) => patch(e.name, { enabled: v })} aria-label="فعال" />
++                  <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-destructive" onClick={() => edit((l) => l.filter((x) => x.id !== e.id))} aria-label="حذف">
++                    <Trash2 className="size-4" />
++                  </Button>
++                </li>
++              ))}
++            </ul>
++          )}
++        </CardContent>
++      </Card>
++    </div>
++  );
++}
+diff --git a/b/irforge/src/components/emoji/EmojiPickerButton.tsx b/irforge/src/components/emoji/EmojiPickerButton.tsx
+new file mode 100644
+index 0000000..a2e5937
+--- /dev/null
++++ b/irforge/src/components/emoji/EmojiPickerButton.tsx
+@@ -0,0 +1,80 @@
++import { useMemo, useState } from "react";
++import { Smile } from "lucide-react";
++import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
++import { useEmojiContext } from "./emoji-context";
++import { emojiToken, type CustomEmoji } from "@/lib/custom-emoji";
++import { cn } from "@/lib/utils";
++
++/**
++ * دکمه‌یِ انتخابِ ایموجیِ متحرک. `onPick` توکنِ `:name:` را می‌گیرد؛ والد آن را در محلِ مکان‌نما می‌گذارد.
++ * فقط ایموجی‌هایِ **فعال** نشان داده می‌شوند (ادمین از «مدیریتِ ایموجی» انتخاب می‌کند).
++ */
++export function EmojiPickerButton({ onPick, className }: { onPick: (token: string) => void; className?: string }) {
++  const ctx = useEmojiContext();
++  const [open, setOpen] = useState(false);
++  const [q, setQ] = useState("");
++
++  const enabled = useMemo(() => (ctx?.emojis ?? []).filter((e) => e.enabled), [ctx?.emojis]);
++  const shown = useMemo(() => {
++    const s = q.trim().toLowerCase();
++    return s ? enabled.filter((e) => e.name.includes(s) || e.fallback.includes(s) || e.pack.toLowerCase().includes(s)) : enabled;
++  }, [enabled, q]);
++
++  if (!ctx) return null;
++
++  const pick = (e: CustomEmoji) => {
++    onPick(emojiToken(e.name));
++    setOpen(false);
++  };
++
++  return (
++    <Popover open={open} onOpenChange={setOpen}>
++      <PopoverTrigger asChild>
++        <button
++          type="button"
++          tabIndex={-1}
++          aria-label="ایموجی متحرک"
++          title="ایموجی متحرک"
++          data-testid="emoji-picker-trigger"
++          className={cn(
++            "inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary",
++            className,
++          )}
++        >
++          <Smile className="size-4" />
++        </button>
++      </PopoverTrigger>
++      <PopoverContent align="end" className="w-72 p-2" dir="rtl">
++        {enabled.length === 0 ? (
++          <p className="p-3 text-center text-xs leading-6 text-muted-foreground">
++            هنوز ایموجی‌ای فعال نشده. از بخش «ایموجی‌ها» در پنل بات، پک اضافه و ایموجی‌ها را فعال کنید.
++          </p>
++        ) : (
++          <>
++            <input
++              value={q}
++              onChange={(ev) => setQ(ev.target.value)}
++              placeholder="جستجو…"
++              className="mb-2 h-8 w-full rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-primary/60"
++            />
++            <div className="grid max-h-56 grid-cols-6 gap-1 overflow-y-auto" role="listbox">
++              {shown.map((e) => (
++                <button
++                  key={e.name}
++                  type="button"
++                  role="option"
++                  title={emojiToken(e.name)}
++                  onClick={() => pick(e)}
++                  className="flex size-10 items-center justify-center rounded-md text-xl hover:bg-primary/10"
++                >
++                  {e.fallback}
++                </button>
++              ))}
++              {shown.length === 0 && <p className="col-span-6 p-3 text-center text-xs text-muted-foreground">موردی پیدا نشد.</p>}
++            </div>
++          </>
++        )}
++      </PopoverContent>
++    </Popover>
++  );
++}
+diff --git a/b/irforge/src/components/emoji/emoji-context.tsx b/irforge/src/components/emoji/emoji-context.tsx
+new file mode 100644
+index 0000000..48996ca
+--- /dev/null
++++ b/irforge/src/components/emoji/emoji-context.tsx
+@@ -0,0 +1,21 @@
++import { createContext, useContext, useMemo, type ReactNode } from "react";
++import { useQuery } from "@tanstack/react-query";
++import { listCustomEmojis, type CustomEmoji } from "@/lib/custom-emoji";
++
++type Ctx = { botId: string; emojis: CustomEmoji[]; isLoading: boolean } | null;
++const EmojiCtx = createContext<Ctx>(null);
++
++export const customEmojiQueryKey = (botId: string) => ["custom-emojis", botId] as const;
++
++/** هر صفحه‌یِ مدیریتِ بات این را می‌پوشاند؛ همه‌یِ `Textarea`/`Input`ها زیرش خودکار دکمه‌یِ ایموجی می‌گیرند. */
++export function EmojiProvider({ botId, children }: { botId: string; children: ReactNode }) {
++  const { data, isLoading } = useQuery({
++    queryKey: customEmojiQueryKey(botId),
++    queryFn: () => listCustomEmojis(botId),
++    staleTime: 30_000,
++  });
++  const value = useMemo<Ctx>(() => ({ botId, emojis: data?.emojis ?? [], isLoading }), [botId, data, isLoading]);
++  return <EmojiCtx.Provider value={value}>{children}</EmojiCtx.Provider>;
++}
++
++export const useEmojiContext = () => useContext(EmojiCtx);
+diff --git a/b/irforge/src/components/emoji/with-emoji.tsx b/irforge/src/components/emoji/with-emoji.tsx
+new file mode 100644
+index 0000000..ef45e77
+--- /dev/null
++++ b/irforge/src/components/emoji/with-emoji.tsx
+@@ -0,0 +1,54 @@
++import * as React from "react";
++import { EmojiPickerButton } from "./EmojiPickerButton";
++import { useEmojiContext } from "./emoji-context";
++import { insertAtCursor } from "@/lib/custom-emoji";
++import { setNativeValue } from "@/lib/native-input";
++
++/** ref داخلی + ref ارسالی از بیرون را هم‌زمان نگه می‌دارد. */
++export function useMergedRef<T>(external: React.ForwardedRef<T>) {
++  const inner = React.useRef<T | null>(null);
++  const set = React.useCallback(
++    (node: T | null) => {
++      inner.current = node;
++      if (typeof external === "function") external(node);
++      else if (external) (external as React.MutableRefObject<T | null>).current = node;
++    },
++    [external],
++  );
++  return [inner, set] as const;
++}
++
++/**
++ * دورِ یک `<textarea>`/`<input>` دکمه‌یِ ایموجی می‌گذارد. بیرونِ `EmojiProvider` (یا با `emoji={false}`)
++ * هیچ چیزی عوض نمی‌شود و فیلد دقیقاً مثلِ قبل رندر می‌شود.
++ */
++export function EmojiField({
++  enabled,
++  fieldRef,
++  multiline,
++  children,
++}: {
++  enabled: boolean;
++  fieldRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
++  multiline: boolean;
++  children: React.ReactNode;
++}) {
++  const ctx = useEmojiContext();
++  if (!enabled || !ctx) return <>{children}</>;
++
++  const onPick = (token: string) => {
++    const el = fieldRef.current;
++    if (!el || el.disabled || el.readOnly) return;
++    const { next, caret } = insertAtCursor(el.value, token, el.selectionStart, el.selectionEnd);
++    setNativeValue(el, next);
++    el.focus();
++    requestAnimationFrame(() => el.setSelectionRange(caret, caret));
++  };
++
++  return (
++    <div className="relative w-full">
++      {children}
++      <EmojiPickerButton onPick={onPick} className={multiline ? "absolute bottom-1.5 end-1.5" : "absolute end-1.5 top-1/2 -translate-y-1/2"} />
++    </div>
++  );
++}
+diff --git a/irforge/src/components/ui/input.tsx b/irforge/src/components/ui/input.tsx
+index 85bf346..e6da645 100644
+--- a/irforge/src/components/ui/input.tsx
++++ b/irforge/src/components/ui/input.tsx
+@@ -1,19 +1,36 @@
+ import * as React from "react"
+ 
+ import { cn } from "@/lib/utils"
++import { EmojiField, useMergedRef } from "@/components/emoji/with-emoji"
+ 
+-const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
+-  ({ className, type, ...props }, ref) => {
++type InputProps = React.ComponentProps<"input"> & {
++  /**
++   * دکمه‌یِ ایموجیِ متحرک — **opt-in** (داخلِ `EmojiProvider`). عمداً پیش‌فرض خاموش است: برچسبِ دکمه‌هایِ تلگرام،
++   * نامِ کامند، لینک و شناسه ایموجیِ متنی نمی‌گیرند (تلگرام entity را فقط در متنِ پیام/کپشن می‌پذیرد).
++   * فیلدهایِ تیترِ پیام را با `emoji` روشن کنید.
++   */
++  emoji?: boolean
++}
++
++const TEXT_LIKE = new Set<string | undefined>(["text", undefined])
++
++const Input = React.forwardRef<HTMLInputElement, InputProps>(
++  ({ className, type, emoji, ...props }, ref) => {
++    const [inner, setRef] = useMergedRef<HTMLInputElement>(ref)
++    const on = Boolean(emoji) && TEXT_LIKE.has(type) && !props.disabled && !props.readOnly
+     return (
+-      <input
+-        type={type}
+-        className={cn(
+-          "flex h-10 w-full rounded-lg border border-input bg-background/60 px-3 py-1 text-base shadow-[inset_0_1px_2px_hsl(24_30%_10%/.05)] transition-[color,box-shadow,border-color] file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary/60 focus-visible:ring-[3px] focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+-          className
+-        )}
+-        ref={ref}
+-        {...props}
+-      />
++      <EmojiField enabled={on} fieldRef={inner} multiline={false}>
++        <input
++          type={type}
++          className={cn(
++            "flex h-10 w-full rounded-lg border border-input bg-background/60 px-3 py-1 text-base shadow-[inset_0_1px_2px_hsl(24_30%_10%/.05)] transition-[color,box-shadow,border-color] file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary/60 focus-visible:ring-[3px] focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
++            on && "pe-9",
++            className
++          )}
++          ref={setRef}
++          {...props}
++        />
++      </EmojiField>
+     )
+   }
+ )
+diff --git a/irforge/src/components/ui/textarea.tsx b/irforge/src/components/ui/textarea.tsx
+index 2b65895..d2d0a39 100644
+--- a/irforge/src/components/ui/textarea.tsx
++++ b/irforge/src/components/ui/textarea.tsx
+@@ -1,22 +1,30 @@
+ import * as React from "react"
+ 
+ import { cn } from "@/lib/utils"
++import { EmojiField, useMergedRef } from "@/components/emoji/with-emoji"
+ 
+-const Textarea = React.forwardRef<
+-  HTMLTextAreaElement,
+-  React.ComponentProps<"textarea">
+->(({ className, ...props }, ref) => {
+-  return (
+-    <textarea
+-      className={cn(
+-        "flex min-h-[60px] w-full rounded-lg border border-input bg-background/60 px-3 py-2 text-base shadow-[inset_0_1px_2px_hsl(24_30%_10%/.05)] transition-[color,box-shadow,border-color] placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary/60 focus-visible:ring-[3px] focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+-        className
+-      )}
+-      ref={ref}
+-      {...props}
+-    />
+-  )
+-})
++type TextareaProps = React.ComponentProps<"textarea"> & {
++  /** داخلِ `EmojiProvider` پیش‌فرض روشن است (دکمه‌یِ ایموجیِ متحرک)؛ با `emoji={false}` خاموش می‌شود. */
++  emoji?: boolean
++}
++
++const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
++  ({ className, emoji = true, ...props }, ref) => {
++    const [inner, setRef] = useMergedRef<HTMLTextAreaElement>(ref)
++    return (
++      <EmojiField enabled={emoji && !props.disabled && !props.readOnly} fieldRef={inner} multiline>
++        <textarea
++          className={cn(
++            "flex min-h-[60px] w-full rounded-lg border border-input bg-background/60 px-3 py-2 text-base shadow-[inset_0_1px_2px_hsl(24_30%_10%/.05)] transition-[color,box-shadow,border-color] placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary/60 focus-visible:ring-[3px] focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
++            className
++          )}
++          ref={setRef}
++          {...props}
++        />
++      </EmojiField>
++    )
++  }
++)
+ Textarea.displayName = "Textarea"
+ 
+ export { Textarea }
+diff --git a/b/irforge/src/lib/custom-emoji.ts b/irforge/src/lib/custom-emoji.ts
+new file mode 100644
+index 0000000..21a129b
+--- /dev/null
++++ b/irforge/src/lib/custom-emoji.ts
+@@ -0,0 +1,51 @@
++import { customFetch } from "@workspace/api-client-react";
++
++/** آینه‌یِ `CustomEmojiEntry` در api-server (و `utils/custom_emoji.py` در بات). */
++export interface CustomEmoji {
++  name: string;
++  id: string;
++  fallback: string;
++  animated: boolean;
++  enabled: boolean;
++  pack: string;
++}
++
++export const EMOJI_NAME_RE = /^[a-z][a-z0-9_]{1,31}$/;
++
++export const emojiToken = (name: string) => `:${name}:`;
++
++/** تصویرِ پیش‌نمایشِ ایموجی؛ تلگرام پیش‌نمایشِ عمومی ندارد، پس fallback نشان داده می‌شود. */
++export const emojiLabel = (e: CustomEmoji) => `${e.fallback} ${emojiToken(e.name)}`;
++
++export const listCustomEmojis = (botId: string) =>
++  customFetch<{ emojis: CustomEmoji[] }>(`/api/bots/${botId}/custom-emojis`, { method: "GET" });
++
++export const saveCustomEmojis = (botId: string, emojis: CustomEmoji[]) =>
++  customFetch<{ emojis: CustomEmoji[] }>(`/api/bots/${botId}/custom-emojis`, {
++    method: "PUT",
++    headers: { "Content-Type": "application/json" },
++    body: JSON.stringify({ emojis }),
++  });
++
++export interface ImportReportRow { pack: string; added: number; error?: string }
++
++export const importEmojiPacks = (botId: string, packs: string[]) =>
++  customFetch<{ emojis: CustomEmoji[]; report: ImportReportRow[] }>(`/api/bots/${botId}/custom-emojis/import-pack`, {
++    method: "POST",
++    headers: { "Content-Type": "application/json" },
++    body: JSON.stringify({ packs }),
++  });
++
++export const importEmojiIds = (botId: string, ids: string[]) =>
++  customFetch<{ emojis: CustomEmoji[] }>(`/api/bots/${botId}/custom-emojis/import-ids`, {
++    method: "POST",
++    headers: { "Content-Type": "application/json" },
++    body: JSON.stringify({ ids }),
++  });
++
++/** متنِ `value` را با `token` در محلِ مکان‌نما (یا انتها) پر می‌کند؛ مکانِ جدیدِ مکان‌نما را هم برمی‌گرداند. */
++export function insertAtCursor(value: string, token: string, start: number | null, end: number | null) {
++  const s = start ?? value.length;
++  const e = end ?? s;
++  return { next: value.slice(0, s) + token + value.slice(e), caret: s + token.length };
++}
+diff --git a/b/irforge/src/lib/native-input.ts b/irforge/src/lib/native-input.ts
+new file mode 100644
+index 0000000..44b37d3
+--- /dev/null
++++ b/irforge/src/lib/native-input.ts
+@@ -0,0 +1,7 @@
++/** مقدارِ یک input/textarea را طوری عوض می‌کند که `onChange`ِ React (و react-hook-form) هم فعال شود. */
++export function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
++  const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
++  const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
++  setter?.call(el, value);
++  el.dispatchEvent(new Event("input", { bubbles: true }));
++}
+diff --git a/irforge/src/locales/ar.json b/irforge/src/locales/ar.json
+index fde3bf8..55d6bcf 100644
+--- a/irforge/src/locales/ar.json
++++ b/irforge/src/locales/ar.json
+@@ -484,6 +484,7 @@
+     "adminCodeCopyFailed": "فشل النسخ — الرمز ظاهر الآن، حدّده يدويًا.",
+     "sectionProfile": "ملف تعريف البوت",
+     "sectionCommands": "الأوامر",
++    "sectionEmojis": "الإيموجي",
+     "sectionPlugins": "الإضافات",
+     "sectionStats": "الإحصائيات",
+     "sectionSettings": "الإعدادات",
+diff --git a/irforge/src/locales/en.json b/irforge/src/locales/en.json
+index 2e622dc..9b1f5ad 100644
+--- a/irforge/src/locales/en.json
++++ b/irforge/src/locales/en.json
+@@ -484,6 +484,7 @@
+     "adminCodeCopyFailed": "Copy failed — the code is now visible, select it manually.",
+     "sectionProfile": "Bot Profile",
+     "sectionCommands": "Commands",
++    "sectionEmojis": "Emoji",
+     "sectionPlugins": "Plugins",
+     "sectionStats": "Stats",
+     "sectionSettings": "Settings",
+diff --git a/irforge/src/locales/fa.json b/irforge/src/locales/fa.json
+index a069a8c..d23b516 100644
+--- a/irforge/src/locales/fa.json
++++ b/irforge/src/locales/fa.json
+@@ -484,6 +484,7 @@
+     "adminCodeCopyFailed": "کپی نشد — کد نمایش داده شد، دستی انتخابش کنید.",
+     "sectionProfile": "پروفایل بات",
+     "sectionCommands": "دستورات",
++    "sectionEmojis": "ایموجی‌ها",
+     "sectionPlugins": "پلاگین‌ها",
+     "sectionStats": "آمار",
+     "sectionSettings": "تنظیمات",
+diff --git a/irforge/src/locales/ru.json b/irforge/src/locales/ru.json
+index 0e135c6..97994b1 100644
+--- a/irforge/src/locales/ru.json
++++ b/irforge/src/locales/ru.json
+@@ -484,6 +484,7 @@
+     "adminCodeCopyFailed": "Не удалось скопировать — код показан, выделите вручную.",
+     "sectionProfile": "Профиль бота",
+     "sectionCommands": "Команды",
++    "sectionEmojis": "Эмодзи",
+     "sectionPlugins": "Плагины",
+     "sectionStats": "Статистика",
+     "sectionSettings": "Настройки",
+diff --git a/irforge/src/locales/tr.json b/irforge/src/locales/tr.json
+index 481aaee..8834cf4 100644
+--- a/irforge/src/locales/tr.json
++++ b/irforge/src/locales/tr.json
+@@ -484,6 +484,7 @@
+     "adminCodeCopyFailed": "Kopyalanamadı — kod göründü, elle seçin.",
+     "sectionProfile": "Bot Profili",
+     "sectionCommands": "Komutlar",
++    "sectionEmojis": "Emojiler",
+     "sectionPlugins": "Eklentiler",
+     "sectionStats": "İstatistikler",
+     "sectionSettings": "Ayarlar",
+diff --git a/irforge/src/pages/bot-workspace.tsx b/irforge/src/pages/bot-workspace.tsx
+index 760c780..5e2c3ee 100644
+--- a/irforge/src/pages/bot-workspace.tsx
++++ b/irforge/src/pages/bot-workspace.tsx
+@@ -20,6 +20,7 @@ import { ForgePanel } from "@/components/forge-ui/ForgePanel";
+ import { StatusPill } from "@/components/forge-ui/LiveDot";
+ import { botStatusMeta } from "@/lib/bot-status";
+ import { botLifetime, LIFETIME_TONE } from "@/lib/bot-lifetime";
++import { EmojiProvider } from "@/components/emoji/emoji-context";
+ 
+ // The bot process only reconciles against the registry sheet every ~20s
+ // (services/tenant_status_watcher.py on mainbot), so a start/stop click
+@@ -207,7 +208,9 @@ export default function BotWorkspace() {
+       </ForgePanel>
+ 
+       {/* Q5: document shell (section rail + main area, cross-fade) */}
+-      <BotWorkspaceDocument bot={bot} />
++      <EmojiProvider botId={bot.id}>
++        <BotWorkspaceDocument bot={bot} />
++      </EmojiProvider>
+     </div>
+   );
+ }
+diff --git a/irforge/vite.config.ts b/irforge/vite.config.ts
+index a611778..c192184 100644
+--- a/irforge/vite.config.ts
++++ b/irforge/vite.config.ts
+@@ -143,5 +143,10 @@ export default defineConfig({
+   server: {
+     port: 5173,
+     host: "0.0.0.0",
++    // توسعه‌یِ لوکال: درخواست‌هایِ /api به api-server (پیش‌فرض localhost:3000). برایِ تغییرِ مقصد:
++    //   $env:VITE_API_TARGET = "http://localhost:4000"
++    proxy: {
++      "/api": { target: process.env.VITE_API_TARGET ?? "http://localhost:3000", changeOrigin: true },
++    },
+   },
+ });
