@@ -58,7 +58,9 @@ export type AuditAction =
   | "test_identity_created"
   | "test_identity_entered"
   | "test_identity_deleted"
-  | "test_school_cleaned_up";
+  | "test_school_cleaned_up"
+  // دکمه‌ی «بررسی و تعمیر همه»ی Sheet Pool (routes/sheetPoolRepair.ts). metadata فقط شمارنده‌ها.
+  | "sheet_pool_repair";
 
 export async function writeAudit(input: {
   actorUserId: string;

@@ -39,6 +39,7 @@ import completeProfileRouter from "./completeProfile.js";
 import superAdminUsersRouter from "./superAdminUsers.js";
 // عیب‌یابیِ دسترسیِ Sheets برای super_admin (pg-migration checkpoint، آیتم ۲)
 import superAdminDiagnosticsRouter from "./superAdminDiagnostics.js";
+import sheetPoolRepairRouter from "./sheetPoolRepair.js";
 // دسترسی مهمان (توکن جدا، پیش‌فرض-رد)
 import guestRouter from "./guest.js";
 // مهاجرت پنل ادمین بات به سایت — تنظیمات بات روی تب `bot_settings` شیت تننت
@@ -147,6 +148,8 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(usersRouter);
 router.use(dashboardRouter);
+// باید قبل از botsRouter باشد: `/sheet-pool/repair` نباید با روت‌های `/sheet-pool/:id/...` قاطی شود.
+router.use(sheetPoolRepairRouter);
 router.use(botsRouter);
 router.use(marketplaceRouter);
 router.use(plansRouter);

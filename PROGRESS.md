@@ -4655,3 +4655,17 @@ Why two halves: the bot is polling-only with no inbound HTTP and its data (Sheet
 
 ## Login page upgrade (2026-10-08)
 - `pages/login.tsx`: email/phone big cards → compact segmented tabs; full-width primary button; softer glass card with accent hairline; SMS-login becomes a dashed ghost row. `AuthShell.tsx` (all auth pages): brand panel now shows a live Telegram-bot chat preview (/start + the product's capability buttons) above the checklist. `EnamadSeal` hides itself if the image fails (no broken-image alt text under the page). Checked in Chromium (desktop dark/light, mobile).
+
+## Sheet Pool — «بررسی و تعمیر همه» (repair-all button)
+
+**Problem:** some Google Sheets return Access Denied (403 PERMISSION_DENIED) or Not Found (404) — usually the service account was removed as an Editor, or the file was deleted/moved. Free spares in the pool rot, and bots whose sheet rots show an empty bot-management section.
+
+**What was added**
+- `lib/sheetPoolRepair.ts` — probes every distinct sheet (pool + each bot's `sheetId`) live, 5 at a time. Only 403 `PERMISSION_DENIED` and 404 count as *broken*; 429/5xx/network/missing credentials are *unknown* and never cause a change. A broken verdict is re-confirmed once before acting. If nothing at all could be probed, the run aborts without touching anything.
+- Broken **free** sheets are deleted from the pool. Broken **assigned** sheets are replaced with a healthy free spare (atomic `FOR UPDATE SKIP LOCKED` claim, same pattern as `claimFreeSheet`): `bots.sheet_id`, the tenant registry, pool registry and sheet title are updated, an export from Postgres into the new sheet is queued, and the owner gets an in-site + Telegram notification (`sheet_repair_success`).
+- **Postgres data follows the bot.** Business data is keyed `tenant_id = sheetId` (see `0028_row_level_security.sql` in irforge-app), so swapping the sheet without re-keying would orphan it. `moveTenantData()` copies every `tenant_id` table's rows old → new tenant (RLS has USING + WITH CHECK so a plain UPDATE can't re-key), verifies row counts, deletes the old rows, and moves `entity_cutover_flags` — all in one transaction. Any error (including a new tenant that already has data) rolls back and the bot stays on its old sheet, reported as *failed*.
+- If no healthy spare is left the bot is left untouched and reported as *no spare*.
+- `routes/sheetPoolRepair.ts` — `POST /api/sheet-pool/repair {apply?}` starts a background job (dry-run unless `apply: true`; one at a time), `GET /api/sheet-pool/repair` returns progress + last report. Super-admin only, audited as `sheet_pool_repair`.
+- UI: `components/sheet-pool-repair.tsx`, button in the Sheet Pool header. Flow = preview (no changes) → confirm → final report (broken/healthy among free sheets and among bots).
+
+**Not verified in CI:** `moveTenantData()` needs a real Postgres with the RLS migration; unit tests cover only the classification/messages. Run the preview first and watch the first real apply on one bot.

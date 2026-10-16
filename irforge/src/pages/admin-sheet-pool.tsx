@@ -16,6 +16,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RefreshButton } from "@/components/ui/refresh-button";
+import { SheetPoolRepair } from "@/components/sheet-pool-repair";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -174,11 +175,14 @@ export default function AdminSheetPool() {
             {fa ? "شیت‌های آماده که موقع تأیید پرداخت به بات‌ها اختصاص داده می‌شن." : "Ready sheets assigned to bots when a payment is approved."}
           </p>
         </div>
-        <RefreshButton
-          className="ms-auto shrink-0"
-          queryKeys={[["admin", "sheet-pool"]]}
-          label={fa ? "به‌روزرسانی" : "Refresh"}
-        />
+        <div className="ms-auto flex shrink-0 items-center gap-2">
+          <SheetPoolRepair onDone={() => void refetch()} />
+          <RefreshButton
+            className="shrink-0"
+            queryKeys={[["admin", "sheet-pool"]]}
+            label={fa ? "به‌روزرسانی" : "Refresh"}
+          />
+        </div>
       </div>
 
       {/* counts */}
