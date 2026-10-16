@@ -19,7 +19,10 @@ type Item = {
 
 type Report = {
   mode: "dry" | "apply";
+  pool: { total: number; inUse: number; free: number; orphans: number };
   spares: { total: number; healthy: number; broken: number; unknown: number; removed: number };
+  orphans: { total: number; healthy: number; broken: number; unknown: number; wiped: number; deleted: number; rowsPurged: number };
+  unknownSheets: { sheetId: string; httpStatus?: number; reason?: string }[];
   bots: {
     total: number;
     healthy: number;
@@ -47,6 +50,7 @@ type Stage = "idle" | "scanning" | "preview" | "applying" | "done" | "error";
 const PHASE_FA: Record<string, string> = {
   probing: "در حال تست شیت‌ها",
   removing: "حذف شیت‌های خراب از pool",
+  wiping: "پاک‌کردن کامل شیت‌های بی‌صاحب",
   repairing: "تعمیر شیت بات‌ها",
 };
 
@@ -132,7 +136,7 @@ export function SheetPoolRepair({ onDone }: { onDone?: () => void }) {
   const report = status?.report ?? null;
   const progress = status?.progress;
   const busy = stage === "scanning" || stage === "applying";
-  const hasBroken = !!report && (report.spares.broken > 0 || report.bots.broken > 0);
+  const hasBroken = !!report && (report.spares.broken > 0 || report.bots.broken > 0 || report.orphans.total > 0);
 
   return (
     <>
@@ -172,7 +176,10 @@ export function SheetPoolRepair({ onDone }: { onDone?: () => void }) {
 
           {report && (stage === "preview" || stage === "done") && (
             <div className="space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-3">
+              <p className="text-xs text-muted-foreground">
+                pool: {n(report.pool.total)} شیت — {n(report.pool.inUse)} به بات وصل، {n(report.pool.free)} آزاد، {n(report.pool.orphans)} بی‌صاحب
+              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border p-3">
                   <p className="mb-1.5 text-xs font-medium text-muted-foreground">شیت‌های خالی (آزاد)</p>
                   <p>سالم: <b className="text-emerald-500">{n(report.spares.healthy)}</b></p>
@@ -181,6 +188,23 @@ export function SheetPoolRepair({ onDone }: { onDone?: () => void }) {
                     {stage === "done" && <span className="text-xs text-muted-foreground"> ({n(report.spares.removed)} حذف شد)</span>}
                   </p>
                   {report.spares.unknown > 0 && <p className="text-xs text-muted-foreground">نامشخص: {n(report.spares.unknown)}</p>}
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">شیت‌های بی‌صاحب</p>
+                  <p>
+                    سالم: <b className="text-emerald-500">{n(report.orphans.healthy)}</b>
+                    {stage === "done" && <span className="text-xs text-muted-foreground"> ({n(report.orphans.wiped)} پاک و آزاد شد)</span>}
+                  </p>
+                  <p>
+                    خراب: <b className="text-destructive">{n(report.orphans.broken)}</b>
+                    {stage === "done" && <span className="text-xs text-muted-foreground"> ({n(report.orphans.deleted)} حذف شد)</span>}
+                  </p>
+                  {report.orphans.rowsPurged > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {n(report.orphans.rowsPurged)} ردیف دیتای Postgres {stage === "done" ? "پاک شد" : "پاک می‌شود"}
+                    </p>
+                  )}
+                  {report.orphans.unknown > 0 && <p className="text-xs text-muted-foreground">نامشخص: {n(report.orphans.unknown)}</p>}
                 </div>
                 <div className="rounded-lg border p-3">
                   <p className="mb-1.5 text-xs font-medium text-muted-foreground">شیت بات‌ها</p>
@@ -237,6 +261,17 @@ export function SheetPoolRepair({ onDone }: { onDone?: () => void }) {
                         {STATUS_FA[it.status]}
                       </span>
                     </div>
+                  ))}
+                </div>
+              )}
+
+              {report.unknownSheets.length > 0 && (
+                <div className="rounded-lg border p-3 text-xs text-muted-foreground">
+                  <p className="mb-1 font-medium">شیت‌های نامشخص (دست نخوردند):</p>
+                  {report.unknownSheets.map((u) => (
+                    <p key={u.sheetId} dir="ltr" className="truncate">
+                      {u.sheetId.slice(0, 10)}… — {u.httpStatus ?? "?"} {u.reason ?? ""}
+                    </p>
                   ))}
                 </div>
               )}

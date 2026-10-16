@@ -13,8 +13,11 @@
  *      PERMISSION_DENIED و ۴۰۴ «خراب» حساب می‌شوند؛ هر خطای دیگر (۴۲۹، ۵xx،
  *      قطعی شبکه، نبودِ credentials) «نامشخص» است و **هیچ‌وقت** به‌خاطرش چیزی
  *      حذف یا عوض نمی‌شود. خرابی قبل از اقدام یک بار دیگر تأیید می‌شود.
- *   ۲. شیتِ خرابِ «آزاد» را از pool حذف می‌کند.
- *   ۳. شیتِ خرابِ «اختصاص‌یافته» را با یک شیت سالمِ آزاد جایگزین می‌کند.
+ *   ۲. هر ردیفِ خرابِ pool که **هیچ باتِ زنده‌ای** به آن وصل نیست (چه «آزاد»، چه
+ *      «اختصاص‌یافته‌ی بی‌صاحب») کامل از pool حذف می‌شود.
+ *      شیتِ سالم ولی بی‌صاحب (دیتا دارد، به هیچ باتی تعلق ندارد) کامل پاک می‌شود
+ *      (شیت + دیتای Postgres) و به «آزاد» برمی‌گردد.
+ *   ۳. شیتِ خرابِ بات را با یکی از همین شیت‌های تمیز جایگزین می‌کند.
  *      دیتای واقعی بات در Postgres است و با `tenant_id = sheetId` کلید خورده؛
  *      پس با عوض‌شدن شیت باید همان ردیف‌ها به tenant_id جدید منتقل شوند وگرنه
  *      بات دیتایش را «گم» می‌کند. این انتقال در یک تراکنش است و هر خطایی
@@ -24,17 +27,18 @@
  *
  * حالت `dry` فقط گزارش می‌دهد و هیچ چیز را تغییر نمی‌دهد.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, notExists, notInArray } from "drizzle-orm";
 import { db, botsTable, sheetPoolTable, usersTable } from "@workspace/db";
 import type { PoolClient } from "pg";
 import { logger } from "./logger.js";
-import { diagnoseSheetAccess, ensureAllTenantTabs, renameSpreadsheet } from "./sheets.js";
+import { diagnoseSheetAccess, ensureAllTenantTabs, renameSpreadsheet, resetSpreadsheet } from "./sheets.js";
 import type { SheetAccessDiagnosis } from "./sheets.js";
 import { syncSheetPoolDelete, syncSheetPoolUpsert, syncTenantUpsert } from "./sheetsSync.js";
 import { decryptToken } from "./tokenCrypto.js";
 import { createNotification } from "./notify.js";
 import { enqueueSheetsExport } from "./sheetsExport.js";
 import { getBusinessPool } from "./businessDbPool.js";
+import { markSheetTitleFreed, purgeTenantPostgresData } from "./botPurge.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -64,8 +68,14 @@ export interface RepairReport {
   mode: RepairMode;
   startedAt: string;
   finishedAt: string | null;
-  /** شیت‌های خالیِ pool (status = available). */
+  /** ترکیب pool: چند ردیف، چند تا به باتِ زنده وصل است، چند تا آزاد، چند تا بی‌صاحب. */
+  pool: { total: number; inUse: number; free: number; orphans: number };
+  /** شیت‌های آزادِ pool (status = available و بدون باتِ زنده). */
   spares: { total: number; healthy: number; broken: number; unknown: number; removed: number };
+  /** شیت‌های «اختصاص‌یافته» که هیچ باتِ زنده‌ای ندارند (بی‌صاحب)؛ ممکن است دیتا داشته باشند. */
+  orphans: { total: number; healthy: number; broken: number; unknown: number; wiped: number; deleted: number; rowsPurged: number };
+  /** شیت‌هایی که تست نامشخص شد (برای اینکه ادمین ببیند چرا دست نخوردند). */
+  unknownSheets: { sheetId: string; httpStatus?: number; reason?: string }[];
   /** شیتِ بات‌ها (هر بات یک بار شمرده می‌شود). */
   bots: {
     total: number;
@@ -83,7 +93,7 @@ export interface RepairReport {
 }
 
 export interface RepairProgress {
-  phase: "idle" | "probing" | "removing" | "repairing" | "done" | "error";
+  phase: "idle" | "probing" | "removing" | "wiping" | "repairing" | "done" | "error";
   done: number;
   total: number;
 }
@@ -102,6 +112,11 @@ export function classifyDiagnosis(d: SheetAccessDiagnosis): SheetHealth {
   const reason = String(d.googleReason ?? "").toUpperCase();
   const msg = String(d.message ?? "").toLowerCase();
   if (status === 404 || reason === "NOT_FOUND" || reason === "NOTFOUND") return "broken";
+  // فایلی که اسپردشیتِ بومیِ گوگل نیست (مثلاً xlsx آپلودی): API می‌گوید
+  // «This operation is not supported for this document» — برای بات‌ها بلااستفاده است.
+  if (status === 400 && (reason === "FAILED_PRECONDITION" || msg.includes("not supported for this document"))) {
+    return "broken";
+  }
   if (status === 403) {
     if (reason.includes("RATE") || reason.includes("QUOTA")) return "unknown";
     if (reason === "PERMISSION_DENIED" || reason === "FORBIDDEN" || msg.includes("does not have permission")) {
@@ -116,7 +131,10 @@ export function emptyReport(mode: RepairMode): RepairReport {
     mode,
     startedAt: new Date().toISOString(),
     finishedAt: null,
+    pool: { total: 0, inUse: 0, free: 0, orphans: 0 },
     spares: { total: 0, healthy: 0, broken: 0, unknown: 0, removed: 0 },
+    orphans: { total: 0, healthy: 0, broken: 0, unknown: 0, wiped: 0, deleted: 0, rowsPurged: 0 },
+    unknownSheets: [],
     bots: { total: 0, healthy: 0, broken: 0, unknown: 0, repaired: 0, wouldRepair: 0, noSpare: 0, failed: 0, withoutSheet: 0 },
     items: [],
     notes: [],
@@ -150,34 +168,44 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: nu
 
 // ─── Probing ────────────────────────────────────────────────────────────────
 
-async function probeOnce(sheetId: string): Promise<SheetHealth> {
-  return classifyDiagnosis(await diagnoseSheetAccess(sheetId));
+export interface ProbeResult {
+  health: SheetHealth;
+  diag: SheetAccessDiagnosis | null;
+}
+
+async function probeOnce(sheetId: string): Promise<ProbeResult> {
+  const diag = await diagnoseSheetAccess(sheetId);
+  return { health: classifyDiagnosis(diag), diag };
 }
 
 /** تست زنده؛ اگر خراب بود یک بار دیگر تأیید می‌شود تا یک اشتباهِ لحظه‌ای کسی را خراب نکند. */
-export async function probeSheet(sheetId: string): Promise<SheetHealth> {
+export async function probeSheetDetailed(sheetId: string): Promise<ProbeResult> {
   const first = await probeOnce(sheetId);
-  if (first !== "broken") return first;
+  if (first.health !== "broken") return first;
   await new Promise((r) => setTimeout(r, 1500));
   const second = await probeOnce(sheetId);
-  return second === "broken" ? "broken" : "unknown";
+  return second.health === "broken" ? second : { health: "unknown", diag: second.diag };
+}
+
+export async function probeSheet(sheetId: string): Promise<SheetHealth> {
+  return (await probeSheetDetailed(sheetId)).health;
 }
 
 async function probeMany(
   sheetIds: string[],
   onTick: (done: number, total: number) => void,
-): Promise<Map<string, SheetHealth>> {
-  const result = new Map<string, SheetHealth>();
+): Promise<Map<string, ProbeResult>> {
+  const result = new Map<string, ProbeResult>();
   let done = 0;
   await mapLimit(sheetIds, 5, async (id) => {
-    let h: SheetHealth;
+    let r: ProbeResult;
     try {
-      h = await probeSheet(id);
+      r = await probeSheetDetailed(id);
     } catch (err) {
       logger.warn({ err, sheetId: id }, "sheetPoolRepair: probe threw (treated as unknown)");
-      h = "unknown";
+      r = { health: "unknown", diag: null };
     }
-    result.set(id, h);
+    result.set(id, r);
     onTick(++done, sheetIds.length);
   });
   return result;
@@ -345,11 +373,23 @@ export async function moveTenantData(oldId: string, newId: string): Promise<Tena
 
 // ─── Spare-sheet claiming (same atomic pattern as routes/bots.ts) ───────────
 
-async function claimFreeSheet(botId: string) {
+/**
+ * یک شیتِ «آزاد» را اتمیک برمی‌دارد. برخلاف claimFreeSheet در routes/bots.ts،
+ * ردیفی که یک باتِ زنده هنوز به آن اشاره می‌کند (باگِ قدیمیِ sheetId مشترک)
+ * و ردیف‌هایی که همین اجرا ردشان کرده انتخاب نمی‌شوند — چون شیتِ انتخاب‌شده
+ * پاک‌سازی می‌شود و نباید دیتای یک باتِ زنده را بردارد.
+ */
+async function claimSpare(botId: string, skipPoolIds: string[]) {
+  const conditions = [
+    eq(sheetPoolTable.status, "available"),
+    notExists(db.select({ x: botsTable.id }).from(botsTable).where(eq(botsTable.sheetId, sheetPoolTable.sheetId))),
+  ];
+  if (skipPoolIds.length > 0) conditions.push(notInArray(sheetPoolTable.id, skipPoolIds));
+
   const picked = db
     .select({ id: sheetPoolTable.id })
     .from(sheetPoolTable)
-    .where(eq(sheetPoolTable.status, "available"))
+    .where(and(...conditions))
     .limit(1)
     .for("update", { skipLocked: true });
 
@@ -363,6 +403,32 @@ async function claimFreeSheet(botId: string) {
 
 async function releaseClaim(poolRowId: string): Promise<void> {
   await db.update(sheetPoolTable).set({ status: "available", assignedBotId: null }).where(eq(sheetPoolTable.id, poolRowId));
+}
+
+// ─── Wiping a sheet that belongs to nobody ──────────────────────────────────
+
+/**
+ * شیتی که به هیچ باتی تعلق ندارد را کامل پاک می‌کند: ۱) دیتای Postgresِ آن
+ * tenant (و فلگ‌های cutover)، ۲) محتوای خودِ گوگل‌شیت (ریست به Sheet1 + تب‌بندی
+ * کامل). اگر هر مرحله خطا بدهد throw می‌شود و شیت «تمیز» حساب نمی‌شود.
+ * @returns تعداد ردیف‌های Postgres که پاک شد.
+ */
+export async function wipeUnownedSheet(sheetId: string): Promise<number> {
+  let purged = 0;
+  if (getBusinessPool()) {
+    const before = await countTenantData(sheetId);
+    if (before === null) throw new Error("شمارشِ دیتای Postgres این شیت ممکن نشد");
+    if (before.rows > 0) {
+      await purgeTenantPostgresData(sheetId);
+      const after = await countTenantData(sheetId);
+      if (after === null || after.rows > 0) {
+        throw new Error(`پاک‌کردنِ دیتای Postgres کامل نشد (${after?.rows ?? "؟"} ردیف مانده)`);
+      }
+      purged = before.rows;
+    }
+  }
+  await resetSpreadsheet(sheetId);
+  return purged;
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
@@ -379,39 +445,72 @@ export async function runSheetPoolRepair(
   const bots = allBots.filter((b) => !!b.sheetId);
   report.bots.withoutSheet = allBots.length - bots.length;
 
+  const botSheetIds = new Set(bots.map((b) => b.sheetId!));
+  const liveBotIds = new Set(allBots.map((b) => b.id));
+
+  // دسته‌بندی ردیف‌های pool:
+  //   inUse   : باتی با این sheetId هست، یا باتِ زنده‌ای رزروش کرده (محافظه‌کارانه، دست نمی‌زنیم)
+  //   free    : available و بدون بات
+  //   orphan  : assigned ولی نه باتی به آن وصل است نه باتِ زنده‌ای رزروش کرده
+  const inUse = poolRows.filter(
+    (r) => botSheetIds.has(r.sheetId) || (r.status !== "available" && r.assignedBotId && liveBotIds.has(r.assignedBotId)),
+  );
+  const inUseIds = new Set(inUse.map((r) => r.id));
+  const free = poolRows.filter((r) => !inUseIds.has(r.id) && r.status === "available");
+  const orphans = poolRows.filter((r) => !inUseIds.has(r.id) && r.status !== "available");
+  report.pool = { total: poolRows.length, inUse: inUse.length, free: free.length, orphans: orphans.length };
+
   // ۱) تست همه‌ی شیت‌های یکتا
   const uniqueIds = [...new Set([...poolRows.map((r) => r.sheetId), ...bots.map((b) => b.sheetId!)])];
   onProgress({ phase: "probing", done: 0, total: uniqueIds.length });
-  const health = await probeMany(uniqueIds, (done, total) => onProgress({ phase: "probing", done, total }));
+  const probes = await probeMany(uniqueIds, (done, total) => onProgress({ phase: "probing", done, total }));
+  const health = (id: string): SheetHealth => probes.get(id)?.health ?? "unknown";
 
   // اگر «همه» نامشخص بودند (مثلاً credentials تنظیم نیست) هیچ اقدامی ایمن نیست.
-  const anyOk = [...health.values()].some((h) => h === "ok");
-  if (uniqueIds.length > 0 && !anyOk && [...health.values()].every((h) => h === "unknown")) {
+  if (uniqueIds.length > 0 && uniqueIds.every((id) => health(id) === "unknown")) {
+    const first = probes.values().next().value?.diag;
     report.notes.push(
-      "هیچ شیتی قابل تست نبود (احتمالاً GOOGLE_CREDENTIALS_JSON تنظیم نیست یا گوگل در دسترس نیست). هیچ تغییری داده نشد.",
+      "هیچ شیتی قابل تست نبود (احتمالاً GOOGLE_CREDENTIALS_JSON تنظیم نیست یا گوگل در دسترس نیست). هیچ تغییری داده نشد." +
+        (first?.message ? ` — ${String(first.message).slice(0, 160)}` : ""),
     );
     report.finishedAt = new Date().toISOString();
     return report;
   }
 
-  const botSheetIds = new Set(bots.map((b) => b.sheetId!));
+  for (const id of uniqueIds) {
+    if (health(id) === "unknown") {
+      const diag = probes.get(id)?.diag;
+      if (report.unknownSheets.length < 15) {
+        report.unknownSheets.push({
+          sheetId: id,
+          httpStatus: diag?.httpStatus,
+          reason: String(diag?.googleReason ?? diag?.message ?? "").slice(0, 120) || undefined,
+        });
+      }
+    }
+  }
 
-  // ۲) شیت‌های خالی (available)
-  const availableRows = poolRows.filter((r) => r.status === "available");
-  report.spares.total = availableRows.length;
-  const brokenSpares = availableRows.filter((r) => health.get(r.sheetId) === "broken" && !botSheetIds.has(r.sheetId));
-  for (const r of availableRows) {
-    const h = health.get(r.sheetId);
+  // آمار شیت‌های آزاد و بی‌صاحب
+  report.spares.total = free.length;
+  for (const r of free) {
+    const h = health(r.sheetId);
     if (h === "ok") report.spares.healthy++;
     else if (h === "broken") report.spares.broken++;
     else report.spares.unknown++;
   }
+  report.orphans.total = orphans.length;
+  for (const r of orphans) {
+    const h = health(r.sheetId);
+    if (h === "ok") report.orphans.healthy++;
+    else if (h === "broken") report.orphans.broken++;
+    else report.orphans.unknown++;
+  }
 
-  // ۳) بات‌ها (هر بات یک بار)
+  // آمار بات‌ها (هر بات یک بار)
   report.bots.total = bots.length;
-  const brokenBots = [];
+  const brokenBots: typeof bots = [];
   for (const b of bots) {
-    const h = health.get(b.sheetId!);
+    const h = health(b.sheetId!);
     if (h === "ok") report.bots.healthy++;
     else if (h === "broken") {
       report.bots.broken++;
@@ -419,26 +518,68 @@ export async function runSheetPoolRepair(
     } else report.bots.unknown++;
   }
 
-  // ۴) حذفِ شیت‌های خراب از بین «خالی»ها
-  onProgress({ phase: "removing", done: 0, total: brokenSpares.length });
+  // ۲) حذفِ کاملِ ردیف‌های خرابی که هیچ باتی ندارند (آزاد یا بی‌صاحب)
+  const brokenUnused = [...free, ...orphans].filter((r) => health(r.sheetId) === "broken");
+  onProgress({ phase: "removing", done: 0, total: brokenUnused.length });
   if (mode === "apply") {
-    for (const r of brokenSpares) {
+    let done = 0;
+    for (const r of brokenUnused) {
       try {
-        await db.delete(sheetPoolTable).where(and(eq(sheetPoolTable.id, r.id), eq(sheetPoolTable.status, "available")));
+        // دوباره مطمئن شو باتی در این فاصله به آن وصل نشده
+        const [bound] = await db.select({ id: botsTable.id }).from(botsTable).where(eq(botsTable.sheetId, r.sheetId)).limit(1);
+        if (bound) continue;
+        // پاکسازی دیتای Postgres این tenant هم (اگر مانده باشد) — خطایش مانع حذف نیست
+        try {
+          await purgeTenantPostgresData(r.sheetId);
+        } catch (err) {
+          logger.warn({ err, sheetId: r.sheetId }, "sheetPoolRepair: purge of broken unused sheet's Postgres data failed (non-fatal)");
+        }
+        await db.delete(sheetPoolTable).where(eq(sheetPoolTable.id, r.id));
         syncSheetPoolDelete(r.sheetId);
-        report.spares.removed++;
+        if (r.status === "available") report.spares.removed++;
+        else report.orphans.deleted++;
       } catch (err) {
-        logger.error({ err, sheetId: r.sheetId }, "sheetPoolRepair: failed removing broken spare");
-        report.notes.push(`حذف شیتِ خراب ${r.sheetId.slice(0, 8)}… از pool خطا داد`);
+        logger.error({ err, sheetId: r.sheetId }, "sheetPoolRepair: failed removing broken unused sheet");
+        report.notes.push(`حذف شیتِ خراب ${r.sheetId.slice(0, 8)}… از pool خطا داد: ${(err as Error).message}`);
       }
-      onProgress({ phase: "removing", done: report.spares.removed, total: brokenSpares.length });
+      onProgress({ phase: "removing", done: ++done, total: brokenUnused.length });
     }
   }
 
-  // ۵) تعمیرِ بات‌ها
+  // ۳) شیت‌های سالم ولی بی‌صاحب: کامل پاک و به «آزاد» برگردانده می‌شوند
+  const healthyOrphans = orphans.filter((r) => health(r.sheetId) === "ok");
+  if (mode === "apply") {
+    onProgress({ phase: "wiping", done: 0, total: healthyOrphans.length });
+    let done = 0;
+    for (const r of healthyOrphans) {
+      try {
+        const [bound] = await db.select({ id: botsTable.id }).from(botsTable).where(eq(botsTable.sheetId, r.sheetId)).limit(1);
+        if (bound) continue;
+        report.orphans.rowsPurged += await wipeUnownedSheet(r.sheetId);
+        await releaseClaim(r.id);
+        syncSheetPoolUpsert({ sheet_id: r.sheetId, assigned_to: null, status: "available" });
+        await markSheetTitleFreed(r.sheetId);
+        report.orphans.wiped++;
+      } catch (err) {
+        logger.error({ err, sheetId: r.sheetId }, "sheetPoolRepair: wiping unowned sheet failed");
+        report.notes.push(`پاک‌کردنِ شیتِ بی‌صاحب ${r.sheetId.slice(0, 8)}… خطا داد: ${(err as Error).message}`);
+      }
+      onProgress({ phase: "wiping", done: ++done, total: healthyOrphans.length });
+    }
+  } else {
+    // dry: فقط بشمار چقدر دیتا پاک می‌شد
+    for (const r of healthyOrphans) {
+      const c = await countTenantData(r.sheetId);
+      report.orphans.rowsPurged += c?.rows ?? 0;
+    }
+  }
+
+  // ۴) تعمیرِ بات‌ها با شیت‌های تمیز
   onProgress({ phase: "repairing", done: 0, total: brokenBots.length });
-  let healthySparesLeft = availableRows.filter((r) => health.get(r.sheetId) === "ok" && !botSheetIds.has(r.sheetId)).length;
+  let sparesLeft =
+    free.filter((r) => health(r.sheetId) === "ok").length + healthyOrphans.length; // dry: هر دو دسته پس از پاک‌سازی آماده‌اند
   let processed = 0;
+  const skipPoolIds: string[] = [];
 
   for (const bot of brokenBots) {
     const oldSheetId = bot.sheetId!;
@@ -458,15 +599,15 @@ export async function runSheetPoolRepair(
         const summary = await countTenantData(oldSheetId);
         item.tablesWithData = summary?.tables ?? 0;
         item.rowsMoved = summary?.rows ?? 0;
-        if (healthySparesLeft > 0) {
-          healthySparesLeft--;
+        if (sparesLeft > 0) {
+          sparesLeft--;
           item.status = "would_repair";
         } else {
           item.status = "no_spare";
           item.reason = "شیت سالمِ آزاد در pool نمانده — شیت جدید اضافه کن";
         }
       } else {
-        await repairOneBot(bot, item, requestedBy);
+        await repairOneBot(bot, item, requestedBy, skipPoolIds);
       }
     } catch (err) {
       logger.error({ err, botId: bot.id }, "sheetPoolRepair: bot repair failed");
@@ -482,12 +623,9 @@ export async function runSheetPoolRepair(
     onProgress({ phase: "repairing", done: ++processed, total: brokenBots.length });
   }
 
-  if (mode === "dry") {
-    // در dry «would_repair» جدا شمرده نمی‌شود؛ از items خوانده می‌شود.
-    report.notes.push("این فقط پیش‌نمایش بود؛ هیچ چیز تغییر نکرد.");
-  }
-  if (report.bots.unknown > 0 || report.spares.unknown > 0) {
-    report.notes.push("بعضی شیت‌ها به‌خاطر خطای موقتِ گوگل (نه Access Denied) قابل تست نبودند و دست‌نخورده ماندند.");
+  if (mode === "dry") report.notes.push("این فقط پیش‌نمایش بود؛ هیچ چیز تغییر نکرد.");
+  if (report.unknownSheets.length > 0) {
+    report.notes.push("بعضی شیت‌ها به‌خاطر خطای موقتِ گوگل (نه Access Denied) قابل تست نبودند و دست‌نخورده ماندند؛ دلیلشان پایین است.");
   }
   report.finishedAt = new Date().toISOString();
   return report;
@@ -497,29 +635,38 @@ async function repairOneBot(
   bot: typeof botsTable.$inferSelect,
   item: RepairItem,
   requestedBy: string,
+  skipPoolIds: string[],
 ): Promise<void> {
   const oldSheetId = bot.sheetId!;
 
-  // شیت سالمِ آزاد بگیر (اتمیک). هر شیتِ خرابی که در راه پیدا شد از pool حذف می‌شود.
+  // یک شیتِ سالمِ آزاد بگیر (اتمیک)، تمیزش کن، بعد استفاده. شیتِ خرابی که در راه
+  // پیدا شد از pool حذف می‌شود.
   let spare: typeof sheetPoolTable.$inferSelect | null = null;
   for (let attempt = 0; attempt < 50; attempt++) {
-    const claimed = await claimFreeSheet(bot.id);
+    const claimed = await claimSpare(bot.id, skipPoolIds);
     if (!claimed) break;
     const h = await probeSheet(claimed.sheetId);
-    if (h === "ok") {
-      spare = claimed;
-      break;
-    }
     if (h === "broken") {
       await db.delete(sheetPoolTable).where(eq(sheetPoolTable.id, claimed.id));
       syncSheetPoolDelete(claimed.sheetId);
       continue;
     }
-    // نامشخص: برگردانش و متوقف شو (حدس نمی‌زنیم)
-    await releaseClaim(claimed.id);
-    item.status = "no_spare";
-    item.reason = "شیت‌های آزاد به‌خاطر خطای موقتِ گوگل تست نشدند؛ بعداً دوباره امتحان کن";
-    return;
+    if (h === "unknown") {
+      await releaseClaim(claimed.id);
+      skipPoolIds.push(claimed.id);
+      continue;
+    }
+    // سالم: مطمئن شو کاملاً خالی است (ممکن است از باتِ قدیمی دیتا داشته باشد)
+    try {
+      await wipeUnownedSheet(claimed.sheetId);
+    } catch (err) {
+      logger.warn({ err, sheetId: claimed.sheetId }, "sheetPoolRepair: could not clean spare; skipping it");
+      await releaseClaim(claimed.id);
+      skipPoolIds.push(claimed.id);
+      continue;
+    }
+    spare = claimed;
+    break;
   }
   if (!spare) {
     item.status = "no_spare";
@@ -531,12 +678,6 @@ async function repairOneBot(
   item.newSheetId = newSheetId;
 
   try {
-    try {
-      await ensureAllTenantTabs(newSheetId);
-    } catch (err) {
-      logger.warn({ err, newSheetId }, "sheetPoolRepair: ensureAllTenantTabs failed (non-fatal)");
-    }
-
     // دیتای Postgres: tenant_id قدیمی → جدید (اتمیک؛ خطا = rollback)
     let moved: TenantDataSummary | null = null;
     if (getBusinessPool()) {
@@ -567,7 +708,7 @@ async function repairOneBot(
     return;
   }
 
-  // ردیفِ pool قدیمی را فقط اگر دیگر هیچ باتی به آن اشاره نمی‌کند حذف کن.
+  // ردیفِ pool قدیمی (شیتِ خراب) را فقط اگر دیگر هیچ باتی به آن اشاره نمی‌کند حذف کن.
   const stillUsed = await db
     .select({ id: botsTable.id })
     .from(botsTable)

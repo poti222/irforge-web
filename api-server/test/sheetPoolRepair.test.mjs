@@ -43,3 +43,9 @@ test("empty report starts at zero", () => {
   assert.equal(r.spares.removed, 0);
   assert.deepEqual(r.items, []);
 });
+
+test("non-native Google Sheet (400 FAILED_PRECONDITION) is broken; other 400s are not", () => {
+  assert.equal(classifyDiagnosis(d({ httpStatus: 400, googleReason: "FAILED_PRECONDITION" })), "broken");
+  assert.equal(classifyDiagnosis(d({ httpStatus: 400, message: "This operation is not supported for this document" })), "broken");
+  assert.equal(classifyDiagnosis(d({ httpStatus: 400, googleReason: "INVALID_ARGUMENT" })), "unknown");
+});
