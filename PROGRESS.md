@@ -4671,3 +4671,13 @@ Why two halves: the bot is polling-only with no inbound HTTP and its data (Sheet
 **Not verified in CI:** `moveTenantData()` needs a real Postgres with the RLS migration; unit tests cover only the classification/messages. Run the preview first and watch the first real apply on one bot.
 
 **Follow-up (same feature):** (1) *every* broken pool row with no live bot is now deleted — previously only `available` ones, so broken `assigned` rows whose bot is gone stayed forever; 400 `FAILED_PRECONDITION` (file is not a native Google Sheet) also counts as broken; sheets that stay *unknown* are listed with their HTTP status/reason in the report. (2) *Orphan* sheets (status `assigned` but no bot points at them and no live bot reserved them) that still hold data are wiped completely (Postgres `tenant_id` rows + `entity_cutover_flags` + Google Sheet reset) and released to `available`, then handed to bots whose own sheet is broken. Every spare is wiped again right before use, and `claimSpare` never picks a row a live bot still references.
+
+## /super ← «دیتابیس» (Postgres browser/editor)
+
+New tab group **دیتابیس → Postgres (مرور و ویرایش)** in `/super` (`components/super/SuperPostgres.tsx`, API `routes/superPostgres.ts`, pure helpers `lib/superPg.ts`). Behind `requireSuperAdmin` + `requireSuperGate`.
+
+- Two databases: **site** (`DATABASE_URL`) and **bot data** (`BUSINESS_DATABASE_URL`, per-tenant RLS: pick a bot = `tenant_id = sheetId`; `app.tenant_id` is set per transaction).
+- Tables are listed grouped (schools / bots / users / money / content / support / infra / other) with estimated rows and size; table view has search over all non-sensitive columns, sorting, paging (25/50/100), insert / edit / delete by primary key. Tables without a usable PK are read-only.
+- Safety: table & column names are whitelisted against the live catalog and quoted; values are always parameters; sensitive columns (`token|password|hash|secret|api_key|otp|session|salt|…`) are masked **inside the SQL** and cannot be written from the UI; update/delete must hit exactly 1 row or they roll back; every write is audited as `super_pg_write` (column names + non-sensitive values, never secrets).
+- SQL console: one statement per run, read-only transaction + 8 s timeout by default (`;` mid-statement rejected so `COMMIT; …` can't escape the read-only tx); write mode needs `confirm: "WRITE"`, 15 s timeout, audited with the SQL text.
+- Verified against a real local Postgres 16 (FORCE RLS role): masking, search, injection attempts in sort, insert/update/delete, 409 on 0-row delete, tenant requirement, console read-only enforcement, timeout. Also verified `moveTenantData` (sheet-pool repair) against the same RLS schema.

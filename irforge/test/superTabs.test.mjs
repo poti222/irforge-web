@@ -14,10 +14,10 @@ test("تب‌ها: شناسه‌ی یکتا، برچسبِ فارسی و انگ�
   for (const t of SUPER_TAB_META) assert.ok(t.fa.trim() && t.en.trim(), t.id);
   // هر حوزه‌ای که ادمین لازم دارد یک تب دارد (فهرستِ درخواستِ کاربر: مدارس، ربات‌ها، … «مدیریتِ کامل»)
   for (const must of ["overview", "users", "bots", "schools", "payments", "cardpay", "plans", "products", "discounts", "announcements",
-    "updates", "pluginNotes", "tickets", "signups", "sheetPool", "schoolBotPool", "cutover", "sheetsImport", "settings", "audit"]) {
+    "updates", "pluginNotes", "tickets", "signups", "sheetPool", "schoolBotPool", "cutover", "sheetsImport", "settings", "audit", "postgres"]) {
     assert.ok(SUPER_TAB_IDS.includes(must), `تبِ ${must} نیست`);
   }
-  assert.equal(SUPER_TAB_IDS.length, 20);
+  assert.equal(SUPER_TAB_IDS.length, 21);
   assert.equal(DEFAULT_SUPER_TAB, "overview");
 });
 

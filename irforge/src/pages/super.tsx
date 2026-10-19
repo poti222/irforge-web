@@ -20,6 +20,7 @@ import ErrorBoundary from "@/components/error-boundary";
 import { SuperOverview } from "@/components/super/SuperOverview";
 import { SuperSchools } from "@/components/super/SuperSchools";
 import { SuperAudit } from "@/components/super/SuperAudit";
+import { SuperPostgres } from "@/components/super/SuperPostgres";
 import { SUPER_GROUPS_META, SUPER_TAB_META, isSuperTab, readInitialTab, type SuperTabId } from "@/components/super/superTabs";
 
 /**
@@ -158,7 +159,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 /** آیکنِ هر تب (کلیدها از `SuperTabId`؛ فراموشیِ یک تب خطایِ کامپایل است). */
 const TAB_ICONS: Record<SuperTabId, LucideIcon> = {
-  overview: LayoutDashboard, users: Users, bots: Bot, schools: School, payments: CreditCard, cardpay: Smartphone,
+  overview: LayoutDashboard, postgres: Database, users: Users, bots: Bot, schools: School, payments: CreditCard, cardpay: Smartphone,
   plans: Package, products: ShoppingBag, discounts: Percent, announcements: Megaphone, updates: Sparkles, pluginNotes: Blocks,
   tickets: LifeBuoy, signups: UserPlus, sheetPool: Database, schoolBotPool: Bot, cutover: ToggleRight, sheetsImport: FileUp,
   settings: Settings, audit: ScrollText,
@@ -167,6 +168,7 @@ const TAB_ICONS: Record<SuperTabId, LucideIcon> = {
 /** محتوایِ هر تب؛ `go` برایِ پریدن به تبِ دیگر (مثلاً از «نیازمندِ توجه»). */
 const TAB_CONTENT: Record<SuperTabId, (go: (tab: SuperTabId) => void) => ReactNode> = {
   overview: (go) => <SuperOverview onNavigate={(t) => go(t as SuperTabId)} />,
+  postgres: () => <SuperPostgres />,
   users: () => <AdminUsers />,
   bots: () => <AllBotsTable />,
   schools: () => <SuperSchools />,

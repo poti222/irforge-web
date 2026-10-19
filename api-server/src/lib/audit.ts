@@ -60,7 +60,9 @@ export type AuditAction =
   | "test_identity_deleted"
   | "test_school_cleaned_up"
   // دکمه‌ی «بررسی و تعمیر همه»ی Sheet Pool (routes/sheetPoolRepair.ts). metadata فقط شمارنده‌ها.
-  | "sheet_pool_repair";
+  | "sheet_pool_repair"
+  // /super ← Postgres: نوشتن (درج/ویرایش/حذف/SQL). metadata فقط نامِ ستون‌ها و pk؛ هرگز مقدارِ ستونِ حساس.
+  | "super_pg_write";
 
 export async function writeAudit(input: {
   actorUserId: string;

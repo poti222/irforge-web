@@ -40,6 +40,7 @@ import superAdminUsersRouter from "./superAdminUsers.js";
 // عیب‌یابیِ دسترسیِ Sheets برای super_admin (pg-migration checkpoint، آیتم ۲)
 import superAdminDiagnosticsRouter from "./superAdminDiagnostics.js";
 import sheetPoolRepairRouter from "./sheetPoolRepair.js";
+import superPostgresRouter from "./superPostgres.js";
 // دسترسی مهمان (توکن جدا، پیش‌فرض-رد)
 import guestRouter from "./guest.js";
 // مهاجرت پنل ادمین بات به سایت — تنظیمات بات روی تب `bot_settings` شیت تننت
@@ -259,6 +260,7 @@ router.use(schoolWalletTopupRouter);
 router.use(schoolContentProgressRouter);
 router.use(superGateRouter);
 router.use(superDashboardRouter);
+router.use(superPostgresRouter);
 router.use(testIdentitiesRouter);
 
 export default router;

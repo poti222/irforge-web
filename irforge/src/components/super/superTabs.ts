@@ -9,6 +9,9 @@ export const SUPER_GROUPS_META = [
   { id: "home", fa: "شروع", en: "Start", tabs: [
     { id: "overview", fa: "نمای کلی", en: "Overview" },
   ] },
+  { id: "database", fa: "دیتابیس", en: "Database", tabs: [
+    { id: "postgres", fa: "Postgres (مرور و ویرایش)", en: "Postgres (browse & edit)" },
+  ] },
   { id: "people", fa: "کاربران و مدارس", en: "People & schools", tabs: [
     { id: "users", fa: "کاربران", en: "Users" },
     { id: "bots", fa: "همه ربات‌ها", en: "All bots" },
