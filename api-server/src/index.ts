@@ -29,6 +29,13 @@ app.listen(port, (err?: Error) => {
   logger.info({ port }, "Server listening");
 });
 
+// توسعه‌یِ لوکال: با `DISABLE_BACKGROUND_JOBS=1` همه‌یِ کارهایِ پس‌زمینه (جاروِ انقضایِ پلن/بات، حذفِ باتِ منقضی،
+// جاروِ پرداخت، ثبتِ webhook، نرخِ ارز) خاموش می‌شوند و فقط سرورِ HTTP بالا می‌آید. این کارها «تغییرِ واقعی» روی
+// دیتابیس می‌دهند (مثلاً `sweepBotLifecycle` باتِ منقضی را حذف می‌کند)؛ سرورِ لوکال هرگز نباید آن‌ها را روی
+// دیتابیسِ مشترک/واقعی اجرا کند.
+if (process.env.DISABLE_BACKGROUND_JOBS === "1") {
+  logger.warn("DISABLE_BACKGROUND_JOBS=1 — background jobs are OFF (local dev mode)");
+} else {
 // G8: بی‌صدا و best-effort — نبودش فقط یعنی «اتصال با ربات» غیرفعاله، سرور رو نمی‌خوابونه.
 // از حادثه‌ی امنیتی ۲۰۲۶-۰۹ به بعد، پشتِ TELEGRAM_WEBHOOK_ENABLED گارد شده — ببینید
 // docstringِ خودِ تابع در lib/telegram.ts.
@@ -79,3 +86,4 @@ setInterval(runBotLifecycleSweep, 10 * 60 * 1000);
 setInterval(() => {
   void sweepSqlDatabaseExpiry().catch((err) => logger.error({ err }, "sweepSqlDatabaseExpiry failed"));
 }, 10 * 60 * 1000);
+}

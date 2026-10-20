@@ -484,6 +484,7 @@
     "adminCodeCopyFailed": "فشل النسخ — الرمز ظاهر الآن، حدّده يدويًا.",
     "sectionProfile": "ملف تعريف البوت",
     "sectionCommands": "الأوامر",
+    "sectionEmojis": "الإيموجي",
     "sectionPlugins": "الإضافات",
     "sectionStats": "الإحصائيات",
     "sectionSettings": "الإعدادات",

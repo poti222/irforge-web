@@ -20,6 +20,7 @@ import { ForgePanel } from "@/components/forge-ui/ForgePanel";
 import { StatusPill } from "@/components/forge-ui/LiveDot";
 import { botStatusMeta } from "@/lib/bot-status";
 import { botLifetime, LIFETIME_TONE } from "@/lib/bot-lifetime";
+import { EmojiProvider } from "@/components/emoji/emoji-context";
 
 // The bot process only reconciles against the registry sheet every ~20s
 // (services/tenant_status_watcher.py on mainbot), so a start/stop click
@@ -207,7 +208,9 @@ export default function BotWorkspace() {
       </ForgePanel>
 
       {/* Q5: document shell (section rail + main area, cross-fade) */}
-      <BotWorkspaceDocument bot={bot} />
+      <EmojiProvider botId={bot.id}>
+        <BotWorkspaceDocument bot={bot} />
+      </EmojiProvider>
     </div>
   );
 }

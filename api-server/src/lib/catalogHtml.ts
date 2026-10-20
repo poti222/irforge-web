@@ -23,7 +23,7 @@
  */
 
 export const CANONICAL_TAGS = new Set([
-  "b", "i", "u", "s", "code", "pre", "a", "blockquote", "tg-spoiler",
+  "b", "i", "u", "s", "code", "pre", "a", "blockquote", "tg-spoiler", "tg-emoji",
 ]);
 
 /** Common synonyms a rich-text editor or pasted HTML might emit. */
@@ -131,6 +131,10 @@ export function sanitizeTelegramHtml(raw: string): string {
         const href = attrs.href || "";
         if (!SAFE_URL_SCHEMES.some((scheme) => href.startsWith(scheme))) continue; // unsafe/unrecognized scheme: drop the tag, keep the link text
         out.push(`<a href="${escapeAttr(href)}">`);
+      } else if (canonical === "tg-emoji") {
+        const emojiId = (attrs["emoji-id"] || "").trim();
+        if (!/^\d+$/.test(emojiId)) continue; // بدونِ شناسه‌یِ عددی: تگ حذف، متنِ fallback می‌ماند
+        out.push(`<tg-emoji emoji-id="${emojiId}">`);
       } else {
         out.push(`<${canonical}>`);
       }

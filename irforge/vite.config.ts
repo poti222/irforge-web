@@ -143,5 +143,10 @@ export default defineConfig({
   server: {
     port: 5173,
     host: "0.0.0.0",
+    // توسعه‌یِ لوکال: درخواست‌هایِ /api به api-server (پیش‌فرض localhost:3000). برایِ تغییرِ مقصد:
+    //   $env:VITE_API_TARGET = "http://localhost:4000"
+    proxy: {
+      "/api": { target: process.env.VITE_API_TARGET ?? "http://localhost:3000", changeOrigin: true },
+    },
   },
 });

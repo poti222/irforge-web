@@ -484,6 +484,7 @@
     "adminCodeCopyFailed": "Copy failed — the code is now visible, select it manually.",
     "sectionProfile": "Bot Profile",
     "sectionCommands": "Commands",
+    "sectionEmojis": "Emoji",
     "sectionPlugins": "Plugins",
     "sectionStats": "Stats",
     "sectionSettings": "Settings",

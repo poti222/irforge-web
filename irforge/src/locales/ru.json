@@ -484,6 +484,7 @@
     "adminCodeCopyFailed": "Не удалось скопировать — код показан, выделите вручную.",
     "sectionProfile": "Профиль бота",
     "sectionCommands": "Команды",
+    "sectionEmojis": "Эмодзи",
     "sectionPlugins": "Плагины",
     "sectionStats": "Статистика",
     "sectionSettings": "Настройки",
