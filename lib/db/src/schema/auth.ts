@@ -83,6 +83,49 @@ export const pendingRegistrationsTable = pgTable("pending_registrations", {
  * می‌توانست یک ورود را تأیید کند و برعکس — دو جریان با سطح اعتماد متفاوت
  * نباید کد همدیگر را مصرف کنند.
  */
+/**
+ * ثبت‌نام یک‌صفحه‌ای (`/auth/signup/*`). هر عاملِ تأیید جدا و سمتِ سرور ثبت
+ * می‌شود: `phone_verified_at` (پیامک)، `telegram_verified_at` (بات)،
+ * `email_verified_at` (اختیاری). `email_verified_for` همان ایمیلی است که کد
+ * برایش تأیید شد — اگر ایمیلِ پیش‌نویس بعداً عوض شود دیگر برابر نیست و تأیید
+ * خودبه‌خود باطل است.
+ */
+export const signupSessionsTable = pgTable("signup_sessions", {
+  id: text("id").primaryKey(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  email: text("email"),
+  gender: text("gender"),
+  platformUsername: text("platform_username"),
+  locale: text("locale"),
+  phone: text("phone"),
+  phoneCodeHash: text("phone_code_hash"),
+  phoneCodeExpiresAt: timestamp("phone_code_expires_at", { withTimezone: true }),
+  phoneCodeAttempts: integer("phone_code_attempts").notNull().default(0),
+  phoneCodeSentCount: integer("phone_code_sent_count").notNull().default(0),
+  phoneVerifiedAt: timestamp("phone_verified_at", { withTimezone: true }),
+  emailCodeHash: text("email_code_hash"),
+  emailCodeExpiresAt: timestamp("email_code_expires_at", { withTimezone: true }),
+  emailCodeAttempts: integer("email_code_attempts").notNull().default(0),
+  emailCodeSentCount: integer("email_code_sent_count").notNull().default(0),
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  emailVerifiedFor: text("email_verified_for"),
+  telegramId: text("telegram_id"),
+  telegramChatId: text("telegram_chat_id"),
+  telegramUsername: text("telegram_username"),
+  telegramFirstName: text("telegram_first_name"),
+  telegramLastName: text("telegram_last_name"),
+  telegramPhotoFileId: text("telegram_photo_file_id"),
+  telegramVerifiedAt: timestamp("telegram_verified_at", { withTimezone: true }),
+  resumeHash: text("resume_hash"),
+  resumeExpiresAt: timestamp("resume_expires_at", { withTimezone: true }),
+  sourceIp: text("source_ip"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
 export const loginChallengesTable = pgTable("login_challenges", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
@@ -251,6 +294,7 @@ export const smsOtpCodesTable = pgTable("sms_otp_codes", {
 });
 
 export type PendingRegistration = typeof pendingRegistrationsTable.$inferSelect;
+export type SignupSession = typeof signupSessionsTable.$inferSelect;
 export type LoginChallenge = typeof loginChallengesTable.$inferSelect;
 export type TelegramLoginRequest = typeof telegramLoginRequestsTable.$inferSelect;
 export type AuthRateLimit = typeof authRateLimitsTable.$inferSelect;

@@ -34,19 +34,27 @@ export function EmojiField({
   children: React.ReactNode;
 }) {
   const ctx = useEmojiContext();
+  // فیلدی که کاربر هنوز رویش کلیک/فوکوس نکرده مکان‌نمایِ معناداری ندارد (selectionStart=0)؛
+  // در آن حالت ایموجی به **انتها** اضافه می‌شود، نه ابتدایِ متن.
+  const touched = React.useRef(false);
   if (!enabled || !ctx) return <>{children}</>;
 
   const onPick = (token: string) => {
     const el = fieldRef.current;
     if (!el || el.disabled || el.readOnly) return;
-    const { next, caret } = insertAtCursor(el.value, token, el.selectionStart, el.selectionEnd);
+    const { next, caret } = insertAtCursor(
+      el.value,
+      token,
+      touched.current ? el.selectionStart : null,
+      touched.current ? el.selectionEnd : null,
+    );
     setNativeValue(el, next);
     el.focus();
     requestAnimationFrame(() => el.setSelectionRange(caret, caret));
   };
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full" onFocusCapture={(e) => { if (e.target === fieldRef.current) touched.current = true; }}>
       {children}
       <EmojiPickerButton onPick={onPick} className={multiline ? "absolute bottom-1.5 end-1.5" : "absolute end-1.5 top-1/2 -translate-y-1/2"} />
     </div>

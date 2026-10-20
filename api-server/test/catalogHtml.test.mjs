@@ -29,8 +29,18 @@ test("canonical tags pass through unchanged", () => {
 test("CANONICAL_TAGS is exactly Telegram's whitelist", () => {
   assert.deepEqual(
     [...CANONICAL_TAGS].sort(),
-    ["a", "b", "blockquote", "code", "i", "pre", "s", "tg-spoiler", "u"].sort(),
+    ["a", "b", "blockquote", "code", "i", "pre", "s", "tg-emoji", "tg-spoiler", "u"].sort(),
   );
+});
+
+test("tg-emoji keeps only a numeric emoji-id (custom emoji); anything else is dropped, fallback text stays", () => {
+  assert.equal(
+    sanitizeTelegramHtml('<tg-emoji emoji-id="5368324170671202286">👍</tg-emoji>'),
+    '<tg-emoji emoji-id="5368324170671202286">👍</tg-emoji>',
+  );
+  // شناسه‌ی غیرعددی (تلاشِ تزریقِ attribute) ⇒ تگ حذف می‌شود، متنِ جایگزین می‌ماند
+  assert.equal(sanitizeTelegramHtml('<tg-emoji emoji-id="1&quot; onclick=&quot;x">👍</tg-emoji>'), "👍");
+  assert.equal(sanitizeTelegramHtml("<tg-emoji>👍</tg-emoji>"), "👍");
 });
 
 test("common synonyms are normalized to Telegram's canonical spelling", () => {

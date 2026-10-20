@@ -90,15 +90,17 @@ test("verify: فقط ردیفِ مصرف‌نشده و بر اساسِ جدید�
   assert.match(verifyBlock, /orderBy\(desc\(smsOtpCodesTable\.createdAt\)\)/);
 });
 
-test("verify: شمارنده‌ی attempts قبل از مقایسه‌ی کد بالا می‌رود (بدون تلاشِ رایگان)", () => {
-  const attemptsIdx = verifyBlock.indexOf("const attempts = row.attempts + 1;");
+test("verify: شمارنده‌ی attempts قبل از مقایسه‌ی کد، **اتمیک** بالا می‌رود (بدون تلاشِ رایگان، حتی با درخواست موازی)", () => {
+  const attemptsIdx = verifyBlock.indexOf("smsOtpCodesTable.attempts} + 1");
   const compareIdx = verifyBlock.indexOf("verifyOtp(String(req.body?.code");
   assert.ok(attemptsIdx >= 0 && compareIdx >= 0 && attemptsIdx < compareIdx);
+  assert.ok(!verifyBlock.includes("row.attempts + 1"), "خواندن→نوشتنِ غیراتمیک برگشته");
 });
 
-test("verify: بعد از MAX_CODE_ATTEMPTS رکورد consumed می‌شود (کد کشته می‌شود)", () => {
-  const guard = verifyBlock.match(/attempts > MAX_CODE_ATTEMPTS[\s\S]{0,200}?consumedAt: new Date\(\)/);
-  assert.ok(guard, "باید بعد از عبور از MAX_CODE_ATTEMPTS رکورد را consumed کند");
+test("verify: بعد از MAX_CODE_ATTEMPTS کد با expiresAt کشته می‌شود، نه consumedAt (consumedAt یعنی «تأیید شد»)", () => {
+  const guard = verifyBlock.match(/attempts > MAX_CODE_ATTEMPTS[\s\S]{0,700}?expiresAt: new Date\(Date\.now\(\) - 1000\)/);
+  assert.ok(guard, "باید بعد از عبور از MAX_CODE_ATTEMPTS کد را منقضی کند");
+  assert.ok(!/\.set\(\{[^}]*consumedAt/.test(guard[0]), "شاخه‌ی kill نباید consumedAt بنویسد");
 });
 
 test("verify: مصرفِ کد اتمیک است (شرطِ consumedAt IS NULL داخلِ همان UPDATE)", () => {

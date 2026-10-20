@@ -24,7 +24,7 @@ import { normalizePhone } from "../lib/otp";
 import { hashPassword } from "../lib/password";
 import { nameGenderMismatch, isFakeName } from "../lib/identityHeuristics";
 import { authRateLimit } from "../middleware/rateLimit";
-import { recentSmsRegisterProof } from "./registration";
+import { recentSmsRegisterProof, consumeSmsRegisterProof } from "./registration";
 
 const router = Router();
 
@@ -64,6 +64,7 @@ router.patch("/auth/complete-profile", authRateLimit("complete_profile"), requir
 
     const body = req.body ?? {};
     const updates: Record<string, unknown> = {};
+    let consumePhone: string | null = null;
     const hasField = (key: string) => Object.prototype.hasOwnProperty.call(body, key);
 
     if (!["name", "gender", "email", "phone", "platformUsername", "password", "twoFactorEnabled", "twoFactorMethod"]
@@ -124,6 +125,8 @@ router.patch("/auth/complete-profile", authRateLimit("complete_profile"), requir
       }
       updates.phone = phone;
       updates.phoneVerified = true;
+      // اثبات یک‌بارمصرف است؛ بعد از UPDATE موفق مصرف می‌شود.
+      consumePhone = phone;
     }
 
     if (hasField("platformUsername")) {
@@ -195,6 +198,8 @@ router.patch("/auth/complete-profile", authRateLimit("complete_profile"), requir
     // منبع حقیقتِ profile_complete همیشه checkProfile() است — این کش را با
     // آن همگام نگه می‌داریم، و اولین باری که واقعاً کامل می‌شود identityCompletedAt
     // را یک‌بار برای همیشه ثبت می‌کنیم (هرگز دوباره آپدیت نمی‌شود).
+    if (consumePhone) await consumeSmsRegisterProof(consumePhone);
+
     const profile = checkProfile(updated);
     const cacheUpdates: Record<string, unknown> = {};
     if (updated.profileComplete !== profile.complete) cacheUpdates.profileComplete = profile.complete;

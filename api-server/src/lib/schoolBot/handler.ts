@@ -15,6 +15,7 @@ import { actorForChat, actorForUser, ROLE_FA, ADMIN_LIKE, type Actor } from "./a
 import { b, fa, getState, setState, clearState, tehranDateStr, withNav, HOME_BTN } from "./util";
 import { apiAs } from "./internalApi";
 import * as V from "./views";
+import * as R from "./reps";
 import { registerTelegramParent, upsertSubscriber, parentSubmitPhone } from "./parentReg";
 import { adminGuideHtml, inviteText, connectionsHtml } from "./adminInfo";
 import { decideGuardianRequest } from "../schoolGuardianCore";
@@ -113,7 +114,11 @@ async function parentHome(env: Env, actor: Actor, chatId: string, forcePick = fa
 
 export async function homeScreen(env: Env, actor: Actor, chatId: string, forcePick = false): Promise<Screen> {
   if (actor.role === "parent") return parentHome(env, actor, chatId, forcePick);
-  if (actor.role === "student") return { text: `${b("منویِ دانش‌آموز")}\nچه چیزی را ببینیم؟`, kb: STUDENT_KB };
+  if (actor.role === "student") {
+    // دانش‌آموزِ منتخب (مسئولِ کلاس) یک ردیفِ اضافه می‌گیرد: ثبتِ تکلیف/امتحان/یادآوری (lib/schoolBot/reps.ts).
+    const rep = await R.isRep(env.schoolId, actor.memberId);
+    return { text: `${b("منویِ دانش‌آموز")}\nچه چیزی را ببینیم؟`, kb: rep ? [...STUDENT_KB, R.REP_HOME_ROW] : STUDENT_KB };
+  }
   if (actor.role === "teacher") return { text: `${b("منویِ معلم")}\nچه چیزی را ببینیم؟`, kb: TEACHER_KB };
   if (actor.role === "counselor") return { text: `${b("منویِ مشاور")}`, kb: COUNSELOR_KB };
   return { text: `${b("منویِ مدیریت")}\nچه چیزی را ببینیم؟`, kb: ADMIN_KB };
@@ -190,6 +195,8 @@ async function sendAdminGuide(env: Env, chatId: string) {
 
 // ─── پیام‌هایِ متنی ───
 async function onMessage(env: Env, msg: any) {
+  // پیامِ گروه/سوپرگروه: فقط `/bind` (ثبتِ دستیِ گروه برایِ یادآوریِ دانش‌آموزِ منتخب).
+  if (msg.chat?.type && msg.chat.type !== "private") return R.onGroupMessage(env, msg);
   if (msg.chat?.type !== "private" || !msg.from || msg.from.is_bot) return;
   const chatId = String(msg.chat.id);
   const text: string = typeof msg.text === "string" ? msg.text.trim() : "";
@@ -222,6 +229,8 @@ async function onMessage(env: Env, msg: any) {
     await env.sender.send(chatId, `${b("پیش‌نمایشِ پیامِ همگانی")}\n\n${esc(text)}\n\nبرایِ همهٔ اعضایِ مدرسه ارسال شود؟`, [[{ text: "✅ ارسال", callback_data: "a:bcok" }, { text: "❌ انصراف", callback_data: "a:bcno" }]]);
     return;
   }
+  // دانش‌آموزِ منتخب: مراحلِ متنیِ ثبتِ تکلیف/امتحان (عنوان، موعد).
+  if (actor.role === "student" && await R.onRepText(env, actor, chatId, st, text)) return;
   await sendHome(env, actor, chatId);
 }
 
@@ -287,6 +296,9 @@ async function routeCallback(env: Env, actor: Actor, chatId: string, mid: number
 
   // مشترک: اعلامیه‌ها
   if (pre === "g" && a1 === "an") { await ans(); const c = await vc(); if (!c && actor.role === "parent") { const s = await homeScreen(env, actor, chatId, true); return show(s); } return show(await V.viewAnnouncements(c!, page(a2))); }
+
+  // دانش‌آموزِ منتخب (مسئولِ کلاس): ثبتِ تکلیف/امتحان/یادآوری + یادآوری در گروه‌ها
+  if (pre === "r") return R.routeRepCallback(env, actor, chatId, data, [pre, a1, a2, a3], ans, show);
 
   // دانش‌آموز
   if (pre === "s") {
@@ -470,8 +482,11 @@ async function teacherAttendance(env: Env, actor: Actor, chatId: string, act: st
 
 // ─── ورودیِ اصلی ───
 export async function handleUpdate(bot: SchoolBotRow, token: string, upd: any): Promise<void> {
+  // گروهی که بات ادمینِ آن است همهٔ پیام‌ها را می‌گیرد؛ جز `/bind` هیچ‌چیز را پردازش (و DB را درگیر) نکن.
+  if (upd?.message?.chat?.type && upd.message.chat.type !== "private" && !/^\/bind(@\w+)?(\s|$)/i.test(String(upd.message.text ?? "").trim())) return;
   const [school] = await db.select({ name: schoolsTable.name }).from(schoolsTable).where(eq(schoolsTable.id, bot.schoolId)).limit(1);
   const env: Env = { bot, sender: new BotSender(bot.id, token), schoolId: bot.schoolId, schoolName: school?.name ?? "مدرسه" };
+  if (upd?.my_chat_member) return R.onMyChatMember(env, upd.my_chat_member);
   if (upd?.message) return onMessage(env, upd.message);
   if (upd?.callback_query) return onCallback(env, upd.callback_query);
 }

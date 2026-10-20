@@ -6,13 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthShell } from "@/components/auth/AuthShell";
-import { ArrowLeft, CheckCircle2, Loader2, Send } from "lucide-react";
+import { ArrowLeft, Bot, CheckCircle2, Loader2, MessageSquareText, Send } from "lucide-react";
 import { useT } from "@/hooks/use-translation";
 import { useSEO } from "@/hooks/use-seo";
+import { RESET_PHONE_KEY } from "@/lib/reset-phone";
 
 export default function ForgotPassword() {
   useSEO({ title: "بازیابی رمز عبور | IrForge", noindex: true });
   const t = useT("auth");
+  const [method, setMethod] = useState<"sms" | "telegram">("sms");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -25,10 +27,15 @@ export default function ForgotPassword() {
     try {
       const res = await customFetch<{ message: string }>("/api/auth/forgot-password", {
         method: "POST",
-        body: JSON.stringify({ phone: phone.trim() }),
+        body: JSON.stringify({ phone: phone.trim(), method }),
       });
+      try {
+        sessionStorage.setItem(RESET_PHONE_KEY, phone.trim());
+      } catch {
+        /* storage بسته است */
+      }
       setSent(true);
-      setError(res.message ?? null);
+      setError(method === "telegram" ? t.resetSentBot : (res.message ?? null));
     } catch (err: any) {
       setError(err?.data?.error || err?.message || t.genericError);
     } finally {
@@ -60,6 +67,30 @@ export default function ForgotPassword() {
               </div>
             ) : (
               <form onSubmit={submit} className="space-y-5">
+                <div className="space-y-2">
+                  <Label>{t.resetMethod}</Label>
+                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t.resetMethod}>
+                    {([
+                      ["sms", MessageSquareText, t.resetMethodSms, t.resetMethodSmsDesc],
+                      ["telegram", Bot, t.resetMethodBot, t.resetMethodBotDesc],
+                    ] as const).map(([key, Icon, label, desc]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        role="radio"
+                        aria-checked={method === key}
+                        disabled={loading}
+                        onClick={() => setMethod(key)}
+                        className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-start transition-colors ${method === key ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}
+                      >
+                        <span className="flex items-center gap-1.5 text-sm font-semibold">
+                          <Icon className="size-4 text-primary" aria-hidden="true" /> {label}
+                        </span>
+                        <span className="text-[11px] leading-snug text-muted-foreground">{desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="fp-phone">{t.loginPhone}</Label>
                   <Input
@@ -75,7 +106,7 @@ export default function ForgotPassword() {
                 {error && <p className="text-sm text-red-500">{error}</p>}
                 <Button type="submit" className="w-full h-11" disabled={loading}>
                   {loading ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Send className="me-2 h-4 w-4" />}
-                  {t.sendResetCode}
+                  {t.resetSend}
                 </Button>
               </form>
             )}

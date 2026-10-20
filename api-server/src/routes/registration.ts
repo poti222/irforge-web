@@ -418,8 +418,16 @@ router.post("/auth/register/verify-code", authRateLimit("register_verify"), asyn
 
     // شمارنده **قبل** از مقایسه بالا می‌رود، وگرنه یک درخواستِ نیمه‌کاره
     // می‌توانست تلاش رایگان بدهد.
-    const attempts = (row.codeAttempts ?? 0) + 1;
-    await touch(row.id, { codeAttempts: attempts });
+    // افزایشِ اتمیک (درخواست‌های موازی نباید سقفِ ۵ تلاش را دور بزنند).
+    const [bumped] = await db
+      .update(pendingRegistrationsTable)
+      .set({
+        codeAttempts: sql`${pendingRegistrationsTable.codeAttempts} + 1`,
+        lastActivityAt: new Date(),
+      })
+      .where(eq(pendingRegistrationsTable.id, row.id))
+      .returning({ codeAttempts: pendingRegistrationsTable.codeAttempts });
+    const attempts = bumped?.codeAttempts ?? MAX_CODE_ATTEMPTS + 1;
 
     if (attempts > MAX_CODE_ATTEMPTS) {
       // شمارنده‌ای که هیچ‌وقت پایان ندارد محدودیت نیست: رکورد را می‌کُشیم.
@@ -457,6 +465,17 @@ router.post("/auth/register/verify-code", authRateLimit("register_verify"), asyn
       if (existingUser) {
         if (existingUser.status === "banned" || existingUser.status === "suspended") {
           res.status(403).json({ error: "Account suspended", code: "account_suspended" });
+          return;
+        }
+        // ⛔ ورودِ مستقیم فقط به حسابی که ایمیلش قبلاً **تأیید شده**. ایمیلِ
+        // حساب‌های شماره/تلگرام تأییدنشده است؛ اگر اینجا وارد می‌شدیم، مهاجمی که
+        // قبلاً با ایمیلِ قربانی حساب ساخته بود، قربانی را وارد حسابِ خودش
+        // می‌کرد (و رمزش را می‌دانست).
+        if (!existingUser.emailVerified) {
+          res.status(409).json({
+            error: "This email belongs to an account whose email is not verified. Sign in with your phone number.",
+            code: "email_unverified_account",
+          });
           return;
         }
 
@@ -556,6 +575,12 @@ router.patch("/auth/register/:id", async (req, res) => {
     }
     if (row.step !== "code_verified") {
       res.status(400).json({ error: "This registration cannot be edited now" });
+      return;
+    }
+    // ⛔ در مسیر ایمیل، همین آدرس با کد تأیید شده؛ عوض‌کردنش بعد از تأیید و
+    // ثبتِ `emailVerified: true` یعنی «تأییدِ جعلیِ هر ایمیلی».
+    if (row.registrationMethod === "email") {
+      res.status(400).json({ error: "The verified email cannot be changed", code: "email_locked" });
       return;
     }
     const emailRaw = requireText(req.body?.email, "Email", EMAIL_MAX);
@@ -748,12 +773,33 @@ export async function recentSmsRegisterProof(phone: string): Promise<boolean> {
         eq(smsOtpCodesTable.phone, phone),
         eq(smsOtpCodesTable.purpose, "register"),
         sql`${smsOtpCodesTable.consumedAt} IS NOT NULL`,
+        // دفاعِ دوم: ردیفی که با «تلاشِ بیش‌ازحد» بسته شده هرگز اثبات نیست
+        // (مسیر verify دیگر آن‌ها را consumed نمی‌کند، ولی ردیف‌های قدیمی هستند).
+        sql`${smsOtpCodesTable.attempts} <= ${MAX_CODE_ATTEMPTS}`,
       ),
     )
     .orderBy(desc(smsOtpCodesTable.consumedAt))
     .limit(1);
   if (!row?.consumedAt) return false;
   return Date.now() - row.consumedAt.getTime() < SMS_PHONE_PROOF_TTL_MS;
+}
+
+/**
+ * اثبات را **یک‌بارمصرف** می‌کند: purpose از `register` به `register_used`
+ * عوض می‌شود. بدون این، هر کاربرِ واردشده‌ای می‌توانست تا ۱۰ دقیقه بعد از تأییدِ
+ * شمارهٔ دیگری، همان شماره را در پروفایل خودش «تأییدشده» ثبت کند.
+ */
+export async function consumeSmsRegisterProof(phone: string): Promise<void> {
+  await db
+    .update(smsOtpCodesTable)
+    .set({ purpose: "register_used" })
+    .where(
+      and(
+        eq(smsOtpCodesTable.phone, phone),
+        eq(smsOtpCodesTable.purpose, "register"),
+        sql`${smsOtpCodesTable.consumedAt} IS NOT NULL`,
+      ),
+    );
 }
 
 // ─── POST /api/auth/register/sms/complete ────────────────────────────────────
@@ -845,6 +891,7 @@ router.post("/auth/register/sms/complete", async (req, res) => {
       return created;
     });
 
+    await consumeSmsRegisterProof(phone);
     syncSessionUpsert({ token: tokenHash, userId, expiresAt: sessionExpiry });
     syncUserUpsert({
       id: user.id, name: user.name, email: user.email, role: user.role,

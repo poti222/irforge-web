@@ -17,7 +17,7 @@ import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
 import { useTelegramWebApp } from "@/hooks/use-telegram-webapp";
 import { TelegramNotifyToggle } from "@/components/profile/TelegramNotifyToggle";
 import { ClaimBotCard } from "@/components/profile/ClaimBotCard";
-import { Send, Info, Loader2, Save, KeyRound, LogOut, ShieldCheck} from "lucide-react";
+import { Send, Info, Loader2, Save, KeyRound, LogOut, ShieldCheck, Unplug } from "lucide-react";
 import { usePrivatePageTitle } from "@/hooks/use-private-page-title";
 import { useT } from "@/hooks/use-translation";
 
@@ -43,6 +43,10 @@ export default function Profile() {
   const { lang } = useLanguage();
   const fa = lang === "fa";
   const [linking, setLinking] = useState(false);
+  // قطع اتصال تلگرام: اول تأیید با رمز عبور، بعد درخواست.
+  const [confirmingUnlink, setConfirmingUnlink] = useState(false);
+  const [unlinkPassword, setUnlinkPassword] = useState("");
+  const [unlinking, setUnlinking] = useState(false);
   const [waitingForBot, setWaitingForBot] = useState(false);
   const mountedRef = useRef(true);
   useEffect(() => () => { mountedRef.current = false; }, []);
@@ -134,6 +138,47 @@ export default function Profile() {
       toast({ variant: "destructive", title: fa ? "خطا در تغییر رمز" : "Password change failed", description: err?.data?.error || err?.message });
     } finally {
       setSavingPassword(false);
+    }
+  }
+
+  async function unlinkTelegram() {
+    setUnlinking(true);
+    try {
+      await customFetch("/api/auth/telegram/unlink", {
+        method: "POST",
+        // حساب‌های گوگل/گیت‌هاب رمز واقعی ندارند؛ برایشان تأییدِ صریح کافی است.
+        body: JSON.stringify((user as any)?.oauthProvider ? { confirm: true } : { password: unlinkPassword }),
+      });
+      setUnlinkPassword("");
+      setConfirmingUnlink(false);
+      await refreshUser();
+      toast({
+        title: fa ? "اتصال تلگرام قطع شد" : "Telegram disconnected",
+        description: fa
+          ? "برای ادامه‌ی استفاده از پلتفرم باید یک حساب تلگرام تازه وصل کنید."
+          : "Connect a new Telegram account to keep using the platform.",
+      });
+    } catch (err: any) {
+      const code = err?.data?.code as string | undefined;
+      const known: Record<string, { fa: string; en: string }> = {
+        invalid_password: { fa: "رمز عبور اشتباه است.", en: "Wrong password." },
+        telegram_is_two_factor: {
+          fa: "تلگرام روش ورود دومرحله‌ای شماست. ابتدا روش را عوض یا آن را غیرفعال کنید.",
+          en: "Telegram is your two-step sign-in method. Change or disable it first.",
+        },
+        telegram_only: {
+          fa: "این حساب فقط با تلگرام ساخته شده و نمی‌شود اتصالش را قطع کرد.",
+          en: "This account was created through Telegram only and can't be disconnected.",
+        },
+        rate_limited: { fa: "تلاش‌ها زیاد بود. کمی بعد دوباره امتحان کنید.", en: "Too many attempts. Try again shortly." },
+      };
+      toast({
+        variant: "destructive",
+        title: fa ? "قطع اتصال انجام نشد" : "Couldn't disconnect Telegram",
+        description: (code && known[code] ? (fa ? known[code].fa : known[code].en) : undefined) || err?.data?.error || err?.message,
+      });
+    } finally {
+      setUnlinking(false);
     }
   }
 
@@ -329,16 +374,15 @@ export default function Profile() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* تلگرام حالا برای **ورود** لازم است، نه فقط یک تزئین پروفایل.
-              این را صریح می‌گوییم تا کسی به‌اشتباه فکر نکند اختیاری است.
-              قطع اتصال در این صفحه وجود ندارد و عمداً اضافه نشده: قطع‌کردنش
-              کاربر را تا وصل‌کردن یک حساب تازه از ورود محروم می‌کند. */}
+          {/* تلگرام جزو فیلدهای «پروفایل کامل» است. «قطع اتصال» حالا هست، ولی
+              عمداً سخت‌گیرانه: تأیید با رمز، رد اگر تلگرام روشِ ۲FA است، و بعدش
+              حساب تا اتصالِ یک تلگرامِ تازه «پروفایل ناقص» می‌ماند. */}
           <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
             <p>
               {fa
-                ? "ورود به حساب از این پس به کدی نیاز دارد که در تلگرام فرستاده می‌شود. تا وقتی حساب تلگرام دیگری وصل نکرده‌اید، قطع این اتصال ورود شما را مسدود می‌کند."
-                : "Signing in now requires a code sent to Telegram. Disconnecting would block your login until another Telegram account is connected."}
+                ? "تلگرام برای تکمیل پروفایل لازم است. اگر دسترسی به این حساب تلگرام را از دست داده‌اید می‌توانید اتصالش را قطع کنید و یک حساب تازه وصل کنید."
+                : "Telegram is required for a complete profile. If you've lost access to this Telegram account, you can disconnect it and connect a new one."}
             </p>
           </div>
           {isTelegramLinked ? (
@@ -357,6 +401,57 @@ export default function Profile() {
                 </div>
               </div>
               <TelegramNotifyToggle />
+
+              {/* ── قطع دسترسی به تلگرام ─────────────────────────────── */}
+              {!confirmingUnlink ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-red-500/40 text-red-600 hover:bg-red-500/10 hover:text-red-600"
+                  onClick={() => setConfirmingUnlink(true)}
+                >
+                  <Unplug className="me-2 size-4" />
+                  {fa ? "قطع دسترسی به تلگرام" : "Disconnect Telegram"}
+                </Button>
+              ) : (
+                <div className="space-y-3 rounded-lg border border-red-500/40 bg-red-500/5 p-3">
+                  <p className="text-sm">
+                    {fa
+                      ? "با قطع اتصال، ورود یک‌کلیکی با تلگرام و اعلان‌های بات برای این حساب متوقف می‌شود و پروفایل تا اتصال یک تلگرام تازه ناقص می‌ماند."
+                      : "Disconnecting stops one-tap Telegram sign-in and bot notifications for this account, and your profile stays incomplete until you connect a new Telegram."}
+                  </p>
+                  {!(u as any).oauthProvider && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pf-unlink-pass">{fa ? "برای تأیید، رمز عبور را وارد کنید" : "Enter your password to confirm"}</Label>
+                      <PasswordInput
+                        id="pf-unlink-pass"
+                        autoComplete="current-password"
+                        value={unlinkPassword}
+                        onChange={(e) => setUnlinkPassword(e.target.value)}
+                      />
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={unlinkTelegram}
+                      disabled={unlinking || (!(u as any).oauthProvider && !unlinkPassword)}
+                    >
+                      {unlinking ? <Loader2 className="me-2 size-4 animate-spin" /> : <Unplug className="me-2 size-4" />}
+                      {fa ? "قطع اتصال" : "Disconnect"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => { setConfirmingUnlink(false); setUnlinkPassword(""); }}
+                      disabled={unlinking}
+                    >
+                      {fa ? "انصراف" : "Cancel"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : isInsideTelegram && tgUser ? (
             // داخل Mini App — دکمه اتصال خودکار

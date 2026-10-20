@@ -4,6 +4,7 @@ import { registerTelegramWebhookIfConfigured } from "./lib/telegram";
 import { healAllSchoolBotWebhooks } from "./lib/schoolBotCore";
 import { refreshExchangeRateFromApi } from "./lib/exchangeRate";
 import { startPaymentSweeper } from "./lib/paymentSweeper";
+import { startSchoolRepScheduler } from "./lib/schoolRepScheduler";
 import { migrateLegacyWalletTopups } from "./lib/walletTopupMigration";
 import { defaultPaymentNotifiers } from "./routes/paymentSmsWebhook";
 import { pool as dbPool } from "@workspace/db";
@@ -57,6 +58,10 @@ setInterval(() => { void refreshExchangeRateFromApi(); }, 60 * 60 * 1000);
 // قدیمی و رویدادهای لاگ، و هشدارِ گوشیِ ساکت/فیشِ بی‌جواب/اثرِ گیرکرده. (جایگزینِ expireStaleTopups قدیمی؛ همان
 // الگوی setInterval، بدون زیرساختِ cron جدید. چندنمونه‌ای امن است: advisory lock.)
 startPaymentSweeper(dbPool as any, defaultPaymentNotifiers(dbPool as any));
+
+// «دانش‌آموزِ منتخب»: هر ۵ دقیقه — یادآوریِ تکلیف/امتحان در گروه‌هایِ تلگرام (۱۵ تا ۲۳ تهران)، پرسشِ روزانهٔ «تکلیف/امتحان داری؟» (۱۸ تا ۲۱)،
+// و بستنِ مواردِ گذشته. همان الگویِ setInterval + advisory lock؛ خاموش‌کردن: SCHOOL_REP_ENABLED=0. ببینید lib/schoolRepScheduler.ts.
+startSchoolRepScheduler(dbPool as any);
 
 // فاز ۸: ردیف‌های قدیمیِ wallet_topups / sms_logs را (idempotent، زیرِ advisory lock، یک تراکنش) به ماژولِ جدید می‌آورد
 // تا بعد از استقرار هیچ درخواستِ در حالِ پرداخت یا سابقه‌ای یتیم نماند. بدونِ ردیفِ جدید، چیزی نمی‌نویسد.

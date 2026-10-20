@@ -63,7 +63,8 @@ export function CustomEmojiManager() {
   });
 
   const edit = (fn: (l: CustomEmoji[]) => CustomEmoji[]) => setDraft(fn(list));
-  const patch = (name: string, p: Partial<CustomEmoji>) => edit((l) => l.map((e) => (e.name === name ? { ...e, ...p } : e)));
+  // بر اساسِ `id` (یکتا)، نه `name`: وقتی دو ردیف نامِ یکسان دارند (دقیقاً حالتی که باید اصلاح شود) تغییرِ یکی نباید روی دیگری هم اعمال شود.
+  const patch = (id: string, p: Partial<CustomEmoji>) => edit((l) => l.map((e) => (e.id === id ? { ...e, ...p } : e)));
 
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -73,7 +74,7 @@ export function CustomEmojiManager() {
   const nameClash = (e: CustomEmoji) => list.filter((x) => x.name === e.name).length > 1;
   const invalid = list.some((e) => !EMOJI_NAME_RE.test(e.name) || nameClash(e));
   const enabledCount = list.filter((e) => e.enabled).length;
-  const setAll = (enabled: boolean) => edit((l) => l.map((e) => (shown.some((s) => s.name === e.name) ? { ...e, enabled } : e)));
+  const setAll = (enabled: boolean) => edit((l) => l.map((e) => (shown.some((s) => s.id === e.id) ? { ...e, enabled } : e)));
 
   if (!ctx) return null;
 
@@ -103,7 +104,7 @@ export function CustomEmojiManager() {
               placeholder={"https://t.me/addemoji/PackName\nیا فقط PackName"}
               className="w-full rounded-lg border border-input bg-background/60 px-3 py-2 text-sm outline-none focus-visible:border-primary/60"
             />
-            <Button size="sm" onClick={() => importPack.mutate()} disabled={!packs.trim() || importPack.isPending}>
+            <Button size="sm" onClick={() => importPack.mutate()} disabled={!packs.trim() || importPack.isPending || dirty} title={dirty ? "ابتدا تغییراتِ فهرست را ذخیره یا لغو کنید" : undefined}>
               {importPack.isPending ? <Loader2 className="me-2 size-4 animate-spin" /> : <Plus className="me-2 size-4" />}
               افزودنِ پک
             </Button>
@@ -118,7 +119,7 @@ export function CustomEmojiManager() {
               placeholder="5368324170671202286, …"
               className="w-full rounded-lg border border-input bg-background/60 px-3 py-2 text-sm outline-none focus-visible:border-primary/60"
             />
-            <Button size="sm" variant="outline" onClick={() => importIds.mutate()} disabled={!ids.trim() || importIds.isPending}>
+            <Button size="sm" variant="outline" onClick={() => importIds.mutate()} disabled={!ids.trim() || importIds.isPending || dirty} title={dirty ? "ابتدا تغییراتِ فهرست را ذخیره یا لغو کنید" : undefined}>
               {importIds.isPending ? <Loader2 className="me-2 size-4 animate-spin" /> : <Plus className="me-2 size-4" />}
               افزودن
             </Button>
@@ -161,13 +162,13 @@ export function CustomEmojiManager() {
                     <Input
                       value={e.name}
                       dir="ltr"
-                      onChange={(ev) => patch(e.name, { name: ev.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
+                      onChange={(ev) => patch(e.id, { name: ev.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
                       className={`h-8 text-xs ${nameClash(e) || !EMOJI_NAME_RE.test(e.name) ? "border-destructive" : ""}`}
                       aria-label={`نامِ ${emojiToken(e.name)}`}
                     />
                     <p className="mt-0.5 truncate text-[11px] text-muted-foreground" dir="ltr">{e.pack || "—"}{e.animated ? " · animated" : ""}</p>
                   </div>
-                  <Switch checked={e.enabled} onCheckedChange={(v) => patch(e.name, { enabled: v })} aria-label="فعال" />
+                  <Switch checked={e.enabled} onCheckedChange={(v) => patch(e.id, { enabled: v })} aria-label="فعال" />
                   <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-destructive" onClick={() => edit((l) => l.filter((x) => x.id !== e.id))} aria-label="حذف">
                     <Trash2 className="size-4" />
                   </Button>

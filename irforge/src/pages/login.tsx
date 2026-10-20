@@ -112,6 +112,12 @@ function loadTgRequest(): TgLoginRequest | null {
   return null;
 }
 
+/** کدهای خطایی که سرور بعد از شکستِ ورود با گوگل/گیت‌هاب به `/login?error=<code>` برمی‌گرداند. */
+const OAUTH_ERROR_CODES = [
+  "email_unverified_account", "suspended", "google_email_unverified", "github_email_unverified",
+  "google_failed", "github_failed", "google_unavailable", "github_unavailable",
+];
+
 export default function Login() {
   const t = useT("auth") as Record<string, string>;
   const { toast } = useToast();
@@ -120,6 +126,16 @@ export default function Login() {
   const reduceMotion = useReducedMotion();
 
   useSEO({ title: t.signIn ?? "Sign in | IrForge", noindex: true });
+
+  const [oauthError, setOauthError] = useState<string | null>(null);
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("error");
+    if (!code) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    if (OAUTH_ERROR_CODES.includes(code)) setOauthError((t as any)[`oauthErr_${code}`] ?? null);
+    // فقط موقع mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [step, setStep] = useState<Step>("credentials");
   const [loginMethod, setLoginMethod] = useState<"phone" | "email">("phone");
@@ -483,6 +499,12 @@ export default function Login() {
             >
               <AuthStepHeader title={t.signInAccount} step={1} total={TOTAL_STEPS} />
 
+              {oauthError && (
+                <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-600" role="alert">
+                  {oauthError}
+                </p>
+              )}
+
               {/*
                 راه‌های ورودِ یک‌کلیکی (تلگرام، گوگل، گیت‌هاب) از ایمیل/شماره
                 جدا و کوچک‌ترند: این سه هیچ فرمی زیرشان باز نمی‌کنند — همان لحظه
@@ -644,6 +666,11 @@ export default function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
+                  <div className="flex justify-end">
+                    <Link href="/forgot-password" className="text-xs text-primary hover:underline">
+                      {t.loginForgotLink}
+                    </Link>
+                  </div>
                 </div>
               </div>
 

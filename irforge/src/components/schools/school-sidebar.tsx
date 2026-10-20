@@ -42,6 +42,7 @@ import {
   History,
   Search,
   Link2,
+  Star,
 } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
@@ -112,6 +113,7 @@ function useNavByRole(role: SchoolMemberRole | null | undefined, t: any): NavIte
       return [
         { key: "lessons", href: "/schools/content", icon: BookOpen, label: t.navLessons },
         { key: "classrooms", href: "/schools/teacher/classes", icon: Presentation, label: t.navClassrooms },
+        { key: "reps", href: "/schools/teacher/reps", icon: Star, label: t.navReps },
         { key: "timetable", href: "/schools/timetable", icon: CalendarClock, label: t.navTimetable },
         { key: "attendance", href: "/schools/teacher/attendance", icon: ClipboardCheck, label: t.navAttendance },
         { key: "assignments", href: "/schools/teacher/assignments", icon: ClipboardList, label: t.navAssignments },

@@ -32,13 +32,41 @@ function fakeRes() {
   return res;
 }
 
-test("clientIp: prefers the first X-Forwarded-For entry", () => {
-  const req = { headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" }, ip: "9.9.9.9" };
+test("clientIp: takes the LAST X-Forwarded-For entry (the one the trusted proxy appended), not the client-supplied first", () => {
+  delete process.env.TRUSTED_PROXY_HOPS;
+  const req = { headers: { "x-forwarded-for": "6.6.6.6, 1.2.3.4" }, ip: "9.9.9.9", socket: { remoteAddress: "9.9.9.9" } };
   assert.equal(rateLimit.clientIp(req), "1.2.3.4");
 });
 
+test("clientIp: a spoofed leading entry cannot change the resolved IP", () => {
+  delete process.env.TRUSTED_PROXY_HOPS;
+  const a = { headers: { "x-forwarded-for": "1.1.1.1, 7.7.7.7" }, socket: {} };
+  const b = { headers: { "x-forwarded-for": "2.2.2.2, 7.7.7.7" }, socket: {} };
+  assert.equal(rateLimit.clientIp(a), rateLimit.clientIp(b));
+});
+
+test("clientIp: TRUSTED_PROXY_HOPS=2 skips one more trusted hop", () => {
+  process.env.TRUSTED_PROXY_HOPS = "2";
+  try {
+    const req = { headers: { "x-forwarded-for": "6.6.6.6, 1.2.3.4, 10.0.0.1" }, socket: {} };
+    assert.equal(rateLimit.clientIp(req), "1.2.3.4");
+  } finally {
+    delete process.env.TRUSTED_PROXY_HOPS;
+  }
+});
+
+test("clientIp: TRUSTED_PROXY_HOPS=0 ignores X-Forwarded-For entirely", () => {
+  process.env.TRUSTED_PROXY_HOPS = "0";
+  try {
+    const req = { headers: { "x-forwarded-for": "6.6.6.6" }, ip: "9.9.9.9", socket: { remoteAddress: "8.8.8.8" } };
+    assert.equal(rateLimit.clientIp(req), "8.8.8.8");
+  } finally {
+    delete process.env.TRUSTED_PROXY_HOPS;
+  }
+});
+
 test("clientIp: falls back to req.ip with no X-Forwarded-For", () => {
-  const req = { headers: {}, ip: "9.9.9.9" };
+  const req = { headers: {}, ip: "9.9.9.9", socket: {} };
   assert.equal(rateLimit.clientIp(req), "9.9.9.9");
 });
 

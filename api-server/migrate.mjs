@@ -547,6 +547,47 @@ CREATE INDEX IF NOT EXISTS pending_registrations_telegram_idx ON pending_registr
 -- brand-new database).
 ALTER TABLE pending_registrations ADD COLUMN IF NOT EXISTS registration_method TEXT NOT NULL DEFAULT 'phone';
 
+-- ─── ثبت‌نام یک‌صفحه‌ای (/auth/signup/*) ─────────────────────────────────────
+-- نشستِ کوتاه‌عمرِ ثبت‌نام: شماره (پیامک)، تلگرام (بات) و ایمیل (اختیاری) هر
+-- کدام جدا و سمتِ سرور تأیید می‌شوند. کلاینت هرگز «تأییدشده» بودن را اعلام نمی‌کند.
+CREATE TABLE IF NOT EXISTS signup_sessions (
+  id TEXT PRIMARY KEY,
+  first_name TEXT,
+  last_name TEXT,
+  email TEXT,
+  gender TEXT,
+  platform_username TEXT,
+  locale TEXT,
+  phone TEXT,
+  phone_code_hash TEXT,
+  phone_code_expires_at TIMESTAMPTZ,
+  phone_code_attempts INTEGER NOT NULL DEFAULT 0,
+  phone_code_sent_count INTEGER NOT NULL DEFAULT 0,
+  phone_verified_at TIMESTAMPTZ,
+  email_code_hash TEXT,
+  email_code_expires_at TIMESTAMPTZ,
+  email_code_attempts INTEGER NOT NULL DEFAULT 0,
+  email_code_sent_count INTEGER NOT NULL DEFAULT 0,
+  email_verified_at TIMESTAMPTZ,
+  email_verified_for TEXT,
+  telegram_id TEXT,
+  telegram_chat_id TEXT,
+  telegram_username TEXT,
+  telegram_first_name TEXT,
+  telegram_last_name TEXT,
+  telegram_photo_file_id TEXT,
+  telegram_verified_at TIMESTAMPTZ,
+  resume_hash TEXT,
+  resume_expires_at TIMESTAMPTZ,
+  source_ip TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_activity_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS signup_sessions_expires_idx ON signup_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS signup_sessions_telegram_idx ON signup_sessions(telegram_id);
+
 CREATE TABLE IF NOT EXISTS login_challenges (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -1934,6 +1975,73 @@ CREATE TABLE IF NOT EXISTS school_subject_classes (
   PRIMARY KEY (subject_id, class_id)
 );
 CREATE INDEX IF NOT EXISTS idx_school_subject_classes_class ON school_subject_classes(class_id);
+-- ─── دانش‌آموزِ منتخب (مسئولِ کلاس) + گروه‌هایِ تلگرامیِ بات + تکلیف/امتحانِ ثبت‌شده توسطِ منتخب ───
+CREATE TABLE IF NOT EXISTS school_class_reps (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  class_id TEXT NOT NULL REFERENCES school_classes(id),
+  student_member_id TEXT NOT NULL,
+  teacher_user_id TEXT NOT NULL,
+  last_prompt_on DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_class_reps_uk ON school_class_reps(class_id, student_member_id, teacher_user_id);
+CREATE INDEX IF NOT EXISTS school_class_reps_student_idx ON school_class_reps(student_member_id);
+CREATE INDEX IF NOT EXISTS school_class_reps_school_idx ON school_class_reps(school_id);
+
+CREATE TABLE IF NOT EXISTS school_bot_groups (
+  id TEXT PRIMARY KEY,
+  school_bot_id TEXT NOT NULL REFERENCES school_bots(id),
+  telegram_chat_id TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  chat_type TEXT NOT NULL DEFAULT 'group',
+  bot_status TEXT NOT NULL DEFAULT 'member',
+  can_post BOOLEAN NOT NULL DEFAULT TRUE,
+  source TEXT NOT NULL DEFAULT 'my_chat_member',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS school_bot_groups_uk ON school_bot_groups(school_bot_id, telegram_chat_id);
+
+CREATE TABLE IF NOT EXISTS school_rep_items (
+  id TEXT PRIMARY KEY,
+  school_id TEXT NOT NULL REFERENCES schools(id),
+  class_id TEXT NOT NULL REFERENCES school_classes(id),
+  created_by_member_id TEXT NOT NULL,
+  created_by_user_id TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('assignment','exam','reminder')),
+  title TEXT NOT NULL,
+  due_date DATE NOT NULL,
+  remind_days INTEGER[] NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','cancelled','done')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS school_rep_items_class_idx ON school_rep_items(class_id, status, due_date);
+CREATE INDEX IF NOT EXISTS school_rep_items_school_idx ON school_rep_items(school_id, status);
+
+CREATE TABLE IF NOT EXISTS school_rep_item_groups (
+  item_id TEXT NOT NULL REFERENCES school_rep_items(id) ON DELETE CASCADE,
+  group_id TEXT NOT NULL REFERENCES school_bot_groups(id) ON DELETE CASCADE,
+  PRIMARY KEY (item_id, group_id)
+);
+
+CREATE TABLE IF NOT EXISTS school_rep_reminder_log (
+  item_id TEXT NOT NULL REFERENCES school_rep_items(id) ON DELETE CASCADE,
+  group_id TEXT NOT NULL REFERENCES school_bot_groups(id) ON DELETE CASCADE,
+  days_before INTEGER NOT NULL,
+  ok BOOLEAN NOT NULL DEFAULT TRUE,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (item_id, group_id, days_before)
+);
+
+CREATE TABLE IF NOT EXISTS school_rep_dm_log (
+  item_id TEXT NOT NULL REFERENCES school_rep_items(id) ON DELETE CASCADE,
+  days_before INTEGER NOT NULL,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (item_id, days_before)
+);
+
 `;
 
 
@@ -2156,6 +2264,7 @@ async function migrateToRial(client) {
  */
 async function cleanupExpired(client) {
   const pend = await client.query("DELETE FROM pending_registrations WHERE expires_at < NOW()");
+  await client.query("DELETE FROM signup_sessions WHERE expires_at < NOW()");
   const guests = await client.query("DELETE FROM guest_sessions WHERE expires_at < NOW()");
   const chall = await client.query(
     "DELETE FROM login_challenges WHERE code_expires_at < NOW() - INTERVAL '1 day'"

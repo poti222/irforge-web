@@ -1,16 +1,25 @@
-import { useEffect, useRef, useState } from "react";
-import { EnamadSeal } from "@/components/layout/enamad-seal";
-import { consumePostAuthTarget } from "@/lib/post-auth";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch, getGetMeQueryKey } from "@workspace/api-client-react";
+import {
+  AtSign,
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  Mail,
+  Send,
+  ShieldCheck,
+  Smartphone,
+  User,
+} from "lucide-react";
+import { EnamadSeal } from "@/components/layout/enamad-seal";
+import { consumePostAuthTarget } from "@/lib/post-auth";
 import { Button } from "@/components/ui/button";
 import { GlowButton } from "@/components/ui/glow-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Send, Mail, MessageSquareText, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/use-seo";
 import { useT } from "@/hooks/use-translation";
@@ -19,1015 +28,807 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { CodeInput } from "@/components/auth/CodeInput";
 import { GoogleIcon } from "@/components/auth/GoogleIcon";
 import { GitHubIcon } from "@/components/auth/GitHubIcon";
-import { TelegramLinkPanel } from "@/components/auth/TelegramLinkPanel";
-import { AuthStepHeader } from "@/components/auth/AuthStepHeader";
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/auth/TurnstileWidget";
 import { useCaptchaConfig } from "@/config/captcha";
 import { setAuthToken } from "@/lib/auth-token";
-import { EMAIL_AUTH_CLOSED } from "@/lib/auth-policy";
 
 /**
- * ثبت‌نام پنج‌مرحله‌ای.
+ * ثبت‌نام «یک‌صفحه‌ای».
  *
- * صریحاً یک ماشین حالت با یک enum است، نه چند boolean تودرتو — با پنج گام و
- * مسیرهای بازگشت، بولین‌های تودرتو خیلی زود به حالت‌های غیرممکن می‌رسند.
+ * همه‌ی مراحل روی یک صفحه‌اند و کاربر به هر ترتیبی می‌تواند فرم را پر کند، ولی
+ * هر عاملِ تأیید جدا و **سمتِ سرور** ثبت می‌شود (routes/signup.ts):
  *
- * `registrationId` در state و `sessionStorage` نگه داشته می‌شود تا یک رفرش
- * کار را از بین نبرد. **هرگز در URL نمی‌رود** — از آنجا به referrer، تاریخچه‌ی
- * مرورگر و ابزارهای تحلیلی نشت می‌کرد.
+ *   ۱. مشخصات  — نام، جنسیت، یوزرنیم، ایمیل (ایمیل فقط افزوده می‌شود)
+ *   ۲. تلگرام  — اجباری. لینکِ بات باز می‌شود؛ پیامِ تأییدِ بات دکمه‌ی بازگشت به
+ *                همین صفحه دارد (با `?resume=…`) و صفحه خودش تأیید را poll می‌کند.
+ *   ۳. شماره   — اجباری. کد پیامکی؛ بعد از تأیید تلگرام باز می‌شود.
+ *   ۴. ایمیل   — اختیاری: دکمه‌ی «تأیید ایمیل» و (بعد از تأیید) ورود دومرحله‌ای.
+ *   ۵. رمز عبور و ثبت.
  *
- * سرور تنها چیزی است که `step` را جلو می‌برد؛ این صفحه فقط گزارشش را می‌خواند.
+ * `registrationId` فقط در state و `sessionStorage` می‌ماند و **هرگز** در URL
+ * نمی‌رود. تنها استثنا توکنِ `resume` است که فوراً از URL پاک می‌شود.
+ *
+ * نشست سمتِ سرور تا اولین «اتصال تلگرام» ساخته نمی‌شود (تا بازدیدکننده‌ی بی‌کار
+ * ردیفی در دیتابیس نسازد)؛ پیش‌نویس فرم بعد از ساخته‌شدن نشست خودکار ذخیره
+ * می‌شود تا مرورگرِ داخلیِ تلگرام هم بتواند ادامه بدهد.
  */
 
-type Step = "method" | "identity" | "telegram" | "code" | "finish";
+const STORAGE_KEY = "irforge_signup_id";
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_MIN = 8;
+const RESEND_COOLDOWN_S = 60;
+const TELEGRAM_POLL_MS = 2500;
 
-const STORAGE_KEY = "irforge_registration_id";
-
-/**
- * چیزی که در `sessionStorage` می‌ماند. تا پیش از این فقط `id` ذخیره می‌شد؛
- * روی موبایل کافی نبود: وقتی کاربر برای باز کردن تلگرام از صفحه بیرون می‌رود،
- * مرورگر معمولاً تب را از حافظه پاک می‌کند و برگشتن یعنی یک بارگذاری کامل.
- * آن بارگذاری `deepLink` و گام جاری را — که فقط در state بودند — از دست می‌داد
- * و کاربر روی گام یک ظاهر می‌شد.
- */
-interface SavedRegistration {
-  id: string;
-  deepLink: string | null;
-  step: Step;
-  method: "phone" | "email" | "sms";
-}
-
-function loadSaved(): SavedRegistration | null {
-  const raw = sessionStorage.getItem(STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.id === "string") {
-      return {
-        id: parsed.id,
-        deepLink: parsed.deepLink ?? null,
-        step: parsed.step ?? "telegram",
-        method:
-          parsed.method === "email" ? "email" : parsed.method === "sms" ? "sms" : "phone",
-      };
-    }
-  } catch {
-    // نسخه‌ی قدیمی فقط رشته‌ی id را ذخیره می‌کرد.
-    return { id: raw, deepLink: null, step: "telegram", method: "phone" };
-  }
-  return null;
-}
-
-function saveRegistration(data: SavedRegistration) {
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
-/**
- * روش → هویت → [تلگرام] → کد → رمز عبور.
- *
- * گام تلگرام فقط در مسیر شماره+تلگرام است؛ مسیرهای ایمیل و پیامک هر دو چهار
- * گام دارند نه پنج — هیچ‌کدام نیازی به دور زدنِ تلگرام ندارند چون کدشان
- * مستقیم به مقصد می‌رود.
- */
-function stepNumber(method: "phone" | "email" | "sms", s: Step): number {
-  const skipsTelegram = method === "email" || method === "sms";
-  switch (s) {
-    case "method": return 1;
-    case "identity": return 2;
-    case "telegram": return 3;
-    case "code": return skipsTelegram ? 3 : 4;
-    case "finish": return skipsTelegram ? 4 : 5;
-  }
-}
-
-interface RegStatus {
+interface SignupView {
   registrationId: string;
-  step: string;
-  phone: string | null;
-  telegramUsername: string | null;
-  telegramFirstName: string | null;
-  telegramLastName: string | null;
-  email: string | null;
-  codeExpiresAt: string | null;
-  canResend: boolean;
+  draft: {
+    firstName: string;
+    lastName: string;
+    gender: "male" | "female" | null;
+    platformUsername: string;
+    email: string;
+  };
+  telegram: { verified: boolean; username: string | null; firstName: string | null };
+  phone: { value: string | null; verified: boolean; codeSent: boolean; codeExpiresAt: string | null; canResend: boolean };
+  email: { verified: boolean; codeSent: boolean; codeExpiresAt: string | null; canResend: boolean };
+  expiresAt: string;
 }
 
-function serverMessage(err: any): string | undefined {
-  const reason = err?.data?.error;
-  return typeof reason === "string" && reason.trim() !== "" ? reason : err?.message;
+const COPY_KEYS = ["title", "subtitle", "required", "optional", "verified", "s1", "firstName", "lastName", "gender", "male", "female", "username", "usernameHint", "usernameFree", "usernameTaken", "email", "emailHint", "s2", "s2Desc", "connectTelegram", "openTelegramAgain", "waitingTelegram", "telegramOk", "s3", "s3Locked", "phone", "sendCode", "resend", "resendIn", "codeSentTo", "changePhone", "phoneOk", "s4", "verifyEmail", "emailCodeSent", "emailOk", "twoFactor", "twoFactorHint", "s5", "password", "passwordConfirm", "passwordHint", "submit", "haveAccount", "signIn", "fixErrors", "sessionExpired", "welcomeBack"] as const;
+const ERROR_CODES = ["firstName_required", "lastName_required", "fake_name", "invalid_gender", "invalid_username", "username_taken", "email_required", "invalid_email", "email_taken", "invalid_password", "password_mismatch", "telegram_not_verified", "telegram_required", "telegram_taken", "phone_not_verified", "phone_taken", "invalid_phone", "invalid_code", "code_expired", "too_many_attempts", "resend_limit", "sms_send_failed", "email_delivery_failed", "email_not_verified", "rate_limited", "captcha_failed", "signup_expired"] as const;
+
+type Copy = { [K in (typeof COPY_KEYS)[number]]: string } & { errors: Record<string, string> };
+
+/** متن‌های صفحه از فایل‌های زبان (فضای‌نام `auth`، کلیدهای `signup*`) خوانده می‌شود. */
+function copyFrom(t: Record<string, string>): Copy {
+  const out: Record<string, any> = { errors: {} as Record<string, string> };
+  for (const k of COPY_KEYS) out[k] = t["signup" + k[0].toUpperCase() + k.slice(1)] ?? "";
+  for (const code of ERROR_CODES) out.errors[code] = t["signupErr_" + code] ?? "";
+  return out as Copy;
 }
 
-/** IRFORGE_PROMPT_V3 Phase 15 — «۰۹۱۲···۴۵۶۷» به‌جای شماره‌ی کامل. */
+/** ۰۱۲۳۴۵۶۷۸۹ فارسی و ٠١٢٣٤٥٦٧٨٩ عربی → ASCII (کیبورد فارسی موبایل). */
+function foldDigits(raw: string): string {
+  return raw.replace(/[۰-۹٠-٩]/g, (ch) => {
+    const code = ch.charCodeAt(0);
+    return String(code - (code >= 0x06f0 ? 0x06f0 : 0x0660));
+  });
+}
+
 function maskPhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
-  if (digits.length < 6) return phone;
-  return `${digits.slice(0, 4)}···${digits.slice(-4)}`;
+  return digits.length < 6 ? phone : `${digits.slice(0, 4)}···${digits.slice(-4)}`;
 }
 
-/** همان ایده برای ایمیل: فقط دو حرف اول + دامنه دیده می‌شود. */
-function maskEmail(value: string): string {
-  const at = value.indexOf("@");
-  if (at <= 0) return value;
-  return `${value.slice(0, Math.min(2, at))}···${value.slice(at)}`;
+function api<T>(path: string, method: "GET" | "POST" | "PATCH", body?: unknown): Promise<T> {
+  return customFetch<T>(`/api/auth/signup${path}`, {
+    method,
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+}
+
+function Section({
+  icon,
+  title,
+  badge,
+  done,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  badge?: string;
+  done?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      className={`space-y-3 rounded-2xl border p-4 transition-colors ${done ? "border-emerald-500/40 bg-emerald-500/5" : "border-border/70"}`}
+    >
+      <header className="flex items-center gap-2">
+        <span className={`flex size-7 items-center justify-center rounded-full ${done ? "bg-emerald-500 text-white" : "bg-secondary text-primary"}`}>
+          {done ? <CheckCircle2 className="size-4" aria-hidden="true" /> : icon}
+        </span>
+        <h3 className="flex-1 text-sm font-semibold">{title}</h3>
+        {badge && <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">{badge}</span>}
+      </header>
+      {children}
+    </section>
+  );
 }
 
 export default function Register() {
   const t = useT("auth") as Record<string, string>;
   const { lang } = useLanguage();
+  const c = useMemo(() => copyFrom(t), [t]);
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
-
   useSEO({ title: t.createAccount ?? "Sign up | IrForge", noindex: true });
 
-  const [step, setStep] = useState<Step>("method");
-  const [method, setMethod] = useState<"phone" | "email" | "sms">("phone");
-  const [registrationId, setRegistrationId] = useState<string | null>(null);
-  const [deepLink, setDeepLink] = useState<string | null>(null);
-  const [status, setStatus] = useState<RegStatus | null>(null);
-  const [busy, setBusy] = useState(false);
-  // جدا از `busy` نگه داشته می‌شود: این فقط دکمه‌ی «ادامه»ی گام تلگرام را
-  // مشغول نشان می‌دهد و نباید بقیه‌ی فرم‌ها را قفل کند.
-  const [checking, setChecking] = useState(false);
-
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [editingEmail, setEditingEmail] = useState(false);
-  // فقط مسیرِ پیامک از این استفاده می‌کند — مسیرِ شماره+تلگرام شماره را از
-  // خودِ تلگرام می‌گیرد (تأییدشده)، پس فیلد ورودی جدا لازم ندارد.
-  const [smsPhone, setSmsPhone] = useState("");
-  // ثانیه‌شمارِ اعتبارِ کد برای مسیرِ پیامک — بدون registrationId ای که
-  // بشود از سرور poll کرد، این مستقیماً از پاسخِ send/resend پر می‌شود.
-  const [smsSecondsLeft, setSmsSecondsLeft] = useState(0);
-
-  // IRFORGE_PROMPT_V3 Phase 42 — abuse gate on the free identity step.
   const captchaConfig = useCaptchaConfig();
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileWidgetHandle>(null);
-  const tCaptcha = useT("captcha");
 
-  const [code, setCode] = useState("");
-  const [codeInvalid, setCodeInvalid] = useState(false);
-  const [codeErrorMessage, setCodeErrorMessage] = useState<string | undefined>(undefined);
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const [resendIn, setResendIn] = useState(0);
-
+  // ── فرم ────────────────────────────────────────────────────────────────
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [gender, setGender] = useState<"male" | "female" | null>(null);
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [password2, setPassword2] = useState("");
+  const [enableEmail2fa, setEnableEmail2fa] = useState(false);
 
-  const pollRef = useRef<number | null>(null);
-  // آخرین گامی که **سرور** گزارش کرده. جلو بردن خودکار فقط وقتی مجاز است که
-  // این مقدار تغییر کند — یعنی کاربر واقعاً کاری در بات انجام داده باشد.
-  // بدون این، برگشتن از «کد» به «تلگرام» بی‌فایده بود: اولین poll وضعیت
-  // `code_sent` را می‌دید و کاربر را فوراً به همان صفحه‌ای که از آن آمده بود
-  // پرت می‌کرد.
-  const lastServerStepRef = useRef<string | null>(null);
+  // ── نشست سمتِ سرور ─────────────────────────────────────────────────────
+  const [sid, setSid] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem(STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const [view, setView] = useState<SignupView | null>(null);
+  const [deepLink, setDeepLink] = useState<string | null>(null);
+  const [waitingTelegram, setWaitingTelegram] = useState(false);
+  // پیش از پایانِ بازیابیِ نشست، پیش‌نویسِ (هنوز خالیِ) فرم نباید روی سرور بنشیند.
+  const [ready, setReady] = useState(false);
 
-  // بازیابی بعد از رفرش (یا بعد از برگشتن از اپ تلگرام روی موبایل).
-  //
-  // گام و لینک عمیق **قبل از** رفتن به شبکه از حافظه برمی‌گردند؛ اگر منتظر
-  // پاسخ سرور می‌ماندیم، کاربر یک لحظه گام یک را می‌دید و اگر آن درخواست
-  // شکست می‌خورد (که موقع برگشتن به اینترنت خیلی هم عادی است) همان‌جا گیر
-  // می‌کرد.
+  // ── شماره ──────────────────────────────────────────────────────────────
+  const [phoneInput, setPhoneInput] = useState("");
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneCode, setPhoneCode] = useState("");
+  const [phoneCooldown, setPhoneCooldown] = useState(0);
+  const [phoneCodeError, setPhoneCodeError] = useState<string | undefined>();
+
+  // ── ایمیل ──────────────────────────────────────────────────────────────
+  const [emailCode, setEmailCode] = useState("");
+  const [emailCooldown, setEmailCooldown] = useState(0);
+  const [emailCodeError, setEmailCodeError] = useState<string | undefined>();
+
+  const [usernameState, setUsernameState] = useState<"idle" | "checking" | "free" | "taken" | "invalid">("idle");
+  const [busy, setBusy] = useState<null | "telegram" | "phoneSend" | "phoneVerify" | "emailSend" | "emailVerify" | "submit">(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
+
+  const errText = useCallback(
+    (err: any, fallback?: string) => {
+      const code = err?.data?.code as string | undefined;
+      if (code && c.errors[code]) return c.errors[code];
+      return err?.data?.error || fallback || err?.message || "Error";
+    },
+    [c],
+  );
+
+  const persistSid = useCallback((id: string | null) => {
+    setSid(id);
+    try {
+      if (id) sessionStorage.setItem(STORAGE_KEY, id);
+      else sessionStorage.removeItem(STORAGE_KEY);
+    } catch {
+      /* storage بسته است؛ فقط در حافظه می‌ماند */
+    }
+  }, []);
+
+  /** نتیجه‌ی سرور را می‌گیرد؛ فیلدهای **خالیِ** فرم را از پیش‌نویسِ سرور پر می‌کند. */
+  const applyView = useCallback((v: SignupView) => {
+    setView(v);
+    setFirstName((x) => x || v.draft.firstName);
+    setLastName((x) => x || v.draft.lastName);
+    setGender((x) => x ?? v.draft.gender);
+    setUsername((x) => x || v.draft.platformUsername);
+    setEmail((x) => x || v.draft.email);
+    setPhoneInput((x) => x || v.phone.value || "");
+  }, []);
+
+  const dropSession = useCallback(
+    (message?: string) => {
+      persistSid(null);
+      setView(null);
+      setDeepLink(null);
+      setWaitingTelegram(false);
+      if (message) setFormError(message);
+    },
+    [persistSid],
+  );
+
+  // ── بازیابی: ?resume=… (دکمه‌ی بات) یا sessionStorage ──────────────────────
   useEffect(() => {
-    const saved = loadSaved();
-    if (!saved) return;
-    setRegistrationId(saved.id);
-    setDeepLink(saved.deepLink);
-    setStep(saved.step);
-    setMethod(saved.method);
-    void refreshStatus(saved.id, { force: true });
-    // فقط یک‌بار در mount.
+    let cancelled = false;
+    (async () => {
+      try {
+      const params = new URLSearchParams(window.location.search);
+      const resume = params.get("resume");
+      if (resume) {
+        // توکن فوراً از URL و تاریخچه پاک می‌شود.
+        window.history.replaceState(null, "", window.location.pathname);
+        try {
+          const v = await api<SignupView>("/resume", "POST", { token: resume });
+          if (cancelled) return;
+          persistSid(v.registrationId);
+          applyView(v);
+          toast({ title: c.welcomeBack });
+        } catch (err: any) {
+          if (!cancelled) setFormError(errText(err, c.sessionExpired));
+        }
+        return;
+      }
+      if (sid) {
+        try {
+          const v = await api<SignupView>(`/${encodeURIComponent(sid)}`, "GET");
+          if (!cancelled) applyView(v);
+        } catch {
+          if (!cancelled) dropSession();
+        }
+      }
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    })();
+    return () => { cancelled = true; };
+    // فقط یک‌بار موقع mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // هر بار که گام یا لینک عوض شد، عکس تازه‌ای برای بازیابی بعدی ذخیره کن.
+  // ── poll تأیید تلگرام ───────────────────────────────────────────────────
   useEffect(() => {
-    if (!registrationId) return;
-    saveRegistration({ id: registrationId, deepLink, step, method });
-  }, [registrationId, deepLink, step, method]);
-
-  function stepForServer(serverStep: string): Step | null {
-    if (serverStep === "identity" || serverStep === "telegram_pending") return "telegram";
-    if (serverStep === "code_sent") return "code";
-    if (serverStep === "code_verified") return "finish";
-    return null;
-  }
-
-  /**
-   * `force` یعنی «کاربر همین الان صریحاً درخواست کرد» (دکمه‌ی ادامه، یا
-   * بازیابی بعد از رفرش) — آنجا پریدن به گام سرور همان چیزی است که می‌خواهد.
-   * بدون `force`، فقط یک **تغییر** در گام سرور کاربر را جلو می‌برد.
-   */
-  async function refreshStatus(id: string, opts: { force?: boolean } = {}) {
-    try {
-      const s = await customFetch<RegStatus>(`/api/auth/register/${id}/status`);
-      setStatus(s);
-      setEmail((prev) => prev || (s.email ?? ""));
-
-      const changed = lastServerStepRef.current !== s.step;
-      lastServerStepRef.current = s.step;
-
-      if (opts.force || changed) {
-        const target = stepForServer(s.step);
-        if (target) setStep(target);
+    if (!sid || !view || view.telegram.verified) return;
+    if (!waitingTelegram) return;
+    const startedAt = Date.now();
+    const timer = window.setInterval(async () => {
+      if (!mounted.current) return;
+      if (Date.now() - startedAt > 10 * 60 * 1000) {
+        setWaitingTelegram(false);
+        return;
       }
-      return s;
-    } catch (err: any) {
-      // فقط وقتی از اول شروع می‌کنیم که سرور **صریحاً** بگوید رکورد دیگر
-      // نیست. قبلاً هر خطایی همین کار را می‌کرد، و روی موبایل همین باعث
-      // باگ می‌شد: کاربر از تلگرام برمی‌گشت، اولین poll در لحظه‌ی وصل شدن
-      // دوباره‌ی شبکه شکست می‌خورد، و کل ثبت‌نام پاک و به گام یک برمی‌گشت.
-      const gone = err?.status === 404 || err?.status === 410;
-      if (!gone) return null;
+      try {
+        const v = await api<SignupView>(`/${encodeURIComponent(sid)}`, "GET");
+        if (!mounted.current) return;
+        applyView(v);
+        if (v.telegram.verified) setWaitingTelegram(false);
+      } catch (err: any) {
+        if (err?.data?.code === "signup_expired") dropSession(c.sessionExpired);
+      }
+    }, TELEGRAM_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [sid, view, waitingTelegram, applyView, dropSession, c.sessionExpired]);
 
-      sessionStorage.removeItem(STORAGE_KEY);
-      setRegistrationId(null);
-      lastServerStepRef.current = null;
-      setStep("method");
+  // ── ذخیره‌ی خودکار پیش‌نویس ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!sid || !ready) return;
+    const handle = window.setTimeout(() => {
+      api<SignupView>(`/${encodeURIComponent(sid)}`, "PATCH", {
+        firstName,
+        lastName,
+        gender,
+        platformUsername: username,
+        email,
+      })
+        .then((v) => mounted.current && applyView(v))
+        .catch((err: any) => {
+          if (err?.data?.code === "signup_expired") dropSession(c.sessionExpired);
+        });
+    }, 800);
+    return () => window.clearTimeout(handle);
+  }, [sid, ready, firstName, lastName, gender, username, email, applyView, dropSession, c.sessionExpired]);
+
+  // ── بررسی آزاد بودن یوزرنیم ─────────────────────────────────────────────
+  useEffect(() => {
+    const u = username.trim().toLowerCase();
+    if (!u) return setUsernameState("idle");
+    if (!USERNAME_RE.test(u)) return setUsernameState("invalid");
+    setUsernameState("checking");
+    const handle = window.setTimeout(async () => {
+      try {
+        const r = await customFetch<{ valid: boolean; available: boolean }>(
+          `/api/auth/signup/username-available?u=${encodeURIComponent(u)}`,
+        );
+        if (mounted.current) setUsernameState(r.available ? "free" : "taken");
+      } catch {
+        if (mounted.current) setUsernameState("idle");
+      }
+    }, 500);
+    return () => window.clearTimeout(handle);
+  }, [username]);
+
+  // ── شمارنده‌های ارسال دوباره ─────────────────────────────────────────────
+  useEffect(() => {
+    if (phoneCooldown <= 0) return;
+    const h = window.setTimeout(() => setPhoneCooldown((s) => s - 1), 1000);
+    return () => window.clearTimeout(h);
+  }, [phoneCooldown]);
+  useEffect(() => {
+    if (emailCooldown <= 0) return;
+    const h = window.setTimeout(() => setEmailCooldown((s) => s - 1), 1000);
+    return () => window.clearTimeout(h);
+  }, [emailCooldown]);
+
+  // ── مشتقات ──────────────────────────────────────────────────────────────
+  const telegramOk = Boolean(view?.telegram.verified);
+  const phoneOk = Boolean(view?.phone.verified) && !editingPhone;
+  const emailNorm = email.trim().toLowerCase();
+  const emailOk =
+    Boolean(view?.email.verified) && emailNorm !== "" && emailNorm === (view?.draft.email ?? "").trim().toLowerCase();
+  const emailValid = EMAIL_RE.test(email.trim());
+  const phoneCodeSent = Boolean(view?.phone.codeSent) && !phoneOk;
+  const emailCodeSent = Boolean(view?.email.codeSent) && !emailOk;
+
+  // اگر ایمیل دیگر تأییدشده نیست، ورود دومرحله‌ای هم نباید تیک‌خورده بماند.
+  useEffect(() => {
+    if (!emailOk && enableEmail2fa) setEnableEmail2fa(false);
+  }, [emailOk, enableEmail2fa]);
+
+  // ── اقدام‌ها ────────────────────────────────────────────────────────────
+  async function ensureSession(): Promise<string | null> {
+    if (captchaConfig.enabled && !captchaToken && !sid) {
+      setFormError(c.errors.captcha_failed);
       return null;
     }
+    const v = await api<SignupView & { deepLink: string }>("/start", "POST", {
+      registrationId: sid ?? undefined,
+      locale: lang,
+      captchaToken,
+    });
+    persistSid(v.registrationId);
+    applyView(v);
+    setDeepLink(v.deepLink);
+    // توکن Turnstile یک‌بارمصرف است.
+    setCaptchaToken(null);
+    turnstileRef.current?.reset();
+    return v.registrationId;
   }
 
-  // در گام تلگرام، وضعیت را poll می‌کنیم تا لحظه‌ای که کد ارسال شد رد شویم.
-  // با تغییر `step` این افکت تمیز می‌شود، پس بازگشت به گام قبل تایمر را
-  // متوقف می‌کند و برگشتن دوباره یکی تازه می‌سازد.
-  useEffect(() => {
-    if (step !== "telegram" || !registrationId) return;
-    pollRef.current = window.setInterval(() => void refreshStatus(registrationId), 3000);
-    return () => {
-      if (pollRef.current) {
-        window.clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, registrationId]);
-
-  // برگشتن از اپ تلگرام = تب دوباره visible می‌شود. همان‌جا وضعیت را می‌پرسیم
-  // به‌جای اینکه تا poll بعدی صبر کنیم؛ مرورگرهای موبایل تایمرهای تب پس‌زمینه
-  // را کند یا کلاً متوقف می‌کنند، پس نمی‌شود روی interval حساب کرد.
-  // `pageshow` هم لازم است: وقتی صفحه از bfcache برمی‌گردد، اصلاً mount دوباره
-  // اتفاق نمی‌افتد.
-  useEffect(() => {
-    if (step !== "telegram" || !registrationId) return;
-
-    const resume = () => {
-      if (document.visibilityState !== "visible") return;
-      void refreshStatus(registrationId);
-    };
-
-    document.addEventListener("visibilitychange", resume);
-    window.addEventListener("pageshow", resume);
-    window.addEventListener("focus", resume);
-    return () => {
-      document.removeEventListener("visibilitychange", resume);
-      window.removeEventListener("pageshow", resume);
-      window.removeEventListener("focus", resume);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, registrationId]);
-
-  /** بازگشت یک گام. هیچ‌وقت حالت سرور را دور نمی‌ریزد. */
-  function goBack(to: Step) {
-    // گام فعلی سرور را به‌عنوان «دیده‌شده» ثبت می‌کنیم تا poll بعدی کاربر را
-    // بلافاصله به همان‌جایی که از آن برگشته پرت نکند.
-    if (status?.step) lastServerStepRef.current = status.step;
-    setStep(to);
-  }
-
-  // شمارش معکوس اعتبار کد.
-  useEffect(() => {
-    if (!status?.codeExpiresAt) return;
-    const tick = () => {
-      const left = Math.max(0, Math.floor((new Date(status.codeExpiresAt!).getTime() - Date.now()) / 1000));
-      setSecondsLeft(left);
-    };
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [status?.codeExpiresAt]);
-
-  useEffect(() => {
-    if (resendIn <= 0) return;
-    const id = window.setInterval(() => setResendIn((n) => Math.max(0, n - 1)), 1000);
-    return () => window.clearInterval(id);
-  }, [resendIn]);
-
-  // همتای مسیرِ پیامکِ افکتِ بالا برای `secondsLeft`: آنجا از `status.codeExpiresAt`
-  // سرور می‌آید (رکوردِ pendingRegistrations)، اینجا چنین رکوردی وجود ندارد —
-  // پس خودِ عدد را می‌شماریم.
-  useEffect(() => {
-    if (method !== "sms" || smsSecondsLeft <= 0) return;
-    const id = window.setInterval(() => setSmsSecondsLeft((n) => Math.max(0, n - 1)), 1000);
-    return () => window.clearInterval(id);
-  }, [method, smsSecondsLeft]);
-
-  function fail(err: any, fallback?: string) {
-    const retry = err?.data?.retryAfterSeconds;
-    const description =
-      typeof retry === "number"
-        ? (t.rateLimited ?? "Try again in {n}s").replace("{n}", String(retry))
-        : serverMessage(err) ?? fallback;
-    toast({ variant: "destructive", title: t.genericAuthError, description });
-  }
-
-  /**
-   * دکمه‌ی «ادامه»ی گام تلگرام.
-   *
-   * قبلاً مستقیم `refreshStatus` را صدا می‌زد و اگر سرور هنوز روی
-   * `identity`/`telegram_pending` بود، گام مقصد همین گام فعلی درمی‌آمد —
-   * یعنی `setStep` هیچ چیزی را عوض نمی‌کرد و دکمه از دید کاربر کاملاً مرده
-   * بود: نه اسپینر، نه پیام، نه خطا. حالا همیشه یک جواب می‌گیرد.
-   */
-  async function checkTelegramProgress() {
-    const id = registrationId ?? loadSaved()?.id ?? null;
-    if (!id) {
-      // رکورد گم شده — به‌جای دکمه‌ی بی‌اثر، صریح از اول شروع کن.
-      setStep("identity");
-      toast({ variant: "destructive", title: t.genericAuthError });
-      return;
-    }
-    if (checking) return;
-
-    setChecking(true);
+  async function connectTelegram() {
+    setFormError(null);
+    setBusy("telegram");
     try {
-      const s = await refreshStatus(id, { force: true });
-      if (!s) {
-        toast({ variant: "destructive", title: t.genericAuthError });
-        return;
-      }
-      // سرور هنوز جلو نرفته: کاربر داخل بات شماره‌اش را نفرستاده.
-      if (stepForServer(s.step) === "telegram") {
-        toast({ title: t.telegramNotDoneTitle, description: t.telegramNotDoneDesc });
-      }
-    } finally {
-      setChecking(false);
-    }
-  }
-
-  async function startRegistration() {
-    if (!firstName.trim() || !lastName.trim() || !email.trim()) return;
-    if (method === "sms" && !smsPhone.trim()) return;
-    if (captchaConfig.enabled && !captchaToken) {
-      toast({ variant: "destructive", title: tCaptcha.required });
-      return;
-    }
-    setBusy(true);
-    try {
-      if (method === "sms") {
-        // مسیرِ پیامک نه pendingRegistrations دارد نه registrationId — هویت
-        // (نام/ایمیل) همین‌جا در state می‌ماند و فقط در گامِ پایانی، همراهِ
-        // اثباتِ تأییدِ شماره، یک‌جا به سرور می‌رود. اینجا فقط کدِ پیامکی
-        // فرستاده می‌شود.
-        const res = await customFetch<{ message: string; expiresInSeconds: number }>(
-          "/api/auth/otp/sms/send",
-          {
-            method: "POST",
-            body: JSON.stringify({ phone: smsPhone.trim(), purpose: "register" }),
-          },
-        );
-        setCode("");
-        setSmsSecondsLeft(res.expiresInSeconds ?? 120);
-        setResendIn(60);
-        setStep("code");
-        return;
-      }
-
-      if (method === "email") {
-        // مسیر ایمیل گام تلگرام ندارد: کد همین‌جا و بلافاصله فرستاده می‌شود.
-        const res = await customFetch<{ registrationId: string; step?: string }>(
-          "/api/auth/register/email/start",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              firstName: firstName.trim(),
-              lastName: lastName.trim(),
-              email: email.trim(),
-              locale: lang,
-              captchaToken,
-            }),
-          },
-        );
-        setRegistrationId(res.registrationId);
-        setDeepLink(null);
-        saveRegistration({ id: res.registrationId, deepLink: null, step: "code", method: "email" });
-        lastServerStepRef.current = res.step ?? "code_sent";
-        setStep("code");
-        // مسیر شماره این را از همان poll گام تلگرام می‌گیرد؛ مسیر ایمیل هیچ
-        // poll ای ندارد، پس بدون این fetch صریح، `codeExpiresAt`/`canResend`
-        // هرگز پر نمی‌شدند و شمارش معکوس همان لحظه «منقضی شده» نشان می‌داد.
-        await refreshStatus(res.registrationId, { force: true });
-        return;
-      }
-
-      const res = await customFetch<{ registrationId: string; deepLink: string; step?: string }>(
-        "/api/auth/register/start",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            firstName: firstName.trim(),
-            lastName: lastName.trim(),
-            email: email.trim(),
-            locale: lang,
-            // اگر از گام تلگرام برگشته باشیم، همین رکورد به‌روزرسانی می‌شود و
-            // ردیف در انتظار تازه‌ای ساخته نمی‌شود.
-            registrationId,
-          }),
-        },
-      );
-      setRegistrationId(res.registrationId);
-      setDeepLink(res.deepLink);
-      saveRegistration({ id: res.registrationId, deepLink: res.deepLink, step: "telegram", method: "phone" });
-      lastServerStepRef.current = res.step ?? null;
-      setStep("telegram");
-    } catch (err) {
-      // A Turnstile token is single-use — whatever failed, the one already
-      // spent (or possibly-spent) is no good for a retry.
+      const id = await ensureSession();
+      if (!id) return;
+      // لینک تازه برای هر کلیک (لینک‌ها یک‌بارمصرف‌اند).
+      const { deepLink: link } = await api<{ deepLink: string }>(`/${encodeURIComponent(id)}/telegram-link`, "POST");
+      setDeepLink(link);
+      window.open(link, "_blank", "noopener");
+      setWaitingTelegram(true);
+    } catch (err: any) {
+      setFormError(errText(err));
       turnstileRef.current?.reset();
       setCaptchaToken(null);
-      fail(err);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
-  async function verify(entered: string) {
-    if (entered.length !== 6) return;
-    if (method === "sms") {
-      if (!smsPhone.trim()) return;
-      setBusy(true);
-      setCodeInvalid(false);
-      setCodeErrorMessage(undefined);
-      try {
-        // فقط اثباتِ مالکیتِ شماره — هیچ حسابی هنوز ساخته نمی‌شود
-        // (`verified:true` بدونِ session، ببینید کامنتِ purpose==="register"
-        // در routes/auth.ts). ساختِ حساب کارِ گامِ «پایان» است.
-        await customFetch<{ verified: boolean; phone: string }>("/api/auth/otp/sms/verify", {
-          method: "POST",
-          body: JSON.stringify({ phone: smsPhone.trim(), code: entered, purpose: "register" }),
-        });
-        setStep("finish");
-      } catch (err: any) {
-        setCodeInvalid(true);
-        setCode("");
-        if (err?.data?.code === "too_many_attempts") {
-          setStep("identity");
-          toast({ variant: "destructive", title: t.tooManyAttempts });
-          return;
-        }
-        const attemptsLeft = err?.data?.attemptsLeft;
-        const message =
-          err?.data?.code === "invalid_code" && typeof attemptsLeft === "number"
-            ? (t.codeAttemptsLeft ?? "").replace("{n}", String(attemptsLeft))
-            : serverMessage(err);
-        setCodeErrorMessage(message);
-        fail(err);
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-
-    if (!registrationId) return;
-    setBusy(true);
-    setCodeInvalid(false);
-    setCodeErrorMessage(undefined);
+  async function sendPhoneCode() {
+    if (!sid) return;
+    setFormError(null);
+    setPhoneCodeError(undefined);
+    setBusy("phoneSend");
     try {
-      const res = await customFetch<
-        RegStatus & { ok: boolean; existingAccount?: boolean; user?: any; token?: string }
-      >(
-        "/api/auth/register/verify-code",
-        { method: "POST", body: JSON.stringify({ registrationId, code: entered }) },
-      );
-
-      // این ایمیل از قبل صاحب حساب داشت — کاربر همین الان مالکیتش را با همین
-      // کد ثابت کرد، پس دیگر رمز تازه نمی‌خواهیم؛ درجا واردش می‌کنیم، دقیقاً
-      // مثل انتهای موفقِ `complete()`.
-      if (res.existingAccount && res.token && res.user) {
-        setAuthToken(res.token);
-        queryClient.setQueryData(getGetMeQueryKey(), res.user);
-        sessionStorage.removeItem(STORAGE_KEY);
-        navigate(consumePostAuthTarget());
-        return;
-      }
-
-      setStatus((prev) => ({ ...(prev as RegStatus), ...res }));
-      setEmail(res.email ?? email);
-      setStep("finish");
+      await api(`/${encodeURIComponent(sid)}/phone/send`, "POST", { phone: foldDigits(phoneInput).trim() });
+      const v = await api<SignupView>(`/${encodeURIComponent(sid)}`, "GET");
+      applyView(v);
+      setEditingPhone(false);
+      setPhoneCode("");
+      setPhoneCooldown(RESEND_COOLDOWN_S);
     } catch (err: any) {
-      setCodeInvalid(true);
-      setCode("");
-      if (err?.data?.code === "too_many_attempts") {
-        sessionStorage.removeItem(STORAGE_KEY);
-        setRegistrationId(null);
-        setStep("method");
-        toast({ variant: "destructive", title: t.tooManyAttempts });
-        return;
-      }
-      // IRFORGE_PROMPT_V3 Phase 15 — «کد اشتباه است» به‌تنهایی کاربر را رها
-      // می‌کند؛ تعداد تلاش باقی‌مانده می‌گوید عجله برای دوباره‌فرستادن هست یا نه.
-      const attemptsLeft = err?.data?.attemptsLeft;
-      const message =
-        err?.data?.code === "invalid_code" && typeof attemptsLeft === "number"
-          ? (t.codeAttemptsLeft ?? "").replace("{n}", String(attemptsLeft))
-          : serverMessage(err);
-      setCodeErrorMessage(message);
-      fail(err);
+      setFieldErrors((e) => ({ ...e, phone: errText(err) }));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
-  async function resend() {
-    if (method === "sms") {
-      if (!smsPhone.trim()) return;
-      setBusy(true);
-      try {
-        const res = await customFetch<{ message: string; expiresInSeconds: number }>(
-          "/api/auth/otp/sms/send",
-          {
-            method: "POST",
-            body: JSON.stringify({ phone: smsPhone.trim(), purpose: "register" }),
-          },
-        );
-        setResendIn(60);
-        setSmsSecondsLeft(res.expiresInSeconds ?? 120);
-        setCode("");
-        setCodeInvalid(false);
-        setCodeErrorMessage(undefined);
-      } catch (err: any) {
-        if (typeof err?.data?.retryAfterSeconds === "number") setResendIn(err.data.retryAfterSeconds);
-        fail(err);
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-
-    if (!registrationId) return;
-    setBusy(true);
+  async function verifyPhone(code: string) {
+    if (!sid || busy) return;
+    setBusy("phoneVerify");
+    setPhoneCodeError(undefined);
     try {
-      await customFetch("/api/auth/register/resend", {
-        method: "POST",
-        body: JSON.stringify({ registrationId }),
-      });
-      setResendIn(60);
-      setCode("");
-      setCodeInvalid(false);
-      setCodeErrorMessage(undefined);
-      await refreshStatus(registrationId);
+      const v = await api<SignupView>(`/${encodeURIComponent(sid)}/phone/verify`, "POST", { code });
+      applyView(v);
+      setFieldErrors((e) => ({ ...e, phone: "" }));
+      setPhoneCode("");
     } catch (err: any) {
-      if (typeof err?.data?.retryAfterSeconds === "number") setResendIn(err.data.retryAfterSeconds);
-      fail(err);
+      setPhoneCodeError(errText(err));
+      setPhoneCode("");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
-  async function saveEmail() {
-    // مسیرِ پیامک هنوز هیچ رکوردی روی سرور ندارد — ایمیل فقط در state
-    // می‌ماند و همراهِ بقیه‌ی فیلدها در `complete()` یک‌جا فرستاده می‌شود.
-    if (method === "sms") {
-      setEditingEmail(false);
+  async function sendEmailCode() {
+    if (!emailValid) {
+      setFieldErrors((e) => ({ ...e, email: c.errors.invalid_email }));
       return;
     }
-    if (!registrationId) return;
+    setFormError(null);
+    setEmailCodeError(undefined);
+    setBusy("emailSend");
     try {
-      await customFetch(`/api/auth/register/${registrationId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ email: email.trim() }),
+      if (!sid) return;
+      await api(`/${encodeURIComponent(sid)}/email/send`, "POST", { email: email.trim() });
+      const v = await api<SignupView>(`/${encodeURIComponent(sid)}`, "GET");
+      applyView(v);
+      setEmailCode("");
+      setEmailCooldown(RESEND_COOLDOWN_S);
+      setFieldErrors((e) => ({ ...e, email: "" }));
+    } catch (err: any) {
+      setFieldErrors((e) => ({ ...e, email: errText(err) }));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function verifyEmail(code: string) {
+    if (!sid || busy) return;
+    setBusy("emailVerify");
+    setEmailCodeError(undefined);
+    try {
+      const v = await api<SignupView>(`/${encodeURIComponent(sid)}/email/verify`, "POST", { code });
+      applyView(v);
+      setEmailCode("");
+    } catch (err: any) {
+      setEmailCodeError(errText(err));
+      setEmailCode("");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function validate(): Record<string, string> {
+    const e: Record<string, string> = {};
+    if (!firstName.trim()) e.firstName = c.errors.firstName_required;
+    if (!lastName.trim()) e.lastName = c.errors.lastName_required;
+    if (!gender) e.gender = c.errors.invalid_gender;
+    if (!USERNAME_RE.test(username.trim().toLowerCase())) e.platformUsername = c.errors.invalid_username;
+    else if (usernameState === "taken") e.platformUsername = c.errors.username_taken;
+    if (!email.trim()) e.email = c.errors.email_required;
+    else if (!emailValid) e.email = c.errors.invalid_email;
+    if (!telegramOk) e.telegram = c.errors.telegram_not_verified;
+    if (!phoneOk) e.phone = c.errors.phone_not_verified;
+    if (password.length < PASSWORD_MIN) e.password = c.errors.invalid_password;
+    else if (password !== password2) e.passwordConfirm = c.errors.password_mismatch;
+    return e;
+  }
+
+  async function submit(ev: React.FormEvent) {
+    ev.preventDefault();
+    setFormError(null);
+    const e = validate();
+    setFieldErrors(e);
+    if (Object.keys(e).length > 0 || !sid) {
+      setFormError(c.fixErrors);
+      return;
+    }
+    setBusy("submit");
+    try {
+      const res = await api<{ token: string; user: any }>(`/${encodeURIComponent(sid)}/complete`, "POST", {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        gender,
+        platformUsername: username.trim().toLowerCase(),
+        email: email.trim(),
+        password,
+        passwordConfirm: password2,
+        enableEmail2fa: enableEmail2fa && emailOk,
       });
-      setEditingEmail(false);
-    } catch (err) {
-      fail(err);
-    }
-  }
-
-  async function complete() {
-    if (method !== "sms" && !registrationId) return;
-    if (password !== passwordConfirm) {
-      toast({ variant: "destructive", title: t.passwordMismatch });
-      return;
-    }
-    if (password.length < 8) {
-      toast({ variant: "destructive", title: t.passwordMin });
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await customFetch<{ user: any; token: string }>(
-        method === "sms" ? "/api/auth/register/sms/complete" : "/api/auth/register/complete",
-        {
-          method: "POST",
-          body: JSON.stringify(
-            method === "sms"
-              ? {
-                  phone: smsPhone.trim(),
-                  firstName: firstName.trim(),
-                  lastName: lastName.trim(),
-                  email: email.trim(),
-                  password,
-                  passwordConfirm,
-                }
-              : { registrationId, password, passwordConfirm },
-          ),
-        },
-      );
-      // Same key `customFetch`'s auth-token getter reads ("irforge_token") —
-      // see the note in login.tsx's verify(). Mismatched keys here silently
-      // break every authenticated request after registration.
+      persistSid(null);
       setAuthToken(res.token);
       queryClient.setQueryData(getGetMeQueryKey(), res.user);
-      sessionStorage.removeItem(STORAGE_KEY);
       navigate(consumePostAuthTarget());
     } catch (err: any) {
-      // رکورد عمداً زنده می‌ماند تا کاربر بتواند ایمیل را اصلاح کند.
-      if (err?.data?.code === "email_taken") setEditingEmail(true);
-      // اثباتِ تأییدِ شماره (فاز پیامک) بعد از ۱۰ دقیقه منقضی می‌شود — اگر
-      // کاربر همین‌جا کند بود، برگرداندنش به گامِ کد از دوباره‌تایپ‌کردنِ
-      // همه‌چیز بهتر است.
-      if (err?.data?.code === "phone_not_verified") setStep("code");
-      fail(err);
+      if (err?.data?.code === "signup_expired") {
+        dropSession(c.sessionExpired);
+      } else {
+        const field = err?.data?.field as string | undefined;
+        const message = errText(err);
+        if (field) setFieldErrors({ [field]: message });
+        setFormError(message);
+      }
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
-  const telegramName = [status?.telegramFirstName, status?.telegramLastName]
-    .filter(Boolean)
-    .join(" ");
+  const fe = (name: string) =>
+    fieldErrors[name] ? <p className="text-xs text-red-500" role="alert">{fieldErrors[name]}</p> : null;
+
+  const usernameNote = useMemo(() => {
+    switch (usernameState) {
+      case "checking": return <span className="text-muted-foreground">…</span>;
+      case "free": return <span className="text-emerald-600">{c.usernameFree}</span>;
+      case "taken": return <span className="text-red-500">{c.usernameTaken}</span>;
+      default: return <span className="text-muted-foreground">{c.usernameHint}</span>;
+    }
+  }, [usernameState, c]);
 
   return (
     <>
-      <AuthShell>
-          <div className="rounded-3xl border border-border/70 bg-card px-5 py-8 shadow-[var(--shadow-pop)] sm:px-9">
-          {/* ── گام ۱: انتخاب روش ─────────────────────────────────────────── */}
-          {step === "method" && (
-            <div className="space-y-4">
-              {/* گام اول: بازگشتی وجود ندارد، پس فقط نشانگر گام. */}
-              <AuthStepHeader title={t.methodTitle} step={1} total={stepNumber(method, "finish")} />
+      <AuthShell className="max-w-xl">
+        <div className="flex flex-col items-center">
+          <h2 className="text-center text-2xl font-bold tracking-tight">{c.title}</h2>
+          <p className="mt-2 max-w-sm text-center text-sm text-muted-foreground">{c.subtitle}</p>
+        </div>
 
-              {/*
-                ثبت‌نام یک‌کلیکی با گوگل/گیت‌هاب: همان endpoint ورودِ آن سرویس
-                (GET /api/auth/google یا /api/auth/github) — سرور اگر حسابی با
-                همان ایمیل نباشد خودش می‌سازد، پس «ثبت‌نام» و «ورود» با این دو
-                سرویس یک مسیر مشترک‌اند. بقیه‌ی گام‌های ثبت‌نام (شماره/ایمیل/
-                پیامک) پایین‌تر، جدا از این دو، دست‌نخورده می‌مانند.
-              */}
-              <div className="grid grid-cols-2 gap-2.5">
+        <div className="mt-2 w-full">
+          <form
+            onSubmit={submit}
+            noValidate
+            className="space-y-4 rounded-3xl border border-border/70 bg-card px-4 py-6 shadow-[var(--shadow-pop)] sm:px-7"
+          >
+            {/* ثبت‌نام یک‌کلیکی با گوگل/گیت‌هاب — همان endpoint ورود */}
+            <div className="grid grid-cols-2 gap-2.5">
+              {([
+                ["google", GoogleIcon, t.googleLoginButton],
+                ["github", GitHubIcon, t.githubLoginButton],
+              ] as const).map(([provider, Icon, label]) => (
                 <button
+                  key={provider}
                   type="button"
-                  disabled={busy}
+                  disabled={busy !== null}
                   onClick={() => {
-                    window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/google`;
+                    window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/${provider}`;
                   }}
-                  className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-3 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
-                  aria-label={t.googleLoginButton}
-                  title={t.googleLoginHint}
+                  className="flex items-center justify-center gap-2 rounded-lg border border-border px-2 py-2.5 text-xs font-medium transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
                 >
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
-                    <GoogleIcon className="size-4" />
-                  </span>
-                  <span className="text-xs font-medium leading-tight">{t.googleLoginButton}</span>
+                  <Icon className="size-4" />
+                  {label}
                 </button>
-
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/github`;
-                  }}
-                  className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-3 text-center transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
-                  aria-label={t.githubLoginButton}
-                  title={t.githubLoginHint}
-                >
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
-                    <GitHubIcon className="size-4" />
-                  </span>
-                  <span className="text-xs font-medium leading-tight">{t.githubLoginButton}</span>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-3 pt-1">
-                <span className="h-px flex-1 bg-border" />
-                <span className="text-xs text-muted-foreground">{t.orDivider}</span>
-                <span className="h-px flex-1 bg-border" />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => { setMethod("sms"); setStep("identity"); }}
-                className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
-              >
-                <div className="flex items-start gap-3">
-                  <MessageSquareText className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-                  <div className="min-w-0">
-                    <p className="font-semibold">{t.methodSms}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{t.methodSmsDesc}</p>
-                  </div>
-                </div>
-              </button>
-
-              {!EMAIL_AUTH_CLOSED && (
-                <button
-                  type="button"
-                  onClick={() => { setMethod("email"); setStep("identity"); }}
-                  className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
-                >
-                  <div className="flex items-start gap-3">
-                    <Mail className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-                    <div className="min-w-0">
-                      <p className="font-semibold">{t.methodEmail}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{t.methodEmailDesc}</p>
-                    </div>
-                  </div>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => { setMethod("phone"); setStep("identity"); }}
-                className="w-full rounded-xl border p-5 text-start transition-colors hover:border-primary/60"
-              >
-                <div className="flex items-start gap-3">
-                  <Send className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-                  <div className="min-w-0">
-                    <p className="font-semibold">{t.methodPhone}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{t.methodPhoneDesc}</p>
-                  </div>
-                </div>
-              </button>
-
-              <p className="text-center text-sm text-muted-foreground">
-                {t.alreadyHaveAccount ?? ""}{" "}
-                <Link href="/login" className="text-primary hover:underline">{t.signInLink}</Link>
-              </p>
+              ))}
             </div>
-          )}
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">{t.orDivider}</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
 
-          {/* ── گام ۲: هویت ───────────────────────────────────────────────── */}
-          {step === "identity" && (
-            <form
-              className="space-y-4"
-              onSubmit={(e) => { e.preventDefault(); void startRegistration(); }}
-            >
-              <AuthStepHeader
-                title={t.identityTitle}
-                description={
-                  method === "email" ? t.identityDescEmail : method === "sms" ? t.identityDescSms : t.identityDesc
-                }
-                step={stepNumber(method, "identity")}
-                total={stepNumber(method, "finish")}
-                onBack={() => goBack("method")}
-              />
+            {formError && (
+              <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-600" role="alert">
+                {formError}
+              </p>
+            )}
 
+            {/* ── ۱. مشخصات ─────────────────────────────────────────────── */}
+            <Section icon={<User className="size-4" />} title={c.s1}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="reg-first">{t.firstName}</Label>
-                  <Input id="reg-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                  <Label htmlFor="su-first">{c.firstName}</Label>
+                  <Input id="su-first" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={busy === "submit"} className="bg-background" />
+                  {fe("firstName")}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="reg-last">{t.lastName}</Label>
-                  <Input id="reg-last" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+                  <Label htmlFor="su-last">{c.lastName}</Label>
+                  <Input id="su-last" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={busy === "submit"} className="bg-background" />
+                  {fe("lastName")}
                 </div>
               </div>
+
               <div className="space-y-1.5">
-                <Label htmlFor="reg-email">{t.email}</Label>
-                <Input id="reg-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <Label>{c.gender}</Label>
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={c.gender}>
+                  {(["male", "female"] as const).map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      role="radio"
+                      aria-checked={gender === g}
+                      onClick={() => setGender(g)}
+                      className={`rounded-lg border px-3 py-2 text-sm transition-colors ${gender === g ? "border-primary bg-primary/10 font-semibold" : "border-border hover:border-primary/50"}`}
+                    >
+                      {g === "male" ? c.male : c.female}
+                    </button>
+                  ))}
+                </div>
+                {fe("gender")}
               </div>
-              {method === "sms" && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="reg-sms-phone">{t.phoneLabel}</Label>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="su-user">{c.username}</Label>
+                <div className="relative">
+                  <AtSign className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                   <Input
-                    id="reg-sms-phone"
-                    dir="ltr"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    value={smsPhone}
-                    onChange={(e) => setSmsPhone(e.target.value)}
-                    required
+                    id="su-user" dir="ltr" autoComplete="username" autoCapitalize="none" spellCheck={false}
+                    value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                    className="bg-background ps-9"
                   />
                 </div>
-              )}
+                <p className="text-[11px]">{usernameNote}</p>
+                {fe("platformUsername")}
+              </div>
 
-              {captchaConfig.enabled && (
-                <div className="flex justify-center">
-                  <TurnstileWidget
-                    ref={turnstileRef}
-                    siteKey={captchaConfig.siteKey}
-                    onVerify={setCaptchaToken}
-                    onExpire={() => setCaptchaToken(null)}
-                  />
-                </div>
-              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="su-email">{c.email}</Label>
+                <Input
+                  id="su-email" type="email" dir="ltr" autoComplete="email"
+                  value={email} onChange={(e) => setEmail(e.target.value)}
+                  className="bg-background"
+                />
+                <p className="text-[11px] text-muted-foreground">{c.emailHint}</p>
+                {fe("email")}
+              </div>
+            </Section>
 
-              <GlowButton type="submit" className="w-full" disabled={busy || (captchaConfig.enabled && !captchaToken)}>
-                {busy && <Loader2 className="me-2 size-4 animate-spin" />}
-                {t.continue}
-              </GlowButton>
-            </form>
-          )}
-
-          {/* ── گام ۳: اتصال تلگرام ───────────────────────────────────────── */}
-          {step === "telegram" && (
-            <div className="space-y-4">
-              <AuthStepHeader
-                title={t.telegramTitle}
-                description={t.telegramDesc}
-                step={stepNumber(method, "telegram")}
-                total={stepNumber(method, "finish")}
-                // رکورد در انتظار زنده می‌ماند؛ برگشتن به هویت همان
-                // `registrationId` را دوباره می‌فرستد و ردیف تازه‌ای نمی‌سازد.
-                onBack={() => goBack("identity")}
-              />
-              {/* `sameTab`: باز کردن لینک در تب جدید روی موبایل یعنی تب تازه‌ای
-                  با sessionStorage خالی — و همان بود که ثبت‌نام را می‌پراند. */}
-              <TelegramLinkPanel mode="register" deepLink={deepLink} waiting sameTab />
-              <Button
-                variant="ghost"
-                className="w-full"
-                disabled={checking}
-                onClick={() => void checkTelegramProgress()}
-              >
-                {checking && <Loader2 className="me-2 size-4 animate-spin" />}
-                {t.continue}
-              </Button>
-            </div>
-          )}
-
-          {/* ── گام ۴: کد ─────────────────────────────────────────────────── */}
-          {step === "code" && (
-            <div className="space-y-5">
-              {/* بازگشت فقط دیپ‌لینک و QR را دوباره نشان می‌دهد — کد تازه‌ای
-                  نمی‌فرستد؛ ارسال مجدد دکمه‌ی خودش را دارد. */}
-              <AuthStepHeader
-                title={t.codeTitle}
-                description={
-                  method === "email" ? t.codeDescEmail : method === "sms" ? t.codeDescSms : t.codeDesc
-                }
-                step={stepNumber(method, "code")}
-                total={stepNumber(method, "finish")}
-                onBack={() => goBack(method === "phone" ? "telegram" : "identity")}
-              />
-
-              {/* مقصد ماسک‌شده — نه رشته‌ی خام، ولی به‌قدر کافی برای این‌که کاربر
-                  مطمئن شود کجا فرستاده شده. اینجا هیچ «✅ فرستاده شد» با علامت
-                  سبز ادعا نمی‌شود چون هیچ تأییدیه‌ی واقعی تحویل (کیو ارسال، فاز
-                  ۱۲) هنوز وجود ندارد — فقط همان چیزی گفته می‌شود که واقعاً اتفاق
-                  افتاده: تلاش برای ارسال. */}
-              <p className="text-center text-sm text-muted-foreground" dir="ltr">
-                {method === "email"
-                  ? maskEmail(email)
-                  : method === "sms"
-                    ? maskPhone(smsPhone)
-                    : status?.phone
-                      ? maskPhone(status.phone)
-                      : ""}
-              </p>
-
-              <CodeInput
-                value={code}
-                onChange={setCode}
-                onComplete={(c) => void verify(c)}
-                disabled={busy}
-                invalid={codeInvalid}
-                errorMessage={codeErrorMessage}
-                webOtp={method === "sms"}
-              />
-
-              <p className="text-center text-sm text-muted-foreground" aria-live="polite">
-                {(method === "sms" ? smsSecondsLeft : secondsLeft) > 0
-                  ? (t.codeExpiresIn ?? "").replace(
-                      "{t}",
-                      (() => {
-                        const s = method === "sms" ? smsSecondsLeft : secondsLeft;
-                        return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-                      })(),
-                    )
-                  : t.codeExpired}
-              </p>
-
-              <GlowButton className="w-full" disabled={busy || code.length !== 6} onClick={() => void verify(code)}>
-                {busy && <Loader2 className="me-2 size-4 animate-spin" />}
-                {t.verify}
-              </GlowButton>
-
-              <div className="space-y-2">
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  disabled={busy || resendIn > 0 || (method !== "sms" && status?.canResend === false)}
-                  onClick={() => void resend()}
-                >
-                  {method !== "sms" && status?.canResend === false
-                    ? t.resendLimit
-                    : resendIn > 0
-                      ? (t.resendIn ?? "").replace("{n}", String(resendIn))
-                      : t.resend}
-                </Button>
-                {/* بعد از رسیدن به سقفِ ارسال مجدد، بن‌بست نیست — یک مسیر واقعی. */}
-                {status?.canResend === false && (
-                  <Link
-                    href="/support?topic=verification-code"
-                    className="block text-center text-xs text-muted-foreground hover:text-foreground"
+            {/* ── ۲. تلگرام ─────────────────────────────────────────────── */}
+            <Section icon={<Send className="size-4" />} title={c.s2} badge={telegramOk ? c.verified : c.required} done={telegramOk}>
+              {telegramOk ? (
+                <p className="text-sm">
+                  {c.telegramOk}
+                  {view?.telegram.username && <span className="ms-2 font-mono text-muted-foreground" dir="ltr">@{view.telegram.username}</span>}
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">{c.s2Desc}</p>
+                  {captchaConfig.enabled && !sid && (
+                    <div className="flex justify-center">
+                      <TurnstileWidget
+                        ref={turnstileRef}
+                        siteKey={captchaConfig.siteKey}
+                        onVerify={setCaptchaToken}
+                        onExpire={() => setCaptchaToken(null)}
+                      />
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={connectTelegram}
+                    disabled={busy !== null || (captchaConfig.enabled && !sid && !captchaToken)}
                   >
-                    {t.codeNotReceived}
-                  </Link>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ── گام ۵: رمز عبور ───────────────────────────────────────────── */}
-          {step === "finish" && (
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void complete(); }}>
-              {/* عمداً بدون بازگشت: کد در این نقطه مصرف شده و `verifiedAt` روی
-                  سرور ست شده. برگشتن به گام کد، صفحه‌ی ورود کدی را نشان می‌داد
-                  که دیگر وجود ندارد. برای عوض کردن ایمیل، همین صفحه دکمه‌ی
-                  ویرایش دارد. */}
-              <AuthStepHeader
-                title={t.finishTitle}
-                description={
-                  method === "email" ? t.finishDescEmail : method === "sms" ? t.finishDescSms : t.finishDesc
-                }
-                step={stepNumber(method, "finish")}
-                total={stepNumber(method, "finish")}
-              />
-
-              <Card>
-                <CardContent className="space-y-2 p-4 text-sm">
-                  {method === "phone" && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-muted-foreground">{t.connectedAs}</span>
-                      <span className="truncate font-medium" dir="ltr">
-                        {status?.telegramUsername ? `@${status.telegramUsername}` : telegramName || "—"}
-                      </span>
+                    {busy === "telegram" ? <Loader2 className="me-2 size-4 animate-spin" /> : <Send className="me-2 size-4" />}
+                    {c.connectTelegram}
+                  </Button>
+                  {waitingTelegram && (
+                    <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-sm" aria-live="polite">
+                      <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
+                      <span className="flex-1">{c.waitingTelegram}</span>
+                      {deepLink && (
+                        <a href={deepLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+                          {c.openTelegramAgain} <ExternalLink className="size-3" aria-hidden="true" />
+                        </a>
+                      )}
                     </div>
                   )}
-                  {(method === "phone" || method === "sms") && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-muted-foreground">{t.phoneLabel}</span>
-                      <span className="font-medium tabular-nums" dir="ltr">
-                        {method === "sms" ? smsPhone : (status?.phone ?? "—")}
-                      </span>
+                </>
+              )}
+              {fe("telegram")}
+            </Section>
+
+            {/* ── ۳. شماره ──────────────────────────────────────────────── */}
+            <Section icon={<Smartphone className="size-4" />} title={c.s3} badge={phoneOk ? c.verified : c.required} done={phoneOk}>
+              {!telegramOk ? (
+                <p className="text-sm text-muted-foreground">{c.s3Locked}</p>
+              ) : phoneOk ? (
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span dir="ltr" className="font-mono">{maskPhone(view?.phone.value ?? phoneInput)}</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingPhone(true); setPhoneCode(""); }}>
+                    {c.changePhone}
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="su-phone">{c.phone}</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="su-phone" dir="ltr" inputMode="tel" autoComplete="tel" placeholder="0912xxxxxxx"
+                        value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)}
+                        className="bg-background"
+                      />
+                      <Button
+                        type="button"
+                        onClick={sendPhoneCode}
+                        disabled={busy !== null || phoneInput.trim().length < 8 || (phoneCodeSent && phoneCooldown > 0)}
+                      >
+                        {busy === "phoneSend" && <Loader2 className="me-2 size-4 animate-spin" />}
+                        {phoneCodeSent ? c.resend : c.sendCode}
+                      </Button>
                     </div>
-                  )}
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">{t.email}</span>
-                    {editingEmail ? (
-                      <span className="flex items-center gap-2">
-                        <Input
-                          value={email}
-                          dir="ltr"
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="h-8 w-48"
-                          aria-label={t.email}
-                        />
-                        <Button type="button" size="sm" variant="outline" onClick={() => void saveEmail()}>
-                          {t.saveEmail}
-                        </Button>
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <span className="truncate font-medium" dir="ltr">{email || "—"}</span>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="size-7"
-                          aria-label={t.editEmail}
-                          onClick={() => setEditingEmail(true)}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                      </span>
+                    {phoneCodeSent && phoneCooldown > 0 && (
+                      <p className="text-[11px] text-muted-foreground">{c.resendIn.replace("{s}", String(phoneCooldown))}</p>
                     )}
+                    {fe("phone")}
                   </div>
-                </CardContent>
-              </Card>
+                  {phoneCodeSent && (
+                    <div className="space-y-2">
+                      <p className="text-center text-xs text-muted-foreground" dir="ltr">
+                        {c.codeSentTo.replace("{p}", maskPhone(view?.phone.value ?? phoneInput))}
+                      </p>
+                      <CodeInput
+                        value={phoneCode}
+                        onChange={setPhoneCode}
+                        onComplete={(code) => void verifyPhone(code)}
+                        disabled={busy !== null}
+                        invalid={Boolean(phoneCodeError)}
+                        errorMessage={phoneCodeError}
+                        webOtp
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </Section>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="reg-pass">{t.password}</Label>
-                <PasswordInput id="reg-pass" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                <p className="text-xs text-muted-foreground">{t.passwordMin}</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="reg-pass2">{t.passwordConfirm}</Label>
-                <PasswordInput id="reg-pass2" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} required />
-                {passwordConfirm !== "" && password !== passwordConfirm && (
-                  <p className="text-xs text-destructive">{t.passwordMismatch}</p>
-                )}
-              </div>
+            {/* ── ۴. ایمیل (اختیاری) ────────────────────────────────────── */}
+            <Section icon={<Mail className="size-4" />} title={c.s4} badge={emailOk ? c.verified : c.optional} done={emailOk}>
+              {emailOk ? (
+                <p className="text-sm" dir="ltr">{email.trim()}</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm text-muted-foreground" dir="ltr">{email.trim() || "—"}</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={sendEmailCode}
+                      disabled={busy !== null || !telegramOk || !emailValid || (emailCodeSent && emailCooldown > 0)}
+                    >
+                      {busy === "emailSend" && <Loader2 className="me-2 size-4 animate-spin" />}
+                      {c.verifyEmail}
+                    </Button>
+                  </div>
+                  {!telegramOk && <p className="text-[11px] text-muted-foreground">{c.s3Locked}</p>}
+                  {emailCodeSent && (
+                    <div className="space-y-2">
+                      <p className="text-center text-xs text-muted-foreground">{c.emailCodeSent}</p>
+                      <CodeInput
+                        value={emailCode}
+                        onChange={setEmailCode}
+                        onComplete={(code) => void verifyEmail(code)}
+                        disabled={busy !== null}
+                        invalid={Boolean(emailCodeError)}
+                        errorMessage={emailCodeError}
+                      />
+                      {emailCooldown > 0 && (
+                        <p className="text-center text-[11px] text-muted-foreground">{c.resendIn.replace("{s}", String(emailCooldown))}</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+              <label className={`flex items-start gap-2 text-sm ${emailOk ? "" : "opacity-50"}`}>
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={enableEmail2fa}
+                  disabled={!emailOk}
+                  onChange={(e) => setEnableEmail2fa(e.target.checked)}
+                />
+                <span>
+                  <span className="flex items-center gap-1 font-medium"><ShieldCheck className="size-4 text-primary" aria-hidden="true" /> {c.twoFactor}</span>
+                  <span className="block text-[11px] text-muted-foreground">{c.twoFactorHint}</span>
+                </span>
+              </label>
+            </Section>
 
-              <GlowButton type="submit" className="w-full" disabled={busy}>
-                {busy && <Loader2 className="me-2 size-4 animate-spin" />}
-                {t.createAccount}
-              </GlowButton>
-            </form>
-          )}
-          </div>
+            {/* ── ۵. رمز عبور ───────────────────────────────────────────── */}
+            <Section icon={<ShieldCheck className="size-4" />} title={c.s5}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="su-pass">{c.password}</Label>
+                  <PasswordInput id="su-pass" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} className="bg-background" />
+                  <p className="text-[11px] text-muted-foreground">{c.passwordHint}</p>
+                  {fe("password")}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="su-pass2">{c.passwordConfirm}</Label>
+                  <PasswordInput id="su-pass2" autoComplete="new-password" value={password2} onChange={(e) => setPassword2(e.target.value)} className="bg-background" />
+                  {fe("passwordConfirm")}
+                </div>
+              </div>
+            </Section>
+
+            <GlowButton type="submit" className="w-full" disabled={busy !== null}>
+              {busy === "submit" && <Loader2 className="me-2 size-4 animate-spin" />}
+              {c.submit}
+            </GlowButton>
+
+            <p className="text-center text-sm text-muted-foreground">
+              {c.haveAccount}{" "}
+              <Link href="/login" className="text-primary hover:underline">{c.signIn}</Link>
+            </p>
+          </form>
+        </div>
       </AuthShell>
       <EnamadSeal className="bg-background pb-4" />
     </>

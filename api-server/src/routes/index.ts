@@ -33,6 +33,7 @@ import discountsRouter from "./discounts.js";
 import updatesRouter from "./updates.js";
 // ثبت‌نام پنج‌مرحله‌ای با تأیید شماره از طریق تلگرام
 import registrationRouter from "./registration.js";
+import signupRouter from "./signup.js";
 // دروازه‌ی اجباریِ تکمیل هویت — PATCH /auth/complete-profile
 import completeProfileRouter from "./completeProfile.js";
 // مدیریت کاربران توسط super_admin (بازیابی، رمز، نقش، جعل هویت، ممیزی)
@@ -124,6 +125,8 @@ import schoolStudentAlertsRouter from "./schoolStudentAlerts.js";
 import schoolBotPoolRouter from "./schoolBotPool.js";
 import schoolBotsRouter from "./schoolBots.js";
 import schoolBotWebhookRouter from "./schoolBotWebhook.js";
+// دانش‌آموزِ منتخب (مسئولِ کلاس): انتخابِ معلم، مواردِ ثبت‌شده، گروه‌هایِ بات
+import schoolRepsRouter from "./schoolReps.js";
 import schoolNotificationsRouter from "./schoolNotificationTriggers.js";
 // بخش "/schools" فاز ۹ — وضعیتِ خوانده‌شدنِ رشته‌ها + لاگِ رخدادهایِ مدیریتی
 import schoolMessageReadStateRouter from "./schoolMessageReadState.js";
@@ -180,6 +183,7 @@ router.use(notificationsRouter);
 router.use(discountsRouter);
 router.use(updatesRouter);
 router.use(registrationRouter);
+router.use(signupRouter);
 router.use(completeProfileRouter);
 router.use(superAdminUsersRouter);
 router.use(superAdminDiagnosticsRouter);
@@ -249,6 +253,7 @@ router.use(schoolStudentAlertsRouter);
 router.use(schoolBotPoolRouter);
 router.use(schoolBotsRouter);
 router.use(schoolBotWebhookRouter);
+router.use(schoolRepsRouter);
 router.use(schoolNotificationsRouter);
 router.use(schoolMessageReadStateRouter);
 router.use(schoolAuditLogRouter);
