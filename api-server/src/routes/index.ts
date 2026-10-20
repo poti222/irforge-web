@@ -42,6 +42,7 @@ import superAdminUsersRouter from "./superAdminUsers.js";
 import superAdminDiagnosticsRouter from "./superAdminDiagnostics.js";
 import sheetPoolRepairRouter from "./sheetPoolRepair.js";
 import superPostgresRouter from "./superPostgres.js";
+import emojiPacksRouter from "./emojiPacks.js";
 // دسترسی مهمان (توکن جدا، پیش‌فرض-رد)
 import guestRouter from "./guest.js";
 // مهاجرت پنل ادمین بات به سایت — تنظیمات بات روی تب `bot_settings` شیت تننت
@@ -268,6 +269,7 @@ router.use(schoolContentProgressRouter);
 router.use(superGateRouter);
 router.use(superDashboardRouter);
 router.use(superPostgresRouter);
+router.use(emojiPacksRouter);
 router.use(testIdentitiesRouter);
 
 export default router;

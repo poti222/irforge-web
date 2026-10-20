@@ -43,6 +43,21 @@ export const importEmojiIds = (botId: string, ids: string[]) =>
     body: JSON.stringify({ ids }),
   });
 
+export interface LibraryPack {
+  slug: string; title: string; count: number; priceToman: number; free: boolean; animated: boolean;
+  preview: { name: string; emoji: string; id: string }[];
+}
+
+/** کتابخانه‌یِ پک‌هایِ آمادهِ پلتفرم (برایِ همه‌یِ کاربران). */
+export const listEmojiLibrary = () => customFetch<{ packs: LibraryPack[] }>("/api/emoji-packs", { method: "GET" });
+
+export const addLibraryPack = (botId: string, slug: string) =>
+  customFetch<{ emojis: CustomEmoji[]; added: number }>(`/api/bots/${botId}/custom-emojis/add-library-pack`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slug }),
+  });
+
 /** متنِ `value` را با `token` در محلِ مکان‌نما (یا انتها) پر می‌کند؛ مکانِ جدیدِ مکان‌نما را هم برمی‌گرداند. */
 export function insertAtCursor(value: string, token: string, start: number | null, end: number | null) {
   const s = start ?? value.length;

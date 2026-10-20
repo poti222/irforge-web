@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Bot, Blocks, CreditCard, Database, FileUp, FlaskConical, LayoutDashboard, LifeBuoy, Loader2, Megaphone, Package, Percent,
-  School, ScrollText, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, ToggleRight, UserPlus, Users,
+  School, ScrollText, Settings, ShieldCheck, ShoppingBag, Smartphone, Smile, Sparkles, ToggleRight, UserPlus, Users,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,6 +21,7 @@ import { SuperOverview } from "@/components/super/SuperOverview";
 import { SuperSchools } from "@/components/super/SuperSchools";
 import { SuperAudit } from "@/components/super/SuperAudit";
 import { SuperPostgres } from "@/components/super/SuperPostgres";
+import { SuperEmojiPacks } from "@/components/super/SuperEmojiPacks";
 import { SUPER_GROUPS_META, SUPER_TAB_META, isSuperTab, readInitialTab, type SuperTabId } from "@/components/super/superTabs";
 
 /**
@@ -159,7 +160,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 /** آیکنِ هر تب (کلیدها از `SuperTabId`؛ فراموشیِ یک تب خطایِ کامپایل است). */
 const TAB_ICONS: Record<SuperTabId, LucideIcon> = {
-  overview: LayoutDashboard, postgres: Database, users: Users, bots: Bot, schools: School, payments: CreditCard, cardpay: Smartphone,
+  overview: LayoutDashboard, postgres: Database, emojiPacks: Smile, users: Users, bots: Bot, schools: School, payments: CreditCard, cardpay: Smartphone,
   plans: Package, products: ShoppingBag, discounts: Percent, announcements: Megaphone, updates: Sparkles, pluginNotes: Blocks,
   tickets: LifeBuoy, signups: UserPlus, sheetPool: Database, schoolBotPool: Bot, cutover: ToggleRight, sheetsImport: FileUp,
   settings: Settings, audit: ScrollText,
@@ -169,6 +170,7 @@ const TAB_ICONS: Record<SuperTabId, LucideIcon> = {
 const TAB_CONTENT: Record<SuperTabId, (go: (tab: SuperTabId) => void) => ReactNode> = {
   overview: (go) => <SuperOverview onNavigate={(t) => go(t as SuperTabId)} />,
   postgres: () => <SuperPostgres />,
+  emojiPacks: () => <SuperEmojiPacks />,
   users: () => <AdminUsers />,
   bots: () => <AllBotsTable />,
   schools: () => <SuperSchools />,

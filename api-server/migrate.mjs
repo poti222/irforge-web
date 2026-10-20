@@ -588,6 +588,20 @@ CREATE TABLE IF NOT EXISTS signup_sessions (
 CREATE INDEX IF NOT EXISTS signup_sessions_expires_idx ON signup_sessions(expires_at);
 CREATE INDEX IF NOT EXISTS signup_sessions_telegram_idx ON signup_sessions(telegram_id);
 
+-- ─── کتابخانه‌ی پک‌های ایموجیِ سفارشی (برایِ همه‌ی کاربران؛ price_toman=0 → رایگان) ───
+CREATE TABLE IF NOT EXISTS emoji_packs (
+  slug TEXT PRIMARY KEY,
+  title_fa TEXT NOT NULL,
+  title_en TEXT NOT NULL DEFAULT '',
+  tg_set_name TEXT,
+  price_toman INTEGER NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  stickers JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS login_challenges (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,

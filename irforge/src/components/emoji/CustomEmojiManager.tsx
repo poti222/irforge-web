@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Loader2, Plus, Save, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { useEmojiContext, customEmojiQueryKey } from "./emoji-context";
 import {
-  EMOJI_NAME_RE, emojiToken, importEmojiIds, importEmojiPacks, saveCustomEmojis, type CustomEmoji,
+  EMOJI_NAME_RE, addLibraryPack, emojiToken, importEmojiIds, importEmojiPacks, listEmojiLibrary, saveCustomEmojis, type CustomEmoji,
 } from "@/lib/custom-emoji";
 
 /**
@@ -62,6 +62,15 @@ export function CustomEmojiManager() {
     onError: fail,
   });
 
+  const library = useQuery({ queryKey: ["emoji-library"], queryFn: listEmojiLibrary, staleTime: 60_000 });
+  const addPack = useMutation({
+    mutationFn: (slug: string) => addLibraryPack(botId, slug),
+    onSuccess: (r) => {
+      refresh(r.emojis);
+      toast({ title: r.added > 0 ? `${r.added} ایموجی اضافه شد` : "همه‌یِ این پک از قبل در فهرست هست" });
+    },
+    onError: fail,
+  });
   const edit = (fn: (l: CustomEmoji[]) => CustomEmoji[]) => setDraft(fn(list));
   // بر اساسِ `id` (یکتا)، نه `name`: وقتی دو ردیف نامِ یکسان دارند (دقیقاً حالتی که باید اصلاح شود) تغییرِ یکی نباید روی دیگری هم اعمال شود.
   const patch = (id: string, p: Partial<CustomEmoji>) => edit((l) => l.map((e) => (e.id === id ? { ...e, ...p } : e)));
@@ -80,6 +89,36 @@ export function CustomEmojiManager() {
 
   return (
     <div className="space-y-4" dir="rtl" data-testid="custom-emoji-manager">
+      {library.data && library.data.packs.length > 0 && (
+        <Card data-testid="emoji-library">
+          <CardHeader className="space-y-1.5">
+            <CardTitle>پک‌هایِ آماده</CardTitle>
+            <CardDescription className="leading-7">با یک کلیک پک را به همین ربات اضافه کنید؛ بعد از ذخیره‌یِ فهرست در همه‌یِ متن‌ها قابل‌استفاده است.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            {library.data.packs.map((p) => {
+              const have = p.preview.length > 0 && p.preview.every((x) => list.some((e) => e.id === x.id));
+              return (
+                <div key={p.slug} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium">{p.title}</span>
+                      <Badge variant={p.free ? "secondary" : "outline"}>{p.free ? "رایگان" : `${p.priceToman.toLocaleString("fa-IR")} تومان`}</Badge>
+                      {p.animated && <Badge variant="outline">متحرک</Badge>}
+                    </div>
+                    <p className="truncate text-lg leading-none">{p.preview.map((x) => x.emoji).join(" ")}</p>
+                    <p className="text-xs text-muted-foreground">{p.count.toLocaleString("fa-IR")} ایموجی</p>
+                  </div>
+                  <Button size="sm" variant={have ? "outline" : "default"} disabled={dirty || !p.free || addPack.isPending} onClick={() => addPack.mutate(p.slug)} title={dirty ? "ابتدا تغییراتِ فهرست را ذخیره یا لغو کنید" : !p.free ? "خریدِ پک هنوز فعال نشده" : undefined}>
+                    {addPack.isPending && addPack.variables === p.slug ? <Loader2 className="me-1.5 size-4 animate-spin" /> : have ? <Check className="me-1.5 size-4" /> : <Plus className="me-1.5 size-4" />}
+                    {have ? "اضافه شده" : "افزودن"}
+                  </Button>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardHeader className="space-y-1.5">
           <CardTitle>ایموجی‌هایِ متحرک</CardTitle>

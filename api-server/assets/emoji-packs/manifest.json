@@ -1,0 +1,316 @@
+{
+ "packs": [
+  {
+   "slug": "ticks",
+   "titleFa": "تیک‌ها",
+   "titleEn": "Ticks",
+   "tgBase": "irforge_ticks",
+   "stickers": [
+    {
+     "name": "green_tick",
+     "file": "green_tick.png",
+     "format": "static",
+     "emoji": "✅"
+    },
+    {
+     "name": "grey_tick",
+     "file": "grey_tick.png",
+     "format": "static",
+     "emoji": "☑️"
+    },
+    {
+     "name": "red_tick",
+     "file": "red_tick.png",
+     "format": "static",
+     "emoji": "❌"
+    }
+   ]
+  },
+  {
+   "slug": "ticks-animated",
+   "titleFa": "تیک‌های متحرک",
+   "titleEn": "Animated ticks",
+   "tgBase": "irforge_ticks_animated",
+   "stickers": [
+    {
+     "name": "green_tick_anim",
+     "file": "green_tick_anim.webm",
+     "format": "video",
+     "emoji": "✅"
+    },
+    {
+     "name": "grey_tick_anim",
+     "file": "grey_tick_anim.webm",
+     "format": "video",
+     "emoji": "☑️"
+    },
+    {
+     "name": "red_tick_anim",
+     "file": "red_tick_anim.webm",
+     "format": "video",
+     "emoji": "❌"
+    }
+   ]
+  },
+  {
+   "slug": "numbers",
+   "titleFa": "اعداد ۱ تا ۱۰",
+   "titleEn": "Numbers 1-10",
+   "tgBase": "irforge_numbers",
+   "stickers": [
+    {
+     "name": "number1",
+     "file": "number1.png",
+     "format": "static",
+     "emoji": "1️⃣"
+    },
+    {
+     "name": "number10",
+     "file": "number10.png",
+     "format": "static",
+     "emoji": "🔟"
+    },
+    {
+     "name": "number2",
+     "file": "number2.png",
+     "format": "static",
+     "emoji": "2️⃣"
+    },
+    {
+     "name": "number3",
+     "file": "number3.png",
+     "format": "static",
+     "emoji": "3️⃣"
+    },
+    {
+     "name": "number4",
+     "file": "number4.png",
+     "format": "static",
+     "emoji": "4️⃣"
+    },
+    {
+     "name": "number5",
+     "file": "number5.png",
+     "format": "static",
+     "emoji": "5️⃣"
+    },
+    {
+     "name": "number6",
+     "file": "number6.png",
+     "format": "static",
+     "emoji": "6️⃣"
+    },
+    {
+     "name": "number7",
+     "file": "number7.png",
+     "format": "static",
+     "emoji": "7️⃣"
+    },
+    {
+     "name": "number8",
+     "file": "number8.png",
+     "format": "static",
+     "emoji": "8️⃣"
+    },
+    {
+     "name": "number9",
+     "file": "number9.png",
+     "format": "static",
+     "emoji": "9️⃣"
+    }
+   ]
+  },
+  {
+   "slug": "social-logos",
+   "titleFa": "لوگوی شبکه‌های اجتماعی",
+   "titleEn": "Social logos",
+   "tgBase": "irforge_social_logos",
+   "stickers": [
+    {
+     "name": "facebook",
+     "file": "facebook.png",
+     "format": "static",
+     "emoji": "👍"
+    },
+    {
+     "name": "instagram",
+     "file": "instagram.png",
+     "format": "static",
+     "emoji": "📷"
+    },
+    {
+     "name": "reddit",
+     "file": "reddit.png",
+     "format": "static",
+     "emoji": "🤖"
+    },
+    {
+     "name": "snapchat",
+     "file": "snapchat.png",
+     "format": "static",
+     "emoji": "👻"
+    },
+    {
+     "name": "telegram",
+     "file": "telegram.png",
+     "format": "static",
+     "emoji": "✈️"
+    },
+    {
+     "name": "tiktok",
+     "file": "tiktok.png",
+     "format": "static",
+     "emoji": "🎬"
+    },
+    {
+     "name": "twitter",
+     "file": "twitter.png",
+     "format": "static",
+     "emoji": "🐦"
+    },
+    {
+     "name": "whatsapp",
+     "file": "whatsapp.png",
+     "format": "static",
+     "emoji": "💬"
+    }
+   ]
+  },
+  {
+   "slug": "social-icons",
+   "titleFa": "آیکون شبکه‌های اجتماعی",
+   "titleEn": "Social icons",
+   "tgBase": "irforge_social_icons",
+   "stickers": [
+    {
+     "name": "facebook",
+     "file": "facebook.png",
+     "format": "static",
+     "emoji": "👍"
+    },
+    {
+     "name": "instagram",
+     "file": "instagram.png",
+     "format": "static",
+     "emoji": "📷"
+    },
+    {
+     "name": "snapchat",
+     "file": "snapchat.png",
+     "format": "static",
+     "emoji": "👻"
+    },
+    {
+     "name": "spotify",
+     "file": "spotify.png",
+     "format": "static",
+     "emoji": "🎵"
+    },
+    {
+     "name": "telegram",
+     "file": "telegram.png",
+     "format": "static",
+     "emoji": "✈️"
+    },
+    {
+     "name": "tiktok",
+     "file": "tiktok.png",
+     "format": "static",
+     "emoji": "🎬"
+    },
+    {
+     "name": "twitter",
+     "file": "twitter.png",
+     "format": "static",
+     "emoji": "🐦"
+    },
+    {
+     "name": "whatsapp",
+     "file": "whatsapp.png",
+     "format": "static",
+     "emoji": "💬"
+    },
+    {
+     "name": "youtube_music",
+     "file": "youtube_music.png",
+     "format": "static",
+     "emoji": "🎵"
+    },
+    {
+     "name": "youtube_studio",
+     "file": "youtube_studio.png",
+     "format": "static",
+     "emoji": "▶️"
+    },
+    {
+     "name": "youtube",
+     "file": "youtube.png",
+     "format": "static",
+     "emoji": "▶️"
+    }
+   ]
+  },
+  {
+   "slug": "app-logos",
+   "titleFa": "لوگوی اپلیکیشن‌ها",
+   "titleEn": "App logos",
+   "tgBase": "irforge_app_logos",
+   "stickers": [
+    {
+     "name": "discord",
+     "file": "discord.png",
+     "format": "static",
+     "emoji": "🎮"
+    },
+    {
+     "name": "reddit",
+     "file": "reddit.png",
+     "format": "static",
+     "emoji": "🤖"
+    },
+    {
+     "name": "roblox",
+     "file": "roblox.png",
+     "format": "static",
+     "emoji": "🎮"
+    },
+    {
+     "name": "soundcloud",
+     "file": "soundcloud.png",
+     "format": "static",
+     "emoji": "🎵"
+    },
+    {
+     "name": "spotify",
+     "file": "spotify.png",
+     "format": "static",
+     "emoji": "🎵"
+    },
+    {
+     "name": "twitter",
+     "file": "twitter.png",
+     "format": "static",
+     "emoji": "🐦"
+    },
+    {
+     "name": "whatsapp",
+     "file": "whatsapp.png",
+     "format": "static",
+     "emoji": "💬"
+    },
+    {
+     "name": "x_logo",
+     "file": "x_logo.png",
+     "format": "static",
+     "emoji": "✖️"
+    },
+    {
+     "name": "youtube",
+     "file": "youtube.png",
+     "format": "static",
+     "emoji": "▶️"
+    }
+   ]
+  }
+ ]
+}

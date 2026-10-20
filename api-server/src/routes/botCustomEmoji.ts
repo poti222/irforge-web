@@ -20,6 +20,8 @@ import { decryptToken } from "../lib/tokenCrypto.js";
 import { tgApi } from "../lib/telegram.js";
 import { resolveBotSheet, readSettings, patchSettings, sendBotConfigError, BotConfigError } from "../lib/botConfig.js";
 import type { CustomEmojiEntry } from "../lib/botTypes.js";
+import { emojiPacksTable } from "@workspace/db";
+import { ensureSeeded } from "../lib/emojiPacks.js";
 
 const router = Router();
 const MAX_EMOJIS = 2000;
@@ -127,6 +129,37 @@ router.post("/bots/:botId/custom-emojis/import-pack", requireAuth, async (req: a
     await patchSettings(spreadsheetId, { custom_emojis: list } as Record<string, unknown>);
     res.json({ emojis: list, report });
   } catch (err) { sendBotConfigError(res, err, "Failed to import emoji pack"); }
+});
+
+/**
+ * اضافه‌کردنِ یک پکِ کتابخانه‌ی پلتفرم به همین بات.  { slug }
+ * رایگان (`price_toman = 0`): بلافاصله اضافه می‌شود. پولی: ۴۰۲ — خریدِ پک هنوز فعال نیست.
+ * بدونِ تماس با تلگرام: شناسه‌هایِ ایموجی هنگامِ «ساخت در تلگرام» ذخیره شده‌اند.
+ */
+router.post("/bots/:botId/custom-emojis/add-library-pack", requireAuth, async (req: any, res) => {
+  try {
+    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    await ensureSeeded();
+    const slug = String(req.body?.slug ?? "");
+    const [pack] = await db.select().from(emojiPacksTable).where(eq(emojiPacksTable.slug, slug)).limit(1);
+    if (!pack || !pack.active || !pack.tgSetName || pack.stickers.some((s) => !s.id)) throw new BotConfigError(404, "این پک در دسترس نیست", "pack_unavailable");
+    if (pack.priceToman > 0) throw new BotConfigError(402, `این پک پولی است (${pack.priceToman.toLocaleString("en-US")} تومان)؛ خریدِ پک هنوز فعال نشده.`, "pack_paid");
+    const list = await current(spreadsheetId);
+    const taken = new Set(list.map((e) => e.name));
+    const usedIds = new Set(list.map((e) => e.id));
+    let added = 0;
+    for (const st of pack.stickers) {
+      if (!st.id || usedIds.has(st.id) || list.length >= MAX_EMOJIS) continue;
+      let name = st.name;
+      if (taken.has(name)) [name] = uniqueName(st.name.slice(0, 26), taken, 2);
+      else taken.add(name);
+      usedIds.add(st.id);
+      list.push({ name, id: st.id, fallback: st.emoji || "⭐", animated: st.animated, enabled: true, pack: pack.tgSetName.slice(0, 64) });
+      added++;
+    }
+    if (added > 0) await patchSettings(spreadsheetId, { custom_emojis: list } as Record<string, unknown>);
+    res.json({ emojis: list, added });
+  } catch (err) { sendBotConfigError(res, err, "Failed to add emoji pack"); }
 });
 
 router.post("/bots/:botId/custom-emojis/import-ids", requireAuth, async (req: any, res) => {

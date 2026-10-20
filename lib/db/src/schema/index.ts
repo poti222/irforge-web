@@ -78,3 +78,4 @@ export * from "./schoolGuardianRequests";
 export * from "./schoolWallet";
 // «دانش‌آموزِ منتخب» + گروه‌هایِ تلگرامیِ باتِ مدرسه + تکلیف/امتحانِ ثبت‌شده توسطِ منتخب
 export * from "./schoolReps";
+export * from "./emojiPacks";

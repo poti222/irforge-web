@@ -30,6 +30,7 @@ export const SUPER_GROUPS_META = [
     { id: "announcements", fa: "اعلان‌ها", en: "Announcements" },
     { id: "updates", fa: "آپدیت‌ها", en: "Updates" },
     { id: "pluginNotes", fa: "یادداشتِ پلاگین‌ها", en: "Plugin notes" },
+    { id: "emojiPacks", fa: "پک‌هایِ ایموجی", en: "Emoji packs" },
   ] },
   { id: "support", fa: "پشتیبانی و ثبت‌نام", en: "Support & signups", tabs: [
     { id: "tickets", fa: "تیکت‌ها", en: "Tickets" },
