@@ -37,6 +37,7 @@ import {
   GitBranch,
   Database,
   Gamepad2,
+  Smile,
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
@@ -54,6 +55,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CommandsEditor } from "@/components/bots/CommandsEditor";
+import { CustomEmojiManager } from "@/components/emoji/CustomEmojiManager";
 import { PluginsManager } from "@/components/bots/PluginsManager";
 import { BotStatsPanel } from "@/components/bots/BotStatsPanel";
 import { BotSettingsSection } from "@/components/bots/settings/BotSettingsSection";
@@ -99,6 +101,7 @@ type SectionKey =
   | "panels"
   | "forms"
   | "commands"
+  | "emojis"
   | "users"
   | "admins"
   | "orders"
@@ -200,6 +203,7 @@ const SECTION_GROUPS: SectionGroup[] = [
       { key: "panels", icon: LayoutPanelLeft, labelKey: "sectionPanels" },
       { key: "forms", icon: FileText, labelKey: "sectionForms" },
       { key: "commands", icon: Terminal, labelKey: "sectionCommands" },
+      { key: "emojis", icon: Smile, labelKey: "sectionEmojis" },
     ],
   },
   {
@@ -570,6 +574,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "database" && <DatabaseSection bot={bot} />}
             {section === "profile" && <BotProfileForm bot={bot} />}
             {section === "commands" && <CommandsEditor botId={bot.id} />}
+            {section === "emojis" && <CustomEmojiManager />}
             {section === "plugins" && <PluginsManager botId={bot.id} />}
             {section === "stats" && <BotStatsPanel botId={bot.id} status={bot.status} />}
             {section === "settings" && <BotSettingsSection bot={bot} />}

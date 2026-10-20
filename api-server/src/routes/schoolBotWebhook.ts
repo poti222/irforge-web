@@ -25,6 +25,9 @@ function timingEqual(a: string, b: string): boolean {
 
 router.post("/schools/bot-webhook/:schoolBotId", async (req: any, res) => {
   try {
+    // بات در گروهِ شلوغ (به‌ویژه ادمین) همهٔ پیام‌ها را می‌گیرد؛ جز `/bind` ربطی به ما ندارد ← بدونِ DB/رمزگشایی ۲۰۰.
+    const gm = req.body?.message;
+    if (gm?.chat?.type && gm.chat.type !== "private" && !/^\/bind(@\w+)?(\s|$)/i.test(String(gm.text ?? "").trim())) { res.status(200).end(); return; }
     const [bot] = await db.select().from(schoolBotsTable).where(eq(schoolBotsTable.id, req.params.schoolBotId)).limit(1);
     if (!bot) { res.status(404).end(); return; }
     const token = await getSchoolBotToken(bot);

@@ -15,8 +15,12 @@ import { tgApi, telegramWebhookSecret } from "./telegram";
 
 export type SchoolBotRow = typeof schoolBotsTable.$inferSelect;
 
-/** هر دو نوعِ آپدیتی که باتِ مدرسه می‌فهمد. (callback_query = دکمه‌هایِ شیشه‌ای.) */
-export const SCHOOL_BOT_ALLOWED_UPDATES = ["message", "callback_query"];
+/**
+ * آپدیت‌هایی که باتِ مدرسه می‌فهمد: message، callback_query (دکمه‌هایِ شیشه‌ای) و my_chat_member (وقتی بات به گروه اضافه/ادمین/حذف
+ * می‌شود — برایِ فهرستِ گروه‌هایِ یادآوریِ دانش‌آموزِ منتخب؛ lib/schoolBot/reps.ts). healAllSchoolBotWebhooks در بوت
+ * webhookِ باتِ مدارسِ موجود را با همین فهرست دوباره ثبت می‌کند.
+ */
+export const SCHOOL_BOT_ALLOWED_UPDATES = ["message", "callback_query", "my_chat_member"];
 
 /** توکنِ متنِ خامِ یک باتِ مدرسه (از استخر)؛ null اگر نشد (و دلیل لاگ می‌شود — نه بی‌صدا). */
 export async function getSchoolBotToken(bot: Pick<SchoolBotRow, "id" | "botTokenPoolId">): Promise<string | null> {

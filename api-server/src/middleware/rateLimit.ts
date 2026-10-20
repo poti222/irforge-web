@@ -12,7 +12,7 @@
  */
 import type { Request, Response, NextFunction } from "express";
 import { db, authRateLimitsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
 export const WINDOW_MS = 15 * 60 * 1000;
@@ -40,54 +40,70 @@ export async function hit(
   windowMs = WINDOW_MS,
 ): Promise<Verdict> {
   const now = new Date();
+  const nowIso = now.toISOString();
+  const cutoffIso = new Date(now.getTime() - windowMs).toISOString();
+  const blockIso = blockMs > 0 ? new Date(now.getTime() + blockMs).toISOString() : null;
   try {
-    const [row] = await db
-      .select()
-      .from(authRateLimitsTable)
-      .where(eq(authRateLimitsTable.key, key))
-      .limit(1);
+    /**
+     * یک دستور اتمیک (INSERT … ON CONFLICT DO UPDATE).
+     *
+     * نسخه‌ی قبلی اول SELECT می‌زد و بعد UPDATE؛ N درخواست هم‌زمان همه یک
+     * `count` یکسان می‌خواندند و شمارنده فقط یک واحد بالا می‌رفت — یعنی با
+     * ارسال موازی، سقف هر محدودیت (IP، شماره، …) عملاً وجود نداشت. اینجا
+     * خودِ دیتابیس افزایش را سریالایز می‌کند.
+     *
+     * منطق همان قبلی است: بلاکِ فعال شمارنده را تغییر نمی‌دهد؛ پنجره‌ی
+     * منقضی شمارنده را به ۱ برمی‌گرداند؛ عبور از سقف (در صورت blockMs)
+     * بلاک می‌گذارد.
+     */
+    const result: any = await db.execute(sql`
+      INSERT INTO auth_rate_limits (key, count, window_started_at, blocked_until)
+      VALUES (${key}, 1, ${nowIso}::timestamptz, NULL)
+      ON CONFLICT (key) DO UPDATE SET
+        count = CASE
+          WHEN auth_rate_limits.blocked_until IS NOT NULL
+               AND auth_rate_limits.blocked_until > ${nowIso}::timestamptz
+            THEN auth_rate_limits.count
+          WHEN auth_rate_limits.window_started_at <= ${cutoffIso}::timestamptz THEN 1
+          ELSE auth_rate_limits.count + 1
+        END,
+        window_started_at = CASE
+          WHEN (auth_rate_limits.blocked_until IS NULL
+                OR auth_rate_limits.blocked_until <= ${nowIso}::timestamptz)
+               AND auth_rate_limits.window_started_at <= ${cutoffIso}::timestamptz
+            THEN ${nowIso}::timestamptz
+          ELSE auth_rate_limits.window_started_at
+        END,
+        blocked_until = CASE
+          WHEN auth_rate_limits.blocked_until IS NOT NULL
+               AND auth_rate_limits.blocked_until > ${nowIso}::timestamptz
+            THEN auth_rate_limits.blocked_until
+          WHEN auth_rate_limits.window_started_at <= ${cutoffIso}::timestamptz THEN NULL
+          WHEN auth_rate_limits.count + 1 > ${limit} AND ${blockIso}::timestamptz IS NOT NULL
+            THEN ${blockIso}::timestamptz
+          ELSE auth_rate_limits.blocked_until
+        END
+      RETURNING count, window_started_at AS "windowStartedAt", blocked_until AS "blockedUntil"
+    `);
+    const row = (result?.rows ?? result)?.[0];
+    if (!row) return { allowed: true, retryAfterSeconds: 0 };
 
-    if (!row) {
-      await db
-        .insert(authRateLimitsTable)
-        .values({ key, count: 1, windowStartedAt: now })
-        .onConflictDoNothing();
-      return { allowed: true, retryAfterSeconds: 0 };
-    }
-
-    if (row.blockedUntil && row.blockedUntil.getTime() > now.getTime()) {
+    const count = Number(row.count);
+    const blockedUntil = row.blockedUntil ? new Date(row.blockedUntil) : null;
+    if (blockedUntil && blockedUntil.getTime() > now.getTime()) {
       return {
         allowed: false,
-        retryAfterSeconds: Math.ceil((row.blockedUntil.getTime() - now.getTime()) / 1000),
+        retryAfterSeconds: Math.ceil((blockedUntil.getTime() - now.getTime()) / 1000),
       };
     }
-
-    const windowAge = now.getTime() - row.windowStartedAt.getTime();
-    if (windowAge > windowMs) {
-      await db
-        .update(authRateLimitsTable)
-        .set({ count: 1, windowStartedAt: now, blockedUntil: null })
-        .where(eq(authRateLimitsTable.key, key));
-      return { allowed: true, retryAfterSeconds: 0 };
+    if (count > limit) {
+      const windowStartedAt = new Date(row.windowStartedAt);
+      const windowAge = now.getTime() - windowStartedAt.getTime();
+      return {
+        allowed: false,
+        retryAfterSeconds: Math.max(1, Math.ceil((windowMs - windowAge) / 1000)),
+      };
     }
-
-    const next = row.count + 1;
-    if (next > limit) {
-      const blockedUntil = blockMs > 0 ? new Date(now.getTime() + blockMs) : null;
-      await db
-        .update(authRateLimitsTable)
-        .set({ count: next, blockedUntil })
-        .where(eq(authRateLimitsTable.key, key));
-      const retry = blockedUntil
-        ? Math.ceil((blockedUntil.getTime() - now.getTime()) / 1000)
-        : Math.ceil((windowMs - windowAge) / 1000);
-      return { allowed: false, retryAfterSeconds: retry };
-    }
-
-    await db
-      .update(authRateLimitsTable)
-      .set({ count: next })
-      .where(eq(authRateLimitsTable.key, key));
     return { allowed: true, retryAfterSeconds: 0 };
   } catch (err) {
     // اگر خودِ محدودساز خراب شود، **اجازه می‌دهیم** — قفل‌کردن کل ورود سایت
@@ -107,11 +123,28 @@ export async function reset(key: string): Promise<void> {
     .catch(() => {});
 }
 
-/** IP کلاینت، با اعتماد به پراکسی Railway. */
+/**
+ * IP کلاینت.
+ *
+ * ⚠️ قبلاً **اولین** مقدار `X-Forwarded-For` برداشته می‌شد — ولی همان مقداری
+ * است که خودِ کلاینت می‌فرستد؛ پراکسی فقط IP واقعی را به **انتهای** لیست
+ * اضافه می‌کند. با یک هدر جعلی در هر درخواست، همه‌ی محدودیت‌های IP بی‌اثر
+ * بودند. حالا مقدارِ `TRUSTED_PROXY_HOPS`-ام از انتها برداشته می‌شود
+ * (پیش‌فرض ۱ = یک پراکسی مورد اعتماد، مثل Railway). اگر جلوی Railway یک CDN
+ * هم هست مقدار را ۲ بگذارید. مقدار ۰ یعنی هدر را نادیده بگیر.
+ */
 export function clientIp(req: Request): string {
-  const fwd = req.headers["x-forwarded-for"];
-  const first = Array.isArray(fwd) ? fwd[0] : String(fwd ?? "").split(",")[0];
-  return (first || req.ip || "unknown").trim().slice(0, 64);
+  const raw = Number(process.env.TRUSTED_PROXY_HOPS ?? "1");
+  const hops = Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 1;
+  if (hops > 0) {
+    const fwd = req.headers["x-forwarded-for"];
+    const joined = Array.isArray(fwd) ? fwd.join(",") : String(fwd ?? "");
+    const parts = joined.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      return parts[Math.max(0, parts.length - hops)].slice(0, 64);
+    }
+  }
+  return String(req.socket?.remoteAddress || req.ip || "unknown").trim().slice(0, 64);
 }
 
 /** IRFORGE_PROMPT_V3 Phase 5.2 — the JSON body already carried

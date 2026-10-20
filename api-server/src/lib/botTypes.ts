@@ -324,6 +324,8 @@ export type BotSettings = {
    * بلافاصله بعد از رفرش دوباره خاموش).
    */
   bot_commands: BotCommandMenuEntry[];
+  /** کاتالوگِ ایموجیِ سفارشی/متحرکِ تلگرام (`:name:` در متن‌ها). ر.ک. routes/botCustomEmoji.ts */
+  custom_emojis: CustomEmojiEntry[];
   force_join_channels: string[];
   force_join_message: string;
   working_hours: WorkingHours;
@@ -462,6 +464,7 @@ export function defaultBotSettings(): BotSettings {
     maintenance: false,
     reply_keyboard: null,
     bot_commands: [],
+    custom_emojis: [],
     force_join_channels: [],
     force_join_message: "برای استفاده از ربات ابتدا در کانال‌های زیر عضو شوید:",
     working_hours: defaultWorkingHours(),
@@ -604,3 +607,13 @@ export function rowsToButtons(rows: PanelButton[][]): PanelButton[] {
   }
   return normalizeButtonLayout(flat);
 }
+
+/** یک ردیفِ کاتالوگِ ایموجیِ سفارشی — آینه‌یِ `utils/custom_emoji.py::_norm_entry` در بات. */
+export type CustomEmojiEntry = {
+  name: string;
+  id: string;
+  fallback: string;
+  animated: boolean;
+  enabled: boolean;
+  pack: string;
+};

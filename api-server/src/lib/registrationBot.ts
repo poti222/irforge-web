@@ -126,6 +126,121 @@ export async function sendResetCodeSms(phone: string | undefined, code: string, 
   await sendCodeSms(phone, code, locale, "reset");
 }
 
+/**
+ * کد بازیابی رمز داخل بات پلتفرم (بدون پیامک). فقط برای حسابِ متصل به تلگرام
+ * صدا زده می‌شود؛ `chatId` همان `telegramId` حساب است (چتِ خصوصی).
+ */
+export async function sendResetCodeTelegram(chatId: string, code: string, locale?: Locale): Promise<void> {
+  const token = platformToken();
+  if (!token) return;
+  const text = pick(locale, {
+    fa:
+      "🔓 <b>بازیابی رمز عبور IrForge</b>\n\n" +
+      `کد شما: <code>${code}</code>\n\n` +
+      "این کد تا ۱۰ دقیقه معتبر است.\n" +
+      "اگر شما درخواست نداده‌اید، این پیام را نادیده بگیرید و رمزتان را عوض کنید.\n" +
+      "⚠️ همکاران ما هیچ‌وقت این کد را از شما نمی‌پرسند.",
+    en:
+      "🔓 <b>IrForge password reset</b>\n\n" +
+      `Your code: <code>${code}</code>\n\n` +
+      "It is valid for 10 minutes.\n" +
+      "If you did not request this, ignore it and change your password.\n" +
+      "⚠️ Our staff will never ask you for this code.",
+    ar:
+      "🔓 <b>استعادة كلمة مرور IrForge</b>\n\n" +
+      `رمزك: <code>${code}</code>\n\n` +
+      "صالح لمدة ١٠ دقائق.\n" +
+      "⚠️ لن يطلب منك فريقنا هذا الرمز أبدًا.",
+    tr:
+      "🔓 <b>IrForge şifre sıfırlama</b>\n\n" +
+      `Kodunuz: <code>${code}</code>\n\n` +
+      "10 dakika geçerlidir.\n" +
+      "⚠️ Ekibimiz bu kodu sizden asla istemez.",
+    ru:
+      "🔓 <b>Сброс пароля IrForge</b>\n\n" +
+      `Ваш код: <code>${code}</code>\n\n` +
+      "Действителен 10 минут.\n" +
+      "⚠️ Наши сотрудники никогда не спросят у вас этот код.",
+  });
+  await sendTelegramMessage(token, chatId, text);
+}
+
+/**
+ * «تلگرام شما تأیید شد» — پیامِ تأییدِ ثبت‌نام یک‌صفحه‌ای، با دکمه‌ی بازگشت.
+ *
+ * دکمه یک `inline_keyboard` از نوع URL است و به صفحه‌ی ثبت‌نام برمی‌گردد
+ * (با توکنِ `resume` تا مرورگرِ داخلیِ تلگرام هم همان نشست را ادامه بدهد).
+ * اگر `PUBLIC_SITE_URL` تنظیم نباشد `returnUrl` null است و دکمه رندر نمی‌شود —
+ * دکمه‌ای که به جای درستی نمی‌رود بدتر از نبودنش است.
+ */
+export async function sendSignupTelegramVerified(
+  chatId: string,
+  returnUrl: string | null,
+  locale?: Locale,
+): Promise<void> {
+  const token = platformToken();
+  if (!token) return;
+  const text = pick(locale, {
+    fa:
+      "✅ <b>تلگرام شما تأیید شد</b>\n\n" +
+      "حالا به صفحه‌ی ثبت‌نام برگردید و بقیه‌ی مراحل (تأیید شماره و رمز عبور) را کامل کنید.",
+    en:
+      "✅ <b>Your Telegram is verified</b>\n\n" +
+      "Go back to the sign-up page to finish the remaining steps (phone verification and password).",
+    ar:
+      "✅ <b>تم توثيق تيليجرام</b>\n\n" +
+      "ارجع إلى صفحة التسجيل لإكمال بقية الخطوات (توثيق الهاتف وكلمة المرور).",
+    tr:
+      "✅ <b>Telegram'ınız doğrulandı</b>\n\n" +
+      "Kalan adımları (telefon doğrulama ve şifre) tamamlamak için kayıt sayfasına dönün.",
+    ru:
+      "✅ <b>Telegram подтверждён</b>\n\n" +
+      "Вернитесь на страницу регистрации и завершите остальные шаги (подтверждение телефона и пароль).",
+  });
+  const buttonText = pick(locale, {
+    fa: "↩️ بازگشت به صفحه ثبت‌نام",
+    en: "↩️ Back to sign-up",
+    ar: "↩️ العودة إلى التسجيل",
+    tr: "↩️ Kayda geri dön",
+    ru: "↩️ Вернуться к регистрации",
+  });
+  await tgApi(token, "sendMessage", {
+    chat_id: chatId,
+    text,
+    parse_mode: "HTML",
+    ...(returnUrl ? { reply_markup: { inline_keyboard: [[{ text: buttonText, url: returnUrl }]] } } : {}),
+  }).catch((err) => logger.warn({ err }, "sendSignupTelegramVerified failed (non-fatal)"));
+}
+
+/** پیام اطلاع‌رسانی بعد از قطع اتصال تلگرام از حساب (best-effort). */
+export async function sendTelegramUnlinked(chatId: string, locale?: Locale): Promise<void> {
+  const token = platformToken();
+  if (!token) return;
+  const text = pick(locale, {
+    fa:
+      "🔌 <b>اتصال تلگرام قطع شد</b>\n\n" +
+      "این حساب تلگرام دیگر به حساب IrForge وصل نیست.\n" +
+      "اگر این کار را شما انجام نداده‌اید، فوراً رمز عبورتان را عوض کنید.",
+    en:
+      "🔌 <b>Telegram disconnected</b>\n\n" +
+      "This Telegram account is no longer linked to an IrForge account.\n" +
+      "If you did not do this, change your password right away.",
+    ar:
+      "🔌 <b>تم فصل تيليجرام</b>\n\n" +
+      "لم يعد هذا الحساب مرتبطًا بحساب IrForge.\n" +
+      "إن لم تكن أنت من فعل ذلك فغيّر كلمة مرورك فورًا.",
+    tr:
+      "🔌 <b>Telegram bağlantısı kesildi</b>\n\n" +
+      "Bu Telegram hesabı artık bir IrForge hesabına bağlı değil.\n" +
+      "Bunu siz yapmadıysanız şifrenizi hemen değiştirin.",
+    ru:
+      "🔌 <b>Telegram отключён</b>\n\n" +
+      "Этот аккаунт Telegram больше не привязан к аккаунту IrForge.\n" +
+      "Если это сделали не вы — немедленно смените пароль.",
+  });
+  await sendTelegramMessage(token, chatId, text);
+}
+
 /** کد ثبت‌نام + برداشتن کیبورد. */
 export async function sendRegistrationCode(
   chatId: string,

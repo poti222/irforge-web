@@ -59,6 +59,9 @@ export type TutorialSectionId =
   | "catalog"
   | "wallet"
   | "database"
+  // «ایموجی‌های سفارشی» — بدونِ آموزش (مثل `discounts`)؛ فقط تا `section: SectionKey`
+  // بدونِ cast به `TutorialButton` پاس داده شود. `TUTORIALS` عمداً ورودی‌ای برایش ندارد.
+  | "emojis"
   | "settings";
 
 export const TUTORIALS: Partial<Record<TutorialSectionId, TutorialStep[]>> = {

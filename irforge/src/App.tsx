@@ -104,6 +104,8 @@ const ParentLinkPage = lazy(() => import("@/pages/schools/parent/link"));
 const SchoolTimetablePage = lazy(() => import("@/pages/schools/timetable"));
 const SchoolAnnouncementsPage = lazy(() => import("@/pages/schools/announcements"));
 const TeacherClassesPage = lazy(() => import("@/pages/schools/teacher/classes"));
+// دانش‌آموزانِ منتخب (مسئولِ کلاس): انتخابِ معلم + مواردِ ثبت‌شده در بات
+const TeacherRepsPage = lazy(() => import("@/pages/schools/teacher/reps"));
 const CounselorStudentsPage = lazy(() => import("@/pages/schools/counselor/students"));
 const ParentChildrenPage = lazy(() => import("@/pages/schools/parent/children"));
 // بخش "/schools" فاز ۳
@@ -466,6 +468,7 @@ function Router() {
       <Route path="/schools/timetable"><SchoolProtectedRoute component={SchoolTimetablePage} /></Route>
       <Route path="/schools/announcements"><SchoolProtectedRoute component={SchoolAnnouncementsPage} /></Route>
       <Route path="/schools/teacher/classes"><SchoolProtectedRoute component={TeacherClassesPage} /></Route>
+      <Route path="/schools/teacher/reps"><SchoolProtectedRoute component={TeacherRepsPage} /></Route>
       <Route path="/schools/counselor/students"><SchoolProtectedRoute component={CounselorStudentsPage} /></Route>
       <Route path="/schools/parent/children"><SchoolProtectedRoute component={ParentChildrenPage} /></Route>
       {/* بخش "/schools" فاز ۳ — امروز/تکالیفِ معلم، تکالیفِ دانش‌آموز */}

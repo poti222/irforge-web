@@ -31,6 +31,7 @@ import {
   usersTable,
   telegramLinkTokensTable,
   pendingRegistrationsTable,
+  signupSessionsTable,
   telegramLoginRequestsTable,
 } from "@workspace/db";
 import { eq, and, ne, desc } from "drizzle-orm";
@@ -43,6 +44,7 @@ import {
 } from "../lib/telegram";
 import {
   askForContact,
+  sendSignupTelegramVerified,
   sendRegistrationCode,
   sendPlain,
   sendLoginApproved,
@@ -187,6 +189,11 @@ router.post("/telegram/webhook", async (req, res) => {
       return;
     }
 
+    if (row.purpose === "signup") {
+      await handleSignupStart(botToken, chatId, from, row);
+      return;
+    }
+
     // ── purpose = "link": رفتار قبلی، بدون تغییر ─────────────────────────
     const telegramId = String(from.id);
     const existing = await db
@@ -326,6 +333,85 @@ async function handleRegisterStart(
 
   logger.info({ registrationId: pendingId }, "Registration: Telegram connected, asking for contact");
   await askForContact(chatId, pending.locale);
+}
+
+/**
+ * `/start <token>` با `purpose = "signup"` — ثبت‌نام یک‌صفحه‌ای.
+ *
+ * هویتِ تلگرام همین‌جا و فقط از `from.id` (که تلگرام روی وبهوکِ امضاشده
+ * می‌فرستد) تأیید می‌شود؛ هیچ‌چیز از سایت اعتماد نمی‌شود. شماره اینجا خواسته
+ * **نمی‌شود** — شماره در صفحه با پیامک تأیید می‌شود. پیامِ تأیید دکمه‌ی
+ * بازگشت به صفحه‌ی ثبت‌نام دارد.
+ */
+async function handleSignupStart(
+  botToken: string,
+  chatId: string,
+  from: any,
+  tokenRow: typeof telegramLinkTokensTable.$inferSelect,
+) {
+  const signupId = tokenRow.pendingRegistrationId;
+  if (!signupId) return;
+
+  const [session] = await db
+    .select()
+    .from(signupSessionsTable)
+    .where(eq(signupSessionsTable.id, signupId))
+    .limit(1);
+  if (!session || session.expiresAt < new Date()) {
+    await sendTelegramMessage(botToken, chatId, "این لینک منقضی شده است. لطفاً دوباره از سایت شروع کنید.");
+    return;
+  }
+
+  const telegramId = String(from.id);
+
+  // یک حساب تلگرام، یک حساب پلتفرم.
+  const [owned] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, telegramId))
+    .limit(1);
+  if (owned) {
+    await sendTelegramMessage(
+      botToken,
+      chatId,
+      "این حساب تلگرام قبلاً به یک حساب IRForge وصل شده است. لطفاً از سایت وارد شوید.",
+    );
+    return;
+  }
+
+  // مصرفِ اتمیکِ توکن (retry موازیِ تلگرام نباید دو پیام بفرستد).
+  const consumed = await db
+    .update(telegramLinkTokensTable)
+    .set({ used: true })
+    .where(and(eq(telegramLinkTokensTable.token, tokenRow.token), eq(telegramLinkTokensTable.used, false)))
+    .returning();
+  if (consumed.length === 0) return;
+
+  const photoFileId = await getTelegramUserPhotoFileId(botToken, from.id);
+
+  // توکنِ بازگشت: فقط هشش ذخیره می‌شود، خودش فقط در دکمه‌ی همین پیام می‌رود.
+  const resume = crypto.randomBytes(24).toString("hex");
+  await db
+    .update(signupSessionsTable)
+    .set({
+      telegramId,
+      telegramChatId: chatId,
+      telegramUsername: from.username ?? null,
+      telegramFirstName: from.first_name ?? null,
+      telegramLastName: from.last_name ?? null,
+      telegramPhotoFileId: photoFileId,
+      telegramVerifiedAt: new Date(),
+      resumeHash: crypto.createHash("sha256").update(resume, "utf8").digest("hex"),
+      resumeExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      lastActivityAt: new Date(),
+    })
+    .where(eq(signupSessionsTable.id, signupId));
+
+  const site = (process.env.PUBLIC_SITE_URL || "").replace(/\/$/, "");
+  const returnUrl = site ? `${site}/register?resume=${resume}` : null;
+
+  logger.info({ registrationId: signupId }, "Signup: Telegram verified");
+  await sendSignupTelegramVerified(chatId, returnUrl, session.locale);
 }
 
 /**

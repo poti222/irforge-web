@@ -25,16 +25,14 @@ const here = dirname(fileURLToPath(import.meta.url));
 const authSrc = readFileSync(join(here, "../src/routes/auth.ts"), "utf8");
 const registrationSrc = readFileSync(join(here, "../src/routes/registration.ts"), "utf8");
 
-test("POST /auth/register (legacy email+password) checks EMAIL_AUTH_CLOSED before touching the database", () => {
+test("POST /auth/register (legacy email+password) is removed (410) and no longer creates accounts", () => {
   const block = authSrc.slice(
     authSrc.indexOf('router.post("/auth/register",'),
     authSrc.indexOf('router.post("/auth/login",'),
   );
-  const guardAt = block.indexOf("EMAIL_AUTH_CLOSED");
-  const dbAt = block.indexOf("emailEquals(email)");
-  assert.ok(guardAt !== -1, "no EMAIL_AUTH_CLOSED check found in /auth/register");
-  assert.ok(dbAt !== -1, "expected a database read via emailEquals(email) in /auth/register");
-  assert.ok(guardAt < dbAt, "the closed-check must run before any database read");
+  assert.match(block, /res\.status\(410\)/);
+  assert.ok(!block.includes("insert(usersTable)"), "legacy /auth/register must not insert users anymore");
+  assert.ok(!block.includes("issueSession"), "legacy /auth/register must not issue sessions anymore");
 });
 
 test("POST /auth/login rejects the email identifier specifically, leaving the phone path untouched", () => {

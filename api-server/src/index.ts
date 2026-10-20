@@ -4,6 +4,7 @@ import { registerTelegramWebhookIfConfigured } from "./lib/telegram";
 import { healAllSchoolBotWebhooks } from "./lib/schoolBotCore";
 import { refreshExchangeRateFromApi } from "./lib/exchangeRate";
 import { startPaymentSweeper } from "./lib/paymentSweeper";
+import { startSchoolRepScheduler } from "./lib/schoolRepScheduler";
 import { migrateLegacyWalletTopups } from "./lib/walletTopupMigration";
 import { defaultPaymentNotifiers } from "./routes/paymentSmsWebhook";
 import { pool as dbPool } from "@workspace/db";
@@ -29,6 +30,13 @@ app.listen(port, (err?: Error) => {
   logger.info({ port }, "Server listening");
 });
 
+// توسعه‌یِ لوکال: با `DISABLE_BACKGROUND_JOBS=1` همه‌یِ کارهایِ پس‌زمینه (جاروِ انقضایِ پلن/بات، حذفِ باتِ منقضی،
+// جاروِ پرداخت، ثبتِ webhook، نرخِ ارز) خاموش می‌شوند و فقط سرورِ HTTP بالا می‌آید. این کارها «تغییرِ واقعی» روی
+// دیتابیس می‌دهند (مثلاً `sweepBotLifecycle` باتِ منقضی را حذف می‌کند)؛ سرورِ لوکال هرگز نباید آن‌ها را روی
+// دیتابیسِ مشترک/واقعی اجرا کند.
+if (process.env.DISABLE_BACKGROUND_JOBS === "1") {
+  logger.warn("DISABLE_BACKGROUND_JOBS=1 — background jobs are OFF (local dev mode)");
+} else {
 // G8: بی‌صدا و best-effort — نبودش فقط یعنی «اتصال با ربات» غیرفعاله، سرور رو نمی‌خوابونه.
 // از حادثه‌ی امنیتی ۲۰۲۶-۰۹ به بعد، پشتِ TELEGRAM_WEBHOOK_ENABLED گارد شده — ببینید
 // docstringِ خودِ تابع در lib/telegram.ts.
@@ -50,6 +58,10 @@ setInterval(() => { void refreshExchangeRateFromApi(); }, 60 * 60 * 1000);
 // قدیمی و رویدادهای لاگ، و هشدارِ گوشیِ ساکت/فیشِ بی‌جواب/اثرِ گیرکرده. (جایگزینِ expireStaleTopups قدیمی؛ همان
 // الگوی setInterval، بدون زیرساختِ cron جدید. چندنمونه‌ای امن است: advisory lock.)
 startPaymentSweeper(dbPool as any, defaultPaymentNotifiers(dbPool as any));
+
+// «دانش‌آموزِ منتخب»: هر ۵ دقیقه — یادآوریِ تکلیف/امتحان در گروه‌هایِ تلگرام (۱۵ تا ۲۳ تهران)، پرسشِ روزانهٔ «تکلیف/امتحان داری؟» (۱۸ تا ۲۱)،
+// و بستنِ مواردِ گذشته. همان الگویِ setInterval + advisory lock؛ خاموش‌کردن: SCHOOL_REP_ENABLED=0. ببینید lib/schoolRepScheduler.ts.
+startSchoolRepScheduler(dbPool as any);
 
 // فاز ۸: ردیف‌های قدیمیِ wallet_topups / sms_logs را (idempotent، زیرِ advisory lock، یک تراکنش) به ماژولِ جدید می‌آورد
 // تا بعد از استقرار هیچ درخواستِ در حالِ پرداخت یا سابقه‌ای یتیم نماند. بدونِ ردیفِ جدید، چیزی نمی‌نویسد.
@@ -79,3 +91,4 @@ setInterval(runBotLifecycleSweep, 10 * 60 * 1000);
 setInterval(() => {
   void sweepSqlDatabaseExpiry().catch((err) => logger.error({ err }, "sweepSqlDatabaseExpiry failed"));
 }, 10 * 60 * 1000);
+}

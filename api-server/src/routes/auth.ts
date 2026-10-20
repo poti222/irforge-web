@@ -12,14 +12,14 @@ import {
   SMS_OTP_PURPOSES,
   type SmsOtpPurpose,
 } from "@workspace/db";
-import { eq, and, gt, count, isNull, desc } from "drizzle-orm";
+import { eq, and, gt, count, isNull, desc, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { logger } from "../lib/logger";
 import { normaliseEmail, emailEquals, isEmailUniqueViolation } from "../lib/email";
 import { syncUserUpsert, syncSessionUpsert, syncSessionDelete } from "../lib/sheetsSync";
 import { verifyTelegramAuth, verifyTelegramInitData } from "../lib/telegramAuth";
 import { hashPassword, verifyPassword } from "../lib/password";
-import { sendResetCodeSms } from "../lib/registrationBot";
+import { sendResetCodeSms, sendResetCodeTelegram, sendTelegramUnlinked } from "../lib/registrationBot";
 import {
   CODE_TTL_MS,
   MAX_CODE_ATTEMPTS,
@@ -35,7 +35,8 @@ import { sendLoginCode } from "../lib/registrationBot";
 import { EMAIL_AUTH_CLOSED, EMAIL_AUTH_CLOSED_MESSAGE_FA, EMAIL_AUTH_CLOSED_CODE } from "../lib/authPolicy";
 import { sendEmailLoginCode } from "../lib/authEmails";
 import { sendOtpSms } from "../lib/smsir";
-import { authRateLimit, hit, clientIp, phoneKey, emailKey, reset, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS } from "../middleware/rateLimit";
+import { smsOtpSendRateLimit, checkSmsOtpSendRateLimit, sendSmsOtpRateLimited } from "../lib/smsOtpRateLimit";
+import { authRateLimit, hit, clientIp, phoneKey, emailKey, reset, send429, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS } from "../middleware/rateLimit";
 import { hashSessionToken, hashUserAgent } from "../lib/sessionToken";
 import { checkProfile } from "../lib/profile";
 
@@ -213,57 +214,15 @@ function sessionExpiresAt(): Date {
 }
 
 // POST /api/auth/register
-router.post("/auth/register", async (req, res) => {
-  try {
-    if (EMAIL_AUTH_CLOSED) {
-      res.status(403).json({ error: EMAIL_AUTH_CLOSED_MESSAGE_FA, code: EMAIL_AUTH_CLOSED_CODE });
-      return;
-    }
-    const { name, password } = req.body;
-    const email = normaliseEmail(req.body?.email);
-    if (!name || !email || !password) {
-      res.status(400).json({ error: "Name, email and password are required" });
-      return;
-    }
-    // این مسیر قدیمی ایمیل را «همان‌طور که تایپ شده» ذخیره می‌کرد. حالا مثل
-    // مسیر جدید نرمال می‌شود، وگرنه یک حساب با `Ali@Gmail.com` برای هر
-    // جست‌وجوی دیگری نامرئی می‌ماند.
-    const existing = await db
-      .select()
-      .from(usersTable)
-      .where(emailEquals(email))
-      .limit(1);
-    if (existing.length > 0) {
-      res.status(400).json({ error: "Email already registered" });
-      return;
-    }
-    const id = crypto.randomUUID();
-    const passwordHash = await hashPassword(password);
-    const [user] = await db
-      .insert(usersTable)
-      .values({ id, name, email, passwordHash, role: "user", plan: "free", status: "active" })
-      .returning();
-    const token = generateToken(id);
-    const tokenHash = hashSessionToken(token);
-    const sessionExpiry = sessionExpiresAt();
-    await db.insert(sessionsTable).values({
-      token: tokenHash, userId: id, expiresAt: sessionExpiry,
-      userAgentHash: hashUserAgent(req.headers["user-agent"]),
-    });
-    syncSessionUpsert({ token: tokenHash, userId: id, expiresAt: sessionExpiry });
-    syncUserUpsert({
-      id: user.id, name: user.name, email: user.email, role: user.role,
-      plan: user.plan, status: user.status, bio: user.bio,
-      telegramUsername: user.telegramUsername, createdAt: user.createdAt,
-    });
-    res.status(201).json({
-      user: toAuthUser(user, 0),
-      token,
-    });
-  } catch (err) {
-    logger.error({ err }, "Register error");
-    res.status(500).json({ error: "Internal server error" });
-  }
+router.post("/auth/register", async (_req, res) => {
+  // ⛔ مسیر قدیمیِ ثبت‌نام با ایمیل بسته شد: بدون rate limit، بدون تأیید ایمیل،
+  // بدون حداقل طول رمز، و با صدور فوری نشست — یعنی هرکسی می‌توانست ایمیلِ
+  // دیگران را «اشغال» کند و بعد از ورود قربانی با گوگل/ایمیل، وارد همان حساب
+  // شود. ثبت‌نام فقط از `/auth/signup/*` (صفحه‌ی یک‌تکه) انجام می‌شود.
+  res.status(410).json({
+    error: "This registration endpoint was removed. Please use the sign-up page.",
+    code: "endpoint_removed",
+  });
 });
 
 // ─── POST /api/auth/login ────────────────────────────────────────────────────
@@ -420,11 +379,18 @@ router.post("/auth/login/verify", authRateLimit("login_verify"), async (req, res
       return;
     }
 
-    const attempts = challenge.attempts + 1;
-    await db
+    // افزایشِ اتمیک: خواندن→نوشتن جدا باعث می‌شد درخواست‌های موازی همه
+    // `attempts` یکسان بخوانند و سقفِ ۵ تلاش با ارسال هم‌زمان دور زده شود.
+    const [bumped] = await db
       .update(loginChallengesTable)
-      .set({ attempts })
-      .where(eq(loginChallengesTable.id, challengeId));
+      .set({ attempts: sql`${loginChallengesTable.attempts} + 1` })
+      .where(and(eq(loginChallengesTable.id, challengeId), isNull(loginChallengesTable.consumedAt)))
+      .returning({ attempts: loginChallengesTable.attempts });
+    if (!bumped) {
+      res.status(400).json({ error: "This code has expired", code: "challenge_expired" });
+      return;
+    }
+    const attempts = bumped.attempts;
 
     if (attempts > MAX_CODE_ATTEMPTS) {
       await db
@@ -454,11 +420,22 @@ router.post("/auth/login/verify", authRateLimit("login_verify"), async (req, res
       res.status(400).json({ error: "This code has expired", code: "challenge_expired" });
       return;
     }
+    // بین «ورودِ رمز» و «واردکردنِ کد» ممکن است ادمین حساب را بن کرده باشد.
+    if (user.status === "banned") {
+      res.status(403).json({ error: "Account banned", code: "banned" });
+      return;
+    }
 
-    await db
+    // مصرفِ اتمیک: دو تأییدِ هم‌زمان با یک کدِ درست فقط یک نشست می‌دهند.
+    const consumedRows = await db
       .update(loginChallengesTable)
       .set({ consumedAt: new Date() })
-      .where(eq(loginChallengesTable.id, challengeId));
+      .where(and(eq(loginChallengesTable.id, challengeId), isNull(loginChallengesTable.consumedAt)))
+      .returning({ id: loginChallengesTable.id });
+    if (consumedRows.length === 0) {
+      res.status(400).json({ error: "This code has expired", code: "challenge_expired" });
+      return;
+    }
 
     logger.info({ userId: user.id }, "Login completed");
     res.json(await issueSession(user, req));
@@ -646,6 +623,121 @@ router.post("/auth/telegram/miniapp", requireAuth, async (req: any, res) => {
     res.json(toAuthUser(updated, botCount));
   } catch (err) {
     logger.error({ err }, "Telegram miniapp link error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/auth/telegram/unlink ──────────────────────────────────────────
+// «قطع دسترسی به تلگرام»: حساب تلگرامِ متصل را از حساب جدا می‌کند (مثلاً
+// وقتی دسترسی به آن تلگرام را از دست داده‌اید و می‌خواهید حساب دیگری وصل کنید).
+//
+// این عمل یک عاملِ هویت را برمی‌دارد، پس سخت‌گیرانه است:
+//  • هویت دوباره با **رمز عبور** تأیید می‌شود (با محدودیتِ تلاش). حساب‌های
+//    ساخته‌شده با گوگل/گیت‌هاب رمزِ واقعی ندارند و به‌جایش `confirm: true` می‌دهند.
+//  • اگر تلگرام «روشِ ورود دومرحله‌ای» حساب است رد می‌شود — ابتدا روش را عوض کنید؛
+//    در سکوت ضعیف‌کردنِ ۲FA ممنوع است.
+//  • حسابِ «فقط‌تلگرام» (والدِ ثبت‌شده از بات مدرسه) تنها هویتش همین است.
+//  • تلگرام برای «پروفایل کامل» لازم است؛ پس بعد از قطع، حساب تا اتصالِ یک
+//    حسابِ تلگرامِ تازه در وضعیت «پروفایل ناقص» می‌ماند (همان ویزاردِ تکمیل هویت).
+//  • به حسابِ تلگرامِ قبلی پیامِ اطلاع‌رسانی می‌رود (best-effort).
+const TG_UNLINK_LIMIT = 5;
+
+router.post("/auth/telegram/unlink", authRateLimit("telegram_unlink"), requireAuth, async (req: any, res) => {
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId)).limit(1);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    if (!user.telegramId) {
+      res.status(409).json({ error: "Telegram is not connected", code: "not_linked" });
+      return;
+    }
+    if (user.isTelegramOnly) {
+      res.status(403).json({ error: "This account is Telegram-only and cannot be disconnected", code: "telegram_only" });
+      return;
+    }
+    if (user.twoFactorEnabled && user.twoFactorMethod === "telegram") {
+      res.status(409).json({
+        error: "Telegram is your two-step sign-in method. Switch the method first.",
+        code: "telegram_is_two_factor",
+      });
+      return;
+    }
+
+    if (!user.oauthProvider) {
+      const key = `tg-unlink:${user.id}`;
+      const verdict = await hit(key, TG_UNLINK_LIMIT, PHONE_BLOCK_MS);
+      if (!verdict.allowed) {
+        send429(res, verdict.retryAfterSeconds, "تعداد تلاش‌ها بیش از حد مجاز است. بعداً دوباره تلاش کنید.");
+        return;
+      }
+      const password = req.body?.password;
+      if (typeof password !== "string" || !(await verifyPassword(password, user.passwordHash))) {
+        res.status(401).json({ error: "Password is incorrect", code: "invalid_password" });
+        return;
+      }
+      await reset(key);
+    } else if (req.body?.confirm !== true) {
+      res.status(400).json({ error: "Confirmation required", code: "confirm_required" });
+      return;
+    }
+
+    const oldChatId = user.telegramId;
+    const avatarWasTelegram =
+      !!user.avatar && (user.avatar === user.telegramPhotoUrl || user.avatar.includes("/telegram-photo"));
+
+    const [updated] = await db
+      .update(usersTable)
+      .set({
+        telegramId: null,
+        telegramUsername: null,
+        telegramFirstName: null,
+        telegramLastName: null,
+        telegramPhotoFileId: null,
+        telegramPhotoUrl: null,
+        ...(avatarWasTelegram ? { avatar: null } : {}),
+      })
+      .where(and(eq(usersTable.id, user.id), eq(usersTable.telegramId, oldChatId)))
+      .returning();
+    if (!updated) {
+      res.status(409).json({ error: "Telegram is not connected", code: "not_linked" });
+      return;
+    }
+
+    // «پروفایل کامل» حالا ناقص است (تلگرام جزو فیلدهای لازم است).
+    const profile = checkProfile(updated);
+    let finalUser = updated;
+    if (updated.profileComplete !== profile.complete) {
+      [finalUser] = await db
+        .update(usersTable)
+        .set({ profileComplete: profile.complete })
+        .where(eq(usersTable.id, user.id))
+        .returning();
+    }
+
+    // لینک‌های اتصالِ بازِ قبلیِ این کاربر نباید بعداً بی‌صدا دوباره وصل کنند.
+    await db.delete(telegramLinkTokensTable).where(eq(telegramLinkTokensTable.userId, user.id));
+
+    syncUserUpsert({
+      id: finalUser.id, name: finalUser.name, email: finalUser.email, role: finalUser.role,
+      plan: finalUser.plan, status: finalUser.status, bio: finalUser.bio,
+      telegramUsername: finalUser.telegramUsername,
+      createdAt: finalUser.createdAt, updatedAt: finalUser.updatedAt,
+    });
+    logger.info({ userId: user.id }, "Telegram unlinked by user");
+
+    void sendTelegramUnlinked(oldChatId).catch((err) =>
+      logger.warn({ err }, "telegram unlink notice failed (non-fatal)"),
+    );
+
+    const [{ value: botCount }] = await db
+      .select({ value: count() })
+      .from(botsTable)
+      .where(eq(botsTable.userId, finalUser.id));
+    res.json(toAuthUser(finalUser, botCount));
+  } catch (err) {
+    logger.error({ err }, "Telegram unlink error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -995,7 +1087,7 @@ router.get("/auth/google/callback", async (req, res) => {
     const oauth2 = google.oauth2({ auth: client, version: "v2" });
     const { data: profile } = await oauth2.userinfo.get();
 
-    if (!profile.email || profile.verified_email === false) {
+    if (!profile.email || profile.verified_email !== true) {
       loginErrorRedirect(res, "google_email_unverified");
       return;
     }
@@ -1006,6 +1098,16 @@ router.get("/auth/google/callback", async (req, res) => {
 
     if (user && (user.status === "banned" || user.status === "suspended")) {
       loginErrorRedirect(res, "suspended");
+      return;
+    }
+
+    // ⛔ پیوندِ خودکار فقط به حسابی که ایمیلش **تأیید شده**. ایمیلِ حساب‌های
+    // ثبت‌شده با شماره/تلگرام تأییدنشده است؛ اگر اینجا وارد همان حساب
+    // می‌شدیم، مهاجمی که قبلاً با ایمیل قربانی ثبت‌نام کرده بود (و رمزش را
+    // می‌داند) بعد از ورودِ قربانی با گوگل هنوز به همان حساب دسترسی داشت.
+    if (user && !user.emailVerified) {
+      logger.warn({ userId: user.id }, "Google sign-in refused: existing account email is unverified");
+      loginErrorRedirect(res, "email_unverified_account");
       return;
     }
 
@@ -1182,6 +1284,13 @@ router.get("/auth/github/callback", async (req, res) => {
       return;
     }
 
+    // همان قاعده‌ی گوگل: فقط حسابِ دارای ایمیلِ تأییدشده.
+    if (user && !user.emailVerified) {
+      logger.warn({ userId: user.id }, "GitHub sign-in refused: existing account email is unverified");
+      loginErrorRedirect(res, "email_unverified_account");
+      return;
+    }
+
     if (!user) {
       const id = crypto.randomUUID();
       const randomPasswordHash = await hashPassword(crypto.randomBytes(32).toString("hex"));
@@ -1225,45 +1334,78 @@ router.get("/auth/github/callback", async (req, res) => {
 // enters the phone number on file for the account; if it matches, a code
 // goes out over SMS (lib/registrationBot.ts:sendResetCodeSms → lib/smsSender.ts).
 
+/** عمر کد بازیابی رمز (هم پیامک، هم بات). */
+const RESET_CODE_TTL_MS = 10 * 60 * 1000;
+/** حداکثر حدس برای یک کد بازیابی، بعد از آن کد می‌میرد. */
+const RESET_MAX_TRIES = 5;
+const RESET_PASSWORD_MIN = 8;
+const resetTryKey = (userId: string) => `reset-try:${userId}`;
+const resetRequestKey = (phone: string) => `reset-req:${phone}`;
+
+/**
+ * کد بازیابی را یا با پیامک می‌فرستد (`method: "sms"`، پیش‌فرض) یا داخل
+ * بات تلگرامِ پلتفرم (`method: "telegram"`، فقط برای حسابِ متصل به تلگرام).
+ *
+ * شناسه‌ی حساب در هر دو حالت **شماره** است. پاسخ همیشه یکسان است — چه شماره
+ * ثبت باشد، چه نباشد، چه تلگرام وصل باشد، چه نه — و زمانِ پاسخ هم یکسان‌سازی
+ * می‌شود (قبلاً مسیر «کاربر نیست» فوری برمی‌گشت و از روی زمان، شماره‌های
+ * ثبت‌شده لو می‌رفتند).
+ */
 router.post("/auth/forgot-password", authRateLimit("forgot_password"), async (req, res) => {
+  const startedAt = Date.now();
+  const genericMessage = "اگر این شماره ثبت شده باشد، کد بازیابی ارسال می‌شود.";
+  const respondGeneric = async () => {
+    const elapsed = Date.now() - startedAt;
+    const floor = 700;
+    if (elapsed < floor) await new Promise((r) => setTimeout(r, floor - elapsed));
+    res.json({ message: genericMessage, expiresInSeconds: Math.floor(RESET_CODE_TTL_MS / 1000) });
+  };
+
   try {
     const phone = normalizePhone(req.body?.phone);
     if (!phone) {
       res.status(400).json({ error: "Phone number is required" });
       return;
     }
+    const method: "sms" | "telegram" = req.body?.method === "telegram" ? "telegram" : "sms";
 
-    // Generic response used whether or not the account exists (anti-enumeration).
-    const genericMessage = "اگر این شماره ثبت شده باشد، کد بازیابی با پیامک ارسال می‌شود.";
-
-    // Per-phone throttle — same bucket/limits as login failures, so this
-    // can't be hammered to spam SMS at an arbitrary number.
-    const rateKey = phoneKey(phone);
-    const blocked = await hit(rateKey, PHONE_FAIL_LIMIT, PHONE_BLOCK_MS);
+    // کلید جدا از شمارنده‌ی ورود: قبلاً با ۵ درخواستِ «فراموشی» می‌شد ورودِ
+    // صاحب حساب را هم قفل کرد.
+    const blocked = await hit(resetRequestKey(phone), PHONE_FAIL_LIMIT, PHONE_BLOCK_MS);
     if (!blocked.allowed) {
-      res.status(429).json({
-        error: "تعداد درخواست‌ها بیش از حد مجاز است. کمی بعد دوباره تلاش کنید.",
-        code: "rate_limited",
-        retryAfterSeconds: blocked.retryAfterSeconds,
-      });
+      send429(res, blocked.retryAfterSeconds, "تعداد درخواست‌ها بیش از حد مجاز است. کمی بعد دوباره تلاش کنید.");
       return;
+    }
+    // سقف هزینه‌ی پیامک (۱ دقیقه، ۱۰ دقیقه، روزانه، IP) فقط برای مسیر پیامک.
+    if (method === "sms") {
+      const smsVerdict = await checkSmsOtpSendRateLimit(phone, clientIp(req));
+      if (!smsVerdict.allowed) {
+        sendSmsOtpRateLimited(res, smsVerdict);
+        return;
+      }
     }
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
-    if (!user) {
-      res.json({ message: genericMessage });
+    if (!user || user.status === "banned" || (method === "telegram" && !user.telegramId)) {
+      await respondGeneric();
       return;
     }
 
     const code = generateCode();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     await db.update(usersTable)
-      .set({ resetCodeHash: hashCode(code), resetCodeExpiresAt: expiresAt })
+      .set({ resetCodeHash: hashCode(code), resetCodeExpiresAt: new Date(Date.now() + RESET_CODE_TTL_MS) })
       .where(eq(usersTable.id, user.id));
+    // کدِ تازه = شمارنده‌ی حدسِ تازه.
+    await reset(resetTryKey(user.id));
 
-    await sendResetCodeSms(phone, code, null);
+    if (method === "telegram") {
+      await sendResetCodeTelegram(user.telegramId as string, code);
+    } else {
+      await sendResetCodeSms(phone, code, null);
+    }
+    logger.info({ userId: user.id, method }, "Password reset code issued");
 
-    res.json({ message: genericMessage });
+    await respondGeneric();
   } catch (err) {
     logger.error({ err }, "Forgot password error");
     res.status(500).json({ error: "Internal server error" });
@@ -1275,41 +1417,68 @@ router.post("/auth/forgot-password", authRateLimit("forgot_password"), async (re
 router.post("/auth/reset-password", authRateLimit("reset_password"), async (req, res) => {
   try {
     const phone = normalizePhone(req.body?.phone);
-    const { code, newPassword } = req.body;
-    if (!phone || !code || !newPassword) {
+    const { code, newPassword } = req.body ?? {};
+    if (!phone || !code || typeof newPassword !== "string" || !newPassword) {
       res.status(400).json({ error: "phone, code and newPassword are required" });
       return;
     }
-    if (String(newPassword).length < 6) {
-      res.status(400).json({ error: "Password must be at least 6 characters" });
+    if (newPassword.length < RESET_PASSWORD_MIN) {
+      res.status(400).json({ error: `Password must be at least ${RESET_PASSWORD_MIN} characters` });
       return;
     }
+    const invalid = () => res.status(400).json({ error: "Invalid or expired code" });
+
     const [user] = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
-    if (
-      !user ||
-      !user.resetCodeHash ||
-      !user.resetCodeExpiresAt ||
-      isExpired(user.resetCodeExpiresAt) ||
-      // مقایسه‌ی timing-safe؛ `!==` روی رشته به‌محض اولین بایت متفاوت
-      // برمی‌گشت و همان اختلاف زمانی به مهاجم اجازه‌ی حدسِ بایت‌به‌بایت می‌داد.
-      !verifyOtp(String(code), user.resetCodeHash)
-    ) {
-      res.status(400).json({ error: "Invalid or expired code" });
+    if (!user || !user.resetCodeHash || !user.resetCodeExpiresAt || isExpired(user.resetCodeExpiresAt)) {
+      invalid();
       return;
     }
 
-    // موفق — شمارنده‌ی تلاش‌های ناموفقِ همین شماره پاک می‌شود (همان کلیدی که
-    // بالا و در /auth/login استفاده می‌شود).
+    // ⛔ سقف حدس روی خودِ کد. قبلاً این مسیر هیچ شمارنده‌ای نداشت (کلیدِ
+    // per-phone فقط در forgot-password زده می‌شد) و یک کد ۶ رقمی ۱۵ دقیقه
+    // قابل brute-force بود. حالا ۵ حدس و کد می‌میرد.
+    const tries = await hit(resetTryKey(user.id), RESET_MAX_TRIES, PHONE_BLOCK_MS);
+    if (!tries.allowed) {
+      await db.update(usersTable)
+        .set({ resetCodeHash: null, resetCodeExpiresAt: null })
+        .where(eq(usersTable.id, user.id));
+      logger.warn({ userId: user.id }, "Password reset code killed after too many attempts");
+      send429(res, tries.retryAfterSeconds, "تعداد تلاش‌ها بیش از حد مجاز است. دوباره کد بگیرید.");
+      return;
+    }
+
+    // مقایسه‌ی timing-safe.
+    if (!verifyOtp(String(code), user.resetCodeHash)) {
+      invalid();
+      return;
+    }
+
+    await reset(resetTryKey(user.id));
     await reset(phoneKey(phone));
 
-    await db.update(usersTable)
+    // یک‌بارمصرف و اتمیک: شرطِ همان هش داخل UPDATE است.
+    const updated = await db.update(usersTable)
       .set({
         passwordHash: await hashPassword(newPassword),
         resetCodeHash: null,
         resetCodeExpiresAt: null,
       })
-      .where(eq(usersTable.id, user.id));
+      .where(and(eq(usersTable.id, user.id), eq(usersTable.resetCodeHash, user.resetCodeHash)))
+      .returning({ id: usersTable.id });
+    if (updated.length === 0) {
+      invalid();
+      return;
+    }
 
+    // رمز عوض شد ⇒ همه‌ی نشست‌های قدیمی باطل. وگرنه کسی که قبلاً نشست
+    // داشت (دستگاه دزدیده‌شده، مهاجم) بعد از بازیابی هم داخل می‌ماند.
+    const revoked = await db
+      .delete(sessionsTable)
+      .where(eq(sessionsTable.userId, user.id))
+      .returning({ token: sessionsTable.token });
+    for (const r of revoked) syncSessionDelete(r.token);
+
+    logger.info({ userId: user.id, revokedSessions: revoked.length }, "Password reset completed");
     res.json({ success: true });
   } catch (err) {
     logger.error({ err }, "Reset password error");
@@ -1348,7 +1517,7 @@ function isSmsOtpPurpose(value: unknown): value is SmsOtpPurpose {
 const SMS_OTP_SENT_MESSAGE = "کد تأیید برای این شماره پیامک شد.";
 
 // ─── POST /api/auth/otp/sms/send ─────────────────────────────────────────────
-router.post("/auth/otp/sms/send", async (req, res) => {
+router.post("/auth/otp/sms/send", smsOtpSendRateLimit(), async (req, res) => {
   try {
     const purpose = req.body?.purpose;
     if (!isSmsOtpPurpose(purpose)) {
@@ -1468,15 +1637,27 @@ router.post("/auth/otp/sms/verify", authRateLimit("otp_sms_verify"), async (req,
       return;
     }
 
-    // شمارنده **قبل** از مقایسه بالا می‌رود، وگرنه یک درخواستِ نیمه‌کاره
-    // تلاشِ رایگان می‌داد — همان قاعده‌ی /auth/login/verify.
-    const attempts = row.attempts + 1;
-    await db.update(smsOtpCodesTable).set({ attempts }).where(eq(smsOtpCodesTable.id, row.id));
+    // افزایشِ اتمیکِ شمارنده **قبل** از مقایسه (درخواست‌های موازی نباید
+    // سقف را دور بزنند).
+    const [bumped] = await db
+      .update(smsOtpCodesTable)
+      .set({ attempts: sql`${smsOtpCodesTable.attempts} + 1` })
+      .where(and(eq(smsOtpCodesTable.id, row.id), isNull(smsOtpCodesTable.consumedAt)))
+      .returning({ attempts: smsOtpCodesTable.attempts });
+    if (!bumped) {
+      res.status(400).json({ error: "کد منقضی شده یا نامعتبر است", code: "code_expired" });
+      return;
+    }
+    const attempts = bumped.attempts;
 
     if (attempts > MAX_CODE_ATTEMPTS) {
+      // ⛔ کدِ کشته‌شده با `expiresAt` بسته می‌شود، **نه** `consumedAt`.
+      // `consumedAt` یعنی «با موفقیت تأیید شد» و `recentSmsRegisterProof` همان
+      // را اثباتِ مالکیتِ شماره می‌گیرد — پیش‌تر با ۶ حدسِ غلط می‌شد برای هر
+      // شماره‌ای «تأیید» ساخت.
       await db
         .update(smsOtpCodesTable)
-        .set({ consumedAt: new Date() })
+        .set({ expiresAt: new Date(Date.now() - 1000) })
         .where(eq(smsOtpCodesTable.id, row.id));
       logger.warn({ purpose }, "SMS OTP killed after too many attempts");
       res.status(429).json({ error: "تعداد تلاش‌ها بیش از حد مجاز است", code: "too_many_attempts" });

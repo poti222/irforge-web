@@ -11,6 +11,7 @@ import { ArrowLeft, Loader2, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useT } from "@/hooks/use-translation";
 import { useSEO } from "@/hooks/use-seo";
+import { RESET_PHONE_KEY } from "@/lib/reset-phone";
 
 export default function ResetPassword() {
   useSEO({ title: "تنظیم رمز عبور جدید | IrForge", noindex: true });
@@ -18,7 +19,13 @@ export default function ResetPassword() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(() => {
+    try {
+      return sessionStorage.getItem(RESET_PHONE_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -33,6 +40,11 @@ export default function ResetPassword() {
         method: "POST",
         body: JSON.stringify({ phone: phone.trim(), code, newPassword }),
       });
+      try {
+        sessionStorage.removeItem(RESET_PHONE_KEY);
+      } catch {
+        /* ignore */
+      }
       toast({
         title: t.passwordResetToastTitle,
         description: t.passwordResetToastDesc,
@@ -71,7 +83,7 @@ export default function ResetPassword() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="rp-code">{t.resetCodeLabel}</Label>
-                <Input id="rp-code" required dir="ltr" placeholder="A1B2C3D4" value={code} onChange={(e) => setCode(e.target.value)} disabled={loading} className="bg-background font-mono tracking-widest" />
+                <Input id="rp-code" required dir="ltr" placeholder="123456" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} disabled={loading} className="bg-background font-mono tracking-widest" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="rp-pass">{t.newPasswordLabel}</Label>
