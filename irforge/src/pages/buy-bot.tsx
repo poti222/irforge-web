@@ -69,6 +69,7 @@ export default function BuyBot() {
     switch (productId) {
       case "standard": return tt.standard;
       case "pro": return tt.pro;
+      case "test": return tt.test;
       default: return null;
     }
   }

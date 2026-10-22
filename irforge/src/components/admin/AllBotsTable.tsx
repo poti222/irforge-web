@@ -318,7 +318,7 @@ export function AllBotsTable() {
                       <SelectContent>
                         {(botPlans ?? []).map((p) => (
                           <SelectItem key={p.id} value={p.id}>
-                            {p.id === "standard" ? tt.standard.name : p.id === "pro" ? tt.pro.name : (fa ? p.nameFa || p.name : p.name)}
+                            {p.id === "standard" ? tt.standard.name : p.id === "pro" ? tt.pro.name : p.id === "test" ? (tt.test?.name ?? p.name) : (fa ? p.nameFa || p.name : p.name)}
                           </SelectItem>
                         ))}
                         {bot.tier && !bot.isTrial && !(botPlans ?? []).some((p) => p.id === bot.tier) && <SelectItem value={bot.tier} disabled>{bot.tier}</SelectItem>}

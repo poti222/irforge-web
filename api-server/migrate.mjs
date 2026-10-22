@@ -1042,6 +1042,18 @@ VALUES
    0)
 ON CONFLICT (id) DO NOTHING;
 
+-- پلنِ «تست» — بات با ۱۰ روز اعتبار، ۳۵۰٬۰۰۰ تومان (۳٬۵۰۰٬۰۰۰ ریال)، بدونِ تمدیدِ خودکار از کیف پول
+-- (metadata.periodDays / metadata.autoRenew؛ پیش‌فرضِ بقیه‌ی پلن‌ها ۳۰ روز + تمدیدِ خودکار است).
+-- منابع مثلِ استاندارد. قیمت/مدت/فعال‌بودن از پنلِ ادمینِ محصولات (بدونِ دیپلوی) قابلِ ویرایش است.
+INSERT INTO products (id, category_id, name, name_fa, description, description_fa, price, icon, metadata, sort_order)
+VALUES
+  ('test', 'bot', 'Test (10 days)', 'تست ۱۰ روزه',
+   'A 10-day bot to try the platform with real users — no auto-renewal', 'ربات ۱۰ روزه برای امتحانِ پلتفرم با کاربرانِ واقعی — بدونِ تمدیدِ خودکار',
+   3500000, 'Bot',
+   '{"ramGb":1,"cpuCores":1,"maxBots":1,"maxFreePlugins":3,"maxConcurrentUsers":50,"popular":false,"accent":"from-emerald-400 to-teal-300","periodDays":10,"autoRenew":false}',
+   2)
+ON CONFLICT (id) DO NOTHING;
+
 -- ─── PRODUCT_PURCHASES ─────────────────────────────────────────────────────
 -- IRFORGE_MY_PRODUCTS_SEO_PLANS_PROMPT Section A — a purchase record for
 -- non-bot products (bots already have their own purchase record: the

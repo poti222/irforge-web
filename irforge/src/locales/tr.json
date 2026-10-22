@@ -2113,7 +2113,7 @@
           },
           {
             "q": "Satın alma sonrası görüşü nasıl isterim?",
-            "a": "Bir anket oluşturup bağlantısını [toplu mesajla](/learn/telegram-bot-broadcast) ya da zamanlanmış mesajla gönderin."
+            "a": "Bir anket oluşturup bağlantısını toplu mesajla ya da zamanlanmış mesajla gönderin."
           }
         ],
         "nextTitle": "Sonraki adım",
@@ -2225,7 +2225,7 @@
           },
           {
             "q": "Cüzdan karttan karta ödemeye bağlı mı?",
-            "a": "Birbirini tamamlarlar. Para alma yolları için [karttan karta ödemeye](/learn/telegram-bot-card-payment) bakın."
+            "a": "Birbirini tamamlarlar. Para alma yolları için karttan karta ödemeye bakın."
           }
         ],
         "nextTitle": "Sonraki adım",
@@ -4288,6 +4288,18 @@
       "custom-theme": "Özel tema",
       "api-access": "API erişimi",
       "webhooks": "Webhook'lar"
+    },
+    "test": {
+      "name": "Test (10 gün)",
+      "tagline": "Platformu gerçek kullanıcılarla deneyin",
+      "features": [
+        "1 aktif bot",
+        "1 GB RAM / 1 CPU çekirdeği",
+        "50 eşzamanlı kullanıcıya kadar",
+        "3 ücretsiz eklenti (sizin seçiminiz)",
+        "10 gün, otomatik yenileme yok",
+        "Bilet tabanlı destek"
+      ]
     }
   },
   "checkout": {

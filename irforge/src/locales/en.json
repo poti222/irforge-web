@@ -2113,7 +2113,7 @@
           },
           {
             "q": "How do I ask for feedback after a purchase?",
-            "a": "Create a survey and send its link with a [broadcast](/learn/telegram-bot-broadcast) or a scheduled message."
+            "a": "Create a survey and send its link with a broadcast or a scheduled message."
           }
         ],
         "nextTitle": "Next step",
@@ -2225,7 +2225,7 @@
           },
           {
             "q": "Is the wallet connected to card-to-card payment?",
-            "a": "They complement each other. See [card-to-card payment](/learn/telegram-bot-card-payment) for ways of receiving money."
+            "a": "They complement each other. See card-to-card payment for ways of receiving money."
           }
         ],
         "nextTitle": "Next step",
@@ -4288,6 +4288,18 @@
       "custom-theme": "Custom theme",
       "api-access": "API access",
       "webhooks": "Webhooks"
+    },
+    "test": {
+      "name": "Test (10 days)",
+      "tagline": "Try the platform with real users",
+      "features": [
+        "1 active bot",
+        "1 GB RAM / 1 CPU core",
+        "Up to 50 concurrent users",
+        "3 free plugins (your choice)",
+        "10 days, no auto-renewal",
+        "Ticket-based support"
+      ]
     }
   },
   "checkout": {

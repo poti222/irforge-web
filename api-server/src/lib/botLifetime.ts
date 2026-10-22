@@ -24,8 +24,8 @@ export function addDays(date: Date, days: number): Date {
 }
 
 /** پایانِ یک دوره‌یِ پکیجِ استاندارد/پرو: دقیقاً ۳۰ روز بعد (نه «یک ماهِ تقویمی»). */
-export function addTierPeriod(date: Date): Date {
-  return addDays(date, TIER_PERIOD_DAYS);
+export function addTierPeriod(date: Date, days: number = TIER_PERIOD_DAYS): Date {
+  return addDays(date, days);
 }
 
 export function trialEndDate(from: Date = new Date()): Date {

@@ -58,3 +58,12 @@ test("purgeStage: ۷ روز مانده → هشدار اول؛ ≤۳ روز → 
   assert.equal(L.purgeDaysLeft(at, D("2026-10-16T12:00:00Z")), 1);
   assert.equal(L.purgeDaysLeft(at, D("2026-10-30T00:00:00Z")), 0);
 });
+
+test("addTierPeriod: default is 30 days, a product can override it (test plan = 10 days)", async () => {
+  process.env.DATABASE_URL ??= "postgres://test:test@127.0.0.1:5432/test";
+  const { addTierPeriod, TIER_PERIOD_DAYS } = await import("../src/lib/botLifetime.ts");
+  const from = new Date("2026-01-01T00:00:00Z");
+  assert.equal(TIER_PERIOD_DAYS, 30);
+  assert.equal(addTierPeriod(from).toISOString(), "2026-01-31T00:00:00.000Z");
+  assert.equal(addTierPeriod(from, 10).toISOString(), "2026-01-11T00:00:00.000Z");
+});

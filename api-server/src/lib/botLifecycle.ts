@@ -20,6 +20,7 @@ import { evaluateBotTrial } from "./trial.js";
 import { purgeBotFully } from "./botPurge.js";
 import { writeAudit } from "./audit.js";
 import { sweepBotTokens } from "./botTokenHealth.js";
+import { getBotTierProduct } from "./pluginPricing.js";
 import {
   addTierPeriod, botExpiry, computePurgeAfter, purgeDaysLeft, purgeStage, PURGE_FINAL_WARNING_DAYS, PURGE_RETENTION_DAYS,
   TIER_PERIOD_DAYS,
@@ -40,7 +41,10 @@ async function ensureTierExpiry(): Promise<void> {
     eq(botsTable.isTrial, false),
   ));
   for (const bot of rows) {
-    const expiry = addTierPeriod(new Date());
+    const product = bot.tier ? await getBotTierProduct(bot.tier) : null;
+    const days = product?.periodDays ?? TIER_PERIOD_DAYS;
+    const autoRenew = product ? product.autoRenew : true;
+    const expiry = addTierPeriod(new Date(), days);
     const [updated] = await db.update(botsTable).set({ tierExpiresAt: expiry })
       .where(and(eq(botsTable.id, bot.id), isNull(botsTable.tierExpiresAt))).returning({ id: botsTable.id });
     if (!updated) continue;
@@ -50,7 +54,7 @@ async function ensureTierExpiry(): Promise<void> {
       type: "tier_period_started",
       severity: "info",
       title: "مدتِ اعتبارِ پکیجِ بات مشخص شد",
-      message: `پکیجِ «${bot.tier === "pro" ? "پرو" : bot.tier === "standard" ? "استاندارد" : bot.tier}» بات «${bot.name}» ${TIER_PERIOD_DAYS} روز اعتبار دارد و تا ${day(expiry)} تمدید می‌شود (از کیف پول، یا دستی از صفحه‌یِ بات).`,
+      message: `پکیجِ «${bot.tier === "pro" ? "پرو" : bot.tier === "standard" ? "استاندارد" : bot.tier === "test" ? "تست" : bot.tier}» بات «${bot.name}» ${days} روز اعتبار دارد و ${autoRenew ? `تا ${day(expiry)} تمدید می‌شود (از کیف پول، یا دستی از صفحه‌یِ بات)` : `تا ${day(expiry)} فعال است و تمدیدِ خودکار ندارد (تمدیدِ دستی از صفحه‌یِ بات)`}.`,
       dedupeKey: `tier-period-start:${bot.id}`,
     });
   }

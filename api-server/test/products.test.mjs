@@ -200,3 +200,16 @@ test("botCategoryPatchViolation: محصولِ یک دسته‌ی دیگر که �
 test("botCategoryPatchViolation: محصولِ دسته‌های دیگر آزادانه ویرایش می‌شود", () => {
   assert.deepEqual(botCategoryPatchViolation("virtual_account", { name: "x", price: 1, isActive: false }), []);
 });
+
+test("migrate.mjs seeds the 10-day «test» bot plan: 3,500,000 rial (350,000 toman), no auto-renew", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../migrate.mjs", import.meta.url), "utf8");
+  const i = src.indexOf("('test', 'bot'");
+  assert.ok(i > 0, "test product seed missing");
+  const block = src.slice(i, src.indexOf("ON CONFLICT", i));
+  assert.match(block, /3500000/);
+  const meta = JSON.parse(block.match(/'(\{"ramGb".*?\})'/s)[1]);
+  assert.equal(meta.periodDays, 10);
+  assert.equal(meta.autoRenew, false);
+  assert.equal(meta.maxBots, 1);
+});

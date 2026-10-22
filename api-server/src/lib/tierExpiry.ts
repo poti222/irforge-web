@@ -87,13 +87,17 @@ async function syncBotStatusToRegistry(bot: BotRow): Promise<void> {
 
 async function warnUpcomingExpiry(bot: BotRow): Promise<void> {
   const dateKey = bot.tierExpiresAt!.toISOString().slice(0, 10);
+  const product = bot.tier ? await getBotTierProduct(bot.tier) : null;
+  const autoRenew = product ? product.autoRenew : true;
   await createNotification({
     userId: bot.userId,
     botId: bot.id,
     type: "tier_expiry_warning",
     severity: "warning",
     title: "دوره‌ی پکیج باتتان رو به پایان است",
-    message: `پکیج «${tierLabelFa(bot.tier)}» بات «${bot.name}» تا ${dateKey} تمدید می‌شود. اگر موجودی کیف پول کافی نباشد، بات خاموش خواهد شد تا تمدید کنید.`,
+    message: autoRenew
+      ? `پکیج «${tierLabelFa(bot.tier)}» بات «${bot.name}» تا ${dateKey} تمدید می‌شود. اگر موجودی کیف پول کافی نباشد، بات خاموش خواهد شد تا تمدید کنید.`
+      : `پلنِ «${tierLabelFa(bot.tier)}» بات «${bot.name}» تا ${dateKey} اعتبار دارد و تمدیدِ خودکار ندارد. برای ادامه از صفحه‌یِ بات دستی تمدید کنید، وگرنه بات خاموش می‌شود.`,
     // یک‌بار به‌ازای هر مهلت، نه هر تیکِ sweep — کلیدش خودِ تاریخِ انقضا است،
     // پس یک تمدیدِ موفق (که تاریخ را عوض می‌کند) خودش‌به‌خود یک هشدارِ تازه
     // برای دوره‌ی بعدی را دوباره ممکن می‌کند.
@@ -103,10 +107,12 @@ async function warnUpcomingExpiry(bot: BotRow): Promise<void> {
 
 async function handleExpiredBot(bot: BotRow): Promise<void> {
   const product = bot.tier ? await getBotTierProduct(bot.tier) : null;
-  const renewed = product ? await deductWallet(bot.userId, tomanToRial(product.priceToman), `Auto-renew: ${bot.tier} plan for ${bot.name}`) : false;
+  // پلن‌هایی با `autoRenew: false` (مثلِ «تست») هرگز خودکار از کیف پول کسر نمی‌شوند؛ فقط خاموش می‌شوند.
+  const autoRenew = product ? product.autoRenew : true;
+  const renewed = product && autoRenew ? await deductWallet(bot.userId, tomanToRial(product.priceToman), `Auto-renew: ${bot.tier} plan for ${bot.name}`) : false;
 
   if (renewed && product) {
-    const nextExpiry = addTierPeriod(bot.tierExpiresAt!);
+    const nextExpiry = addTierPeriod(bot.tierExpiresAt!, product.periodDays);
     const wasExpired = bot.status === TIER_EXPIRED_STATUS;
     const [updated] = await db.update(botsTable)
       .set({ tierExpiresAt: nextExpiry, status: wasExpired ? "active" : bot.status })
@@ -119,7 +125,7 @@ async function handleExpiredBot(bot: BotRow): Promise<void> {
       type: "tier_auto_renewed",
       severity: "info",
       title: "پکیج بات به‌صورت خودکار تمدید شد",
-      message: `${formatTomanFa(product.priceToman)} برای تمدیدِ یک‌ماهه‌ی پکیج بات «${bot.name}» از کیف پول کسر شد.`,
+      message: `${formatTomanFa(product.priceToman)} برای تمدیدِ ${product.periodDays === 30 ? "یک‌ماهه" : `${product.periodDays} روزه`}ی پکیج بات «${bot.name}» از کیف پول کسر شد.`,
       dedupeKey: `tier-renewed:${bot.id}:${nextExpiry.toISOString().slice(0, 10)}`,
     });
     return;
@@ -137,7 +143,9 @@ async function handleExpiredBot(bot: BotRow): Promise<void> {
     type: "tier_expired",
     severity: "critical",
     title: "بات شما خاموش شد",
-    message: `دوره‌ی پکیج بات «${bot.name}» به پایان رسید و موجودی کیف پول برای تمدیدِ خودکار کافی نبود. بات دیگر به کاربرانش پاسخ نمی‌دهد؛ اگر تا ${PURGE_RETENTION_DAYS} روز دیگر تمدید نکنید، بات و همه‌ی داده‌هایش برای همیشه حذف می‌شود.`,
+    message: autoRenew
+      ? `دوره‌ی پکیج بات «${bot.name}» به پایان رسید و موجودی کیف پول برای تمدیدِ خودکار کافی نبود. بات دیگر به کاربرانش پاسخ نمی‌دهد؛ اگر تا ${PURGE_RETENTION_DAYS} روز دیگر تمدید نکنید، بات و همه‌ی داده‌هایش برای همیشه حذف می‌شود.`
+      : `دوره‌ی پلنِ «${tierLabelFa(bot.tier)}» بات «${bot.name}» به پایان رسید. بات دیگر به کاربرانش پاسخ نمی‌دهد؛ اگر تا ${PURGE_RETENTION_DAYS} روز دیگر از صفحه‌یِ بات تمدید نکنید، بات و همه‌ی داده‌هایش برای همیشه حذف می‌شود.`,
     dedupeKey: `tier-expired:${bot.id}:${bot.tierExpiresAt!.toISOString().slice(0, 10)}`,
   });
 }
@@ -145,7 +153,7 @@ async function handleExpiredBot(bot: BotRow): Promise<void> {
 /** One sweep pass — call periodically. Never throws; a single bot's failure
  * is logged and skipped so it can't stop every other bot's check. */
 function tierLabelFa(tier: string | null): string {
-  return tier === "pro" ? "پرو" : tier === "standard" ? "استاندارد" : (tier ?? "");
+  return tier === "pro" ? "پرو" : tier === "standard" ? "استاندارد" : tier === "test" ? "تست" : (tier ?? "");
 }
 
 export async function sweepTierExpiry(): Promise<void> {

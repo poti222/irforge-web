@@ -245,14 +245,21 @@ export function quotePluginAddons(
  */
 export async function getBotTierProduct(
   tierId: string,
-): Promise<{ id: string; priceToman: Toman; maxFreePlugins: number } | null> {
+): Promise<{ id: string; priceToman: Toman; maxFreePlugins: number; periodDays: number; autoRenew: boolean } | null> {
   const [row] = await db.select().from(productsTable)
     .where(and(eq(productsTable.categoryId, "bot"), eq(productsTable.id, tierId), eq(productsTable.isActive, true)))
     .limit(1);
   if (!row) return null;
   const metadata = row.metadata ?? {};
   const maxFreePlugins = typeof metadata.maxFreePlugins === "number" ? metadata.maxFreePlugins : Infinity;
-  return { id: row.id, priceToman: rialToToman(row.price), maxFreePlugins };
+  // مدتِ هر دوره و تمدیدِ خودکار از metadata (پیش‌فرض: ۳۰ روز + تمدیدِ خودکار از کیف پول).
+  // پلنِ «تست» ۱۰ روزه است و `autoRenew: false` دارد.
+  const periodDays =
+    typeof metadata.periodDays === "number" && metadata.periodDays >= 1 && metadata.periodDays <= 366
+      ? Math.floor(metadata.periodDays)
+      : 30;
+  const autoRenew = metadata.autoRenew !== false;
+  return { id: row.id, priceToman: rialToToman(row.price), maxFreePlugins, periodDays, autoRenew };
 }
 
 // ─── بستهٔ «فروشگاه‌ساز» ─────────────────────────────────────────────────────

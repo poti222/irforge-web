@@ -20,14 +20,14 @@ export const LIFETIME_TONE: Record<LifetimeTone, string> = {
 export const LIFETIME_WARN_DAYS = 3;
 
 type T = {
-  trialDays: string; trialEnded: string; tierDays: string; tierEnded: string; purge: string; standard: string; pro: string;
+  trialDays: string; trialEnded: string; tierDays: string; tierEnded: string; purge: string; standard: string; pro: string; test: string;
 };
 const TEXTS: Record<Lang, T> = {
-  fa: { trialDays: "تریال · {n} روز مانده", trialEnded: "تریال تمام شده", tierDays: "{tier} · {n} روز مانده", tierEnded: "پکیج تمام شده", purge: "حذف دائمی تا {n} روز دیگر", standard: "استاندارد", pro: "پرو" },
-  en: { trialDays: "Trial · {n}d left", trialEnded: "Trial ended", tierDays: "{tier} · {n}d left", tierEnded: "Package ended", purge: "Deleted in {n}d", standard: "Standard", pro: "Pro" },
-  ar: { trialDays: "تجريبي · {n} يوم متبقٍ", trialEnded: "انتهت التجربة", tierDays: "{tier} · {n} يوم متبقٍ", tierEnded: "انتهت الباقة", purge: "حذف نهائي بعد {n} يوم", standard: "Standard", pro: "Pro" },
-  tr: { trialDays: "Deneme · {n} gün kaldı", trialEnded: "Deneme bitti", tierDays: "{tier} · {n} gün kaldı", tierEnded: "Paket bitti", purge: "{n} gün sonra silinecek", standard: "Standard", pro: "Pro" },
-  ru: { trialDays: "Пробный · {n} дн.", trialEnded: "Пробный период закончился", tierDays: "{tier} · {n} дн.", tierEnded: "Пакет закончился", purge: "Удаление через {n} дн.", standard: "Standard", pro: "Pro" },
+  fa: { trialDays: "تریال · {n} روز مانده", trialEnded: "تریال تمام شده", tierDays: "{tier} · {n} روز مانده", tierEnded: "پکیج تمام شده", purge: "حذف دائمی تا {n} روز دیگر", standard: "استاندارد", pro: "پرو", test: "تست" },
+  en: { trialDays: "Trial · {n}d left", trialEnded: "Trial ended", tierDays: "{tier} · {n}d left", tierEnded: "Package ended", purge: "Deleted in {n}d", standard: "Standard", pro: "Pro", test: "Test" },
+  ar: { trialDays: "تجريبي · {n} يوم متبقٍ", trialEnded: "انتهت التجربة", tierDays: "{tier} · {n} يوم متبقٍ", tierEnded: "انتهت الباقة", purge: "حذف نهائي بعد {n} يوم", standard: "Standard", pro: "Pro", test: "اختبار" },
+  tr: { trialDays: "Deneme · {n} gün kaldı", trialEnded: "Deneme bitti", tierDays: "{tier} · {n} gün kaldı", tierEnded: "Paket bitti", purge: "{n} gün sonra silinecek", standard: "Standard", pro: "Pro", test: "Test" },
+  ru: { trialDays: "Пробный · {n} дн.", trialEnded: "Пробный период закончился", tierDays: "{tier} · {n} дн.", tierEnded: "Пакет закончился", purge: "Удаление через {n} дн.", standard: "Standard", pro: "Pro", test: "Тест" },
 };
 
 type LifetimeBot = Pick<Bot, "status" | "isTrial" | "trialDaysLeft"> &
@@ -46,12 +46,12 @@ export function botLifetime(bot: LifetimeBot, lang: Lang): LifetimeBadge | null 
     const n = bot.trialDaysLeft ?? 0;
     return { text: fill(t.trialDays, { n }), tone: n <= LIFETIME_WARN_DAYS ? "warn" : "ok" };
   }
-  // ۳) پکیجِ ۳۰ روزه‌یِ استاندارد/پرو
-  if (bot.tier === "standard" || bot.tier === "pro") {
+  // ۳) پکیجِ دوره‌ای (استاندارد/پرو ۳۰ روزه، «تست» ۱۰ روزه) — هر پلنِ غیرِ سفارشی
+  if (bot.tier && bot.tier !== "custom") {
     if (bot.status === "tier_expired") return { text: t.tierEnded, tone: "danger" };
     if (bot.tierExpiresAt && bot.tierDaysLeft != null) {
       const n = Math.max(0, bot.tierDaysLeft);
-      return { text: fill(t.tierDays, { tier: bot.tier === "pro" ? t.pro : t.standard, n }), tone: n <= LIFETIME_WARN_DAYS ? "warn" : "ok" };
+      return { text: fill(t.tierDays, { tier: bot.tier === "pro" ? t.pro : bot.tier === "test" ? t.test : bot.tier === "standard" ? t.standard : bot.tier, n }), tone: n <= LIFETIME_WARN_DAYS ? "warn" : "ok" };
     }
   }
   return null;

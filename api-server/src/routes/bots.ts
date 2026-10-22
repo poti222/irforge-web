@@ -1361,9 +1361,11 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
     // شناخته‌شده‌ای مثلِ standard/pro نیست که lib/tierExpiry.ts بتواند
     // getBotTierProduct() صدایش بزند برایِ شارژِ خودکار). همان addOneMonth
     // که خودِ sweep/تمدید استفاده می‌کند، تا هر سه‌جا با هم یکی باشند.
+    // مدتِ دوره از خودِ محصول می‌آید (metadata.periodDays؛ پیش‌فرض ۳۰) — پلنِ «تست» ۱۰ روزه است.
+    const purchasedTierProduct = isPackageTier(purchasedTier) && purchasedTier ? await getBotTierProduct(purchasedTier) : null;
     const tierExpiresAt =
       isPackageTier(purchasedTier)
-        ? addTierPeriod(new Date())
+        ? addTierPeriod(new Date(), purchasedTierProduct?.periodDays)
         : null;
 
     // Payment already cleared above (wallet deducted, discount committed) by
@@ -3529,7 +3531,7 @@ router.post("/bots/:botId/upgrade-tier", requireBotOwnership, async (req: any, r
 router.post("/bots/:botId/renew", requireBotOwnership, async (req: any, res) => {
   try {
     const bot = req.bot;
-    if (bot.tier !== "standard" && bot.tier !== "pro") {
+    if (!isPackageTier(bot.tier)) {
       res.status(400).json({
         error: "این بات پکیجِ ماهانه‌ای برای تمدید ندارد.",
         code: "not_renewable",
@@ -3551,7 +3553,7 @@ router.post("/bots/:botId/renew", requireBotOwnership, async (req: any, res) => 
     // (نه از الان) — تا پیش‌خرید حقی از owner نگیرد؛ فقط وقتی از قبل گذشته
     // (یا تمدیدِ خودکار قبلاً ناموفق بوده) از همین لحظه حساب می‌شود.
     const base = bot.tierExpiresAt && bot.tierExpiresAt > new Date() ? bot.tierExpiresAt : new Date();
-    const nextExpiry = addTierPeriod(base);
+    const nextExpiry = addTierPeriod(base, product.periodDays);
     const wasExpired = bot.status === "tier_expired";
     const [updated] = await db.update(botsTable)
       .set({ tierExpiresAt: nextExpiry, status: wasExpired ? "active" : bot.status })
@@ -3580,7 +3582,7 @@ router.post("/bots/:botId/renew", requireBotOwnership, async (req: any, res) => 
       type: "tier_renewed",
       severity: "info",
       title: "پکیج بات تمدید شد",
-      message: `${formatTomanFa(product.priceToman)} برای تمدیدِ یک‌ماهه‌ی پکیج بات «${bot.name}» از کیف پول کسر شد.`,
+      message: `${formatTomanFa(product.priceToman)} برای تمدیدِ ${product.periodDays === 30 ? "یک‌ماهه" : `${product.periodDays} روزه`}ی پکیج بات «${bot.name}» از کیف پول کسر شد.`,
     });
 
     res.json(formatBot(updated));
