@@ -4699,3 +4699,14 @@ Platform-wide library of ready-made custom-emoji packs (built from five emoji.gg
 - Verified on a real local Postgres built with `migrate.mjs`: an expired `test` bot → `tier_expired`, wallet untouched, "بات شما خاموش شد" notice; an expired `standard` bot → renewed 30 days, 10,000,000 rial charged.
 - UI: tier name/label for `test` in buy-bot, bot list lifetime chip, plan card, workspace header, admin bots table; `botTiers.test` strings in all five locales.
 - SEO: inline `[text](/path)` links removed from FAQ answers (all five locales) — they leaked into the JSON-LD; `seoContent` test is green again. `localeParity` still fails for a pre-existing reason (ar/tr/ru intentionally lack the `schools.*` namespace).
+
+## Login / register → back to the exact page the user came from
+
+**Bug:** opening e.g. `irforge.ir/schools` while logged out, then logging in or registering, always ended on the bots dashboard. `post-auth.ts` only knew `/dashboard` and `/schools`, and only the two marketing buttons ever set it — route guards, the navbar's «ورود» link, deep links and the incomplete-profile redirect all dropped the destination.
+
+**Now** (`lib/post-auth.ts`, `App.tsx`, `contexts/AuthContext.tsx`): after any sign-in path (email, phone, Telegram, Google, GitHub, complete-profile) the user returns to the page they came from, with its path + query.
+- Route guards (`ProtectedRoute`, `SchoolProtectedRoute`, `AuthOnlyRoute`, `SuperOnlyRoute`) use `RedirectToLogin` / `RedirectToCompleteProfile`, which record the page being redirected away from — so the destination also survives the forced `/complete-profile` step (previously it was consumed and lost there).
+- `<PostAuthTracker/>` remembers the last non-auth page; the home page `/` clears it (login from the home page → dashboard, as before). Explicit targets set by buttons (`setPostAuthTarget`) still win, but expire as soon as the user browses to another page or after 30 min.
+- `/login?next=/some/page` is supported. Only same-origin internal paths are accepted (`//host`, `\`, `scheme:`, control chars, `/login`, `/register`, `/auth/*`, `/complete-profile` are rejected → no open redirect).
+- `AuthContext.login/register` (unused by the pages today) no longer hard-code `/dashboard`.
+- 11 unit tests (`irforge/test/postAuth.test.mjs`). Not exercised in a real browser: the wiring was verified only by typecheck + production/prerender build.

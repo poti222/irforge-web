@@ -1,3 +1,4 @@
+import { consumePostAuthTarget } from "@/lib/post-auth";
 import React, { createContext, useContext, useSyncExternalStore } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -61,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await apiLogin(data);
       setAuthToken(result.token);
       queryClient.setQueryData(getGetMeQueryKey(), result.user);
-      setLocation("/dashboard");
+      setLocation(consumePostAuthTarget());
     } catch (error) {
       console.error(error);
       throw error;
@@ -73,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await apiRegister(data);
       setAuthToken(result.token);
       queryClient.setQueryData(getGetMeQueryKey(), result.user);
-      setLocation("/dashboard");
+      setLocation(consumePostAuthTarget());
     } catch (error) {
       console.error(error);
       throw error;

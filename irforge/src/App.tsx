@@ -1,5 +1,5 @@
 import { useEffect, lazy, Suspense } from "react";
-import { consumePostAuthTarget } from "@/lib/post-auth";
+import { captureNextParam, consumePostAuthTarget, noteVisit, setPostAuthTarget } from "@/lib/post-auth";
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation, useParams } from "wouter";
 import { navigate } from "wouter/use-browser-location";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -184,7 +184,7 @@ function ProtectedRoute({ component: Component, adminOnly = false, superAdminOnl
   }
 
   if (!user) {
-    return <Redirect to="/login" />;
+    return <RedirectToLogin />;
   }
 
   // Mandatory Profile Completion & Identity System — applies to every
@@ -194,7 +194,7 @@ function ProtectedRoute({ component: Component, adminOnly = false, superAdminOnl
   // first. /complete-profile itself is a separate, unguarded-by-this route
   // (see AuthOnlyRoute below) so this never loops.
   if (!user.profileComplete) {
-    return <Redirect to="/complete-profile" />;
+    return <RedirectToCompleteProfile />;
   }
 
   if (adminOnly && user.role !== "admin" && user.role !== "super_admin") {
@@ -235,11 +235,11 @@ function SchoolProtectedRoute({ component: Component, ...rest }: { component: an
   }
 
   if (!user) {
-    return <Redirect to="/login" />;
+    return <RedirectToLogin />;
   }
 
   if (!user.profileComplete) {
-    return <Redirect to="/complete-profile" />;
+    return <RedirectToCompleteProfile />;
   }
 
   return (
@@ -279,7 +279,7 @@ function AuthOnlyRoute({ component: Component, ...rest }: { component: any }) {
   }
 
   if (!user) {
-    return <Redirect to="/login" />;
+    return <RedirectToLogin />;
   }
 
   return (
@@ -308,7 +308,7 @@ function SuperOnlyRoute({ component: Component, ...rest }: { component: any }) {
   }
 
   if (!user) {
-    return <Redirect to="/login" />;
+    return <RedirectToLogin />;
   }
 
   if (user.role !== "super_admin") {
@@ -320,6 +320,39 @@ function SuperOnlyRoute({ component: Component, ...rest }: { component: any }) {
       <Component {...rest} />
     </Suspense>
   );
+}
+
+/**
+ * کاربرِ لاگین‌نکرده به یک صفحه‌ی محافظت‌شده رسید → همین صفحه را به‌عنوان مقصدِ بعد از ورود ثبت می‌کنیم
+ * (تا بعد از لاگین/ثبت‌نام دوباره به «همان لینک» برگردد، نه داشبورد). ثبت در رندر است چون ریدایرکت بلافاصله
+ * مسیر را عوض می‌کند و `useEffect` دیر می‌رسد؛ نوشتنِ sessionStorage idempotent است.
+ */
+function currentTarget(location: string): string {
+  return location + (typeof window !== "undefined" ? window.location.search + window.location.hash : "");
+}
+
+function RedirectToLogin() {
+  const [location] = useLocation();
+  setPostAuthTarget(currentTarget(location));
+  return <RedirectToLogin />;
+}
+
+/** پروفایل ناقص → /complete-profile؛ مقصدِ اصلی حفظ می‌شود تا بعد از تکمیل به همان صفحه برگردد. */
+function RedirectToCompleteProfile() {
+  const [location] = useLocation();
+  setPostAuthTarget(currentTarget(location));
+  return <RedirectToCompleteProfile />;
+}
+
+/** هر تغییرِ مسیر را برایِ «برگشت به همان صفحه بعد از ورود» ثبت می‌کند؛ `?next=` را هم می‌خواند. */
+function PostAuthTracker() {
+  const [location] = useLocation();
+  useEffect(() => {
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    captureNextParam(location, search);
+    noteVisit(location + search);
+  }, [location]);
+  return null;
 }
 
 function PublicOnlyRoute({ component: Component, ...rest }: { component: any }) {
@@ -353,6 +386,7 @@ function RouteFallback() {
 function Router() {
   return (
     <Suspense fallback={<RouteFallback />}>
+    <PostAuthTracker />
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/docs" component={Docs} />
