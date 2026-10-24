@@ -1,0 +1,965 @@
+{
+  "meta": {
+    "name": "IrForge — Discord bot builder (phased build plan)",
+    "version": 1,
+    "language_of_prompts": "English (best for code agents). All end-user UI copy must be Persian-first with the 5 locales.",
+    "how_to_use_fa": [
+      "هر فاز یک پرامپت کامل و خودکفاست (فیلد prompt). فقط همان را بده به Claude Code، یک فاز در هر نوبت.",
+      "بعد از هر فاز: خروجی را (فایل‌های تغییرکرده + نتیجه‌ی تست) ببین، دیپلوی کن، دستی امتحان کن، بعد برو فاز بعدی.",
+      "فاز را ردیف‌به‌ردیف دنبال کن (depends_on). فازهای هم‌مرحله که depends_on مشترک دارند می‌توانند موازی شوند.",
+      "فازهای پرریسک (پرداخت، هوش مصنوعی) فلگ risk دارند؛ قبل از شروع تصمیم بگیر.",
+      "قبل از هر مایگریشن روی دیتابیس واقعی، از Postgres بک‌آپ بگیر (این کار با خودت است)."
+    ],
+    "architecture_decisions": [
+      {
+        "id": "A1",
+        "decision": "Bring-your-own-token: each owner creates a Discord application and pastes its bot token.",
+        "why": "A single shared bot needs Discord verification after 100 servers, has stricter privileged-intent rules and one blast radius. BYO token = each owner's bot is theirs, branded, and limits are per bot (same model as the Telegram side)."
+      },
+      {
+        "id": "A2",
+        "decision": "Separate runtime service `irforge-discord` (Python, discord.py 2.x) built from the irforge-app repo (sub-package `discord_runtime/`, own start command), sharing utils (db pool, token crypto).",
+        "why": "Gateway websockets and caches behave differently from Telegram long-polling; isolating them stops a Discord memory/CPU problem from taking down Telegram bots. Same repo = reuse of utils and one CI."
+      },
+      {
+        "id": "A3",
+        "decision": "Separate site-DB table `discord_bots` (+ products with category_id='discord' for plans) instead of adding a platform column to `bots`.",
+        "why": "`bots` is deeply Telegram-specific (sheetId/tenant, getMe, usernames, sheet pool). A new table avoids regressions; billing, notifications, audit, wallet and /super are reused."
+      },
+      {
+        "id": "A4",
+        "decision": "Business data in the business Postgres with RLS, tenant_id = 'd:<discord_bots.id>', plus a guild_id column on guild-scoped tables.",
+        "why": "Same isolation model as Telegram; a purge is `DELETE ... WHERE tenant_id = ...`."
+      },
+      {
+        "id": "A5",
+        "decision": "Web <-> runtime coordination through Postgres only (no extra broker): `discord_bot_runtime` heartbeat/status table + a `discord_bot_commands` queue claimed with FOR UPDATE SKIP LOCKED; runtime reconciles desired vs running bots every few seconds.",
+        "why": "Zero new infrastructure on Railway; works with multiple replicas via leasing."
+      },
+      {
+        "id": "A6",
+        "decision": "Intents are declared per feature; the runtime requests only what enabled features need. Privileged intents (members, message content) are checked in the connect wizard from the application flags.",
+        "why": "Least privilege, lower memory, fewer owner-side surprises."
+      }
+    ],
+    "owner_decisions_needed": [
+      "P24 (member-paid roles) moves real money between third parties — check Iranian payment/legal rules and decide whether to use the owner's own gateway merchant id (recommended) before starting it.",
+      "P26 (AI assistant) has a per-message LLM cost — decide the provider, per-tier quotas and whether it exists at all.",
+      "Plan names and prices for the `discord` product category (suggested: Free (1 server, core features), Standard, Pro) — set in P1, editable later in the admin Products panel.",
+      "Discord itself is filtered in Iran: your Railway runtime is fine, but your Iranian customers need a VPN to use Discord; consider this in marketing."
+    ],
+    "non_goals": [
+      "Music bots (legal + YouTube issues).",
+      "Mass DM / self-bot / any feature that sends unsolicited DMs at scale (against Discord ToS; P27 must actively block it).",
+      "One shared platform-owned bot for all customers."
+    ]
+  },
+  "shared_context_header": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.",
+  "stages": [
+    {
+      "id": "0-foundation",
+      "title_fa": "پایه و تصمیم‌ها"
+    },
+    {
+      "id": "1-data-runtime",
+      "title_fa": "داده و موتور اجرا"
+    },
+    {
+      "id": "2-web-manage",
+      "title_fa": "ساخت و مدیریت از سایت"
+    },
+    {
+      "id": "3-engine",
+      "title_fa": "هسته‌ی ساخت (دستور، پیام، دکمه، فرم)"
+    },
+    {
+      "id": "4-community",
+      "title_fa": "قابلیت‌های جامعه"
+    },
+    {
+      "id": "5-monetize",
+      "title_fa": "درآمد و اتصال‌ها"
+    },
+    {
+      "id": "6-hardening",
+      "title_fa": "امنیت، مقیاس و عرضه"
+    }
+  ],
+  "phases": [
+    {
+      "id": "P00",
+      "stage": "0-foundation",
+      "title": "Recon and architecture document",
+      "goal": "Produce a short, accurate architecture + conventions document for the Discord builder after reading the real code. No product code.",
+      "depends_on": [],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "S",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Read how Telegram bots are created, validated, billed (tiers/products), run (irforge-app bot manager), expired and purged (api-server lib: botLifecycle, tierExpiry, botPurge, botTokenHealth, pluginPricing).",
+        "Read how the business DB is accessed with RLS (tenant_id) in irforge-app and in api-server (businessPg / businessDbPool), and how tokens are encrypted/decrypted on both sides.",
+        "Read the dashboard bot pages (irforge/src/pages/bots*, bot-workspace, buy-bot*) and the /super tab registry.",
+        "Write `docs/discord/ARCHITECTURE.md` in irforge-web: the 6 decisions in meta.architecture_decisions confirmed or corrected against the real code, the exact files/functions to reuse per phase, a table of naming (tables, routes, env vars, tenant id format `d:<id>`), and a risk list.",
+        "List concrete mismatches between this plan and the real code and propose the smallest adjustment for each."
+      ],
+      "done_when": [
+        "docs/discord/ARCHITECTURE.md exists, references real file paths, and lists any deviation from the plan.",
+        "No source file other than the doc changed."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P00 — Recon and architecture document\nGOAL: Produce a short, accurate architecture + conventions document for the Discord builder after reading the real code. No product code.\n\nTASKS:\n1. Read how Telegram bots are created, validated, billed (tiers/products), run (irforge-app bot manager), expired and purged (api-server lib: botLifecycle, tierExpiry, botPurge, botTokenHealth, pluginPricing).\n2. Read how the business DB is accessed with RLS (tenant_id) in irforge-app and in api-server (businessPg / businessDbPool), and how tokens are encrypted/decrypted on both sides.\n3. Read the dashboard bot pages (irforge/src/pages/bots*, bot-workspace, buy-bot*) and the /super tab registry.\n4. Write `docs/discord/ARCHITECTURE.md` in irforge-web: the 6 decisions in meta.architecture_decisions confirmed or corrected against the real code, the exact files/functions to reuse per phase, a table of naming (tables, routes, env vars, tenant id format `d:<id>`), and a risk list.\n5. List concrete mismatches between this plan and the real code and propose the smallest adjustment for each.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- docs/discord/ARCHITECTURE.md exists, references real file paths, and lists any deviation from the plan.\n- No source file other than the doc changed."
+    },
+    {
+      "id": "P01",
+      "stage": "1-data-runtime",
+      "title": "Site DB: discord_bots table, plans, limits",
+      "goal": "Add the site-side data model for Discord bots and the purchasable plans, with idempotent migrations and tests.",
+      "depends_on": [
+        "P00"
+      ],
+      "repos": [
+        "irforge-web"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Create table `discord_bots` (id text pk, user_id fk users, name, application_id, bot_user_id, bot_username, token (encrypted, same scheme as bots.token), status enum-like text: pending|active|stopped|invalid_token|tier_expired|suspended, tier text (product id), tier_expires_at, intents_required text[], created_at, updated_at) with indexes on user_id and status.",
+        "Add drizzle schema `lib/db/src/schema/discordBots.ts` (exported from index.ts), the idempotent block in `api-server/migrate.mjs`, and the mirror `lib/db/migrations/NNNN_discord_bots.sql`.",
+        "Seed `products` rows for a new category `discord` (create the category row the same way the `bot` category exists): tiers `discord-free`, `discord-standard`, `discord-pro` with metadata {maxServers, maxCustomCommands, maxWorkflows, features[], periodDays:30, autoRenew:true}. Free has price 0 and no auto-renew charge. Prices are placeholders the admin edits later (store in Rial).",
+        "Add a helper `getDiscordTier(tierId)` mirroring getBotTierProduct and a `discordLimits(tier)` function returning typed limits with safe defaults.",
+        "Unit tests: migration SQL is idempotent (run twice on a real local Postgres), limits parsing, defaults."
+      ],
+      "done_when": [
+        "Running migrate.mjs twice on an empty local Postgres succeeds and seeds exactly the 3 tiers.",
+        "api-server builds; new tests pass; existing tests unchanged."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P01 — Site DB: discord_bots table, plans, limits\nGOAL: Add the site-side data model for Discord bots and the purchasable plans, with idempotent migrations and tests.\nPREREQUISITES: phases P00 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Create table `discord_bots` (id text pk, user_id fk users, name, application_id, bot_user_id, bot_username, token (encrypted, same scheme as bots.token), status enum-like text: pending|active|stopped|invalid_token|tier_expired|suspended, tier text (product id), tier_expires_at, intents_required text[], created_at, updated_at) with indexes on user_id and status.\n2. Add drizzle schema `lib/db/src/schema/discordBots.ts` (exported from index.ts), the idempotent block in `api-server/migrate.mjs`, and the mirror `lib/db/migrations/NNNN_discord_bots.sql`.\n3. Seed `products` rows for a new category `discord` (create the category row the same way the `bot` category exists): tiers `discord-free`, `discord-standard`, `discord-pro` with metadata {maxServers, maxCustomCommands, maxWorkflows, features[], periodDays:30, autoRenew:true}. Free has price 0 and no auto-renew charge. Prices are placeholders the admin edits later (store in Rial).\n4. Add a helper `getDiscordTier(tierId)` mirroring getBotTierProduct and a `discordLimits(tier)` function returning typed limits with safe defaults.\n5. Unit tests: migration SQL is idempotent (run twice on a real local Postgres), limits parsing, defaults.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Running migrate.mjs twice on an empty local Postgres succeeds and seeds exactly the 3 tiers.\n- api-server builds; new tests pass; existing tests unchanged."
+    },
+    {
+      "id": "P02",
+      "stage": "1-data-runtime",
+      "title": "Business DB: RLS foundation for Discord tenants",
+      "goal": "Create the shared tables and RLS helpers every Discord feature will use in the business Postgres.",
+      "depends_on": [
+        "P00"
+      ],
+      "repos": [
+        "irforge-app"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Follow the existing numbered SQL migration convention in irforge-app (see the migration that introduced RLS for tenants).",
+        "Create `discord_guilds` (tenant_id, guild_id, name, icon, member_count, joined_at, left_at, settings jsonb default '{}'), PK (tenant_id, guild_id), RLS ENABLE + FORCE with USING and WITH CHECK on tenant_id = current_setting('app.tenant_id', true).",
+        "Create `discord_audit_events` (tenant_id, id bigserial, guild_id, kind, actor_id, payload jsonb, created_at) for feature logs, same RLS.",
+        "Write a small Python helper `tenant_tx(tenant_id)` async context manager (asyncpg or the project's existing driver) that opens a transaction, sets app.tenant_id and statement_timeout, and is the ONLY way the Discord runtime touches tenant tables.",
+        "Tests (pytest, real Postgres if the project already does that, else docker-less fixtures): tenant A cannot read or write tenant B; forgetting set_config yields zero rows; FORCE RLS applies to the table owner."
+      ],
+      "done_when": [
+        "Migration applies cleanly on a fresh DB and is idempotent.",
+        "Isolation tests pass; no table lacks RLS."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P02 — Business DB: RLS foundation for Discord tenants\nGOAL: Create the shared tables and RLS helpers every Discord feature will use in the business Postgres.\nPREREQUISITES: phases P00 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Follow the existing numbered SQL migration convention in irforge-app (see the migration that introduced RLS for tenants).\n2. Create `discord_guilds` (tenant_id, guild_id, name, icon, member_count, joined_at, left_at, settings jsonb default '{}'), PK (tenant_id, guild_id), RLS ENABLE + FORCE with USING and WITH CHECK on tenant_id = current_setting('app.tenant_id', true).\n3. Create `discord_audit_events` (tenant_id, id bigserial, guild_id, kind, actor_id, payload jsonb, created_at) for feature logs, same RLS.\n4. Write a small Python helper `tenant_tx(tenant_id)` async context manager (asyncpg or the project's existing driver) that opens a transaction, sets app.tenant_id and statement_timeout, and is the ONLY way the Discord runtime touches tenant tables.\n5. Tests (pytest, real Postgres if the project already does that, else docker-less fixtures): tenant A cannot read or write tenant B; forgetting set_config yields zero rows; FORCE RLS applies to the table owner.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Migration applies cleanly on a fresh DB and is idempotent.\n- Isolation tests pass; no table lacks RLS."
+    },
+    {
+      "id": "P03",
+      "stage": "1-data-runtime",
+      "title": "Discord runtime skeleton (multi-bot gateway manager)",
+      "goal": "A separate Python service that can run N Discord bots from their stored tokens with isolation, backoff and clean shutdown — no features yet.",
+      "depends_on": [
+        "P01",
+        "P02"
+      ],
+      "repos": [
+        "irforge-app"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Create package `discord_runtime/` (discord.py 2.x, asyncio) with its own entrypoint and a `railway.toml`/start command for a NEW Railway service `irforge-discord`; reuse irforge-app utils for the DB pool and token decryption.",
+        "`BotSupervisor`: every 5-10 s load `discord_bots` with status in (active) and desired state, start missing clients, stop clients whose bot is stopped/expired/deleted, restart on token change. One `discord.Client` per bot with `chunk_guilds_at_startup=False`, minimal member cache flags and only the intents the bot's enabled features need (a registry `FEATURE_INTENTS`, empty for now besides guilds).",
+        "Isolation: an exception in one bot's task never stops others; exponential backoff with jitter per bot; if login fails with an authentication error mark the bot `invalid_token` and stop retrying (the web side notifies the owner in a later phase).",
+        "Replica safety: bots are claimed with a lease row (`discord_bot_runtime`: bot_id pk, owner_instance, lease_until, status, last_heartbeat, guild_count, last_error) using `FOR UPDATE SKIP LOCKED`; renew the lease every 15 s; a dead instance's bots are re-claimed after the lease expires.",
+        "Health: tiny aiohttp server with /healthz (process alive + db reachable) and /metrics (bots running, guilds, reconnects); graceful SIGTERM (close clients, release leases).",
+        "Write `discord_guilds` rows on guild_join/guild_remove/ready (via tenant_tx).",
+        "Tests with a mocked discord client factory: start/stop reconciliation, crash isolation, lease takeover, invalid-token handling."
+      ],
+      "done_when": [
+        "Service starts locally against a test bot token (documented manual step) and shows the bot online; `discord_guilds` fills for guilds the bot is in.",
+        "Killing one bot's task does not affect another in tests; SIGTERM releases leases.",
+        "pytest suite for the supervisor passes."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P03 — Discord runtime skeleton (multi-bot gateway manager)\nGOAL: A separate Python service that can run N Discord bots from their stored tokens with isolation, backoff and clean shutdown — no features yet.\nPREREQUISITES: phases P01, P02 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Create package `discord_runtime/` (discord.py 2.x, asyncio) with its own entrypoint and a `railway.toml`/start command for a NEW Railway service `irforge-discord`; reuse irforge-app utils for the DB pool and token decryption.\n2. `BotSupervisor`: every 5-10 s load `discord_bots` with status in (active) and desired state, start missing clients, stop clients whose bot is stopped/expired/deleted, restart on token change. One `discord.Client` per bot with `chunk_guilds_at_startup=False`, minimal member cache flags and only the intents the bot's enabled features need (a registry `FEATURE_INTENTS`, empty for now besides guilds).\n3. Isolation: an exception in one bot's task never stops others; exponential backoff with jitter per bot; if login fails with an authentication error mark the bot `invalid_token` and stop retrying (the web side notifies the owner in a later phase).\n4. Replica safety: bots are claimed with a lease row (`discord_bot_runtime`: bot_id pk, owner_instance, lease_until, status, last_heartbeat, guild_count, last_error) using `FOR UPDATE SKIP LOCKED`; renew the lease every 15 s; a dead instance's bots are re-claimed after the lease expires.\n5. Health: tiny aiohttp server with /healthz (process alive + db reachable) and /metrics (bots running, guilds, reconnects); graceful SIGTERM (close clients, release leases).\n6. Write `discord_guilds` rows on guild_join/guild_remove/ready (via tenant_tx).\n7. Tests with a mocked discord client factory: start/stop reconciliation, crash isolation, lease takeover, invalid-token handling.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Service starts locally against a test bot token (documented manual step) and shows the bot online; `discord_guilds` fills for guilds the bot is in.\n- Killing one bot's task does not affect another in tests; SIGTERM releases leases.\n- pytest suite for the supervisor passes."
+    },
+    {
+      "id": "P04",
+      "stage": "1-data-runtime",
+      "title": "Web ⇄ runtime control channel and live status",
+      "goal": "Let the web API request start/stop/restart and read live status of a bot without talking to the runtime directly.",
+      "depends_on": [
+        "P03"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Add `discord_bot_commands` (id, bot_id, kind start|stop|restart|resync_commands|leave_guild, payload jsonb, created_at, claimed_at, done_at, error) in the site DB (migration + drizzle).",
+        "Runtime: a loop claiming commands with FOR UPDATE SKIP LOCKED, executing them and recording result/error; `resync_commands` is a no-op hook for later phases.",
+        "api-server: `lib/discordRuntimeClient.ts` with `enqueue(botId, kind, payload)` and `getStatus(botId)` reading the lease/heartbeat row (a bot is `online` only if heartbeat < 45 s old).",
+        "Tests: enqueue/claim/complete cycle on real Postgres; stale heartbeat => offline."
+      ],
+      "done_when": [
+        "From a script: enqueue restart => runtime restarts the bot within ~15 s and status flips offline→online.",
+        "Tests pass in both repos."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P04 — Web ⇄ runtime control channel and live status\nGOAL: Let the web API request start/stop/restart and read live status of a bot without talking to the runtime directly.\nPREREQUISITES: phases P03 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Add `discord_bot_commands` (id, bot_id, kind start|stop|restart|resync_commands|leave_guild, payload jsonb, created_at, claimed_at, done_at, error) in the site DB (migration + drizzle).\n2. Runtime: a loop claiming commands with FOR UPDATE SKIP LOCKED, executing them and recording result/error; `resync_commands` is a no-op hook for later phases.\n3. api-server: `lib/discordRuntimeClient.ts` with `enqueue(botId, kind, payload)` and `getStatus(botId)` reading the lease/heartbeat row (a bot is `online` only if heartbeat < 45 s old).\n4. Tests: enqueue/claim/complete cycle on real Postgres; stale heartbeat => offline.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- From a script: enqueue restart => runtime restarts the bot within ~15 s and status flips offline→online.\n- Tests pass in both repos."
+    },
+    {
+      "id": "P05",
+      "stage": "2-web-manage",
+      "title": "API: connect a bot, validate, invite link, purchase plan",
+      "goal": "Backend endpoints to connect a Discord bot with a token and manage its plan.",
+      "depends_on": [
+        "P01",
+        "P04"
+      ],
+      "repos": [
+        "irforge-web"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Routes (auth required, owner-scoped): POST /api/discord-bots {token} ; GET list ; GET one ; PATCH {name} ; POST :id/start|stop|restart ; DELETE (enqueue purge, soft first) ; POST :id/purchase {tierId} ; POST :id/renew.",
+        "Connect flow: call Discord `GET /users/@me` and `GET /applications/@me` with the token (server-side, with timeout and no token in logs/errors); reject user tokens (only bot tokens); store application_id, bot_user_id, username; encrypt the token; compute which privileged intents are enabled from the application flags and store `intents_status` (verify bit positions against current docs); refuse a token already connected by another user.",
+        "Invite URL builder: `https://discord.com/oauth2/authorize?client_id=...&scope=bot%20applications.commands&permissions=<bitfield>` with a recommended minimal permission set per enabled feature (a function, extended by later phases).",
+        "Plan purchase/renew: reuse the wallet debit + invoice/notification pattern used for Telegram bot tiers (idempotent, atomic, audited). Free tier needs no payment. Enforce `maxServers` per tier when the bot joins more guilds than allowed (runtime leaves extra guilds only after a warning grace; here just expose the limit).",
+        "Never return the token; mask it as `••••<last4>`.",
+        "Tests: token validation with a mocked Discord API, duplicate token, wallet insufficient funds, free tier, ownership checks, no token leakage in any response/log."
+      ],
+      "done_when": [
+        "All endpoints work against a mocked Discord API; real-token manual test documented.",
+        "Tests pass; a grep proves the token never appears in responses/logs in tests."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P05 — API: connect a bot, validate, invite link, purchase plan\nGOAL: Backend endpoints to connect a Discord bot with a token and manage its plan.\nPREREQUISITES: phases P01, P04 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Routes (auth required, owner-scoped): POST /api/discord-bots {token} ; GET list ; GET one ; PATCH {name} ; POST :id/start|stop|restart ; DELETE (enqueue purge, soft first) ; POST :id/purchase {tierId} ; POST :id/renew.\n2. Connect flow: call Discord `GET /users/@me` and `GET /applications/@me` with the token (server-side, with timeout and no token in logs/errors); reject user tokens (only bot tokens); store application_id, bot_user_id, username; encrypt the token; compute which privileged intents are enabled from the application flags and store `intents_status` (verify bit positions against current docs); refuse a token already connected by another user.\n3. Invite URL builder: `https://discord.com/oauth2/authorize?client_id=...&scope=bot%20applications.commands&permissions=<bitfield>` with a recommended minimal permission set per enabled feature (a function, extended by later phases).\n4. Plan purchase/renew: reuse the wallet debit + invoice/notification pattern used for Telegram bot tiers (idempotent, atomic, audited). Free tier needs no payment. Enforce `maxServers` per tier when the bot joins more guilds than allowed (runtime leaves extra guilds only after a warning grace; here just expose the limit).\n5. Never return the token; mask it as `••••<last4>`.\n6. Tests: token validation with a mocked Discord API, duplicate token, wallet insufficient funds, free tier, ownership checks, no token leakage in any response/log.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- All endpoints work against a mocked Discord API; real-token manual test documented.\n- Tests pass; a grep proves the token never appears in responses/logs in tests."
+    },
+    {
+      "id": "P06",
+      "stage": "2-web-manage",
+      "title": "UI: «بات دیسکورد» section inside the bots area",
+      "goal": "A new Discord section next to the existing bots list with a guided connect wizard.",
+      "depends_on": [
+        "P05"
+      ],
+      "repos": [
+        "irforge-web"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Add a clearly separated section/tab «بات دیسکورد» in the bots area of the dashboard (list of Discord bots with status badge online/offline/invalid token/expired, guild count, plan, quick actions).",
+        "Connect wizard (steps, Persian copy, screenshots-free text): 1) create the application in the Discord Developer Portal, 2) Bot tab → copy token, 3) enable Server Members / Message Content intents only if the chosen features need them (explain why), 4) paste token (validate live), 5) show the invite link and detect the first guild join (poll status).",
+        "Bot detail page shell with tabs placeholders (Overview, Servers, later feature tabs) and plan/renew card reusing the Telegram plan card patterns.",
+        "Empty/error states: invalid token, missing intents (with exact fix steps), bot not yet in any server.",
+        "All strings in 5 locales; keep parity green; add a unit test for any non-trivial pure helper."
+      ],
+      "done_when": [
+        "A user can add a bot, see its status change live, and open its detail page.",
+        "irforge build + tests pass (except the known localeParity failure)."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P06 — UI: «بات دیسکورد» section inside the bots area\nGOAL: A new Discord section next to the existing bots list with a guided connect wizard.\nPREREQUISITES: phases P05 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Add a clearly separated section/tab «بات دیسکورد» in the bots area of the dashboard (list of Discord bots with status badge online/offline/invalid token/expired, guild count, plan, quick actions).\n2. Connect wizard (steps, Persian copy, screenshots-free text): 1) create the application in the Discord Developer Portal, 2) Bot tab → copy token, 3) enable Server Members / Message Content intents only if the chosen features need them (explain why), 4) paste token (validate live), 5) show the invite link and detect the first guild join (poll status).\n3. Bot detail page shell with tabs placeholders (Overview, Servers, later feature tabs) and plan/renew card reusing the Telegram plan card patterns.\n4. Empty/error states: invalid token, missing intents (with exact fix steps), bot not yet in any server.\n5. All strings in 5 locales; keep parity green; add a unit test for any non-trivial pure helper.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- A user can add a bot, see its status change live, and open its detail page.\n- irforge build + tests pass (except the known localeParity failure)."
+    },
+    {
+      "id": "P07",
+      "stage": "2-web-manage",
+      "title": "Lifecycle: expiry, renewal, token health, purge, /super visibility",
+      "goal": "Billing and cleanup rules for Discord bots equal to the Telegram side.",
+      "depends_on": [
+        "P05"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Mirror tierExpiry/botLifecycle/botTokenHealth for `discord_bots`: warn before expiry, auto-renew only when the product says autoRenew, otherwise set tier_expired and stop the runtime bot (command queue), grace period then purge.",
+        "Token health: when the runtime reports an auth failure, set invalid_token, notify the owner (createNotification) with fix steps.",
+        "Purge: delete the site rows and `DELETE` the tenant's rows from every Discord business table (generic: discover tables having tenant_id like the existing purge does), remove slash commands from Discord if the token is still valid, leave guilds optionally. Must be idempotent.",
+        "/super: new tab «ربات‌های دیسکورد» (list, status, owner, plan, force stop/purge with audit entries); update the tab registry and its test.",
+        "Tests on real Postgres like the Telegram sweep test: expired free/paid, autoRenew false, purge removes all tenant rows."
+      ],
+      "done_when": [
+        "Sweep + purge verified by tests; /super tab works and is audited.",
+        "No Telegram behaviour changed (existing tests green)."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P07 — Lifecycle: expiry, renewal, token health, purge, /super visibility\nGOAL: Billing and cleanup rules for Discord bots equal to the Telegram side.\nPREREQUISITES: phases P05 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Mirror tierExpiry/botLifecycle/botTokenHealth for `discord_bots`: warn before expiry, auto-renew only when the product says autoRenew, otherwise set tier_expired and stop the runtime bot (command queue), grace period then purge.\n2. Token health: when the runtime reports an auth failure, set invalid_token, notify the owner (createNotification) with fix steps.\n3. Purge: delete the site rows and `DELETE` the tenant's rows from every Discord business table (generic: discover tables having tenant_id like the existing purge does), remove slash commands from Discord if the token is still valid, leave guilds optionally. Must be idempotent.\n4. /super: new tab «ربات‌های دیسکورد» (list, status, owner, plan, force stop/purge with audit entries); update the tab registry and its test.\n5. Tests on real Postgres like the Telegram sweep test: expired free/paid, autoRenew false, purge removes all tenant rows.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Sweep + purge verified by tests; /super tab works and is audited.\n- No Telegram behaviour changed (existing tests green)."
+    },
+    {
+      "id": "P08",
+      "stage": "3-engine",
+      "title": "Per-server settings framework + server selector UI",
+      "goal": "A generic way to store and edit per-guild feature settings, and the UI shell for choosing a server and a feature.",
+      "depends_on": [
+        "P06",
+        "P03"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Settings model: `discord_guilds.settings` jsonb keyed by feature id with a schema registry on both sides (TypeScript zod types in api-server, pydantic/dataclass in runtime). Unknown keys rejected, defaults centralized.",
+        "API: GET/PUT /api/discord-bots/:id/guilds/:guildId/settings/:feature (owner-scoped, validated, audited in discord_audit_events); GET guild list with member/channel/role snapshot cached by the runtime (runtime writes `discord_guild_snapshot` rows: channels, roles, emojis — name, id, type, position, permissions summary) so the UI can render pickers without hitting Discord.",
+        "Runtime: reload settings on change (via the command queue `settings_changed` or a short TTL cache) without restarting clients.",
+        "UI: server selector, feature tabs scaffold, reusable pickers (ChannelPicker, RolePicker, EmojiPicker) fed by the snapshot, unsaved-changes guard.",
+        "Tests: validation, owner scoping (user A cannot read user B's guild), snapshot freshness."
+      ],
+      "done_when": [
+        "A feature setting saved in the UI is visible to the runtime within a few seconds.",
+        "Pickers work against snapshot data; tests pass."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P08 — Per-server settings framework + server selector UI\nGOAL: A generic way to store and edit per-guild feature settings, and the UI shell for choosing a server and a feature.\nPREREQUISITES: phases P06, P03 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Settings model: `discord_guilds.settings` jsonb keyed by feature id with a schema registry on both sides (TypeScript zod types in api-server, pydantic/dataclass in runtime). Unknown keys rejected, defaults centralized.\n2. API: GET/PUT /api/discord-bots/:id/guilds/:guildId/settings/:feature (owner-scoped, validated, audited in discord_audit_events); GET guild list with member/channel/role snapshot cached by the runtime (runtime writes `discord_guild_snapshot` rows: channels, roles, emojis — name, id, type, position, permissions summary) so the UI can render pickers without hitting Discord.\n3. Runtime: reload settings on change (via the command queue `settings_changed` or a short TTL cache) without restarting clients.\n4. UI: server selector, feature tabs scaffold, reusable pickers (ChannelPicker, RolePicker, EmojiPicker) fed by the snapshot, unsaved-changes guard.\n5. Tests: validation, owner scoping (user A cannot read user B's guild), snapshot freshness.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- A feature setting saved in the UI is visible to the runtime within a few seconds.\n- Pickers work against snapshot data; tests pass."
+    },
+    {
+      "id": "P09",
+      "stage": "3-engine",
+      "title": "Slash command builder (custom commands)",
+      "goal": "Owners create custom slash commands without code and the runtime registers and serves them.",
+      "depends_on": [
+        "P08"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Data: `discord_custom_commands` (tenant_id, id, guild_id nullable for global, name, description, options jsonb, response jsonb (content/embeds/components), ephemeral bool, enabled, required_role_ids, cooldown_seconds, version). RLS.",
+        "Validation (shared): name 1–32 chars lowercase letters/digits/-/_ (Persian letters allowed only if Discord currently allows them — verify), description 1–100, ≤25 options, option types, choices ≤25, no duplicates, max commands per tier (discordLimits.maxCustomCommands).",
+        "Runtime: sync with Discord via bulk overwrite (guild-scoped for instant availability; global optional), diff by hash to avoid needless calls, respect rate limits, re-sync on change command; handle interactions: permission/role check, cooldown, template rendering (variables {user}, {user.mention}, {server}, {channel}, option values), always ack within 3 s (defer then followup).",
+        "UI: command list + editor with option builder and a live Discord-style preview; test button that sends the command preview to the owner.",
+        "Tests: validator edge cases, diff/sync with a mocked Discord HTTP client, cooldown, template rendering with hostile input (no code execution, length caps)."
+      ],
+      "done_when": [
+        "Creating a command in the UI makes it appear in Discord and respond correctly (manual test documented).",
+        "Validators and sync tests pass; tier limit enforced."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P09 — Slash command builder (custom commands)\nGOAL: Owners create custom slash commands without code and the runtime registers and serves them.\nPREREQUISITES: phases P08 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Data: `discord_custom_commands` (tenant_id, id, guild_id nullable for global, name, description, options jsonb, response jsonb (content/embeds/components), ephemeral bool, enabled, required_role_ids, cooldown_seconds, version). RLS.\n2. Validation (shared): name 1–32 chars lowercase letters/digits/-/_ (Persian letters allowed only if Discord currently allows them — verify), description 1–100, ≤25 options, option types, choices ≤25, no duplicates, max commands per tier (discordLimits.maxCustomCommands).\n3. Runtime: sync with Discord via bulk overwrite (guild-scoped for instant availability; global optional), diff by hash to avoid needless calls, respect rate limits, re-sync on change command; handle interactions: permission/role check, cooldown, template rendering (variables {user}, {user.mention}, {server}, {channel}, option values), always ack within 3 s (defer then followup).\n4. UI: command list + editor with option builder and a live Discord-style preview; test button that sends the command preview to the owner.\n5. Tests: validator edge cases, diff/sync with a mocked Discord HTTP client, cooldown, template rendering with hostile input (no code execution, length caps).\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Creating a command in the UI makes it appear in Discord and respond correctly (manual test documented).\n- Validators and sync tests pass; tier limit enforced."
+    },
+    {
+      "id": "P10",
+      "stage": "3-engine",
+      "title": "Embed and message builder with live preview",
+      "goal": "A reusable message model (content, up to 10 embeds, components) with a visual editor, used by every later feature.",
+      "depends_on": [
+        "P08"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Define one JSON `MessageSpec` (content ≤2000, embeds ≤10 with total ≤6000 chars, fields ≤25, colors, author/footer/images by URL only, components) + validator shared in TS and Python (generate Python types from one source of truth or test that both validators agree on a fixture set).",
+        "Template engine for variables with a strict allowlist and escaping (no code evaluation; mention/everyone mentions disabled by default via allowed_mentions).",
+        "Table `discord_messages` (named, reusable message templates per tenant) + CRUD API + UI builder with live preview component rendering a Discord-like card (dark theme, RTL aware).",
+        "Action 'send this message to channel X' through the runtime queue with idempotency key and error reporting.",
+        "Tests: validator limits, template escaping, allowed_mentions, round-trip serialization."
+      ],
+      "done_when": [
+        "A message built in the UI can be sent to a channel and matches the preview.",
+        "Shared validator fixtures pass in both languages."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P10 — Embed and message builder with live preview\nGOAL: A reusable message model (content, up to 10 embeds, components) with a visual editor, used by every later feature.\nPREREQUISITES: phases P08 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Define one JSON `MessageSpec` (content ≤2000, embeds ≤10 with total ≤6000 chars, fields ≤25, colors, author/footer/images by URL only, components) + validator shared in TS and Python (generate Python types from one source of truth or test that both validators agree on a fixture set).\n2. Template engine for variables with a strict allowlist and escaping (no code evaluation; mention/everyone mentions disabled by default via allowed_mentions).\n3. Table `discord_messages` (named, reusable message templates per tenant) + CRUD API + UI builder with live preview component rendering a Discord-like card (dark theme, RTL aware).\n4. Action 'send this message to channel X' through the runtime queue with idempotency key and error reporting.\n5. Tests: validator limits, template escaping, allowed_mentions, round-trip serialization.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- A message built in the UI can be sent to a channel and matches the preview.\n- Shared validator fixtures pass in both languages."
+    },
+    {
+      "id": "P11",
+      "stage": "3-engine",
+      "title": "Buttons, select menus and persistent interactions",
+      "goal": "Interactive components whose actions survive bot restarts.",
+      "depends_on": [
+        "P10"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Component model on MessageSpec: buttons (5 per row, 5 rows), select menus (≤25 options), each with an `action` (reply, add/remove/toggle role, open modal, open ticket (stub until P18), run workflow (stub until P23), link).",
+        "custom_id scheme `irf:<v>:<messageId>:<componentId>` (≤100 chars) parsed centrally; persistent views registered at startup from the DB so old messages keep working after restarts/redeploys.",
+        "Interaction router in the runtime: per-component rate limit, required-role checks, ephemeral replies, error fallback message, 3-second ack rule, idempotent role actions, audit entry for role changes.",
+        "UI: component editor inside the message builder (drag order, action picker).",
+        "Tests: custom_id round-trip and length, restart persistence (simulated), role action idempotency, permission failure messages in Persian."
+      ],
+      "done_when": [
+        "A button/select posted before a runtime restart still works after it.",
+        "Router tests pass; no custom_id over 100 chars is ever generated."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P11 — Buttons, select menus and persistent interactions\nGOAL: Interactive components whose actions survive bot restarts.\nPREREQUISITES: phases P10 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Component model on MessageSpec: buttons (5 per row, 5 rows), select menus (≤25 options), each with an `action` (reply, add/remove/toggle role, open modal, open ticket (stub until P18), run workflow (stub until P23), link).\n2. custom_id scheme `irf:<v>:<messageId>:<componentId>` (≤100 chars) parsed centrally; persistent views registered at startup from the DB so old messages keep working after restarts/redeploys.\n3. Interaction router in the runtime: per-component rate limit, required-role checks, ephemeral replies, error fallback message, 3-second ack rule, idempotent role actions, audit entry for role changes.\n4. UI: component editor inside the message builder (drag order, action picker).\n5. Tests: custom_id round-trip and length, restart persistence (simulated), role action idempotency, permission failure messages in Persian.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- A button/select posted before a runtime restart still works after it.\n- Router tests pass; no custom_id over 100 chars is ever generated."
+    },
+    {
+      "id": "P12",
+      "stage": "3-engine",
+      "title": "Modal forms and submissions",
+      "goal": "Forms via modals with stored submissions and a dashboard viewer.",
+      "depends_on": [
+        "P11"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Form model: title, ≤5 text inputs (short/paragraph, min/max length, required, placeholder), submit actions (post to channel with a template, store, add role, DM the member a confirmation — single DM only, never bulk).",
+        "Table `discord_form_submissions` (tenant_id, id, form_id, guild_id, user_id, answers jsonb, created_at, status) + RLS; PII retention setting and deletion on purge.",
+        "UI: form builder, submissions table with search/filter/status, CSV export, per-submission detail.",
+        "Tests: modal limits, validation, storage, export escaping (CSV injection safe)."
+      ],
+      "done_when": [
+        "A member can submit a form from a button; the owner sees and exports it.",
+        "Tests pass."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P12 — Modal forms and submissions\nGOAL: Forms via modals with stored submissions and a dashboard viewer.\nPREREQUISITES: phases P11 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Form model: title, ≤5 text inputs (short/paragraph, min/max length, required, placeholder), submit actions (post to channel with a template, store, add role, DM the member a confirmation — single DM only, never bulk).\n2. Table `discord_form_submissions` (tenant_id, id, form_id, guild_id, user_id, answers jsonb, created_at, status) + RLS; PII retention setting and deletion on purge.\n3. UI: form builder, submissions table with search/filter/status, CSV export, per-submission detail.\n4. Tests: modal limits, validation, storage, export escaping (CSV injection safe).\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- A member can submit a form from a button; the owner sees and exports it.\n- Tests pass."
+    },
+    {
+      "id": "P13",
+      "stage": "4-community",
+      "title": "Welcome, leave, auto-role and verification gate",
+      "goal": "Greeting messages and a join-verification flow.",
+      "depends_on": [
+        "P10",
+        "P11"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Settings: welcome channel + MessageSpec, leave message, DM welcome (single, opt-in), auto-roles on join, delay option.",
+        "Verification gate: member joins with a limited role, clicks a button (optionally a simple human check or minimum account age), receives the member role; configurable kick-after-N-minutes for unverified.",
+        "Requires the Server Members intent: register it in FEATURE_INTENTS only when this feature is on and surface the portal toggle in the wizard.",
+        "Handle role hierarchy errors (bot role below the target role) with a clear UI warning computed from the snapshot.",
+        "Tests: join event handling with mocks, hierarchy warning, idempotency on rejoin."
+      ],
+      "done_when": [
+        "Join → welcome message + auto-role (+ verification) works end to end in a test server.",
+        "Hierarchy problems are explained in the UI."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P13 — Welcome, leave, auto-role and verification gate\nGOAL: Greeting messages and a join-verification flow.\nPREREQUISITES: phases P10, P11 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Settings: welcome channel + MessageSpec, leave message, DM welcome (single, opt-in), auto-roles on join, delay option.\n2. Verification gate: member joins with a limited role, clicks a button (optionally a simple human check or minimum account age), receives the member role; configurable kick-after-N-minutes for unverified.\n3. Requires the Server Members intent: register it in FEATURE_INTENTS only when this feature is on and surface the portal toggle in the wizard.\n4. Handle role hierarchy errors (bot role below the target role) with a clear UI warning computed from the snapshot.\n5. Tests: join event handling with mocks, hierarchy warning, idempotency on rejoin.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Join → welcome message + auto-role (+ verification) works end to end in a test server.\n- Hierarchy problems are explained in the UI."
+    },
+    {
+      "id": "P14",
+      "stage": "4-community",
+      "title": "Self-assign role panels (reaction/button/select roles)",
+      "goal": "Role menus members can use to pick their own roles.",
+      "depends_on": [
+        "P11"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Panel = MessageSpec + role mappings, modes: toggle, unique (one of a group), max N, required-role.",
+        "Runtime handles button/select interactions with the router from P11; optional reaction mode only if message-reaction intents are justified (prefer buttons).",
+        "UI: panel builder reusing the message builder + RolePicker, dangerous-role warning (admin/manage-roles permissions are blocked as self-assignable).",
+        "Tests: unique-group logic, max-N, blocked dangerous roles."
+      ],
+      "done_when": [
+        "Members can self-assign roles from a panel; dangerous roles are refused.",
+        "Tests pass."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P14 — Self-assign role panels (reaction/button/select roles)\nGOAL: Role menus members can use to pick their own roles.\nPREREQUISITES: phases P11 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Panel = MessageSpec + role mappings, modes: toggle, unique (one of a group), max N, required-role.\n2. Runtime handles button/select interactions with the router from P11; optional reaction mode only if message-reaction intents are justified (prefer buttons).\n3. UI: panel builder reusing the message builder + RolePicker, dangerous-role warning (admin/manage-roles permissions are blocked as self-assignable).\n4. Tests: unique-group logic, max-N, blocked dangerous roles.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Members can self-assign roles from a panel; dangerous roles are refused.\n- Tests pass."
+    },
+    {
+      "id": "P15",
+      "stage": "4-community",
+      "title": "Moderation core: warn, timeout, kick, ban with case log",
+      "goal": "Manual moderation commands and a case system.",
+      "depends_on": [
+        "P09",
+        "P08"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Slash commands /warn /timeout /untimeout /kick /ban /unban /purge /cases /note with permission checks (Discord permissions + configured mod roles), role-hierarchy checks, reason required, DM to the target (single) with appeal text, timeout ≤ 28 days, ban message-delete window within Discord's limit.",
+        "Table `discord_mod_cases` (tenant_id, case_no per guild, guild_id, target_id, moderator_id, action, reason, expires_at, created_at, evidence jsonb) + RLS; mod-log channel posting via a MessageSpec.",
+        "Temporary actions (tempban, timeout) handled by a durable scheduler row that survives restarts (sweeper, not in-memory timers).",
+        "UI: cases table with filters, per-user history, edit reason, export.",
+        "Tests: hierarchy rules, expiry sweeper, case numbering concurrency."
+      ],
+      "done_when": [
+        "All commands work in a test server and are logged as cases.",
+        "Tempban reverses itself after a runtime restart."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P15 — Moderation core: warn, timeout, kick, ban with case log\nGOAL: Manual moderation commands and a case system.\nPREREQUISITES: phases P09, P08 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Slash commands /warn /timeout /untimeout /kick /ban /unban /purge /cases /note with permission checks (Discord permissions + configured mod roles), role-hierarchy checks, reason required, DM to the target (single) with appeal text, timeout ≤ 28 days, ban message-delete window within Discord's limit.\n2. Table `discord_mod_cases` (tenant_id, case_no per guild, guild_id, target_id, moderator_id, action, reason, expires_at, created_at, evidence jsonb) + RLS; mod-log channel posting via a MessageSpec.\n3. Temporary actions (tempban, timeout) handled by a durable scheduler row that survives restarts (sweeper, not in-memory timers).\n4. UI: cases table with filters, per-user history, edit reason, export.\n5. Tests: hierarchy rules, expiry sweeper, case numbering concurrency.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- All commands work in a test server and are logged as cases.\n- Tempban reverses itself after a runtime restart."
+    },
+    {
+      "id": "P16",
+      "stage": "4-community",
+      "title": "AutoMod: spam, links, banned words (Persian-aware), raid protection",
+      "goal": "Automatic rule enforcement with a strikes ladder.",
+      "depends_on": [
+        "P15"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Rules: spam rate (messages/seconds), duplicate messages, mass mentions, invite/link allow/deny lists, caps, emoji spam, banned words/regex-lite with Persian normalization (unify ی/ي and ک/ك, strip ZWNJ/tashkeel/kashida, Persian↔Latin digits), attachment rules.",
+        "Exemptions by role/channel; actions: delete, warn, timeout, kick, ban, log; strike counter with decay and an escalation ladder (e.g. 3 strikes → timeout).",
+        "Raid protection: join-rate threshold → temporary verification level / lockdown mode and alert; needs Server Members intent.",
+        "Needs Message Content intent: register it only when a content rule is enabled and show a clear portal instruction; consider also exposing Discord's native AutoMod rules API as an option.",
+        "Regex safety: user-supplied patterns run with length and complexity caps and a timeout (no ReDoS).",
+        "UI: rule cards with test-text box that shows what would match.",
+        "Tests: normalization table, ladder, exemptions, ReDoS guard, raid threshold."
+      ],
+      "done_when": [
+        "Violations are enforced and logged as cases; the test box in the UI matches runtime behaviour.",
+        "Persian normalization tests pass."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P16 — AutoMod: spam, links, banned words (Persian-aware), raid protection\nGOAL: Automatic rule enforcement with a strikes ladder.\nPREREQUISITES: phases P15 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Rules: spam rate (messages/seconds), duplicate messages, mass mentions, invite/link allow/deny lists, caps, emoji spam, banned words/regex-lite with Persian normalization (unify ی/ي and ک/ك, strip ZWNJ/tashkeel/kashida, Persian↔Latin digits), attachment rules.\n2. Exemptions by role/channel; actions: delete, warn, timeout, kick, ban, log; strike counter with decay and an escalation ladder (e.g. 3 strikes → timeout).\n3. Raid protection: join-rate threshold → temporary verification level / lockdown mode and alert; needs Server Members intent.\n4. Needs Message Content intent: register it only when a content rule is enabled and show a clear portal instruction; consider also exposing Discord's native AutoMod rules API as an option.\n5. Regex safety: user-supplied patterns run with length and complexity caps and a timeout (no ReDoS).\n6. UI: rule cards with test-text box that shows what would match.\n7. Tests: normalization table, ladder, exemptions, ReDoS guard, raid threshold.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Violations are enforced and logged as cases; the test box in the UI matches runtime behaviour.\n- Persian normalization tests pass."
+    },
+    {
+      "id": "P17",
+      "stage": "4-community",
+      "title": "Server logs",
+      "goal": "Configurable logging of server events to channels.",
+      "depends_on": [
+        "P08"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Events: message edit/delete (needs content intent; store only what is needed, short retention), member join/leave/update, role and channel changes, voice join/leave/move, bans/timeouts from audit log.",
+        "Per-event channel + toggle + ignored channels/roles/bots; retention setting with a daily purge job; embeds via MessageSpec.",
+        "Log writes are batched and rate-limit aware so a spammy server cannot exhaust the bot's HTTP limits.",
+        "UI: log settings page.",
+        "Tests: batching/backpressure, retention purge, ignored lists."
+      ],
+      "done_when": [
+        "Selected events appear in the configured channels; load test script shows no unbounded queue growth.",
+        "Tests pass."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P17 — Server logs\nGOAL: Configurable logging of server events to channels.\nPREREQUISITES: phases P08 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Events: message edit/delete (needs content intent; store only what is needed, short retention), member join/leave/update, role and channel changes, voice join/leave/move, bans/timeouts from audit log.\n2. Per-event channel + toggle + ignored channels/roles/bots; retention setting with a daily purge job; embeds via MessageSpec.\n3. Log writes are batched and rate-limit aware so a spammy server cannot exhaust the bot's HTTP limits.\n4. UI: log settings page.\n5. Tests: batching/backpressure, retention purge, ignored lists.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Selected events appear in the configured channels; load test script shows no unbounded queue growth.\n- Tests pass."
+    },
+    {
+      "id": "P18",
+      "stage": "4-community",
+      "title": "Ticket system",
+      "goal": "Support tickets in Discord with transcripts, reusing the product's existing ticket logic ideas.",
+      "depends_on": [
+        "P11",
+        "P12"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Panel button → creates a private channel (or private thread) with the opener + staff roles, category selection, optional pre-ticket form (P12), per-user open limit, naming scheme, auto-close after inactivity.",
+        "Controls: claim, add/remove user, priority, close with reason, reopen, delete; transcript generated on close (HTML + text) stored in `discord_tickets`/`discord_ticket_messages` and posted to a log channel; optional 1–5 rating DM (single).",
+        "Needs Message Content intent only for transcripts — make transcripts optional and explain.",
+        "UI: ticket list with filters, transcript viewer, stats (response time, volume), panel settings.",
+        "Tests: permission overwrites logic, limits, transcript rendering with hostile content (XSS-safe), inactivity sweeper."
+      ],
+      "done_when": [
+        "Full ticket lifecycle works in a test server with a viewable transcript.",
+        "Transcript rendering is XSS-safe in tests."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P18 — Ticket system\nGOAL: Support tickets in Discord with transcripts, reusing the product's existing ticket logic ideas.\nPREREQUISITES: phases P11, P12 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Panel button → creates a private channel (or private thread) with the opener + staff roles, category selection, optional pre-ticket form (P12), per-user open limit, naming scheme, auto-close after inactivity.\n2. Controls: claim, add/remove user, priority, close with reason, reopen, delete; transcript generated on close (HTML + text) stored in `discord_tickets`/`discord_ticket_messages` and posted to a log channel; optional 1–5 rating DM (single).\n3. Needs Message Content intent only for transcripts — make transcripts optional and explain.\n4. UI: ticket list with filters, transcript viewer, stats (response time, volume), panel settings.\n5. Tests: permission overwrites logic, limits, transcript rendering with hostile content (XSS-safe), inactivity sweeper.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Full ticket lifecycle works in a test server with a viewable transcript.\n- Transcript rendering is XSS-safe in tests."
+    },
+    {
+      "id": "P19",
+      "stage": "4-community",
+      "title": "Levels and XP with leaderboard and rewards",
+      "goal": "Activity levels, rewards and a rank card.",
+      "depends_on": [
+        "P08"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "XP from messages (cooldown, min length, channel/role multipliers, ignored channels) and voice time (not AFK, not muted-alone); per-guild curve; table `discord_xp` (tenant_id, guild_id, user_id, xp, level, messages, voice_seconds, updated_at) with batched upserts (in-memory buffer flushed every few seconds — never one write per message).",
+        "Commands /rank /leaderboard, level-up announcements (MessageSpec), role rewards (stack or replace), reset/adjust by moderators, import from CSV.",
+        "Rank card image generation with Pillow, Persian text shaping (arabic-reshaper + python-bidi) and bundled open-licensed Persian font; cached and rate-limited.",
+        "Public web leaderboard page for a server (opt-in, shareable slug) + dashboard settings.",
+        "Tests: XP math, cooldown, buffer flush, reward assignment, RTL rendering snapshot."
+      ],
+      "done_when": [
+        "XP accrues without a DB write per message; rank card renders Persian correctly.",
+        "Tests pass."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P19 — Levels and XP with leaderboard and rewards\nGOAL: Activity levels, rewards and a rank card.\nPREREQUISITES: phases P08 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. XP from messages (cooldown, min length, channel/role multipliers, ignored channels) and voice time (not AFK, not muted-alone); per-guild curve; table `discord_xp` (tenant_id, guild_id, user_id, xp, level, messages, voice_seconds, updated_at) with batched upserts (in-memory buffer flushed every few seconds — never one write per message).\n2. Commands /rank /leaderboard, level-up announcements (MessageSpec), role rewards (stack or replace), reset/adjust by moderators, import from CSV.\n3. Rank card image generation with Pillow, Persian text shaping (arabic-reshaper + python-bidi) and bundled open-licensed Persian font; cached and rate-limited.\n4. Public web leaderboard page for a server (opt-in, shareable slug) + dashboard settings.\n5. Tests: XP math, cooldown, buffer flush, reward assignment, RTL rendering snapshot.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- XP accrues without a DB write per message; rank card renders Persian correctly.\n- Tests pass."
+    },
+    {
+      "id": "P20",
+      "stage": "4-community",
+      "title": "Giveaways and polls",
+      "goal": "Time-based giveaways and polls with button voting.",
+      "depends_on": [
+        "P11"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Giveaway: prize, winners count, end time (durable scheduler), requirements (role, level from P19 if enabled, account/server age), enter via button, fair random draw with a stored seed/log, reroll, end-early, DM winner (single).",
+        "Polls: single/multi choice, anonymous or not, end time, live counts on the message, one vote per user rule enforced in DB.",
+        "UI: create/manage with Jalali date-time picker (Asia/Tehran, store UTC).",
+        "Tests: draw fairness distribution sanity, requirement checks, double-entry/double-vote prevention, restart persistence."
+      ],
+      "done_when": [
+        "Giveaway ends on time even across a restart and announces winners.",
+        "Polls enforce one vote per user."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P20 — Giveaways and polls\nGOAL: Time-based giveaways and polls with button voting.\nPREREQUISITES: phases P11 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Giveaway: prize, winners count, end time (durable scheduler), requirements (role, level from P19 if enabled, account/server age), enter via button, fair random draw with a stored seed/log, reroll, end-early, DM winner (single).\n2. Polls: single/multi choice, anonymous or not, end time, live counts on the message, one vote per user rule enforced in DB.\n3. UI: create/manage with Jalali date-time picker (Asia/Tehran, store UTC).\n4. Tests: draw fairness distribution sanity, requirement checks, double-entry/double-vote prevention, restart persistence.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Giveaway ends on time even across a restart and announces winners.\n- Polls enforce one vote per user."
+    },
+    {
+      "id": "P21",
+      "stage": "4-community",
+      "title": "Scheduled and recurring messages, reminders",
+      "goal": "Announcements on a schedule.",
+      "depends_on": [
+        "P10"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Schedule model: one-time, daily/weekly/monthly, cron-lite UI, timezone Asia/Tehran with Jalali date input, pause/resume, max schedules per tier.",
+        "Durable scheduler in the runtime using DB rows + `next_run_at` claimed with SKIP LOCKED (no in-memory timers); missed-run policy (skip vs catch up once).",
+        "Member reminders /remind (limit per user).",
+        "Tests: next-run computation incl. DST-free Tehran offsets, missed-run policy, claim concurrency."
+      ],
+      "done_when": [
+        "A recurring message fires on schedule and after a redeploy without duplicates.",
+        "Tests pass."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P21 — Scheduled and recurring messages, reminders\nGOAL: Announcements on a schedule.\nPREREQUISITES: phases P10 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Schedule model: one-time, daily/weekly/monthly, cron-lite UI, timezone Asia/Tehran with Jalali date input, pause/resume, max schedules per tier.\n2. Durable scheduler in the runtime using DB rows + `next_run_at` claimed with SKIP LOCKED (no in-memory timers); missed-run policy (skip vs catch up once).\n3. Member reminders /remind (limit per user).\n4. Tests: next-run computation incl. DST-free Tehran offsets, missed-run policy, claim concurrency.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- A recurring message fires on schedule and after a redeploy without duplicates.\n- Tests pass."
+    },
+    {
+      "id": "P22",
+      "stage": "4-community",
+      "title": "Auto-responders, tags and FAQ",
+      "goal": "Keyword triggers and quick-answer tags.",
+      "depends_on": [
+        "P10",
+        "P16"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Auto-responders: trigger types (contains, exact, starts-with, regex-lite), Persian normalization (reuse P16), channel/role filters, cooldown per user/channel, response MessageSpec, optional delete trigger message.",
+        "Tags: /tag name returns a stored message; autocomplete for names; categories; usage count.",
+        "Content intent gating as in P16; loop protection (never respond to bots/self).",
+        "UI: list + editor + test box.",
+        "Tests: matching/normalization, cooldowns, loop protection."
+      ],
+      "done_when": [
+        "Responders and tags work and never loop.",
+        "Tests pass."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P22 — Auto-responders, tags and FAQ\nGOAL: Keyword triggers and quick-answer tags.\nPREREQUISITES: phases P10, P16 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Auto-responders: trigger types (contains, exact, starts-with, regex-lite), Persian normalization (reuse P16), channel/role filters, cooldown per user/channel, response MessageSpec, optional delete trigger message.\n2. Tags: /tag name returns a stored message; autocomplete for names; categories; usage count.\n3. Content intent gating as in P16; loop protection (never respond to bots/self).\n4. UI: list + editor + test box.\n5. Tests: matching/normalization, cooldowns, loop protection.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Responders and tags work and never loop.\n- Tests pass."
+    },
+    {
+      "id": "P23",
+      "stage": "4-community",
+      "title": "Workflow engine (no-code automations)",
+      "goal": "Trigger → conditions → actions automations reusing all earlier building blocks.",
+      "depends_on": [
+        "P11",
+        "P13",
+        "P15",
+        "P20",
+        "P21"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "XL",
+      "risk": null,
+      "notes": [
+        "Largest phase: if it grows, split into P23a (spec+executor) and P23b (UI)."
+      ],
+      "tasks": [
+        "Spec (JSON, versioned): triggers (member_join, member_leave, role_added, message_keyword, button_click, form_submit, schedule, ticket_opened), conditions (role/channel/account age/level/random %), actions (send MessageSpec, add/remove role, timeout/kick/ban via P15 with case log, create ticket, post to webhook (allowlisted https, SSRF-safe), wait, set variable), variables per run.",
+        "Executor in the runtime: step limit per run, total runtime cap, per-workflow rate limit, global loop detection (a workflow triggered by its own effects), dry-run mode that logs what would happen, run history table with outcome and error.",
+        "Quotas: maxWorkflows from the tier; destructive actions require the owner's explicit enablement.",
+        "UI: step-based builder (linear first, branching later) with validation, test-run on a sample event and a run-history viewer.",
+        "Tests: executor semantics, loop detection, SSRF blocklist (no private IPs/metadata addresses, redirect re-check), quotas."
+      ],
+      "done_when": [
+        "Two example workflows (welcome + role, keyword → ticket) run end to end and appear in run history.",
+        "Loop/SSRF tests pass."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P23 — Workflow engine (no-code automations)\nGOAL: Trigger → conditions → actions automations reusing all earlier building blocks.\nPREREQUISITES: phases P11, P13, P15, P20, P21 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Spec (JSON, versioned): triggers (member_join, member_leave, role_added, message_keyword, button_click, form_submit, schedule, ticket_opened), conditions (role/channel/account age/level/random %), actions (send MessageSpec, add/remove role, timeout/kick/ban via P15 with case log, create ticket, post to webhook (allowlisted https, SSRF-safe), wait, set variable), variables per run.\n2. Executor in the runtime: step limit per run, total runtime cap, per-workflow rate limit, global loop detection (a workflow triggered by its own effects), dry-run mode that logs what would happen, run history table with outcome and error.\n3. Quotas: maxWorkflows from the tier; destructive actions require the owner's explicit enablement.\n4. UI: step-based builder (linear first, branching later) with validation, test-run on a sample event and a run-history viewer.\n5. Tests: executor semantics, loop detection, SSRF blocklist (no private IPs/metadata addresses, redirect re-check), quotas.\n\nNOTES:\n- Largest phase: if it grows, split into P23a (spec+executor) and P23b (UI).\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Two example workflows (welcome + role, keyword → ticket) run end to end and appear in run history.\n- Loop/SSRF tests pass."
+    },
+    {
+      "id": "P24",
+      "stage": "5-monetize",
+      "title": "Paid roles / subscriptions for server owners",
+      "goal": "Let a server owner sell time-limited roles to members using the owner's own payment gateway.",
+      "depends_on": [
+        "P11",
+        "P05"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "XL",
+      "risk": "high: money flow and legal compliance — requires explicit owner decision before coding",
+      "notes": [],
+      "tasks": [
+        "Decision gate FIRST: confirm with the platform owner the legal/payment model. Default design: the owner supplies their OWN gateway merchant credentials (stored encrypted); IrForge only creates the payment request, verifies the callback and grants the role — IrForge never holds member money.",
+        "Products (role + duration + price in Rial), a member-facing hosted payment page on irforge.ir (anonymous-safe, CSRF-safe, shows server/bot name), Discord button → signed short-lived link bound to (guild, user, product).",
+        "Callback verification, idempotent fulfilment (role grant + expiry row), expiry sweeper that removes the role (durable scheduler), grace/renewal reminders (single DM), refund/manual revoke by owner, full audit trail and an owner-side sales table.",
+        "Abuse controls: rate limits, signature expiry, amount tampering checks, per-owner kill switch in /super.",
+        "Tests: callback replay, amount mismatch, double fulfilment, expiry removal after restart, signature expiry."
+      ],
+      "done_when": [
+        "Test-mode payment → role granted → expires and is removed on time; replayed callbacks do nothing.",
+        "Security tests pass; written sign-off of the payment model recorded in docs."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P24 — Paid roles / subscriptions for server owners\nGOAL: Let a server owner sell time-limited roles to members using the owner's own payment gateway.\nPREREQUISITES: phases P11, P05 are already merged. If something they should provide is missing, stop and report instead of improvising.\nRISK: high: money flow and legal compliance — requires explicit owner decision before coding\n\nTASKS:\n1. Decision gate FIRST: confirm with the platform owner the legal/payment model. Default design: the owner supplies their OWN gateway merchant credentials (stored encrypted); IrForge only creates the payment request, verifies the callback and grants the role — IrForge never holds member money.\n2. Products (role + duration + price in Rial), a member-facing hosted payment page on irforge.ir (anonymous-safe, CSRF-safe, shows server/bot name), Discord button → signed short-lived link bound to (guild, user, product).\n3. Callback verification, idempotent fulfilment (role grant + expiry row), expiry sweeper that removes the role (durable scheduler), grace/renewal reminders (single DM), refund/manual revoke by owner, full audit trail and an owner-side sales table.\n4. Abuse controls: rate limits, signature expiry, amount tampering checks, per-owner kill switch in /super.\n5. Tests: callback replay, amount mismatch, double fulfilment, expiry removal after restart, signature expiry.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Test-mode payment → role granted → expires and is removed on time; replayed callbacks do nothing.\n- Security tests pass; written sign-off of the payment model recorded in docs."
+    },
+    {
+      "id": "P25",
+      "stage": "5-monetize",
+      "title": "Telegram ⇄ Discord bridge and account linking",
+      "goal": "Connect the two halves of the platform for owners and members.",
+      "depends_on": [
+        "P08",
+        "P05"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Owner features: cross-post an announcement to Telegram channel(s) and Discord channel(s) at once; unified notifications for the owner (bot expiry, token invalid) on both platforms.",
+        "Member linking: Discord OAuth2 (identify scope only) to link a Discord account to an IrForge user; link table with unique constraint; unlink; used later for shared wallet/credits and role perks.",
+        "Security: OAuth state + PKCE, minimal scope, no token storage beyond what identify needs (store only the user id).",
+        "Tests: state validation, unique link, unlink, cross-post failure isolation."
+      ],
+      "done_when": [
+        "A user can link/unlink Discord; a cross-post reaches both platforms and one failing side does not block the other.",
+        "Tests pass."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P25 — Telegram ⇄ Discord bridge and account linking\nGOAL: Connect the two halves of the platform for owners and members.\nPREREQUISITES: phases P08, P05 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Owner features: cross-post an announcement to Telegram channel(s) and Discord channel(s) at once; unified notifications for the owner (bot expiry, token invalid) on both platforms.\n2. Member linking: Discord OAuth2 (identify scope only) to link a Discord account to an IrForge user; link table with unique constraint; unlink; used later for shared wallet/credits and role perks.\n3. Security: OAuth state + PKCE, minimal scope, no token storage beyond what identify needs (store only the user id).\n4. Tests: state validation, unique link, unlink, cross-post failure isolation.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- A user can link/unlink Discord; a cross-post reaches both platforms and one failing side does not block the other.\n- Tests pass."
+    },
+    {
+      "id": "P26",
+      "stage": "5-monetize",
+      "title": "AI assistant for FAQ and rules (optional)",
+      "goal": "Answer member questions from the server's own rules/FAQ with strict cost controls.",
+      "depends_on": [
+        "P22",
+        "P05"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "L",
+      "risk": "medium: variable cost per message and prompt-injection surface",
+      "notes": [],
+      "tasks": [
+        "Decision gate: provider, model, per-tier monthly message quota and whether the feature ships at all.",
+        "Retrieval over the owner's rules/FAQ/tags only (no web), refusal when out of scope, answer in Persian by default, system prompt injection hardening, member-input sanitization, per-user and per-guild rate limits, hard monthly cap that disables the feature gracefully.",
+        "Usage metering table + owner dashboard of usage and cost estimate; kill switch in /super.",
+        "Tests: quota enforcement, prompt-injection fixtures (ignore-previous-instructions, role hijack), out-of-scope refusal."
+      ],
+      "done_when": [
+        "Quota exhaustion degrades gracefully; injection fixtures do not leak the system prompt or other tenants' data.",
+        "Tests pass."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P26 — AI assistant for FAQ and rules (optional)\nGOAL: Answer member questions from the server's own rules/FAQ with strict cost controls.\nPREREQUISITES: phases P22, P05 are already merged. If something they should provide is missing, stop and report instead of improvising.\nRISK: medium: variable cost per message and prompt-injection surface\n\nTASKS:\n1. Decision gate: provider, model, per-tier monthly message quota and whether the feature ships at all.\n2. Retrieval over the owner's rules/FAQ/tags only (no web), refusal when out of scope, answer in Persian by default, system prompt injection hardening, member-input sanitization, per-user and per-guild rate limits, hard monthly cap that disables the feature gracefully.\n3. Usage metering table + owner dashboard of usage and cost estimate; kill switch in /super.\n4. Tests: quota enforcement, prompt-injection fixtures (ignore-previous-instructions, role hijack), out-of-scope refusal.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Quota exhaustion degrades gracefully; injection fixtures do not leak the system prompt or other tenants' data.\n- Tests pass."
+    },
+    {
+      "id": "P27",
+      "stage": "6-hardening",
+      "title": "Security, abuse prevention and Discord ToS guard",
+      "goal": "Make the platform safe to run other people's bots.",
+      "depends_on": [
+        "P23"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Block ToS-violating features by design: no bulk DM, no self-bot/user-token acceptance, DM rate caps, mention-everyone off by default, webhook SSRF protections everywhere, invite-link generation only with the permission set the enabled features need (warn on Administrator).",
+        "Per-bot abuse detection: unusual API error/429 rates, mass-action spikes (kicks/bans/role changes per minute) → auto-pause + owner and /super alert.",
+        "Token handling review: no token in logs/metrics/crash reports (add a redaction filter and a test that scans logs), rotation flow (owner pastes a new token → runtime restarts the bot), automatic invalidation on 401.",
+        "Authorization review of every new endpoint (owner scoping, IDOR tests), CSRF/CORS, input size caps, pagination caps.",
+        "Data lifecycle: documented retention per table, purge verified for every Discord table (a test enumerates all tables with tenant_id starting with discord_ and asserts the purge covers them).",
+        "Produce `docs/discord/SECURITY.md`."
+      ],
+      "done_when": [
+        "IDOR and redaction tests pass; the purge-coverage test fails if a future table is forgotten.",
+        "SECURITY.md reviewed."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P27 — Security, abuse prevention and Discord ToS guard\nGOAL: Make the platform safe to run other people's bots.\nPREREQUISITES: phases P23 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Block ToS-violating features by design: no bulk DM, no self-bot/user-token acceptance, DM rate caps, mention-everyone off by default, webhook SSRF protections everywhere, invite-link generation only with the permission set the enabled features need (warn on Administrator).\n2. Per-bot abuse detection: unusual API error/429 rates, mass-action spikes (kicks/bans/role changes per minute) → auto-pause + owner and /super alert.\n3. Token handling review: no token in logs/metrics/crash reports (add a redaction filter and a test that scans logs), rotation flow (owner pastes a new token → runtime restarts the bot), automatic invalidation on 401.\n4. Authorization review of every new endpoint (owner scoping, IDOR tests), CSRF/CORS, input size caps, pagination caps.\n5. Data lifecycle: documented retention per table, purge verified for every Discord table (a test enumerates all tables with tenant_id starting with discord_ and asserts the purge covers them).\n6. Produce `docs/discord/SECURITY.md`.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- IDOR and redaction tests pass; the purge-coverage test fails if a future table is forgotten.\n- SECURITY.md reviewed."
+    },
+    {
+      "id": "P28",
+      "stage": "6-hardening",
+      "title": "Scaling, quotas and observability",
+      "goal": "Know how many bots one process can hold and enforce plan limits.",
+      "depends_on": [
+        "P03",
+        "P23"
+      ],
+      "repos": [
+        "irforge-app",
+        "irforge-web"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Capacity: a load script that simulates N fake gateway clients/events to measure memory per bot and events/second; set `MAX_BOTS_PER_INSTANCE` from the results and make lease claiming respect it so extra bots land on other replicas.",
+        "Quotas enforcement in one place (guild count, commands, workflows, schedules, storage rows) with friendly Persian errors and upgrade CTAs in the UI.",
+        "Metrics and alerts: bots online/offline, reconnect rate, interaction latency (3-second budget), queue depths, error counts per bot; an admin dashboard tab in /super.",
+        "Document the runbook: scaling replicas on Railway, what to do on a Discord outage, how to roll back a bad deploy."
+      ],
+      "done_when": [
+        "Documented numbers for bots per instance; a second replica takes over leases in a test.",
+        "Quotas enforced and visible in the UI."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P28 — Scaling, quotas and observability\nGOAL: Know how many bots one process can hold and enforce plan limits.\nPREREQUISITES: phases P03, P23 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Capacity: a load script that simulates N fake gateway clients/events to measure memory per bot and events/second; set `MAX_BOTS_PER_INSTANCE` from the results and make lease claiming respect it so extra bots land on other replicas.\n2. Quotas enforcement in one place (guild count, commands, workflows, schedules, storage rows) with friendly Persian errors and upgrade CTAs in the UI.\n3. Metrics and alerts: bots online/offline, reconnect rate, interaction latency (3-second budget), queue depths, error counts per bot; an admin dashboard tab in /super.\n4. Document the runbook: scaling replicas on Railway, what to do on a Discord outage, how to roll back a bad deploy.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Documented numbers for bots per instance; a second replica takes over leases in a test.\n- Quotas enforced and visible in the UI."
+    },
+    {
+      "id": "P29",
+      "stage": "6-hardening",
+      "title": "Public site: landing, docs, SEO in 5 languages",
+      "goal": "Make the product discoverable and understandable.",
+      "depends_on": [
+        "P06"
+      ],
+      "repos": [
+        "irforge-web"
+      ],
+      "size": "M",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Landing page `/discord-bot-builder` (fa-first, then en/ar/tr/ru) with feature list from the finished phases, plan table from the `discord` products, FAQ (no inline markdown links in answers), CTA to the connect wizard.",
+        "Learn articles (setup guide: create application, enable intents, invite; moderation guide; tickets guide; levels guide) following the existing /learn content conventions and SEO assertions (title, canonical, hreflang, JSON-LD).",
+        "Sitemap and prerender entries; keep the build's SEO assertions passing."
+      ],
+      "done_when": [
+        "Prerender/SEO build assertions pass with the new pages; pages render in all 5 locales.",
+        "Locale parity unchanged by this phase."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P29 — Public site: landing, docs, SEO in 5 languages\nGOAL: Make the product discoverable and understandable.\nPREREQUISITES: phases P06 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Landing page `/discord-bot-builder` (fa-first, then en/ar/tr/ru) with feature list from the finished phases, plan table from the `discord` products, FAQ (no inline markdown links in answers), CTA to the connect wizard.\n2. Learn articles (setup guide: create application, enable intents, invite; moderation guide; tickets guide; levels guide) following the existing /learn content conventions and SEO assertions (title, canonical, hreflang, JSON-LD).\n3. Sitemap and prerender entries; keep the build's SEO assertions passing.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- Prerender/SEO build assertions pass with the new pages; pages render in all 5 locales.\n- Locale parity unchanged by this phase."
+    },
+    {
+      "id": "P30",
+      "stage": "6-hardening",
+      "title": "End-to-end QA, staged rollout and launch checklist",
+      "goal": "Prove the whole thing works and ship it safely.",
+      "depends_on": [
+        "P27",
+        "P28",
+        "P29"
+      ],
+      "repos": [
+        "irforge-web",
+        "irforge-app"
+      ],
+      "size": "L",
+      "risk": null,
+      "notes": [],
+      "tasks": [
+        "Build a mock Discord API/gateway harness for CI so e2e tests (connect → configure → event → action → log) run without real Discord; keep one documented manual test against a real test server.",
+        "Feature flag `discord_enabled` (env or settings) to hide the section; staged rollout: admin only → a 10-day test plan for a few users → public.",
+        "Pre-launch checklist document: database backup, migrations dry-run on a copy, Railway service `irforge-discord` env vars and healthcheck, rollback steps, monitoring dashboards, support macros, ToS/privacy text updates.",
+        "Run the full test suites of both repos and record results in `docs/discord/LAUNCH.md`."
+      ],
+      "done_when": [
+        "E2E suite green in CI; LAUNCH.md complete; feature flag verified on/off.",
+        "A real test-server run (manual) recorded with date and result."
+      ],
+      "prompt": "You are a senior full-stack engineer working on IrForge, an Iranian multi-tenant bot-builder SaaS (Persian-first, RTL). Telegram bots exist today; you are adding a Discord bot builder next to them. Work ONLY on the phase below; do not start other phases.\n\nREPOS (GitHub owner poti222, branch main deploys to Railway):\n- irforge-web: pnpm monorepo. `api-server` = Express + TypeScript, bundled with esbuild (`node build.mjs`), tests with node:test via tsx (`test/*.test.mjs`); site DB migrations are idempotent SQL in `api-server/migrate.mjs`, mirrored by `lib/db/migrations/NNNN_*.sql`; `lib/db/src/schema/*.ts` = drizzle schema (export from schema/index.ts); `irforge` = Vite + React + wouter + TanStack Query + shadcn/ui, 5 locales (fa, en, ar, tr, ru) in `irforge/src/locales/*.json` guarded by a key-parity test; API calls go through `customFetch` from `@workspace/api-client-react`.\n- irforge-app: Python 3 + aiogram runtime that runs many tenants' Telegram bots in one process. Business data lives in a second Postgres (BUSINESS_DATABASE_URL), every table has `tenant_id` + Row Level Security driven by `set_config('app.tenant_id', ..., true)` per transaction. Tests with pytest.\n- Production: Railway services irforge-web, irforge-app, Postgres.\n\nCONVENTIONS (mirror the existing Telegram code for anything analogous; read it BEFORE writing code):\n- Prices are integer RIAL in the DB (UI shows Toman = Rial / 10). Wallet debits use the existing wallet helpers; products live in the `products` table (category_id + metadata JSON such as periodDays / autoRenew); money-moving code must be idempotent and audited.\n- Secrets: bot tokens are stored encrypted (reuse the existing tokenCrypto scheme in both repos); never log, return or render a token; mask sensitive columns.\n- Super-admin screens register in `irforge/src/components/super/superTabs.ts` (and the tab-count test); admin writes go through `writeAudit` (extend the AuditAction union); user notices through `createNotification`.\n- Every user-visible string exists in all 5 locales (fa first). FAQ answers must not contain markdown links. Do not \"fix\" a failing parity test by deleting keys.\n- Persian UI copy is the source of truth: casual, clear, RTL-safe (use dir=\"auto\" for user data).\n- Small, reviewable commits. Before finishing run: api-server build + tests, irforge build + tests, pytest for irforge-app if touched. Known pre-existing failure you must not hide: localeParity (ar/tr/ru intentionally lack the `schools.*` namespace).\n- Do NOT push to main; leave changes on a feature branch named after the phase id and report: files changed, tests run + results, assumptions made, anything blocked or needing a product decision.\n- Verify every Discord limit/endpoint/flag you rely on against the CURRENT official Discord developer docs before using it; the numbers in this prompt are a starting point, not truth.\n\nPHASE P30 — End-to-end QA, staged rollout and launch checklist\nGOAL: Prove the whole thing works and ship it safely.\nPREREQUISITES: phases P27, P28, P29 are already merged. If something they should provide is missing, stop and report instead of improvising.\n\nTASKS:\n1. Build a mock Discord API/gateway harness for CI so e2e tests (connect → configure → event → action → log) run without real Discord; keep one documented manual test against a real test server.\n2. Feature flag `discord_enabled` (env or settings) to hide the section; staged rollout: admin only → a 10-day test plan for a few users → public.\n3. Pre-launch checklist document: database backup, migrations dry-run on a copy, Railway service `irforge-discord` env vars and healthcheck, rollback steps, monitoring dashboards, support macros, ToS/privacy text updates.\n4. Run the full test suites of both repos and record results in `docs/discord/LAUNCH.md`.\n\nDONE WHEN (all must be true, otherwise keep working or report what blocks you):\n- E2E suite green in CI; LAUNCH.md complete; feature flag verified on/off.\n- A real test-server run (manual) recorded with date and result."
+    }
+  ]
+}
