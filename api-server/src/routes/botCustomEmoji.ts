@@ -22,6 +22,9 @@ import { resolveBotSheet, readSettings, patchSettings, sendBotConfigError, BotCo
 import type { CustomEmojiEntry } from "../lib/botTypes.js";
 import { emojiPacksTable } from "@workspace/db";
 import { ensureSeeded } from "../lib/emojiPacks.js";
+import { chargeForPack } from "../lib/emojiPackPurchase.js";
+import { createNotification, formatTomanFa } from "../lib/notify.js";
+import { logger } from "../lib/logger.js";
 
 const router = Router();
 const MAX_EMOJIS = 2000;
@@ -133,17 +136,18 @@ router.post("/bots/:botId/custom-emojis/import-pack", requireAuth, async (req: a
 
 /**
  * اضافه‌کردنِ یک پکِ کتابخانه‌ی پلتفرم به همین بات.  { slug }
- * رایگان (`price_toman = 0`): بلافاصله اضافه می‌شود. پولی: ۴۰۲ — خریدِ پک هنوز فعال نیست.
+ * رایگان (`price_toman = 0`) یا قبلاً-خریده‌شده برایِ همین بات یا سوپرادمین: بلافاصله اضافه می‌شود.
+ * پولی: قیمت از کیف‌پولِ کاربر کم و خرید برایِ همین بات ثبت می‌شود (lib/emojiPackPurchase.ts)؛ موجودیِ ناکافی ⇒ ۴۰۲.
  * بدونِ تماس با تلگرام: شناسه‌هایِ ایموجی هنگامِ «ساخت در تلگرام» ذخیره شده‌اند.
  */
 router.post("/bots/:botId/custom-emojis/add-library-pack", requireAuth, async (req: any, res) => {
   try {
-    const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
+    const { botId, spreadsheetId, isSuperAdmin, botName } = await resolveBotSheet(req.userId, req.params.botId);
     await ensureSeeded();
     const slug = String(req.body?.slug ?? "");
     const [pack] = await db.select().from(emojiPacksTable).where(eq(emojiPacksTable.slug, slug)).limit(1);
     if (!pack || !pack.active || !pack.tgSetName || pack.stickers.some((s) => !s.id)) throw new BotConfigError(404, "این پک در دسترس نیست", "pack_unavailable");
-    if (pack.priceToman > 0) throw new BotConfigError(402, `این پک پولی است (${pack.priceToman.toLocaleString("en-US")} تومان)؛ خریدِ پک هنوز فعال نشده.`, "pack_paid");
+    const charged = await chargeForPack({ userId: req.userId, botId, packSlug: pack.slug, priceToman: pack.priceToman, isSuperAdmin });
     const list = await current(spreadsheetId);
     const taken = new Set(list.map((e) => e.name));
     const usedIds = new Set(list.map((e) => e.id));
@@ -157,8 +161,25 @@ router.post("/bots/:botId/custom-emojis/add-library-pack", requireAuth, async (r
       list.push({ name, id: st.id, fallback: st.emoji || "⭐", animated: st.animated, enabled: true, pack: pack.tgSetName.slice(0, 64) });
       added++;
     }
-    if (added > 0) await patchSettings(spreadsheetId, { custom_emojis: list } as Record<string, unknown>);
-    res.json({ emojis: list, added });
+    try {
+      if (added > 0) await patchSettings(spreadsheetId, { custom_emojis: list } as Record<string, unknown>);
+    } catch (err) {
+      if (charged > 0) {
+        logger.error({ err, botId, slug }, "emoji pack purchased but adding to bot failed");
+        throw new BotConfigError(500, "خرید ثبت شد ولی افزودنِ پک به بات ناموفق بود؛ دوباره «افزودن» را بزنید — پولی دوباره کم نمی‌شود.", "pack_add_failed_after_purchase");
+      }
+      throw err;
+    }
+    if (charged > 0) {
+      try {
+        await createNotification({
+          userId: req.userId, botId, type: "emoji_pack_purchased", severity: "info",
+          title: `پک «${pack.titleFa}» خریداری شد`,
+          message: `${formatTomanFa(charged)} از کیف پول کم شد و پک روی بات «${botName ?? ""}» اضافه شد.`,
+        });
+      } catch (err) { logger.warn({ err }, "emoji pack purchase notification failed (ignored)"); }
+    }
+    res.json({ emojis: list, added, charged });
   } catch (err) { sendBotConfigError(res, err, "Failed to add emoji pack"); }
 });
 

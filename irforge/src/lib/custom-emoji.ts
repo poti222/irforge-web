@@ -46,13 +46,18 @@ export const importEmojiIds = (botId: string, ids: string[]) =>
 export interface LibraryPack {
   slug: string; title: string; count: number; priceToman: number; free: boolean; animated: boolean;
   preview: { name: string; emoji: string; id: string }[];
+  /** همین بات قبلاً این پکِ پولی را خریده؛ افزودنِ دوباره رایگان است. */
+  owned?: boolean;
+  /** رایگان، قبلاً-خریده‌شده یا کاربر سوپرادمین است ⇒ دکمه «افزودن» (نه «خرید»). */
+  canAddFree?: boolean;
 }
 
 /** کتابخانه‌یِ پک‌هایِ آمادهِ پلتفرم (برایِ همه‌یِ کاربران). */
-export const listEmojiLibrary = () => customFetch<{ packs: LibraryPack[] }>("/api/emoji-packs", { method: "GET" });
+export const listEmojiLibrary = (botId?: string) =>
+  customFetch<{ packs: LibraryPack[] }>(`/api/emoji-packs${botId ? `?botId=${encodeURIComponent(botId)}` : ""}`, { method: "GET" });
 
 export const addLibraryPack = (botId: string, slug: string) =>
-  customFetch<{ emojis: CustomEmoji[]; added: number }>(`/api/bots/${botId}/custom-emojis/add-library-pack`, {
+  customFetch<{ emojis: CustomEmoji[]; added: number; charged?: number }>(`/api/bots/${botId}/custom-emojis/add-library-pack`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ slug }),

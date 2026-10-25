@@ -1,15 +1,19 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Check, Loader2, Plus, Save, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Plus, Save, Search, ShoppingCart, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useEmojiContext, customEmojiQueryKey } from "./emoji-context";
 import {
-  EMOJI_NAME_RE, addLibraryPack, emojiToken, importEmojiIds, importEmojiPacks, listEmojiLibrary, saveCustomEmojis, type CustomEmoji,
+  EMOJI_NAME_RE, addLibraryPack, emojiToken, importEmojiIds, importEmojiPacks, listEmojiLibrary, saveCustomEmojis, type CustomEmoji, type LibraryPack,
 } from "@/lib/custom-emoji";
 
 /**
@@ -29,6 +33,7 @@ export function CustomEmojiManager() {
   const [packs, setPacks] = useState("");
   const [ids, setIds] = useState("");
   const [q, setQ] = useState("");
+  const [buyPack, setBuyPack] = useState<LibraryPack | null>(null);
 
   const refresh = (emojis: CustomEmoji[]) => {
     qc.setQueryData(customEmojiQueryKey(botId), { emojis });
@@ -62,14 +67,23 @@ export function CustomEmojiManager() {
     onError: fail,
   });
 
-  const library = useQuery({ queryKey: ["emoji-library"], queryFn: listEmojiLibrary, staleTime: 60_000 });
+  const library = useQuery({ queryKey: ["emoji-library", botId], queryFn: () => listEmojiLibrary(botId), staleTime: 60_000, enabled: !!botId });
+  // رایگان‌ها همیشه بالایِ پولی‌ها (سرور هم همین ترتیب را می‌دهد؛ این فقط محافظ است).
+  const libraryPacks = useMemo(() => [...(library.data?.packs ?? [])].sort((a, b) => Number(b.free) - Number(a.free)), [library.data]);
   const addPack = useMutation({
     mutationFn: (slug: string) => addLibraryPack(botId, slug),
     onSuccess: (r) => {
       refresh(r.emojis);
-      toast({ title: r.added > 0 ? `${r.added} ایموجی اضافه شد` : "همه‌یِ این پک از قبل در فهرست هست" });
+      if ((r.charged ?? 0) > 0) {
+        toast({ title: "پک خریداری شد", description: `${(r.charged ?? 0).toLocaleString("fa-IR")} تومان از کیف پول کم شد؛ ${r.added.toLocaleString("fa-IR")} ایموجی اضافه شد.` });
+        qc.invalidateQueries({ queryKey: ["wallet"] });
+        qc.invalidateQueries({ queryKey: ["wallet-tx"] });
+      } else {
+        toast({ title: r.added > 0 ? `${r.added} ایموجی اضافه شد` : "همه‌یِ این پک از قبل در فهرست هست" });
+      }
+      qc.invalidateQueries({ queryKey: ["emoji-library", botId] });
     },
-    onError: fail,
+    onError: (err: any) => { fail(err); qc.invalidateQueries({ queryKey: ["emoji-library", botId] }); },
   });
   const edit = (fn: (l: CustomEmoji[]) => CustomEmoji[]) => setDraft(fn(list));
   // بر اساسِ `id` (یکتا)، نه `name`: وقتی دو ردیف نامِ یکسان دارند (دقیقاً حالتی که باید اصلاح شود) تغییرِ یکی نباید روی دیگری هم اعمال شود.
@@ -89,15 +103,17 @@ export function CustomEmojiManager() {
 
   return (
     <div className="space-y-4" dir="rtl" data-testid="custom-emoji-manager">
-      {library.data && library.data.packs.length > 0 && (
+      {libraryPacks.length > 0 && (
         <Card data-testid="emoji-library">
           <CardHeader className="space-y-1.5">
             <CardTitle>پک‌هایِ آماده</CardTitle>
             <CardDescription className="leading-7">با یک کلیک پک را به همین ربات اضافه کنید؛ بعد از ذخیره‌یِ فهرست در همه‌یِ متن‌ها قابل‌استفاده است.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
-            {library.data.packs.map((p) => {
+            {libraryPacks.map((p) => {
               const have = p.preview.length > 0 && p.preview.every((x) => list.some((e) => e.id === x.id));
+              const needsPurchase = !p.free && !(p.canAddFree ?? false);
+              const busy = addPack.isPending && addPack.variables === p.slug;
               return (
                 <div key={p.slug} className="flex items-center justify-between gap-3 rounded-lg border p-3">
                   <div className="min-w-0 space-y-1">
@@ -109,9 +125,16 @@ export function CustomEmojiManager() {
                     <p className="truncate text-lg leading-none">{p.preview.map((x) => x.emoji).join(" ")}</p>
                     <p className="text-xs text-muted-foreground">{p.count.toLocaleString("fa-IR")} ایموجی</p>
                   </div>
-                  <Button size="sm" variant={have ? "outline" : "default"} disabled={dirty || !p.free || addPack.isPending} onClick={() => addPack.mutate(p.slug)} title={dirty ? "ابتدا تغییراتِ فهرست را ذخیره یا لغو کنید" : !p.free ? "خریدِ پک هنوز فعال نشده" : undefined}>
-                    {addPack.isPending && addPack.variables === p.slug ? <Loader2 className="me-1.5 size-4 animate-spin" /> : have ? <Check className="me-1.5 size-4" /> : <Plus className="me-1.5 size-4" />}
-                    {have ? "اضافه شده" : "افزودن"}
+                  <Button
+                    size="sm"
+                    variant={have ? "outline" : "default"}
+                    disabled={dirty || addPack.isPending}
+                    onClick={() => (needsPurchase && !have ? setBuyPack(p) : addPack.mutate(p.slug))}
+                    title={dirty ? "ابتدا تغییراتِ فهرست را ذخیره یا لغو کنید" : undefined}
+                    data-testid={`button-${needsPurchase && !have ? "buy" : "add"}-pack-${p.slug}`}
+                  >
+                    {busy ? <Loader2 className="me-1.5 size-4 animate-spin" /> : have ? <Check className="me-1.5 size-4" /> : needsPurchase ? <ShoppingCart className="me-1.5 size-4" /> : <Plus className="me-1.5 size-4" />}
+                    {have ? "اضافه شده" : needsPurchase ? "خرید" : "افزودن"}
                   </Button>
                 </div>
               );
@@ -119,6 +142,29 @@ export function CustomEmojiManager() {
           </CardContent>
         </Card>
       )}
+      <AlertDialog open={!!buyPack} onOpenChange={(o) => !o && setBuyPack(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>خریدِ پک «{buyPack?.title}»؟</AlertDialogTitle>
+            <AlertDialogDescription className="leading-7">
+              مبلغ {buyPack?.priceToman.toLocaleString("fa-IR")} تومان از کیف پولِ شما کم می‌شود و {buyPack?.count.toLocaleString("fa-IR")} ایموجیِ این پک به همین ربات اضافه می‌شود.
+              خرید فقط برای همین ربات است و بعد از آن، افزودنِ دوباره‌یِ همین پک رایگان است.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>انصراف</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (buyPack) addPack.mutate(buyPack.slug);
+                setBuyPack(null);
+              }}
+              data-testid="button-confirm-buy-pack"
+            >
+              خرید و افزودن
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Card>
         <CardHeader className="space-y-1.5">
           <CardTitle>ایموجی‌هایِ متحرک</CardTitle>

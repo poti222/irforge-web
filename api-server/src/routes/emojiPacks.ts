@@ -16,6 +16,9 @@ import { requireAuth, requireSuperAdmin } from "./auth";
 import { requireSuperGate } from "../middleware/superGate";
 import { createPackInTelegram, ensureSeeded, EmojiPackError } from "../lib/emojiPacks.js";
 import { writeAudit } from "../lib/audit.js";
+import { resolveBotSheet } from "../lib/botConfig.js";
+import { ownedPackSlugs } from "../lib/emojiPackPurchase.js";
+import { canAddWithoutPaying, sortFreeFirst } from "../lib/emojiPackPricing.js";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -27,12 +30,23 @@ function fail(res: any, err: unknown, fallback: string) {
   return res.status(500).json({ error: fallback });
 }
 
-router.get("/emoji-packs", requireAuth, async (_req, res) => {
+router.get("/emoji-packs", requireAuth, async (req: any, res) => {
   try {
     await ensureSeeded();
+    // با `?botId=` مشخص می‌شود کدام پک‌هایِ پولی را همین بات قبلاً خریده (و سوپرادمین بودنِ کاربر) — بدونِ دسترسی به بات، بی‌صدا نادیده گرفته می‌شود.
+    const botId = typeof req.query?.botId === "string" ? req.query.botId : "";
+    let owned = new Set<string>();
+    let isSuperAdmin = false;
+    if (botId) {
+      try {
+        isSuperAdmin = (await resolveBotSheet(req.userId, botId)).isSuperAdmin;
+        owned = await ownedPackSlugs(botId);
+      } catch {
+        /* بات پیدا نشد / دسترسی ندارد → اطلاعاتِ خرید نشان داده نمی‌شود */
+      }
+    }
     const rows = await db.select().from(emojiPacksTable).orderBy(asc(emojiPacksTable.sortOrder));
-    res.json({
-      packs: rows
+    const packs = rows
         .filter((r) => r.active && r.tgSetName && r.stickers.length > 0 && r.stickers.every((s) => !!s.id))
         .map((r) => ({
           slug: r.slug,
@@ -42,8 +56,11 @@ router.get("/emoji-packs", requireAuth, async (_req, res) => {
           free: r.priceToman === 0,
           animated: r.stickers.some((s) => s.animated),
           preview: r.stickers.slice(0, 8).map((s) => ({ name: s.name, emoji: s.emoji, id: s.id })),
-        })),
-    });
+          owned: owned.has(r.slug),
+          canAddFree: canAddWithoutPaying({ priceToman: r.priceToman, owned: owned.has(r.slug), isSuperAdmin }),
+        }));
+    // رایگان‌ها همیشه بالا، پولی‌ها پایین (داخلِ هر گروه ترتیبِ sort_order)
+    res.json({ packs: sortFreeFirst(packs) });
   } catch (err) {
     fail(res, err, "Failed to list emoji packs");
   }

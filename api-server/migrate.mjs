@@ -602,6 +602,16 @@ CREATE TABLE IF NOT EXISTS emoji_packs (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- ─── خریدِ پک‌هایِ ایموجیِ پولی (هر بات، هر پک یک‌بار؛ بعد از خرید افزودنِ دوباره رایگان است) ───
+CREATE TABLE IF NOT EXISTS emoji_pack_purchases (
+  bot_id TEXT NOT NULL,
+  pack_slug TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  price_toman INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (bot_id, pack_slug)
+);
+
 -- ─── بات‌ساز دیسکورد (سرویس پایتونِ irforge-dis همین جدول‌ها را می‌خواند/می‌نویسد) ───
 CREATE TABLE IF NOT EXISTS discord_bots (
   id TEXT PRIMARY KEY,
