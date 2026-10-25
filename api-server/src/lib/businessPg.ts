@@ -279,6 +279,35 @@ export async function pgListEntity(tenantId: string, entity: string): Promise<Pg
   });
 }
 
+/**
+ * فقط‌خواندنیِ سبک از جدول `users` ی بات (کاربرانِ تلگرامِ بات، نه کاربران سایت): `id` (= user_id)
+ * و در صورت وجود `last_seen`. عمداً در ENTITY_SCHEMAS ثبت نشده — ثبتش باعث می‌شد مسیرهای
+ * نوشتنِ سایت (botUsers.ts) هم بی‌اطلاع از ستون‌های کاملِ جدول روی Postgres بنویسند. برای
+ * شمارش و «فعال امروز» فقط همین دو ستون لازم است.
+ * اگر ستون `last_seen` در جدول نبود (۴۲۷۰۳)، با فقط `id` تلاش مجدد می‌کند تا شمارشِ کل
+ * حداقل درست بماند.
+ */
+export async function pgListUsersLight(tenantId: string): Promise<Array<{ key: string; last_seen: string | null }>> {
+  try {
+    return await withTenantTx(tenantId, async (client) => {
+      const { rows } = await client.query<Record<string, unknown>>(
+        "SELECT id, last_seen FROM users WHERE tenant_id = $1",
+        [tenantId]
+      );
+      return rows.map((r: Record<string, unknown>) => ({
+        key: String(r.id),
+        last_seen: r.last_seen == null ? null : r.last_seen instanceof Date ? r.last_seen.toISOString() : String(r.last_seen),
+      }));
+    });
+  } catch (err: any) {
+    if (err?.code !== "42703") throw err; // undefined_column
+    return withTenantTx(tenantId, async (client) => {
+      const { rows } = await client.query<Record<string, unknown>>("SELECT id FROM users WHERE tenant_id = $1", [tenantId]);
+      return rows.map((r: Record<string, unknown>) => ({ key: String(r.id), last_seen: null }));
+    });
+  }
+}
+
 export async function pgGetEntity(tenantId: string, entity: string, key: string): Promise<unknown | null> {
   const s = schemaFor(entity);
   return withTenantTx(tenantId, async (client) => {

@@ -27,7 +27,7 @@ import { readTabRows, upsertRow, deleteRow, listTabs } from "./tenantSheets.js";
 import { isSheetsNotConfiguredError } from "./sheets.js";
 import { bustTabCache, bustTabsCache } from "./botCacheBust.js";
 import { getBusinessPool } from "./businessDbPool.js";
-import { isKnownPgEntity, pgListEntity, pgGetEntity, pgSetEntity, pgSetEntities, pgDeleteEntity } from "./businessPg.js";
+import { isKnownPgEntity, pgListEntity, pgGetEntity, pgSetEntity, pgSetEntities, pgDeleteEntity, pgListUsersLight } from "./businessPg.js";
 import {
   defaultBotSettings,
   defaultWorkingHours,
@@ -262,6 +262,28 @@ export async function listEntity<T = unknown>(spreadsheetId: string, tab: string
   }
   const rows = await sheetLayer.readTabRows(spreadsheetId, tab);
   return rows.map((r) => ({ key: r.key, value: r.value as T }));
+}
+
+/**
+ * کاربرانِ تلگرامیِ یک بات (تب/جدول `users`) به‌شکل سبک: `{ key, last_seen }`.
+ *
+ * Live bug (۲۰ روز عدد ثابت): باتی که `users`اش به Postgres cutover شده، کاربرِ جدید را فقط
+ * در Postgres می‌نویسد؛ تبِ `users` شیت از روز cutover دیگر لمس نمی‌شود. ولی شمارشِ کاربران
+ * (فهرست باتِ من، داشبورد، پنل آمار) از همان تب شیت می‌خواند → عددِ روزِ cutover تا ابد.
+ * اینجا اگر cutoverِ `users` برای این تننت روشن بود از Postgres می‌خوانیم، وگرنه همان شیت.
+ */
+export async function listUsersLight(spreadsheetId: string): Promise<Array<{ key: string; last_seen: string | null }>> {
+  if (await isEntityOnPostgres("users", spreadsheetId)) {
+    return pgListUsersLight(spreadsheetId);
+  }
+  const rows = await sheetLayer.readTabRows(spreadsheetId, "users");
+  return rows
+    .filter((r) => r.value && typeof r.value === "object")
+    .map((r) => {
+      const v = r.value as { last_seen?: unknown };
+      const raw = v.last_seen == null ? "" : String(v.last_seen).trim();
+      return { key: r.key, last_seen: raw || null };
+    });
 }
 
 export async function getEntity<T = unknown>(

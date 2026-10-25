@@ -55,6 +55,7 @@ import {
 } from "../lib/sheetsSync";
 import { renameSpreadsheet, sheetIsAccessible, resetSpreadsheet, ensureAllTenantTabs } from "../lib/sheets";
 import { readTabRows, readTabRowsBatch } from "../lib/tenantSheets.js";
+import { listEntity, listUsersLight, isEntityOnPostgres } from "../lib/botConfig.js";
 import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
 import { purgeBotFully, markSheetTitleFreed } from "../lib/botPurge.js";
 import { createNotification, notifySuperAdmins, formatTomanFa } from "../lib/notify";
@@ -453,11 +454,32 @@ async function getLiveBotCounts(sheetId: string) {
   // minute»، گزارش‌شده روی همین تابع). `readTabRowsBatch` این ۳ تب را با یک
   // فراخوانی می‌خواند؛ `.catch(() => ({}))` هم مثل قبل یعنی یک خطای گذرا
   // شمارش‌ها را صفر می‌کند، کل صفحه‌ی فهرستِ بات‌ها را ۵۰۰ نمی‌کند.
-  const rowsByTab = await readTabRowsBatch(sheetId, ["users", "custom_commands", "bot_settings"])
-    .catch(() => ({}) as Record<string, Awaited<ReturnType<typeof readTabRows>>>);
-  const usersRows = rowsByTab.users ?? [];
-  const cmdRows = rowsByTab.custom_commands ?? [];
-  const settingsRows = rowsByTab.bot_settings ?? [];
+  // ⚠️ cutover-aware (باگِ «تعداد کاربران ۲۰ روز ثابت مانده»): هر تبی که برای این تننت
+  // روی Postgres است باید از Postgres خوانده شود — بات دیگر در شیتش نمی‌نویسد. فقط تب‌های
+  // باقی‌مانده روی شیت با همان یک batchGet خوانده می‌شوند تا سهمیه‌ی Sheets نسوزد.
+  type TabRows = Awaited<ReturnType<typeof readTabRows>>;
+  const [usersOnPg, cmdOnPg, settingsOnPg] = await Promise.all([
+    isEntityOnPostgres("users", sheetId).catch(() => false),
+    isEntityOnPostgres("custom_commands", sheetId).catch(() => false),
+    isEntityOnPostgres("bot_settings", sheetId).catch(() => false),
+  ]);
+  const sheetTabs = [
+    !usersOnPg && "users",
+    !cmdOnPg && "custom_commands",
+    !settingsOnPg && "bot_settings",
+  ].filter((t): t is string => Boolean(t));
+  const rowsByTab: Record<string, TabRows> = sheetTabs.length
+    ? await readTabRowsBatch(sheetId, sheetTabs).catch(() => ({}) as Record<string, TabRows>)
+    : {};
+  const usersCount = usersOnPg
+    ? (await listUsersLight(sheetId).catch(() => [])).length
+    : (rowsByTab.users ?? []).length;
+  const cmdRows = cmdOnPg
+    ? ((await listEntity(sheetId, "custom_commands").catch(() => [])) as unknown[])
+    : (rowsByTab.custom_commands ?? []);
+  const settingsRows = (settingsOnPg
+    ? ((await listEntity(sheetId, "bot_settings").catch(() => [])) as Array<{ key: string; value: unknown }>)
+    : (rowsByTab.bot_settings ?? [])) as Array<{ key: string; value: unknown }>;
 
   let pluginCount = 0;
   const statesRow = settingsRows.find((r) => r.key === "__plugin_states__");
@@ -465,7 +487,7 @@ async function getLiveBotCounts(sheetId: string) {
     pluginCount = Object.values(statesRow.value as Record<string, unknown>).filter(Boolean).length;
   }
 
-  const counts = { userCount: usersRows.length, commandCount: cmdRows.length, pluginCount };
+  const counts = { userCount: usersCount, commandCount: cmdRows.length, pluginCount };
   liveCountsCache.set(sheetId, { at: Date.now(), counts });
   return counts;
 }

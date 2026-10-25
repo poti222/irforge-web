@@ -18,12 +18,10 @@
  * درون‌پروسسی — هم‌اندازه‌ی `CACHE_TTL` خودِ بات — این را به ۱ فراخوانی در
  * دقیقه می‌رساند بدون اینکه عددها به‌شکل محسوسی کهنه شوند.
  */
-import { listEntity } from "./botConfig.js";
+import { listUsersLight } from "./botConfig.js";
 import { tehranDayKey, tehranToday, tehranLastDays } from "./tehranTime.js";
 import { logger } from "./logger.js";
-import type { BotUser } from "./botTypes.js";
 
-const USERS_TAB = "users";
 const TTL_MS = 60_000;
 const DAYS_IN_CHART = 7;
 
@@ -48,7 +46,10 @@ function emptyStats(): BotUserStats {
   };
 }
 
-function compute(users: BotUser[]): BotUserStats {
+/** فقط آنچه شمارش لازم دارد: همان `last_seen`ی که خودِ بات می‌نویسد (شیت یا Postgres). */
+type LightUser = { last_seen?: string | null };
+
+function compute(users: LightUser[]): BotUserStats {
   const today = tehranToday();
   const days = tehranLastDays(DAYS_IN_CHART);
   const counts = new Map<string, number>(days.map((d) => [d, 0]));
@@ -82,10 +83,8 @@ export async function botUserStats(spreadsheetId: string): Promise<BotUserStats>
   if (cached && Date.now() - cached.at < TTL_MS) return cached.stats;
 
   try {
-    const rows = await listEntity<BotUser>(spreadsheetId, USERS_TAB);
-    const users = rows
-      .filter((r) => r.value && typeof r.value === "object")
-      .map((r) => r.value as BotUser);
+    // cutover-aware: باتی که `users`اش روی Postgres است، دیگر در شیت نمی‌نویسد.
+    const users = await listUsersLight(spreadsheetId);
     const stats = compute(users);
     cache.set(spreadsheetId, { at: Date.now(), stats });
     return stats;
