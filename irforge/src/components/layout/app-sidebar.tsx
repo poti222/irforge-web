@@ -35,6 +35,7 @@ import {
   Wallet,
   Headset,
   Globe,
+  Lock,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useThemeSweep } from "@/hooks/use-theme-sweep";
@@ -151,11 +152,20 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location.startsWith("/products")} tooltip={nav.buyBot}>
-                  <Link href="/products" data-testid="nav-buy-bot" onClick={closeMobileMenu}>
-                    <ShoppingBag />
-                    <span>{nav.buyBot}</span>
-                  </Link>
+                {/* قفل موقت: خرید ربات‌ها به صفحه‌ی «Telegram Bots» منتقل شد و
+                    خودِ بخش Products فعلاً بسته است. ردیف دیده می‌شود ولی کلیک‌پذیر نیست
+                    (لینک ندارد)؛ مسیر /products هم به /bots?buy=1 هدایت می‌شود. */}
+                <SidebarMenuButton
+                  aria-disabled="true"
+                  tabIndex={-1}
+                  tooltip={nav.buyBot}
+                  data-testid="nav-buy-bot"
+                  className="cursor-not-allowed opacity-50 hover:bg-transparent hover:text-sidebar-foreground active:bg-transparent"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  <ShoppingBag />
+                  <span>{nav.buyBot}</span>
+                  <Lock className="ms-auto size-3.5 shrink-0" aria-hidden />
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

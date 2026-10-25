@@ -2,7 +2,7 @@
   "common": {
     "dashboard": "Panel",
     "buyBot": "Ürünler",
-    "myBots": "Ürünlerim",
+    "myBots": "Telegram Botları",
     "myInvoices": "Faturalarım",
     "support": "Destek",
     "tickets": "Talepler",
@@ -485,7 +485,7 @@
   },
   "pageTitles": {
     "dashboard": "Panel",
-    "bots": "Ürünlerim",
+    "bots": "Telegram Botları",
     "wallet": "Cüzdan",
     "invoices": "Faturalar",
     "tickets": "Destek talepleri",
@@ -534,7 +534,8 @@
     "subtitle": "Botlarınıza tek bakışta"
   },
   "bots": {
-    "title": "Ürünlerim",
+    "title": "Telegram Botları",
+    "buySectionTitle": "Yeni bot satın al",
     "createNewBot": "Yeni Bot Oluştur",
     "noDescription": "Açıklama girilmedi.",
     "usersLabel": "Kullanıcılar",

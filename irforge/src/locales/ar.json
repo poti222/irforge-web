@@ -2,7 +2,7 @@
   "common": {
     "dashboard": "لوحة التحكم",
     "buyBot": "المنتجات",
-    "myBots": "منتجاتي",
+    "myBots": "بوتات تيليجرام",
     "myInvoices": "فواتيري",
     "support": "الدعم",
     "tickets": "التذاكر",
@@ -485,7 +485,7 @@
   },
   "pageTitles": {
     "dashboard": "لوحة التحكم",
-    "bots": "منتجاتي",
+    "bots": "بوتات تيليجرام",
     "wallet": "المحفظة",
     "invoices": "الفواتير",
     "tickets": "تذاكر الدعم",
@@ -534,7 +534,8 @@
     "subtitle": "حالة روبوتاتك بنظرة واحدة"
   },
   "bots": {
-    "title": "منتجاتي",
+    "title": "بوتات تيليجرام",
+    "buySectionTitle": "شراء بوت جديد",
     "createNewBot": "إنشاء بوت جديد",
     "noDescription": "لا يوجد وصف.",
     "usersLabel": "المستخدمون",

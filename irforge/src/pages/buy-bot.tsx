@@ -131,6 +131,57 @@ export default function BuyBot() {
   );
 }
 
+/**
+ * بخش خریدِ ربات — همان بنرِ تریال + کارت‌های پکیجِ دسته‌ی «bot» که قبلاً صفحه‌ی
+ * Products نشان می‌داد، حالا به‌صورت یک بخشِ مستقل تا صفحه‌ی Telegram Bots
+ * (`/bots`) آن را زیرِ ربات‌های خریداری‌شده نمایش دهد. داده و لینکِ خرید
+ * (`/products/:id`) دقیقاً مثلِ قبل است.
+ */
+export function BotPurchaseSection() {
+  const { lang } = useLanguage();
+  const fa = lang === "fa";
+  const t = useT("buyBot");
+  const tt = useT("botTiers");
+  const { user } = useAuth();
+  const ArrowIcon = fa ? ArrowLeft : ArrowRight;
+  const [trialOpen, setTrialOpen] = useState(false);
+  const hasUsedTrial = Boolean(user?.hasUsedTrial);
+
+  function tierText(productId: string) {
+    switch (productId) {
+      case "standard": return tt.standard;
+      case "pro": return tt.pro;
+      case "test": return tt.test;
+      default: return null;
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {!hasUsedTrial && (
+        <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-6 text-center sm:flex-row sm:justify-between sm:text-start">
+          <div className="flex items-center gap-4">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Gift className="size-6" />
+            </div>
+            <div>
+              <p className="font-semibold">{t.trialTitle}</p>
+              <p className="text-sm text-muted-foreground">{t.trialDesc}</p>
+            </div>
+          </div>
+          <GlowButton className="w-full sm:w-auto shrink-0" onClick={() => setTrialOpen(true)}>
+            <Gift className="me-2 h-4 w-4" /> {t.trialCta}
+          </GlowButton>
+        </div>
+      )}
+
+      <BotCategoryGrid tierText={tierText} tt={tt} t={t} lang={lang} fa={fa} ArrowIcon={ArrowIcon} />
+
+      <TrialDialog open={trialOpen} onOpenChange={setTrialOpen} />
+    </div>
+  );
+}
+
 /** دسته‌ی «بات» — دقیقاً همان کارت‌های قبلی، فقط داده از products (category=bot) می‌آید. */
 function BotCategoryGrid({
   tierText, tt, t, lang, fa, ArrowIcon,

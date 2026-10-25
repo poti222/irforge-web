@@ -1,8 +1,10 @@
 import { useListBots } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Bot as BotIcon, ArrowRight, Gift, Settings } from "lucide-react";
+import { Plus, Bot as BotIcon, ArrowRight, Gift, Settings, ShoppingBag } from "lucide-react";
 import { Link } from "wouter";
+import { useEffect, useRef } from "react";
+import { BotPurchaseSection } from "@/pages/buy-bot";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
@@ -77,6 +79,19 @@ export default function Bots() {
   const { data: bots, isLoading } = useListBots();
   const nf = (n: number | undefined) => (n ?? 0).toLocaleString(lang === "fa" ? "fa-IR" : "en-US");
 
+  // «Create New Bot» دیگر به صفحه‌ی دیگری نمی‌رود؛ نرم تا بخش خرید (انتهای همین صفحه) اسکرول می‌کند.
+  const buyRef = useRef<HTMLElement | null>(null);
+  const scrollToBuy = () => buyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // لینک‌های قدیمیِ /products به /bots?buy=1 می‌آیند؛ بعد از بارگذاری بات‌ها تا بخش خرید اسکرول کن.
+  useEffect(() => {
+    if (isLoading) return;
+    if (new URLSearchParams(window.location.search).get("buy") !== "1") return;
+    const id = window.setTimeout(scrollToBuy, 50);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
+
   return (
     <div className="space-y-10">
       {/* Creating a bot now always starts from the Buy Bot flow. */}
@@ -85,10 +100,8 @@ export default function Bots() {
         title={t.title}
         description={bots && bots.length > 0 ? `${nf(bots.length)} · ${t.myBotsTitle}` : t.myBotsTitle}
         actions={
-          <Button asChild size="lg" className="w-full sm:w-auto">
-            <Link href="/products">
-              <Plus className="me-2 h-4 w-4" /> {t.createNewBot}
-            </Link>
+          <Button size="lg" className="w-full sm:w-auto" onClick={scrollToBuy} data-testid="btn-create-new-bot">
+            <Plus className="me-2 h-4 w-4" /> {t.createNewBot}
           </Button>
         }
       />
@@ -203,16 +216,22 @@ export default function Bots() {
           <p className="mx-auto mb-6 max-w-sm text-muted-foreground">
             {t.noBotsDesc}
           </p>
-          <Button asChild size="lg">
-            <Link href="/products">
-              <Plus className="me-2 h-4 w-4" /> {t.createFirstBot}
-            </Link>
+          <Button size="lg" onClick={scrollToBuy}>
+            <Plus className="me-2 h-4 w-4" /> {t.createFirstBot}
           </Button>
         </div>
       )}
       </div>
 
       <OtherProductsSection />
+
+      {/* بخش خرید — زیرِ ربات‌های خریداری‌شده (قبلاً صفحه‌ی جدای Products بود). */}
+      <section ref={buyRef} id="buy-bots" data-testid="buy-bots-section" className="scroll-mt-6 space-y-5">
+        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <ShoppingBag className="size-5 text-primary" /> {t.buySectionTitle}
+        </h2>
+        <BotPurchaseSection />
+      </section>
     </div>
   );
 }

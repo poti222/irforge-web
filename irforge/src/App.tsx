@@ -67,7 +67,6 @@ const ResetPassword = lazy(() => import("@/pages/reset-password"));
 const CompleteProfile = lazy(() => import("@/pages/complete-profile"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const Bots = lazy(() => import("@/pages/bots"));
-const BuyBot = lazy(() => import("@/pages/buy-bot"));
 const BuyBotDetail = lazy(() => import("@/pages/buy-bot-detail"));
 const Checkout = lazy(() => import("@/pages/checkout"));
 const BotWorkspace = lazy(() => import("@/pages/bot-workspace"));
@@ -450,7 +449,10 @@ function Router() {
       <Route path="/bots"><ProtectedRoute component={Bots} /></Route>
       <Route path="/discord-bots"><ProtectedRoute component={DiscordBots} /></Route>
       <Route path="/discord-bots/:id"><ProtectedRoute component={DiscordBotEditor} /></Route>
-      <Route path="/products"><ProtectedRoute component={BuyBot} /></Route>
+      {/* لیست Products قفل است؛ خرید ربات‌ها داخل صفحه‌ی Telegram Bots (/bots) است.
+          ?buy=1 صفحه را تا بخش خرید اسکرول می‌کند. /products/:tierId (جزئیات و
+          پرداخت) سر جایش می‌ماند. */}
+      <Route path="/products"><Redirect to="/bots?buy=1" replace /></Route>
       <Route path="/products/:tierId"><ProtectedRoute component={BuyBotDetail} /></Route>
       {/* IRFORGE_PRODUCTS_SECTION_PROMPT Phase 3 — "Buy Bot" renamed to
           "Products"/محصولات; these keep any existing /buy-bot bookmark or

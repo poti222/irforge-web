@@ -2,7 +2,7 @@
   "common": {
     "dashboard": "Dashboard",
     "buyBot": "Products",
-    "myBots": "My Products",
+    "myBots": "Telegram Bots",
     "myInvoices": "My Invoices",
     "support": "Support",
     "tickets": "Tickets",
@@ -485,7 +485,7 @@
   },
   "pageTitles": {
     "dashboard": "Dashboard",
-    "bots": "My Products",
+    "bots": "Telegram Bots",
     "wallet": "Wallet",
     "invoices": "Invoices",
     "tickets": "Support tickets",
@@ -534,7 +534,8 @@
     "subtitle": "Your bots at a glance"
   },
   "bots": {
-    "title": "My Products",
+    "title": "Telegram Bots",
+    "buySectionTitle": "Buy a new bot",
     "createNewBot": "Create New Bot",
     "noDescription": "No description provided.",
     "usersLabel": "Users",

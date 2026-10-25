@@ -2,7 +2,7 @@
   "common": {
     "dashboard": "Панель управления",
     "buyBot": "Продукты",
-    "myBots": "Мои продукты",
+    "myBots": "Telegram-боты",
     "myInvoices": "Мои счета",
     "support": "Поддержка",
     "tickets": "Тикеты",
@@ -485,7 +485,7 @@
   },
   "pageTitles": {
     "dashboard": "Панель",
-    "bots": "Мои продукты",
+    "bots": "Telegram-боты",
     "wallet": "Кошелёк",
     "invoices": "Счета",
     "tickets": "Тикеты поддержки",
@@ -534,7 +534,8 @@
     "subtitle": "Ваши боты с первого взгляда"
   },
   "bots": {
-    "title": "Мои продукты",
+    "title": "Telegram-боты",
+    "buySectionTitle": "Купить нового бота",
     "createNewBot": "Создать нового бота",
     "noDescription": "Описание отсутствует.",
     "usersLabel": "Пользователи",

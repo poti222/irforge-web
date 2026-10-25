@@ -2,7 +2,7 @@
   "common": {
     "dashboard": "داشبورد",
     "buyBot": "محصولات",
-    "myBots": "محصولاتِ من",
+    "myBots": "ربات‌های تلگرام",
     "myInvoices": "فاکتورهای من",
     "support": "پشتیبانی",
     "tickets": "تیکت‌ها",
@@ -485,7 +485,7 @@
   },
   "pageTitles": {
     "dashboard": "داشبورد",
-    "bots": "محصولاتِ من",
+    "bots": "ربات‌های تلگرام",
     "wallet": "کیف پول",
     "invoices": "فاکتورها",
     "tickets": "تیکت‌های پشتیبانی",
@@ -534,7 +534,8 @@
     "subtitle": "وضعیت بات‌هایت در یک نگاه"
   },
   "bots": {
-    "title": "محصولاتِ من",
+    "title": "ربات‌های تلگرام",
+    "buySectionTitle": "خرید ربات جدید",
     "createNewBot": "ساخت ربات جدید",
     "noDescription": "بدون توضیحات.",
     "usersLabel": "کاربران",
