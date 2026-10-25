@@ -25,17 +25,59 @@
 import { eq, inArray, and } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { logger } from "./logger";
-import { tgApi } from "./telegram";
+import { tgApi, tgSendPhotoUpload } from "./telegram";
 
 /**
  * فقط برای تحویلِ تلگرام (ذخیره نمی‌شود): متنِ کوتاه‌تر و/یا دکمه‌ی اختصاصی.
  * `path` نسبت به `PUBLIC_SITE_URL` است. `style` همان رنگِ دکمه‌ی Bot API است
  * (`danger` = قرمز).
+ *
+ * `photo` (اختیاری): عکسی که همراهِ پیام می‌رود — یا data-URL
+ * (`data:image/png;base64,…`) یا مسیرِ نسبیِ هم‌مبدأ (`/api/uploads/images/<uuid>`).
+ * متنِ پیام کپشنِ عکس می‌شود؛ اگر از سقفِ ۱۰۲۴ نویسه‌ی تلگرام بلندتر بود،
+ * عکس بدون کپشن می‌رود و متن (با دکمه) در پیامِ بعدی. اگر عکس قابل‌ارسال نبود،
+ * همان پیامِ متنیِ قبلی می‌رود — اعلان هیچ‌وقت به‌خاطر عکس گم نمی‌شود.
  */
 export type TelegramOverride = {
   message?: string;
   button?: { text: string; path: string; style?: "primary" | "success" | "danger" };
+  photo?: string;
 };
+
+/** سقفِ کپشنِ عکس در Bot API. */
+export const TELEGRAM_CAPTION_MAX = 1024;
+
+export type ResolvedPhoto =
+  | { kind: "url"; url: string }
+  | { kind: "upload"; file: Buffer; mimeType: string };
+
+/**
+ * `telegram.photo` را به چیزی تبدیل می‌کند که sendPhoto بفهمد. فقط JPEG/PNG/WebP
+ * (sendPhoto از SVG و … پشتیبانی نمی‌کند)؛ هر چیزِ دیگر → `null` یعنی «بدون عکس».
+ */
+export function resolvePhoto(photo: string | undefined, siteUrl: string | undefined): ResolvedPhoto | null {
+  if (!photo) return null;
+  if (photo.startsWith("data:image/")) {
+    const i = photo.indexOf(";base64,");
+    if (i < 0) return null;
+    const mimeType = photo.slice(5, i).toLowerCase();
+    if (!/^image\/(jpeg|jpg|png|webp)$/.test(mimeType)) return null;
+    const file = Buffer.from(photo.slice(i + 8), "base64");
+    return file.length > 0 ? { kind: "upload", file, mimeType } : null;
+  }
+  // `//host` از مبدأ بیرون می‌رود؛ فقط مسیرِ هم‌مبدأ با یک اسلش.
+  if (photo.startsWith("/") && !photo.startsWith("//") && siteUrl) {
+    return { kind: "url", url: `${siteUrl.replace(/\/+$/, "")}${photo}` };
+  }
+  return null;
+}
+
+/** آیا کلِ متنِ پیام (بدون تگ‌های HTML) در کپشنِ عکس جا می‌شود؟ */
+export function captionFits(input: TelegramNotificationInput): boolean {
+  const body = input.telegram?.message ?? input.message;
+  const plain = `${icon(input.severity, input.type)} ${input.title}\n\n${body}`;
+  return Array.from(plain).length <= TELEGRAM_CAPTION_MAX;
+}
 
 export type TelegramNotificationInput = {
   type: string;
@@ -142,15 +184,57 @@ export async function deliverToTelegram(
     const text = renderMessage(input);
     const reply_markup = siteUrl ? telegramKeyboard(siteUrl, input) : undefined;
 
+    // عکسِ اختیاری. اگر متن در کپشن جا شود، پیام و دکمه همراهِ عکس می‌رود؛ وگرنه
+    // عکسِ بی‌کپشن و بعدش همان پیامِ متنی.
+    const photo = resolvePhoto(input.telegram?.photo, siteUrl);
+    const asCaption = photo !== null && captionFits(input);
+    // بعد از اولین ارسالِ موفق، `file_id` را نگه می‌داریم تا برای بقیه دوباره آپلود/دانلود نشود.
+    let fileId: string | null = null;
+    let photoFailures = 0;
+    let photoBroken = false;
+
+    const sendPhotoTo = (chatId: string) => {
+      const caption = asCaption
+        ? { caption: text, parse_mode: "HTML", ...(reply_markup ? { reply_markup } : {}) }
+        : {};
+      if (fileId) return tgApi(token, "sendPhoto", { chat_id: chatId, photo: fileId, ...caption });
+      if (photo!.kind === "url") return tgApi(token, "sendPhoto", { chat_id: chatId, photo: photo!.url, ...caption });
+      return tgSendPhotoUpload(token, {
+        chat_id: chatId,
+        file: photo!.file,
+        mimeType: photo!.mimeType,
+        ...caption,
+      });
+    };
+
     let delivered = 0;
     for (const recipient of recipients) {
-      const result = await tgApi(token, "sendMessage", {
-        chat_id: recipient.telegramId,
-        text,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-        ...(reply_markup ? { reply_markup } : {}),
-      });
+      let photoDone = false;
+      if (photo && !photoBroken) {
+        const sent = await sendPhotoTo(recipient.telegramId);
+        if (sent.ok) {
+          photoDone = true;
+          const sizes = (sent.result as { photo?: { file_id: string }[] } | undefined)?.photo;
+          fileId ??= sizes?.length ? sizes[sizes.length - 1].file_id : null;
+        } else if (!fileId && ++photoFailures >= 3) {
+          // سه بار پشت‌سرهم و هنوز یک ارسالِ موفق نداشته‌ایم → مشکل از خودِ عکس است، نه گیرنده.
+          photoBroken = true;
+          logger.warn({ description: sent.description }, "telegram photo failed repeatedly; sending text only");
+        }
+      }
+
+      // عکسِ همراهِ کپشن = پیام تحویل شده؛ در غیر این صورت (بدون عکس، عکس خراب، یا
+      // کپشنِ بلند) پیامِ متنیِ همیشگی می‌رود.
+      const result =
+        photoDone && asCaption
+          ? { ok: true as const, description: undefined }
+          : await tgApi(token, "sendMessage", {
+              chat_id: recipient.telegramId,
+              text,
+              parse_mode: "HTML",
+              disable_web_page_preview: true,
+              ...(reply_markup ? { reply_markup } : {}),
+            });
       if (result.ok) {
         delivered++;
       } else {

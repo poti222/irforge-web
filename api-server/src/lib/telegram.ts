@@ -51,6 +51,33 @@ export async function tgApi<T = any>(
 }
 
 /**
+ * sendPhoto با **فایلِ واقعی** (multipart) — برای عکس‌هایی که data-URL هستند و
+ * URL عمومی ندارند. اگر عکس URL عمومی یا `file_id` دارد، همان `tgApi(token,
+ * "sendPhoto", { photo })` کافی است. `reply_markup` JSON-string می‌شود چون
+ * multipart مقدار شیء نمی‌گیرد.
+ */
+export async function tgSendPhotoUpload<T = any>(
+  botToken: string,
+  params: {
+    chat_id: string | number;
+    file: Buffer;
+    mimeType: string;
+    caption?: string;
+    parse_mode?: string;
+    reply_markup?: unknown;
+  },
+): Promise<{ ok: boolean; result?: T; description?: string }> {
+  const form = new FormData();
+  form.set("chat_id", String(params.chat_id));
+  form.set("photo", new Blob([params.file], { type: params.mimeType }), "update-image");
+  if (params.caption) form.set("caption", params.caption);
+  if (params.parse_mode) form.set("parse_mode", params.parse_mode);
+  if (params.reply_markup) form.set("reply_markup", JSON.stringify(params.reply_markup));
+  const res = await fetch(`${telegramApiBase()}/bot${botToken}/sendPhoto`, { method: "POST", body: form });
+  return (await res.json()) as { ok: boolean; result?: T; description?: string };
+}
+
+/**
  * setMyProfilePhoto (added to Bot API mid-2026, see
  * https://core.telegram.org/bots/api#setmyprofilephoto) takes multipart/form-data
  * with a real file, unlike the rest of the JSON-only Bot API — so it can't

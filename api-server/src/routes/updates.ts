@@ -589,6 +589,10 @@ router.post("/admin/updates/:id/publish", requireAdmin, async (req: any, res) =>
         telegram: {
           message: updateTeaser(update.body).text,
           button: { text: "مشاهده‌ی آپدیت کامل از سایت", path: "/dashboard", style: "danger" },
+          // اولین عکسِ آپدیت همراهِ پیامِ تلگرام می‌رود (اگر آپدیت عکس نداشت، فقط متن).
+          photo: (update.blocks ?? []).find(
+            (b): b is Extract<UpdateBlock, { type: "image" }> => b.type === "image",
+          )?.url,
         },
       },
     );

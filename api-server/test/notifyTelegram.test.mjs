@@ -81,3 +81,34 @@ test("آیکن پیام با نتیجه‌ی رویداد می‌خواند", ()
   assert.equal(icon("trial_warning", "warning"), "⚠️");
   assert.equal(icon("announcement"), "🔔");
 });
+
+// ── عکسِ همراهِ پیام (آپدیت‌های سایت) ─────────────────────────────
+const { resolvePhoto, captionFits } = await import("../src/lib/notifyTelegram.ts");
+
+test("resolvePhoto: data-URL → آپلود، مسیر نسبی → URL عمومی، بقیه → null", () => {
+  const png = "data:image/png;base64," + Buffer.from("x").toString("base64");
+  const up = resolvePhoto(png, SITE);
+  assert.equal(up?.kind, "upload");
+  assert.equal(up?.mimeType, "image/png");
+
+  assert.deepEqual(resolvePhoto("/api/uploads/images/abc", `${SITE}/`), {
+    kind: "url",
+    url: `${SITE}/api/uploads/images/abc`,
+  });
+});
+
+test("resolvePhoto: svg، لینک بیرونی، protocol-relative و خالی رد می‌شوند", () => {
+  assert.equal(resolvePhoto("data:image/svg+xml;base64,AAAA", SITE), null);
+  assert.equal(resolvePhoto("https://evil.example/a.png", SITE), null);
+  assert.equal(resolvePhoto("//evil.example/a.png", SITE), null);
+  assert.equal(resolvePhoto("/api/uploads/images/abc", undefined), null);
+  assert.equal(resolvePhoto(undefined, SITE), null);
+});
+
+test("captionFits: متن کوتاه جا می‌شود، متن بلندتر از ۱۰۲۴ نه", () => {
+  const base = { type: "site_update", severity: "info", title: "عنوان" };
+  assert.equal(captionFits({ ...base, message: "کوتاه" }), true);
+  assert.equal(captionFits({ ...base, message: "ا".repeat(2000) }), false);
+  // متنِ تلگرامیِ اختصاصی ملاک است، نه message سایت
+  assert.equal(captionFits({ ...base, message: "ا".repeat(2000), telegram: { message: "کوتاه" } }), true);
+});
