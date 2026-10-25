@@ -56,6 +56,7 @@ import {
 import { renameSpreadsheet, sheetIsAccessible, resetSpreadsheet, ensureAllTenantTabs } from "../lib/sheets";
 import { readTabRows, readTabRowsBatch } from "../lib/tenantSheets.js";
 import { listEntity, listUsersLight, isEntityOnPostgres } from "../lib/botConfig.js";
+import { autoQueuePostgresForNewTenant } from "../lib/sheetsImport.js";
 import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
 import { purgeBotFully, markSheetTitleFreed } from "../lib/botPurge.js";
 import { createNotification, notifySuperAdmins, formatTomanFa } from "../lib/notify";
@@ -111,6 +112,9 @@ async function claimFreeSheet(botId: string) {
     .set({ status: "assigned", assignedBotId: botId })
     .where(inArray(sheetPoolTable.id, picked))
     .returning();
+
+  // باتِ جدید از همان لحظه‌ی گرفتنِ شیت روی Postgres برود (best-effort، بدونِ await).
+  if (claimed) void autoQueuePostgresForNewTenant(claimed.sheetId);
 
   return claimed ?? null;
 }

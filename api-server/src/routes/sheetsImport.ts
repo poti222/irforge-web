@@ -78,39 +78,8 @@ router.get("/superadmin/sheets-import/requests", requireSuperAdmin, async (_req,
   }
 });
 
-// ─── POST /superadmin/sheets-import/:botId ─────────────────────────────────
-// «توسط من» — یک بات مشخص را صف کن.
-
-router.post("/superadmin/sheets-import/:botId", requireSuperAdmin, async (req: any, res) => {
-  const { botId } = req.params;
-  try {
-    const [bot] = await db
-      .select({ id: botsTable.id, sheetId: botsTable.sheetId })
-      .from(botsTable)
-      .where(eq(botsTable.id, botId))
-      .limit(1);
-    if (!bot) {
-      res.status(404).json({ error: "بات پیدا نشد." });
-      return;
-    }
-    if (!bot.sheetId) {
-      res.status(400).json({ error: "این بات هنوز شیتی ندارد — چیزی برای مهاجرت نیست." });
-      return;
-    }
-
-    const request = await enqueueSheetsImport(bot.sheetId, req.userId);
-    await writeAudit({
-      actorUserId: req.userId,
-      action: "sheets_import_requested",
-      metadata: { botId, tenantId: bot.sheetId, requestId: request.id },
-    });
-    res.json(request);
-  } catch (err) {
-    logger.error({ err, botId }, "POST /superadmin/sheets-import/:botId failed");
-    res.status(500).json({ error: "درخواستِ مهاجرت ثبت نشد." });
-  }
-});
-
+// ⚠️ ترتیب مهم است: `/bulk` باید قبل از `/:botId` ثبت شود. وگرنه Express کلمه‌ی «bulk» را
+// به‌جای شناسه‌ی بات می‌گیرد و «مهاجرت همه» همیشه HTTP 404 «بات پیدا نشد» می‌داد.
 // ─── POST /superadmin/sheets-import/bulk ───────────────────────────────────
 // «هر بات جدیدی که ساخته میشه یا توسط من» — مهاجرتِ دسته‌ایِ چند بات با
 // یک کلیک (مثلاً همه‌ی بات‌های موجود، یک‌بار برای همیشه).
@@ -151,6 +120,39 @@ router.post("/superadmin/sheets-import/bulk", requireSuperAdmin, async (req: any
   } catch (err) {
     logger.error({ err }, "POST /superadmin/sheets-import/bulk failed");
     res.status(500).json({ error: "درخواستِ دسته‌ای مهاجرت ثبت نشد." });
+  }
+});
+
+// ─── POST /superadmin/sheets-import/:botId ─────────────────────────────────
+// «توسط من» — یک بات مشخص را صف کن.
+
+router.post("/superadmin/sheets-import/:botId", requireSuperAdmin, async (req: any, res) => {
+  const { botId } = req.params;
+  try {
+    const [bot] = await db
+      .select({ id: botsTable.id, sheetId: botsTable.sheetId })
+      .from(botsTable)
+      .where(eq(botsTable.id, botId))
+      .limit(1);
+    if (!bot) {
+      res.status(404).json({ error: "بات پیدا نشد." });
+      return;
+    }
+    if (!bot.sheetId) {
+      res.status(400).json({ error: "این بات هنوز شیتی ندارد — چیزی برای مهاجرت نیست." });
+      return;
+    }
+
+    const request = await enqueueSheetsImport(bot.sheetId, req.userId);
+    await writeAudit({
+      actorUserId: req.userId,
+      action: "sheets_import_requested",
+      metadata: { botId, tenantId: bot.sheetId, requestId: request.id },
+    });
+    res.json(request);
+  } catch (err) {
+    logger.error({ err, botId }, "POST /superadmin/sheets-import/:botId failed");
+    res.status(500).json({ error: "درخواستِ مهاجرت ثبت نشد." });
   }
 });
 

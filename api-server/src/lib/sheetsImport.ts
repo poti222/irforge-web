@@ -93,6 +93,31 @@ export async function enqueueSheetsImport(
   return mapRow(rows[0]);
 }
 
+/**
+ * هر باتِ تازه (تننتِ تازه) از همان ابتدا روی Postgres برود: یک درخواستِ ایمپورتِ `pending` برای
+ * تننتِ تازه صف می‌شود تا workerِ بات همه‌ی entityها را روی Postgres روشن کند (شیتِ تازه خالی است،
+ * پس چیزی برای کپی نیست — فقط پرچم‌ها روشن می‌شوند). Best-effort و fail-open: هیچ‌وقت ساختنِ بات را
+ * خراب نمی‌کند. با `AUTO_POSTGRES_NEW_BOTS=0` خاموش می‌شود. اگر درخواستِ در جریان یا پرچمِ روشن از
+ * قبل باشد، تکراری صف نمی‌شود.
+ */
+export async function autoQueuePostgresForNewTenant(tenantId: string | null | undefined): Promise<void> {
+  if (!tenantId || process.env.AUTO_POSTGRES_NEW_BOTS === "0") return;
+  try {
+    const pool = getCutoverPool();
+    if (!pool) return;
+    const { rows } = await pool.query(
+      `SELECT
+         (SELECT count(*) FROM sheets_import_requests WHERE tenant_id = $1 AND status = ANY($2)) AS inflight,
+         (SELECT count(*) FROM entity_cutover_flags WHERE tenant_id = $1 AND use_db = true) AS flagged`,
+      [tenantId, [...IN_FLIGHT_STATUSES]]
+    );
+    if (Number(rows[0]?.inflight ?? 0) > 0 || Number(rows[0]?.flagged ?? 0) > 0) return;
+    await enqueueSheetsImport(tenantId, "system:new-bot");
+  } catch (err) {
+    logger.warn({ err, tenantId }, "autoQueuePostgresForNewTenant failed (non-fatal)");
+  }
+}
+
 export type TenantImportStatus = {
   tenantId: string;
   postgresEntityCount: number;
