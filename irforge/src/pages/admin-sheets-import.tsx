@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
-import { DatabaseBackup, Loader2, Database, Cloud, CheckCircle2, XCircle, Clock, History, RotateCw, TriangleAlert } from "lucide-react";
+import { DatabaseBackup, Loader2, Database, Cloud, CheckCircle2, XCircle, Clock, History, RotateCw, TriangleAlert, Zap } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -119,6 +119,7 @@ export default function AdminSheetsImport() {
   const queryClient = useQueryClient();
   const [confirmBot, setConfirmBot] = useState<BotRow | null>(null);
   const [confirmBulk, setConfirmBulk] = useState(false);
+  const [confirmForce, setConfirmForce] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   const { data: bots, isLoading, error } = useQuery({
@@ -179,6 +180,46 @@ export default function AdminSheetsImport() {
       toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: e?.message });
     },
   });
+
+  const forceAll = useMutation({
+    mutationFn: () =>
+      customFetch<{
+        summary: {
+          switched: number; alreadyComplete: number; inFlight: number; queuedImport: number;
+          noSheet: number; errors: number; entitiesFlipped: number;
+        };
+      }>("/api/superadmin/sheets-import/force-all", { method: "POST", body: JSON.stringify({}) }),
+    onSuccess: async ({ summary: s }) => {
+      toast({
+        title: fa ? `${s.switched} بات کامل روی Postgres رفت` : `${s.switched} bots fully switched to Postgres`,
+        description: fa
+          ? `${s.entitiesFlipped} بخش روشن شد` +
+            (s.inFlight ? ` · ${s.inFlight} بات در حال مهاجرت است (بعد از پایان دوباره بزنید)` : "") +
+            (s.queuedImport ? ` · ${s.queuedImport} بات برای اولین ایمپورت صف شد` : "") +
+            (s.errors ? ` · ${s.errors} خطا` : "")
+          : `${s.entitiesFlipped} entities switched` +
+            (s.inFlight ? ` · ${s.inFlight} still importing (press again when done)` : "") +
+            (s.queuedImport ? ` · ${s.queuedImport} queued for a first import` : "") +
+            (s.errors ? ` · ${s.errors} errors` : ""),
+        variant: s.errors ? "destructive" : undefined,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["admin", "sheets-import"] });
+    },
+    onError: (e: any) => {
+      toast({ variant: "destructive", title: fa ? "خطا" : "Error", description: e?.message });
+    },
+  });
+
+  const forceable = useMemo(
+    () =>
+      (bots ?? []).filter(
+        (b) =>
+          b.sheetId &&
+          !isInFlight(b.status?.latestRequest?.status) &&
+          !(b.status && b.status.totalEntityCount > 0 && b.status.postgresEntityCount >= b.status.totalEntityCount)
+      ),
+    [bots]
+  );
 
   const migratable = useMemo(
     () => (bots ?? []).filter((b) => b.sheetId && !(b.status?.postgresEntityCount ?? 0) && !isInFlight(b.status?.latestRequest?.status)),
@@ -256,6 +297,16 @@ export default function AdminSheetsImport() {
         >
           {migrateBulk.isPending ? <Loader2 className="me-2 size-4 animate-spin" /> : null}
           {fa ? `مهاجرت همه (${migratable.length})` : `Migrate all (${migratable.length})`}
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          disabled={forceable.length === 0 || forceAll.isPending}
+          onClick={() => setConfirmForce(true)}
+          data-testid="button-force-all"
+        >
+          {forceAll.isPending ? <Loader2 className="me-2 size-4 animate-spin" /> : <Zap className="me-2 size-4" />}
+          {fa ? `اجبار همه به Postgres (${forceable.length})` : `Force all to Postgres (${forceable.length})`}
         </Button>
         <Button variant="ghost" size="sm" onClick={() => setShowHistory((v) => !v)} data-testid="button-toggle-history">
           <History className="me-2 size-4" />
@@ -400,6 +451,31 @@ export default function AdminSheetsImport() {
               data-testid="button-confirm-migrate"
             >
               {fa ? "مهاجرت کن" : "Migrate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmForce} onOpenChange={setConfirmForce}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{fa ? "اجبار همه‌ی بات‌ها به Postgres؟" : "Force all bots onto Postgres?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {fa
+                ? `برای ${forceable.length} بات، همه‌ی بخش‌هایی که هنوز روی Postgres نیستند همین الان روشن می‌شوند — چه ایمپورتشان ناقص مانده باشد چه اصلاً شروع نشده باشد. هرچه از شیت قبلاً کپی شده بماند، بقیه خالی ساخته می‌شوند. ⚠️ دیتایی که فقط روی شیتِ یک بات مانده و کپی نشده بود دیگر خوانده نمی‌شود (خودِ شیت پاک نمی‌شود و با صفحه‌ی Cutover Flags می‌شود برگرداند). باتی که ایمپورتش در جریان است دست‌نخورده می‌ماند.`
+                : `For ${forceable.length} bots, every entity not yet on Postgres is switched on right now, whether its import stalled halfway or never ran. Whatever was already copied from Sheets stays; the rest are created empty. ⚠️ Data that exists only on a bot sheet and was never copied will no longer be read (the sheet itself is not deleted, and flags can be reverted from Cutover Flags). Bots with an import in progress are left untouched.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{fa ? "انصراف" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                forceAll.mutate();
+                setConfirmForce(false);
+              }}
+              data-testid="button-confirm-force-all"
+            >
+              {fa ? "اجبار کن" : "Force switch"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

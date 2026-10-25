@@ -41,6 +41,7 @@ export type AuditAction =
   // IRFORGE_POSTGRES_PRIMARY_SHEETS_BACKUP_PROMPT فاز ۲ — درخواستِ مهاجرتِ
   // دیتای یک تننتِ خاص از Sheets به Postgres، از routes/sheetsImport.ts.
   | "sheets_import_requested"
+  | "sheets_import_force_all"
   // IRFORGE_CARD_AUTOCONFIRM_PROMPT فاز ۷ — مدیریتِ کانالِ پرداختِ خودکارِ یک بات. metadata فقط شناسه‌ها
   // (botId/channelId/kind)؛ هرگز شماره‌کارت یا secret.
   | "payment_channel_created"

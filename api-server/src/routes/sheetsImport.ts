@@ -22,7 +22,9 @@ import {
   enqueueSheetsImport,
   listTenantImportStatuses,
   listRecentSheetsImportRequests,
+  IN_FLIGHT_STATUSES,
 } from "../lib/sheetsImport.js";
+import { forceTenantToPostgres, planForce } from "../lib/sheetsForceCutover.js";
 
 const router = Router();
 
@@ -75,6 +77,86 @@ router.get("/superadmin/sheets-import/requests", requireSuperAdmin, async (_req,
   } catch (err) {
     logger.error({ err }, "GET /superadmin/sheets-import/requests failed");
     res.status(500).json({ error: "خواندنِ فهرستِ درخواست‌ها ممکن نشد." });
+  }
+});
+
+// ─── POST /superadmin/sheets-import/force-all ──────────────────────────────
+// «کل دیتابیسِ بات‌ها را یک‌جا بیاور روی Postgres — مهم نیست اطلاعات هست یا نه.» برای هر تننتی که ایمپورتش
+// در جریان نیست، همه‌ی entityهایی که هنوز روی Postgres نیستند روشن می‌شوند: هرچه از شیت کپی شده بود می‌ماند،
+// بقیه خالی ساخته می‌شوند. شیت دست‌نخورده می‌ماند و پرچم‌ها از Cutover Flags برگشت‌پذیرند.
+// ⚠️ باید قبل از `/:botId` ثبت شود (همان مشکلِ ترتیبِ `/bulk`).
+
+router.post("/superadmin/sheets-import/force-all", requireSuperAdmin, async (req: any, res) => {
+  try {
+    const wanted: unknown = req.body?.botIds;
+    const botsAll = await db
+      .select({ id: botsTable.id, sheetId: botsTable.sheetId })
+      .from(botsTable);
+    const bots = Array.isArray(wanted) ? botsAll.filter((b: { id: string }) => wanted.includes(b.id)) : botsAll;
+
+    const tenantIds: string[] = [
+      ...new Set(
+        bots.map((b: { sheetId: string | null }) => b.sheetId).filter((x: string | null): x is string => Boolean(x))
+      ),
+    ];
+    const statuses = await listTenantImportStatuses(tenantIds);
+
+    // یک بار برای هر تننت (چند بات ممکن است یک شیت داشته باشند).
+    type Outcome = { outcome: string; flipped?: number; requestId?: string };
+    const byTenant = new Map<string, Outcome>();
+    for (const tenantId of tenantIds) {
+      const st = statuses.get(tenantId);
+      if (!st) {
+        byTenant.set(tenantId, { outcome: "status_unavailable" });
+        continue;
+      }
+      const plan = planForce({
+        hasSheet: true,
+        inFlight: !!st.latestRequest && IN_FLIGHT_STATUSES.has(st.latestRequest.status),
+        hasAnyRequest: !!st.latestRequest,
+        postgresEntityCount: st.postgresEntityCount,
+        totalEntityCount: st.totalEntityCount,
+      });
+      try {
+        if (plan === "force_switch") {
+          const flipped = await forceTenantToPostgres(tenantId);
+          byTenant.set(tenantId, { outcome: "switched", flipped });
+        } else if (plan === "never_imported") {
+          const request = await enqueueSheetsImport(tenantId, req.userId);
+          byTenant.set(tenantId, { outcome: "queued_import", requestId: request.id });
+        } else {
+          byTenant.set(tenantId, { outcome: plan });
+        }
+      } catch (err) {
+        logger.error({ err, tenantId }, "force-all sheets-import: failed for one tenant");
+        byTenant.set(tenantId, { outcome: "error" });
+      }
+    }
+
+    const results = bots.map((b: { id: string; sheetId: string | null }) => ({
+      botId: b.id,
+      ...(b.sheetId ? byTenant.get(b.sheetId) ?? { outcome: "error" } : { outcome: "no_sheet" }),
+    }));
+    const count = (o: string) => results.filter((r: { outcome: string }) => r.outcome === o).length;
+    const summary = {
+      switched: count("switched"),
+      alreadyComplete: count("already_complete"),
+      inFlight: count("in_flight"),
+      queuedImport: count("queued_import"),
+      noSheet: count("no_sheet"),
+      errors: count("error") + count("status_unavailable"),
+      entitiesFlipped: results.reduce((n: number, r: { flipped?: number }) => n + (r.flipped ?? 0), 0),
+    };
+
+    await writeAudit({
+      actorUserId: req.userId,
+      action: "sheets_import_force_all",
+      metadata: { ...summary, scope: Array.isArray(wanted) ? "selected" : "all" },
+    });
+    res.json({ summary, results });
+  } catch (err) {
+    logger.error({ err }, "POST /superadmin/sheets-import/force-all failed");
+    res.status(500).json({ error: "اجبارِ مهاجرتِ همه‌ی بات‌ها به Postgres ممکن نشد." });
   }
 });
 
