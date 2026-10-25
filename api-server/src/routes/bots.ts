@@ -3631,6 +3631,7 @@ router.post("/bots/:botId/renew", requireBotOwnership, async (req: any, res) => 
 router.get("/bots/:botId/database", requireBotOwnership, async (req: any, res) => {
   try {
     const bot = req.bot;
+    const locked = DATABASE_SECTION_LOCKED && !(await isSuperAdminUser(req.userId));
     if (!bot.sheetId) {
       // بات هنوز شیتی ندارد (هنوز کامل فعال نشده) — یعنی هیچ داده‌ای هم
       // برای مهاجرت نیست؛ یک وضعیتِ خنثی برمی‌گردانیم تا پنل خطا ندهد.
@@ -3646,19 +3647,40 @@ router.get("/bots/:botId/database", requireBotOwnership, async (req: any, res) =
         latestExportRequest: null,
         priceToman: SQL_DATABASE_PRICE_TOMAN,
       };
-      res.json(empty);
+      res.json({ ...empty, locked });
       return;
     }
     const status = await getBotDatabaseStatus(bot.sheetId, bot.databaseSqlExpiresAt);
-    res.json(status);
+    res.json({ ...status, locked });
   } catch (err) {
     logger.error({ err }, "Get bot database status error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
+// ─── قفلِ بخش دیتابیس ────────────────────────────────────────────────────
+// بخش Database در داشبورد فقط‌خواندنی است: وضعیت دیده می‌شود ولی جابه‌جایی بین
+// Sheets و SQL (خرید/بازگشت) برای کاربران عادی بسته است. سوپرادمین از قفل
+// مستثناست (ابزارِ ادمین و پشتیبانی). برای باز کردنِ قفل: DATABASE_SECTION_LOCKED=false
+const DATABASE_SECTION_LOCKED = process.env.DATABASE_SECTION_LOCKED !== "false";
+
+async function isSuperAdminUser(userId: string): Promise<boolean> {
+  const [u] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  return u?.role === "super_admin";
+}
+
+async function requireDatabaseUnlocked(req: any, res: any, next: any) {
+  try {
+    if (!DATABASE_SECTION_LOCKED || (await isSuperAdminUser(req.userId))) { next(); return; }
+    res.status(423).json({ error: "بخش دیتابیس قفل است و فعلاً قابل تغییر نیست.", code: "database_locked" });
+  } catch (err) {
+    logger.error({ err }, "Database lock check error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 // ─── POST /api/bots/:botId/database/activate-sql — Sheets → SQL, self-serve ─
-router.post("/bots/:botId/database/activate-sql", requireBotOwnership, async (req: any, res) => {
+router.post("/bots/:botId/database/activate-sql", requireBotOwnership, requireDatabaseUnlocked, async (req: any, res) => {
   try {
     const bot = req.bot;
     if (!bot.sheetId) {
@@ -3715,7 +3737,7 @@ router.post("/bots/:botId/database/activate-sql", requireBotOwnership, async (re
 
 // ─── POST /api/bots/:botId/database/revert-to-sheets — SQL → Sheets ─────────
 // بدون بازگشتِ وجه (طبق تصمیمِ صریحِ کاربر).
-router.post("/bots/:botId/database/revert-to-sheets", requireBotOwnership, async (req: any, res) => {
+router.post("/bots/:botId/database/revert-to-sheets", requireBotOwnership, requireDatabaseUnlocked, async (req: any, res) => {
   try {
     const bot = req.bot;
     if (!bot.sheetId) {

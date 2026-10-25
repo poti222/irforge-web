@@ -170,6 +170,17 @@ export type Form = {
   is_active: boolean;
   notify_admin: boolean;
   allow_edit: boolean;
+  /** پنلِ والد: فرم زیرمجموعه‌ی این پنل است ("" = بدون والد). */
+  parent_panel_id: string;
+  /** "manual" = فقط با دکمه · "after_payment" = خودکار بعد از تأییدِ پرداخت. */
+  trigger: string;
+  /** روشن: پاسخ‌ها با دکمه‌ی تأیید/رد به ادمین می‌رود و کارِ بعدی بعد از تأیید اجرا می‌شود. */
+  require_approval: boolean;
+  /** کارِ بعدی: "" | panel | url | form | message */
+  on_complete_action: string;
+  on_complete_value: string;
+  on_complete_message: string;
+  reject_message: string;
   created_at: string;
 };
 
@@ -517,6 +528,13 @@ export function newForm(partial: Partial<Form> = {}): Form {
     is_active: partial.is_active ?? true,
     notify_admin: partial.notify_admin ?? true,
     allow_edit: partial.allow_edit ?? false,
+    parent_panel_id: partial.parent_panel_id ?? "",
+    trigger: partial.trigger ?? "manual",
+    require_approval: partial.require_approval ?? false,
+    on_complete_action: partial.on_complete_action ?? "",
+    on_complete_value: partial.on_complete_value ?? "",
+    on_complete_message: partial.on_complete_message ?? "",
+    reject_message: partial.reject_message ?? "",
     created_at: partial.created_at ?? nowIso(),
   };
 }

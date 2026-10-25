@@ -7,12 +7,7 @@ import { useLocation, useSearch } from "wouter";
 import type { Bot } from "@workspace/api-client-react";
 import { Plus, Loader2, Trash2, FileText, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -21,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/hooks/use-translation";
 import { useToast } from "@/hooks/use-toast";
 import { confirmDiscardUnsaved } from "@/lib/unsaved-changes";
+import { usePanels } from "../panels/api";
 import { FormEditor } from "./FormEditor";
 import { FormsProResponses } from "./FormsProResponses";
 import {
@@ -120,15 +116,27 @@ export function FormsSection({ bot }: { bot: Bot }) {
 
   const { data, isLoading, error } = useForms(bot.id);
   const create = useCreateForm(bot.id);
+  const { data: panelsData } = usePanels(bot.id);
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [createError, setCreateError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BotForm | null>(null);
 
   const selectedId = new URLSearchParams(search).get("form");
   const forms = data?.forms ?? [];
   const selected = forms.find((f) => f.id === selectedId) ?? null;
+
+  // ساختِ فرم بدونِ دیالوگِ اسم — مثلِ پنل‌ها: یک فرمِ خالیِ شماره‌دار می‌سازد و مستقیم وارد ویرایشگرش می‌شود (اسم همان‌جا عوض می‌شود).
+  function quickCreateForm() {
+    const used = forms.map((f) => Number(/(\d+)\s*$/.exec(f.title)?.[1] ?? 0));
+    const n = Math.max(forms.length, ...used) + 1;
+    create.mutate(
+      { title: t.quickFormTitle.replace("{n}", String(n)), fields: [] },
+      {
+        onSuccess: ({ form }) => { toast({ title: t.formCreated }); openForm(form.id); },
+        onError: (err: any) =>
+          toast({ variant: "destructive", title: t.errorGeneric, description: apiErrorMessage(err, t.errorGeneric) }),
+      },
+    );
+  }
 
   function openForm(formId: string | null) {
     if (!confirmDiscardUnsaved()) return;
@@ -179,8 +187,8 @@ export function FormsSection({ bot }: { bot: Bot }) {
       <TabsContent value="panel" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{t.sectionDesc}</p>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="me-1.5 size-4" /> {t.createFormCta}
+        <Button onClick={quickCreateForm} disabled={create.isPending} data-testid="form-create">
+          {create.isPending ? <Loader2 className="me-1.5 size-4 animate-spin" /> : <Plus className="me-1.5 size-4" />} {t.createFormCta}
         </Button>
       </div>
 
@@ -195,6 +203,7 @@ export function FormsSection({ bot }: { bot: Bot }) {
               <tr>
                 <th className="p-2 text-start font-medium">{t.colTitle}</th>
                 <th className="p-2 text-start font-medium">{t.colFields}</th>
+                <th className="p-2 text-start font-medium">{t.colParent}</th>
                 <th className="p-2 text-start font-medium">{t.colDestination}</th>
                 <th className="p-2 text-start font-medium">{t.colStatus}</th>
                 <th className="p-2" />
@@ -214,6 +223,13 @@ export function FormsSection({ bot }: { bot: Bot }) {
                     </button>
                   </td>
                   <td className="p-2 tabular-nums">{form.fields?.length ?? 0}</td>
+                  <td className="p-2">
+                    {form.parent_panel_id
+                      ? (panelsData?.panels.find((p) => p.id === form.parent_panel_id)?.title || form.parent_panel_id)
+                      : <span className="text-muted-foreground">—</span>}
+                    {form.trigger === "after_payment" && <Badge variant="outline" className="ms-1.5 text-[10px]">{t.triggerBadgePay}</Badge>}
+                    {form.require_approval && <Badge variant="outline" className="ms-1.5 text-[10px]">{t.approvalBadge}</Badge>}
+                  </td>
                   <td className="p-2" dir="ltr">
                     {form.destination_group || <span className="text-muted-foreground">—</span>}
                   </td>
@@ -233,59 +249,6 @@ export function FormsSection({ bot }: { bot: Bot }) {
           </table>
         </div>
       )}
-
-      <Dialog
-        open={createOpen}
-        onOpenChange={(open) => {
-          setCreateOpen(open);
-          if (!open) { setNewTitle(""); setCreateError(null); }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t.createFormTitle}</DialogTitle>
-            <DialogDescription>{t.createFormDesc}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label htmlFor="new-form-title">{t.formTitle}</Label>
-            <Input
-              id="new-form-title"
-              value={newTitle}
-              autoFocus
-              placeholder={t.formTitlePlaceholder}
-              onChange={(e) => { setNewTitle(e.target.value); setCreateError(null); }}
-              aria-invalid={Boolean(createError) || undefined}
-            />
-            {createError && <p className="text-sm text-destructive">{createError}</p>}
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                if (!newTitle.trim()) {
-                  setCreateError(t.errorTitleRequired);
-                  return;
-                }
-                create.mutate(
-                  { title: newTitle.trim(), fields: [] },
-                  {
-                    onSuccess: ({ form }) => {
-                      toast({ title: t.formCreated });
-                      setCreateOpen(false);
-                      setNewTitle("");
-                      openForm(form.id);
-                    },
-                    onError: (err: any) => setCreateError(apiErrorMessage(err, t.errorGeneric)),
-                  }
-                );
-              }}
-              disabled={create.isPending}
-            >
-              {create.isPending && <Loader2 className="me-2 size-4 animate-spin" />}
-              {t.createFormCta}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <DeleteFormDialog
         botId={bot.id}

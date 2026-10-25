@@ -26,6 +26,7 @@ import { buttonsToRows, rowsToButtons, type PanelButton } from "@/lib/panel-butt
 import { usePanels, usePanelCatalog } from "../panels/api";
 import { MediaList, type MediaMeta } from "../panels/MediaList";
 import { ButtonBuilder } from "../panels/ButtonBuilder";
+import { FormFlowCard, flowInvalid } from "./FormFlowCard";
 import {
   FORM_FIELD_TYPES, apiErrorMessage, useForms, useUpdateForm,
   type BotForm, type FormField,
@@ -244,6 +245,7 @@ export function FormEditor({
 
   const invalid =
     !draft.title.trim() ||
+    flowInvalid(draft) !== null ||
     draft.fields.some(
       (f) =>
         !f.name ||
@@ -299,6 +301,13 @@ export function FormEditor({
           is_active: draft.is_active,
           notify_admin: draft.notify_admin,
           allow_edit: draft.allow_edit,
+          parent_panel_id: draft.parent_panel_id,
+          trigger: draft.trigger,
+          require_approval: draft.require_approval,
+          on_complete_action: draft.on_complete_action,
+          on_complete_value: draft.on_complete_value,
+          on_complete_message: draft.on_complete_message,
+          reject_message: draft.reject_message,
         },
       },
       {
@@ -423,6 +432,13 @@ export function FormEditor({
           </div>
         </CardContent>
       </Card>
+
+      <FormFlowCard
+        draft={draft}
+        setDraft={setDraft}
+        panels={panelsData?.panels ?? []}
+        forms={formsData?.forms ?? []}
+      />
 
       <Card>
         <CardHeader>

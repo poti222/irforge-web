@@ -22,7 +22,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import type { Bot } from "@workspace/api-client-react";
 import { useState } from "react";
-import { Database, Cloud, Loader2, RotateCw, ArrowRightLeft, CheckCircle2, Info } from "lucide-react";
+import { Database, Cloud, Lock, Loader2, RotateCw, ArrowRightLeft, CheckCircle2, Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +58,8 @@ type BotDatabaseStatus = {
   latestImportRequest: ImportRequestRow | null;
   latestExportRequest: ImportRequestRow | null;
   priceToman: number;
+  /** قفلِ بخش: فقط‌خواندنی — دکمه‌های جابه‌جایی غیرفعال‌اند (سرور هم ۴۲۳ می‌دهد). */
+  locked?: boolean;
 };
 
 function errMessage(err: any, fallback: string): string {
@@ -121,7 +123,8 @@ export function DatabaseSection({ bot }: { bot: Bot }) {
 
   const noSheet = !bot.sheetId;
   const progress = status.totalEntityCount > 0 ? Math.round((status.postgresEntityCount / status.totalEntityCount) * 100) : 0;
-  const busy = activate.isPending || revert.isPending;
+  const locked = Boolean(status.locked);
+  const busy = activate.isPending || revert.isPending || locked;
 
   return (
     <div className="space-y-4">
@@ -129,6 +132,15 @@ export function DatabaseSection({ bot }: { bot: Bot }) {
         <h1 className="text-xl font-bold tracking-tight">{t.title}</h1>
         <p className="text-sm text-muted-foreground">{t.subtitle}</p>
       </div>
+
+      {locked && (
+        <Card className="border-amber-500/40">
+          <CardContent className="flex items-center gap-2 p-4 text-sm text-amber-700 dark:text-amber-400">
+            <Lock className="size-4 shrink-0" />
+            {t.lockedNotice}
+          </CardContent>
+        </Card>
+      )}
 
       {noSheet ? (
         <Card>

@@ -161,6 +161,40 @@ function validateThankYouButtons(value: unknown): PanelButton[] {
   return validateButtons(value);
 }
 
+const FORM_TRIGGERS = ["manual", "after_payment"] as const;
+const FORM_NEXT_ACTIONS = ["", "panel", "url", "form", "message"] as const;
+
+function validateTrigger(value: unknown): string {
+  const v = String(value ?? "manual");
+  if (!(FORM_TRIGGERS as readonly string[]).includes(v)) throw bad("زمان نمایش فرم معتبر نیست.");
+  return v;
+}
+
+function validateNextAction(value: unknown): string {
+  const v = String(value ?? "");
+  if (!(FORM_NEXT_ACTIONS as readonly string[]).includes(v)) throw bad("نوع کارِ بعدیِ فرم معتبر نیست.");
+  return v;
+}
+
+/** مقدارِ کارِ بعدی باید با نوعش بخواند: panel/form → شناسه، url → http(s)/tg. */
+function validateNextValue(action: string, value: unknown): string {
+  const v = String(value ?? "").trim();
+  if (v.length > 500) throw bad("مقدارِ کارِ بعدی خیلی طولانی است.");
+  if (action === "url" && !/^(https?:\/\/|tg:\/\/)\S+$/i.test(v))
+    throw bad("لینک باید با http://، https:// یا tg:// شروع شود.", "bad_url");
+  if ((action === "panel" || action === "form") && !v)
+    throw bad("برای کارِ بعدی یک مقصد انتخاب کنید.", "next_target_required");
+  return action === "" || action === "message" ? "" : v;
+}
+
+async function validateParentPanel(spreadsheetId: string, value: unknown): Promise<string> {
+  const id = String(value ?? "").trim();
+  if (!id) return "";
+  const panels = await listPanels(spreadsheetId);
+  if (!panels.some((p: Panel) => p.id === id)) throw bad("پنلِ والد پیدا نشد.", "parent_panel_not_found");
+  return id;
+}
+
 async function readForms(spreadsheetId: string): Promise<Form[]> {
   const rows = await listEntity<Form>(spreadsheetId, FORMS_TAB);
   return rows
@@ -238,6 +272,7 @@ router.post("/bots/:botId/forms", requireAuth, async (req: any, res) => {
     const title = validateText(body.title ?? "", "عنوان فرم", 200).trim();
     if (!title) throw bad("فرم باید عنوان داشته باشد.");
 
+    const nextAction = validateNextAction(body.on_complete_action);
     const form = newForm({
       title,
       fields: validateFields(body.fields ?? []),
@@ -252,6 +287,13 @@ router.post("/bots/:botId/forms", requireAuth, async (req: any, res) => {
       is_active: body.is_active === undefined ? true : Boolean(body.is_active),
       notify_admin: body.notify_admin === undefined ? true : Boolean(body.notify_admin),
       allow_edit: Boolean(body.allow_edit),
+      parent_panel_id: await validateParentPanel(spreadsheetId, body.parent_panel_id),
+      trigger: validateTrigger(body.trigger),
+      require_approval: Boolean(body.require_approval),
+      on_complete_action: nextAction,
+      on_complete_value: validateNextValue(nextAction, body.on_complete_value),
+      on_complete_message: validateText(body.on_complete_message ?? "", "پیام کارِ بعدی"),
+      reject_message: validateText(body.reject_message ?? "", "پیام ردِ فرم"),
     });
 
     await putEntity(spreadsheetId, FORMS_TAB, form.id, form);
@@ -288,6 +330,19 @@ router.patch("/bots/:botId/forms/:formId", requireAuth, async (req: any, res) =>
     if ("is_active" in body) next.is_active = Boolean(body.is_active);
     if ("notify_admin" in body) next.notify_admin = Boolean(body.notify_admin);
     if ("allow_edit" in body) next.allow_edit = Boolean(body.allow_edit);
+    if ("parent_panel_id" in body) next.parent_panel_id = await validateParentPanel(spreadsheetId, body.parent_panel_id);
+    if ("trigger" in body) next.trigger = validateTrigger(body.trigger);
+    if ("require_approval" in body) next.require_approval = Boolean(body.require_approval);
+    if ("on_complete_action" in body || "on_complete_value" in body) {
+      const action = validateNextAction("on_complete_action" in body ? body.on_complete_action : next.on_complete_action);
+      next.on_complete_action = action;
+      next.on_complete_value = validateNextValue(
+        action,
+        "on_complete_value" in body ? body.on_complete_value : next.on_complete_value,
+      );
+    }
+    if ("on_complete_message" in body) next.on_complete_message = validateText(body.on_complete_message, "پیام کارِ بعدی");
+    if ("reject_message" in body) next.reject_message = validateText(body.reject_message, "پیام ردِ فرم");
 
     await putEntity(spreadsheetId, FORMS_TAB, next.id, next);
     res.json({ form: next });
