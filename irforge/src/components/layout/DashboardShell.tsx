@@ -6,6 +6,9 @@ import { SupportFab } from "@/components/layout/support-fab";
 import { HeaderControls } from "@/components/layout/header-controls";
 import ErrorBoundary from "@/components/error-boundary";
 import { useAuth } from "@/contexts/AuthContext";
+import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
+import { getAuthToken } from "@/lib/auth-token";
 import { useLanguage } from "@/hooks/use-language";
 import { Lock } from "lucide-react";
 import { TestModeBanner } from "@/components/layout/TestModeBanner";
@@ -53,6 +56,22 @@ export default function DashboardShell({
       <AppSidebar />
       <SidebarInset>
         <TestModeBanner />
+        {!user && !getAuthToken() && (
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 border-b border-primary/20 bg-primary/10 px-4 py-2 text-sm"
+            data-testid="guest-banner"
+          >
+            <span>
+              {fa
+                ? "حالت مهمان — همه‌چیز را می‌توانید ببینید؛ برای انجام هر کاری ثبت‌نام کنید."
+                : "Guest mode — browse everything; create an account to take any action."}
+            </span>
+            <span className="flex gap-2">
+              <Button asChild size="sm"><Link href="/register">{fa ? "ثبت‌نام" : "Sign up"}</Link></Button>
+              <Button asChild size="sm" variant="outline"><Link href="/login">{fa ? "ورود" : "Log in"}</Link></Button>
+            </span>
+          </div>
+        )}
         <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background/75 px-4 backdrop-blur-xl md:rounded-t-2xl">
           <SidebarTrigger />
           <HeaderControls />

@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
+import { installGuestMode } from "@/lib/guest-mode";
 import App from "./App";
 import { readInitialLang } from "./hooks/use-language";
 import { getAuthToken } from "./lib/auth-token";
@@ -13,6 +14,7 @@ applyPalette(getStoredPalette());
 
 setBaseUrl(import.meta.env.VITE_API_URL ?? "");
 setAuthTokenGetter(() => getAuthToken());
+installGuestMode();
 
 /**
  * NOTE [perf]: locale JSON is no longer bundled into the entry chunk (all five

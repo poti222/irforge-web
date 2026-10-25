@@ -38,6 +38,9 @@ import {
   Lock,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { getAuthToken } from "@/lib/auth-token";
+import type { User } from "@workspace/api-client-react";
 import { useThemeSweep } from "@/hooks/use-theme-sweep";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -61,7 +64,7 @@ import { navDotSeverities, navKeyForNotification, navKeyForPath, type NavDotKey 
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user, logout } = useAuth();
+  const { user: authUser, logout } = useAuth();
   const { isDark, toggleTheme } = useThemeSweep();
   const { lang } = useLanguage();
   const nav = useT("common");
@@ -93,7 +96,10 @@ export function AppSidebar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openKey, notifications.length]);
 
-  if (!user) return null;
+  // مهمان (بدونِ توکن) هم سایدبار را می‌بیند؛ کاربری که توکن دارد ولی /me هنوز نیامده مثل قبل null.
+  const isGuest = !authUser && !getAuthToken();
+  if (!authUser && !isGuest) return null;
+  const user = (authUser ?? { name: "Guest", role: "user", plan: "free", email: "", platformUsername: null }) as User;
 
   const avatarSrc = getDisplayAvatar(user);
 
@@ -317,6 +323,16 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4 group-data-[collapsible=icon]:p-2">
+        {isGuest ? (
+          <div className="flex flex-col gap-2 group-data-[collapsible=icon]:hidden" data-testid="sidebar-guest-cta">
+            <Button asChild size="sm">
+              <Link href="/register" onClick={closeMobileMenu}>{lang === "fa" ? "ثبت‌نام" : "Sign up"}</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/login" onClick={closeMobileMenu}>{lang === "fa" ? "ورود" : "Log in"}</Link>
+            </Button>
+          </div>
+        ) : (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <div className="flex w-full items-center gap-3 cursor-pointer overflow-hidden rounded-md p-1 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:p-0">
@@ -399,6 +415,7 @@ export function AppSidebar() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

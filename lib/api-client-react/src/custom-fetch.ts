@@ -44,6 +44,21 @@ export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
 }
 
+/**
+ * حالت مهمان (بدون ثبت‌نام/ورود): قبل از هر درخواستِ بدونِ توکن صدا زده می‌شود.
+ *  - `{ data }`  → همین داده به‌جای درخواستِ شبکه برگردانده می‌شود (دموی فقط‌خواندنی).
+ *  - `{ error }` → درخواست ارسال نمی‌شود و این خطا پرتاب می‌شود (اقدام‌های نیازمندِ حساب).
+ *  - `undefined` → درخواست عادی به سرور می‌رود (endpointهای عمومی).
+ */
+export type GuestRequestResult = { data: unknown } | { error: ApiError } | undefined;
+export type GuestRequestHandler = (req: { method: string; url: string }) => GuestRequestResult;
+
+let _guestHandler: GuestRequestHandler | null = null;
+
+export function setGuestRequestHandler(handler: GuestRequestHandler | null): void {
+  _guestHandler = handler;
+}
+
 function isRequest(input: RequestInfo | URL): input is Request {
   return typeof Request !== "undefined" && input instanceof Request;
 }
@@ -359,6 +374,13 @@ export async function customFetch<T = unknown>(
   }
 
   const requestInfo = { method, url: resolveUrl(input) };
+
+  // مهمان: فقط وقتی هیچ Authorization نیست (کاربرِ واقعی هرگز از این مسیر رد نمی‌شود).
+  if (_guestHandler && !headers.has("authorization")) {
+    const guest = _guestHandler(requestInfo);
+    if (guest && "error" in guest) throw guest.error;
+    if (guest && "data" in guest) return guest.data as T;
+  }
 
   const response = await fetch(input, { ...init, method, headers });
 

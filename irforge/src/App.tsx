@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from "react";
+import { useEffect, lazy, Suspense, type ReactNode } from "react";
 import { captureNextParam, consumePostAuthTarget, noteVisit, setPostAuthTarget } from "@/lib/post-auth";
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation, useParams } from "wouter";
 import { navigate } from "wouter/use-browser-location";
@@ -8,6 +8,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { getAuthToken } from "@/lib/auth-token";
+import { GUEST_ACTION_EVENT, isGuestViewablePath, setGuestBrowsing } from "@/lib/guest-mode";
 import { CartProvider } from "@/contexts/CartContext";
 // هر تغییر مسیر، صفحه را از بالا نشان می‌دهد — نگاه کن به دو ظرف اسکرولِ
 // جدا که آن فایل توضیح می‌دهد.
@@ -188,6 +190,15 @@ function ProtectedRoute({ component: Component, adminOnly = false, superAdminOnl
   }
 
   if (!user) {
+    // حالت مهمان: بدونِ توکن، صفحه‌های داشبورد را (فقط‌خواندنی/دمو) نشان بده؛ هر اقدامی → فرم ثبت‌نام.
+    // کاربری که توکنِ منقضی دارد (token هست ولی /me رد شد) مثل قبل به ورود می‌رود.
+    if (!adminOnly && !superAdminOnly && !getAuthToken() && isGuestViewablePath(location)) {
+      return (
+        <GuestRoute location={location}>
+          <Component {...rest} />
+        </GuestRoute>
+      );
+    }
     return <RedirectToLogin />;
   }
 
@@ -338,14 +349,49 @@ function currentTarget(location: string): string {
 function RedirectToLogin() {
   const [location] = useLocation();
   setPostAuthTarget(currentTarget(location));
-  return <RedirectToLogin />;
+  return <Redirect to="/login" replace />;
 }
 
 /** پروفایل ناقص → /complete-profile؛ مقصدِ اصلی حفظ می‌شود تا بعد از تکمیل به همان صفحه برگردد. */
 function RedirectToCompleteProfile() {
   const [location] = useLocation();
   setPostAuthTarget(currentTarget(location));
-  return <RedirectToCompleteProfile />;
+  return <Redirect to="/complete-profile" replace />;
+}
+
+/**
+ * پوسته‌ی داشبورد برای مهمان. پرچمِ guestBrowsing باید قبل از mountِ فرزندها روشن باشد (کوئری‌هایشان
+ * در effectهای فرزند شروع می‌شود، بعد از رندرِ والد) و موقعِ خروج خاموش شود.
+ */
+function GuestRoute({ children, location }: { children: ReactNode; location: string }) {
+  setGuestBrowsing(true);
+  useEffect(() => {
+    setGuestBrowsing(true);
+    return () => setGuestBrowsing(false);
+  }, []);
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <DashboardShell routeKey={location}>{children}</DashboardShell>
+    </Suspense>
+  );
+}
+
+/** اقدامِ مهمان (هر درخواستِ غیر-GET) → ثبتِ مقصد و رفتن به فرم ثبت‌نام؛ بعد از ثبت‌نام همین‌جا برمی‌گردد. */
+function GuestActionListener() {
+  const [location, setLocation] = useLocation();
+  useEffect(() => {
+    let last = 0;
+    const onAction = () => {
+      const now = Date.now();
+      if (now - last < 1500) return; // چند درخواستِ هم‌زمان → یک ریدایرکت
+      last = now;
+      setPostAuthTarget(currentTarget(location));
+      setLocation("/register");
+    };
+    window.addEventListener(GUEST_ACTION_EVENT, onAction);
+    return () => window.removeEventListener(GUEST_ACTION_EVENT, onAction);
+  }, [location, setLocation]);
+  return null;
 }
 
 /** هر تغییرِ مسیر را برایِ «برگشت به همان صفحه بعد از ورود» ثبت می‌کند؛ `?next=` را هم می‌خواند. */
@@ -391,6 +437,7 @@ function Router() {
   return (
     <Suspense fallback={<RouteFallback />}>
     <PostAuthTracker />
+    <GuestActionListener />
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/docs" component={Docs} />
