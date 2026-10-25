@@ -8,7 +8,7 @@ import {
   Bot, Users, MessageSquare, Activity, Plus, Wallet,
   Rocket, Blocks, UserPlus, ArrowUpCircle, Terminal,
   ArrowUpRight, ArrowDownRight, Minus, Megaphone, AlertTriangle, Clock,
-  CreditCard, ArrowRight, Gift, X, type LucideIcon,
+  CreditCard, ArrowRight, Gift, X, TrendingUp, type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MotionButton } from "@/components/ui/motion-button";
@@ -123,6 +123,15 @@ export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: activity, isLoading: activityLoading } = useGetDashboardActivity();
   const { data: bots } = useListBots();
+  // کیف پول اصلیِ حساب — همان endpoint و همان queryKey صفحه‌ی /wallet، تا
+  // داشبورد و صفحه‌ی کیف پول همیشه یک عدد نشان بدهند (و بعد از شارژ هم
+  // با invalidate صفحه‌ی کیف پول، اینجا هم به‌روز شود).
+  const tCommon = useT("common");
+  const { data: wallet } = useQuery({
+    queryKey: ["wallet"],
+    queryFn: () => customFetch<{ balance: number }>("/api/wallet"),
+    refetchInterval: 10000,
+  });
   const attentionItems = botsNeedingAttention(bots ?? []);
 
   // فاز ۱۱ (identityverificationspec.md): بنرِ پیشنهادِ تریال، فقط برای
@@ -280,12 +289,28 @@ export default function Dashboard() {
             <span className="tabular-nums">{nf(stats.activeBots ?? 0)} {t.activeBots}</span>
           } />
           <StatTile label={t.activeUsersToday} value={nf(stats.activeUsersToday ?? 0)} icon={MessageSquare} />
+          {/* کیف پول اصلی حساب (موجودیِ واقعیِ /wallet) — همیشه نمایش داده می‌شود
+              و با کلیک به صفحه‌ی کیف پول می‌رود. */}
+          <Link
+            href="/wallet"
+            data-testid="dashboard-wallet-card"
+            className="col-span-2 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card px-5 py-4 shadow-[var(--shadow-card)] transition-colors hover:border-primary/40 lg:col-span-4"
+          >
+            <span className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><Wallet className="size-4" /></span>
+              {tCommon.myWallet}
+            </span>
+            <span className="text-xl font-bold tabular-nums">
+              {wallet ? formatToman(wallet.balance ?? 0, lang) : "—"}
+            </span>
+          </Link>
           {/* کارت درآمد فقط وقتی می‌آید که دست‌کم یک بات پلاگین کیف پول داشته باشد؛
-              سرور در غیر این صورت `null` می‌دهد. */}
+              سرور در غیر این صورت `null` می‌دهد. این درآمدِ فروشگاهِ باتِ کاربر است، نه
+              موجودیِ کیف پولِ حساب. */}
           {stats.totalRevenue != null && (
             <div className="col-span-2 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card px-5 py-4 shadow-[var(--shadow-card)] lg:col-span-4">
               <span className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><Wallet className="size-4" /></span>
+                <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><TrendingUp className="size-4" /></span>
                 {t.revenue}
               </span>
               <span className="text-xl font-bold tabular-nums">{formatToman(stats.totalRevenue, lang)}</span>
