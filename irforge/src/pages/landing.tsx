@@ -134,7 +134,7 @@ function GhostCTA({ href, children, testId }: { href: string; children: React.Re
 }
 
 export default function Landing() {
-  const { user, isLoading: isAuthLoading } = useAuth();
+  const { user } = useAuth();
   const tr = useT("landing");
   const seo = useT("seo");
   const footerT = useT("footer");
@@ -218,17 +218,10 @@ export default function Landing() {
 
             <LanguageSwitcher />
 
-            {isAuthLoading ? (
-              <div className="h-8 w-[72px] animate-pulse rounded-full bg-muted" aria-hidden="true" />
-            ) : user ? (
-              <Button asChild size="sm" className="rounded-full">
-                <Link href="/dashboard">{tr.dashboard}</Link>
-              </Button>
-            ) : (
-              <Button asChild size="sm" className="rounded-full">
-                <Link href="/login">{tr.signIn}</Link>
-              </Button>
-            )}
+            {/* همه (حتی بدونِ حساب) مستقیم وارد داشبورد می‌شوند؛ هر اقدامی آن‌جا به ثبت‌نام می‌رود. */}
+            <Button asChild size="sm" className="rounded-full">
+              <Link href="/dashboard">{tr.dashboard}</Link>
+            </Button>
           </div>
         </div>
       </header>

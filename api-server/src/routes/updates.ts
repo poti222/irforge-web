@@ -29,7 +29,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "./auth";
+import { requireAuth, requireAdmin, getUserIdFromToken } from "./auth";
 import { logger } from "../lib/logger";
 import { createNotificationsBulk } from "../lib/notify";
 import { updateTeaser } from "../lib/updateTeaser";
@@ -50,9 +50,32 @@ type UpdateListItem = {
 
 
 
+
+/**
+ * احراز هویتِ اختیاری — برای «فقط‌خواندنیِ عمومی». توکنِ معتبرِ کاربر → `req.userId` ست می‌شود (پس
+ * `seen` درست حساب می‌شود)؛ بدونِ توکن، توکنِ مهمان (`guest_…`) یا توکنِ نامعتبر → درخواست بدونِ
+ * `req.userId` ادامه می‌دهد. هرگز ۴۰۱ نمی‌دهد و هرگز هویتِ جعلی نمی‌سازد.
+ */
+async function optionalAuth(req: any, _res: any, next: any) {
+  try {
+    const h = req.headers.authorization;
+    if (typeof h === "string" && h.startsWith("Bearer ")) {
+      const token = h.slice(7);
+      if (!token.startsWith("guest_")) {
+        const uid = await getUserIdFromToken(token);
+        if (uid) req.userId = uid;
+      }
+    }
+  } catch {
+    /* نامعتبر = ناشناس */
+  }
+  next();
+}
+
 // ─── GET /api/updates ────────────────────────────────────────────────────────
 // فقط منتشرشده‌ها، جدیدترین اول. `seen` از روی user_update_views می‌آید.
-router.get("/updates", requireAuth, async (req: any, res) => {
+// عمومی (مهمان هم می‌بیند)؛ `seen` فقط برای کاربرِ واردشده.
+router.get("/updates", optionalAuth, async (req: any, res) => {
   try {
     const rows = await db
       .select()
@@ -63,7 +86,7 @@ router.get("/updates", requireAuth, async (req: any, res) => {
 
     const ids = rows.map((r) => r.id);
 
-    const seenRows = ids.length
+    const seenRows = ids.length && req.userId
       ? await db
           .select({ updateId: userUpdateViewsTable.updateId })
           .from(userUpdateViewsTable)
@@ -185,7 +208,7 @@ router.post("/updates/seen", requireAuth, async (req: any, res) => {
 // ─── GET /api/updates/:id ────────────────────────────────────────────────────
 // یک پیش‌نویس برای کاربر عادی باید مثل «وجود ندارد» رفتار کند (۴۰۴، نه ۴۰۳) —
 // همان الگوی GET /notifications/:id، تا وجود پیش‌نویس لو نرود.
-router.get("/updates/:id", requireAuth, async (req: any, res) => {
+router.get("/updates/:id", optionalAuth, async (req: any, res) => {
   try {
     const [row] = await db
       .select()
@@ -196,7 +219,7 @@ router.get("/updates/:id", requireAuth, async (req: any, res) => {
     // requireAuth فقط req.userId را ست می‌کند و نقش را نمی‌خواند، پس نقش را
     // فقط وقتی لازم است (آپدیت منتشرنشده) خودمان یک‌بار می‌خوانیم.
     let isStaff = false;
-    if (row && !row.published) {
+    if (row && !row.published && req.userId) {
       const [me] = await db
         .select({ role: usersTable.role })
         .from(usersTable)

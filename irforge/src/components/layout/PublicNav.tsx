@@ -4,7 +4,6 @@ import { BrandLogo } from "@/components/layout/brand-home";
 import { PaletteButton } from "@/components/layout/palette-button";
 import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
-import { useAuth } from "@/contexts/AuthContext";
 import { useT } from "@/hooks/use-translation";
 
 /**
@@ -14,7 +13,6 @@ import { useT } from "@/hooks/use-translation";
  * already carries the language prefix.
  */
 export function PublicNav() {
-  const { user, isLoading } = useAuth();
   const tr = useT("landing");
   const footerT = useT("footer");
   const seo = useT("seo") as Record<string, string>;
@@ -33,17 +31,10 @@ export function PublicNav() {
           <PaletteButton className="rounded-full" />
           <ThemeToggleButton className="rounded-full" />
           <LanguageSwitcher />
-          {isLoading ? (
-            <div className="h-8 w-[72px] animate-pulse rounded-full bg-muted" aria-hidden="true" />
-          ) : user ? (
-            <Button asChild size="sm" className="rounded-full">
-              <Link href="/dashboard">{tr.dashboard}</Link>
-            </Button>
-          ) : (
-            <Button asChild size="sm" className="rounded-full">
-              <Link href="/login">{tr.signIn}</Link>
-            </Button>
-          )}
+          {/* همه (حتی بدونِ حساب) مستقیم وارد داشبورد می‌شوند؛ هر اقدامی آن‌جا به ثبت‌نام می‌رود. */}
+          <Button asChild size="sm" className="rounded-full">
+            <Link href="/dashboard">{tr.dashboard}</Link>
+          </Button>
         </div>
       </div>
     </header>
