@@ -27,7 +27,7 @@ import { readTabRows, upsertRow, deleteRow, listTabs } from "./tenantSheets.js";
 import { isSheetsNotConfiguredError } from "./sheets.js";
 import { bustTabCache, bustTabsCache } from "./botCacheBust.js";
 import { getBusinessPool } from "./businessDbPool.js";
-import { isKnownPgEntity, pgListEntity, pgGetEntity, pgSetEntity, pgSetEntities, pgDeleteEntity, pgListUsersLight } from "./businessPg.js";
+import { isKnownPgEntity, pgListEntity, pgGetEntity, pgSetEntity, pgSetEntities, pgDeleteEntity, pgListUsersLight, pgListUsersFull } from "./businessPg.js";
 import {
   defaultBotSettings,
   defaultWorkingHours,
@@ -284,6 +284,14 @@ export async function listUsersLight(spreadsheetId: string): Promise<Array<{ key
       const raw = v.last_seen == null ? "" : String(v.last_seen).trim();
       return { key: r.key, last_seen: raw || null };
     });
+}
+
+/** کاربرانِ تلگرامیِ بات با همه‌ی فیلدها (برای صفحه‌ی Bot users)؛ cutover-aware مثلِ `listUsersLight`. */
+export async function listUsersFull<T = unknown>(spreadsheetId: string): Promise<Array<{ key: string; value: T }>> {
+  if (await isEntityOnPostgres("users", spreadsheetId)) {
+    return (await pgListUsersFull(spreadsheetId)) as Array<{ key: string; value: T }>;
+  }
+  return listEntity<T>(spreadsheetId, "users");
 }
 
 export async function getEntity<T = unknown>(

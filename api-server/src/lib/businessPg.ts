@@ -308,6 +308,35 @@ export async function pgListUsersLight(tenantId: string): Promise<Array<{ key: s
   }
 }
 
+/**
+ * فهرستِ کاملِ فقط‌خواندنیِ جدول `users` ی بات برای صفحه‌ی «Bot users» (باتِ مهاجرت‌کرده کاربرِ تازه را
+ * فقط در Postgres می‌نویسد؛ خواندن از تبِ شیت یعنی لیستِ فریزشده). عمداً در ENTITY_SCHEMAS ثبت
+ * نشده — نوشتنِ سایت روی این جدول بدونِ DDLِ دقیقش ممکن است داده را خراب کند (PATCH همچنان ۴۰۹ می‌دهد).
+ * `to_jsonb(u)` هر دو شکلِ جدول را بدونِ حدسِ ستون‌ها می‌خواند: kv-mode (ستونِ `value`) یا ستون‌های
+ * تایپ‌شده با همان نامِ فیلدهای BotUser (`id` = user_id).
+ */
+export async function pgListUsersFull(tenantId: string): Promise<Array<{ key: string; value: Record<string, unknown> }>> {
+  return withTenantTx(tenantId, async (client) => {
+    const { rows } = await client.query<{ j: Record<string, unknown> }>(
+      "SELECT to_jsonb(u) AS j FROM users u WHERE u.tenant_id = $1",
+      [tenantId]
+    );
+    return rows.map(({ j }: { j: Record<string, unknown> }) => {
+      const kv = j.value;
+      const base: Record<string, unknown> =
+        kv && typeof kv === "object" && !Array.isArray(kv)
+          ? { ...(kv as Record<string, unknown>) }
+          : (() => {
+              const { tenant_id: _t, row_updated_at: _r, id: _i, ...rest } = j as Record<string, unknown>;
+              return rest;
+            })();
+      const key = String(j.id ?? j.user_id ?? base.user_id ?? "");
+      if (base.user_id == null) base.user_id = key;
+      return { key, value: base };
+    });
+  });
+}
+
 export async function pgGetEntity(tenantId: string, entity: string, key: string): Promise<unknown | null> {
   const s = schemaFor(entity);
   return withTenantTx(tenantId, async (client) => {

@@ -13,7 +13,8 @@ import { Router } from "express";
 import { requireAuth } from "./auth.js";
 import {
   resolveBotSheet,
-  listEntity,
+  listUsersFull,
+  isEntityOnPostgres,
   getEntity,
   putEntity,
   assertSheetsAuthoritative,
@@ -42,7 +43,7 @@ async function readUsers(spreadsheetId: string): Promise<BotUser[]> {
   const cached = listCache.get(spreadsheetId);
   if (cached && Date.now() - cached.at < LIST_TTL_MS) return cached.users;
 
-  const rows = await listEntity<BotUser>(spreadsheetId, USERS_TAB);
+  const rows = await listUsersFull<BotUser>(spreadsheetId);
   const users = rows
     .filter((r) => r.value && typeof r.value === "object")
     .map((r) => ({ ...(r.value as BotUser), user_id: String((r.value as BotUser).user_id ?? r.key) }));
@@ -122,7 +123,10 @@ router.get("/bots/:botId/bot-users", requireAuth, async (req: any, res) => {
 router.get("/bots/:botId/bot-users/:userId", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    const user = await getEntity<BotUser>(spreadsheetId, USERS_TAB, req.params.userId);
+    // باتِ مهاجرت‌کرده: کاربر فقط در Postgres است (شیت فریزشده) → از همان فهرستِ cutover-aware پیدا کن.
+    const user = (await isEntityOnPostgres(USERS_TAB, spreadsheetId))
+      ? (await readUsers(spreadsheetId)).find((u) => u.user_id === String(req.params.userId)) ?? null
+      : await getEntity<BotUser>(spreadsheetId, USERS_TAB, req.params.userId);
     if (!user) throw new BotConfigError(404, "این کاربر پیدا نشد.", "user_not_found");
     res.json({ user: { ...user, user_id: String(user.user_id ?? req.params.userId) } });
   } catch (err) {
