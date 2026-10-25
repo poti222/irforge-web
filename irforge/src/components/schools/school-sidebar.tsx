@@ -23,6 +23,7 @@ import {
   CalendarClock,
   Megaphone,
   BellRing,
+  AlarmClock,
   BookOpen,
   Library,
   MessageCircleQuestion,
@@ -47,7 +48,8 @@ import {
 import { useLanguage } from "@/hooks/use-language";
 import { useT } from "@/hooks/use-translation";
 import { isRtlLang } from "@/lib/i18n";
-import type { SchoolMemberRole } from "@/lib/schools-api";
+import { getSchoolMe, type SchoolMemberRole } from "@/lib/schools-api";
+import { useQuery } from "@tanstack/react-query";
 
 type NavItem = {
   key: string; href: string; icon: any; label: string;
@@ -173,7 +175,13 @@ export function SchoolSidebar({ role, schoolName }: { role: SchoolMemberRole | n
   const [location] = useLocation();
   const { lang } = useLanguage();
   const t = useT("schools") as any;
-  const items = useNavByRole(role, t);
+  const baseItems = useNavByRole(role, t);
+  // «یادآورها»: مدیر/معاون، معلم و دانش‌آموزِ منتخب (بک‌اند همین قاعده را اعمال می‌کند؛ این‌جا فقط منو را پنهان/نمایان می‌کنیم).
+  const { data: meMini } = useQuery({ queryKey: ["schools", "me"], queryFn: getSchoolMe });
+  const canRemind = role === "admin" || role === "deputy" || role === "deputy_discipline" || role === "teacher" || (role === "student" && meMini?.isRep === true);
+  const items = canRemind
+    ? [...baseItems, { key: "reminders", href: "/schools/reminders", icon: AlarmClock, label: t.navReminders } as NavItem]
+    : baseItems;
   // طبقِ خواستِ کاربر: کسی که از قبل عضوِ مدرسه‌ای است، ویجتِ همیشه‌نمایانِ
   // «پیدا کردن مدرسه» را کنارِ سایدبار نمی‌بیند (SchoolShell.tsx) — به‌جایش
   // همین آیتمِ ناوبری که آن ویجت را در یک دیالوگِ روی‌تقاضا باز می‌کند، برایِ

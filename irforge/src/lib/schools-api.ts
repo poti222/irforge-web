@@ -50,6 +50,8 @@ export interface SchoolMemberMe {
   school: SchoolSummary | null;
   /** `/super`: سوپرادمینِ پلتفرم — بدونِ عضویتِ واقعی «مدیرِ همه‌یِ مدارس» حساب می‌شود (سرور `GET /schools/me`). */
   isSuperAdmin?: boolean;
+  /** دانش‌آموزِ منتخبِ (مسئولِ) حداقل یک کلاس — منوی «یادآورها» فقط برایِ او. */
+  isRep?: boolean;
 }
 
 export interface SchoolOnboardingInput {

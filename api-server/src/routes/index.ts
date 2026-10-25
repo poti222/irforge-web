@@ -129,6 +129,7 @@ import schoolBotsRouter from "./schoolBots.js";
 import schoolBotWebhookRouter from "./schoolBotWebhook.js";
 // دانش‌آموزِ منتخب (مسئولِ کلاس): انتخابِ معلم، مواردِ ثبت‌شده، گروه‌هایِ بات
 import schoolRepsRouter from "./schoolReps.js";
+import schoolRemindersRouter from "./schoolReminders.js";
 import schoolNotificationsRouter from "./schoolNotificationTriggers.js";
 // بخش "/schools" فاز ۹ — وضعیتِ خوانده‌شدنِ رشته‌ها + لاگِ رخدادهایِ مدیریتی
 import schoolMessageReadStateRouter from "./schoolMessageReadState.js";
@@ -256,6 +257,7 @@ router.use(schoolBotPoolRouter);
 router.use(schoolBotsRouter);
 router.use(schoolBotWebhookRouter);
 router.use(schoolRepsRouter);
+router.use(schoolRemindersRouter);
 router.use(schoolNotificationsRouter);
 router.use(schoolMessageReadStateRouter);
 router.use(schoolAuditLogRouter);

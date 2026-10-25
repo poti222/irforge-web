@@ -16,6 +16,7 @@ import { b, fa, getState, setState, clearState, tehranDateStr, withNav, HOME_BTN
 import { apiAs } from "./internalApi";
 import * as V from "./views";
 import * as R from "./reps";
+import * as RM from "./reminders";
 import { registerTelegramParent, upsertSubscriber, parentSubmitPhone } from "./parentReg";
 import { adminGuideHtml, inviteText, connectionsHtml } from "./adminInfo";
 import { decideGuardianRequest } from "../schoolGuardianCore";
@@ -117,11 +118,11 @@ export async function homeScreen(env: Env, actor: Actor, chatId: string, forcePi
   if (actor.role === "student") {
     // دانش‌آموزِ منتخب (مسئولِ کلاس) یک ردیفِ اضافه می‌گیرد: ثبتِ تکلیف/امتحان/یادآوری (lib/schoolBot/reps.ts).
     const rep = await R.isRep(env.schoolId, actor.memberId);
-    return { text: `${b("منویِ دانش‌آموز")}\nچه چیزی را ببینیم؟`, kb: rep ? [...STUDENT_KB, R.REP_HOME_ROW] : STUDENT_KB };
+    return { text: `${b("منویِ دانش‌آموز")}\nچه چیزی را ببینیم؟`, kb: rep ? [...STUDENT_KB, R.REP_HOME_ROW, RM.REMIND_HOME_ROW] : STUDENT_KB };
   }
-  if (actor.role === "teacher") return { text: `${b("منویِ معلم")}\nچه چیزی را ببینیم؟`, kb: TEACHER_KB };
+  if (actor.role === "teacher") return { text: `${b("منویِ معلم")}\nچه چیزی را ببینیم؟`, kb: (await RM.hasReminderAccess(env.schoolId, actor.userId)) ? [...TEACHER_KB, RM.REMIND_HOME_ROW] : TEACHER_KB };
   if (actor.role === "counselor") return { text: `${b("منویِ مشاور")}`, kb: COUNSELOR_KB };
-  return { text: `${b("منویِ مدیریت")}\nچه چیزی را ببینیم؟`, kb: ADMIN_KB };
+  return { text: `${b("منویِ مدیریت")}\nچه چیزی را ببینیم؟`, kb: [...ADMIN_KB, RM.REMIND_HOME_ROW] };
 }
 
 function welcomeText(env: Env, actor: Actor): string {
@@ -231,6 +232,8 @@ async function onMessage(env: Env, msg: any) {
   }
   // دانش‌آموزِ منتخب: مراحلِ متنیِ ثبتِ تکلیف/امتحان (عنوان، موعد).
   if (actor.role === "student" && await R.onRepText(env, actor, chatId, st, text)) return;
+  // «🔔 یادآورها»: مراحلِ متنیِ ساخت/ویرایش (دانش‌آموزِ منتخب، معلم، مدیر/معاون).
+  if (await RM.onReminderText(env, actor, chatId, st, text)) return;
   await sendHome(env, actor, chatId);
 }
 
@@ -299,6 +302,9 @@ async function routeCallback(env: Env, actor: Actor, chatId: string, mid: number
 
   // دانش‌آموزِ منتخب (مسئولِ کلاس): ثبتِ تکلیف/امتحان/یادآوری + یادآوری در گروه‌ها
   if (pre === "r") return R.routeRepCallback(env, actor, chatId, data, [pre, a1, a2, a3], ans, show);
+
+  // «🔔 یادآورها»: ساخت/ویرایش/حذفِ یادآورهایِ تکرارشونده (دسترسی در خودِ ماژول سنجیده می‌شود)
+  if (pre === "q") return RM.routeReminderCallback(env, actor, chatId, data, [pre, a1, a2, a3], ans, show);
 
   // دانش‌آموز
   if (pre === "s") {

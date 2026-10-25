@@ -26,6 +26,7 @@ import {
   schoolInviteCodesTable,
   schoolMembersTable,
   schoolAdminsTable,
+  schoolClassRepsTable,
   usersTable,
   SCHOOL_MEMBER_ROLES,
   computeSchoolProfileComplete,
@@ -118,7 +119,12 @@ router.get("/schools/me", requireAuth, async (req: any, res) => {
       const [s] = await db.select().from(schoolsTable).where(eq(schoolsTable.id, member.schoolId)).limit(1);
       school = s ? formatSchool(s) : null;
     }
-    res.json({ ...formatMember(member), school, ...((await isSuperAdminUser(req.userId)) ? { isSuperAdmin: true } : {}) });
+    // «دانش‌آموزِ منتخب» (مسئولِ کلاس): منوی «یادآورها» فقط برایِ او نمایش داده می‌شود.
+    const isRep = member.role === "student" && member.schoolId
+      ? (await db.select({ id: schoolClassRepsTable.id }).from(schoolClassRepsTable)
+          .where(and(eq(schoolClassRepsTable.schoolId, member.schoolId), eq(schoolClassRepsTable.studentMemberId, member.id))).limit(1)).length > 0
+      : false;
+    res.json({ ...formatMember(member), school, isRep, ...((await isSuperAdminUser(req.userId)) ? { isSuperAdmin: true } : {}) });
   } catch (err) {
     logger.error({ err }, "Get school member error");
     res.status(500).json({ error: "Internal server error" });
