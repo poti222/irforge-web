@@ -14,6 +14,7 @@ import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { SidebarBrandHeader } from "@/components/layout/brand-home";
 import {
+  Gamepad2,
   Bot,
   LayoutDashboard,
   Settings,
@@ -67,6 +68,8 @@ export function AppSidebar() {
   // برچسب از آن‌جا می‌آید چون jsonِ "common" باید در همه‌ی زبان‌ها کامل باشد
   // (typecheck این را اجباری می‌کند) و دستِ ar/ru/tr نباید زده شود.
   const schoolsT = useT("schools") as Partial<Record<"schoolBotPoolNavLabel", string>>;
+  // «discordBots» فقط برای fa/en پر است؛ بقیه‌ی زبان‌ها به انگلیسی برمی‌گردند.
+  const discordT = useT("discordBots") as Partial<Record<"navLabel", string>>;
   const { isMobile, setOpenMobile } = useSidebar();
   // همان کوئری‌ای که زنگوله‌ی هدر استفاده می‌کند (react-query کش مشترک دارد،
   // پس این یک درخواست اضافه نیست). روی موبایل که هدر اسکرول می‌شود و از دید
@@ -136,6 +139,14 @@ export function AppSidebar() {
                     <Bot />
                     <span>{nav.myBots}</span>
                     {navDot("bots")}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.startsWith("/discord-bots")} tooltip={discordT.navLabel ?? "Discord bots"}>
+                  <Link href="/discord-bots" data-testid="nav-discord-bots" onClick={closeMobileMenu}>
+                    <Gamepad2 />
+                    <span>{discordT.navLabel ?? "Discord bots"}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -262,6 +273,14 @@ export function AppSidebar() {
                     <Link href="/admin/school-bot-pool" data-testid="nav-school-bot-pool" onClick={closeMobileMenu}>
                       <Bot />
                       <span>{schoolsT.schoolBotPoolNavLabel ?? "School Bot Pool"}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location === "/admin/discord-bots"} tooltip={(discordT.navLabel ?? "Discord bots") + " ⚙"}>
+                    <Link href="/admin/discord-bots" data-testid="nav-admin-discord-bots" onClick={closeMobileMenu}>
+                      <Gamepad2 />
+                      <span>{discordT.navLabel ?? "Discord bots"} ⚙</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

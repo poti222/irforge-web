@@ -138,6 +138,10 @@ const SchoolAuditLogPage = lazy(() => import("@/pages/schools/admin/audit-log"))
 const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
 const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
 const AdminSchoolBotPool = lazy(() => import("@/pages/admin-school-bot-pool"));
+// بات‌ساز دیسکورد
+const DiscordBots = lazy(() => import("@/pages/discord-bots"));
+const DiscordBotEditor = lazy(() => import("@/pages/discord-bot-editor"));
+const AdminDiscordBots = lazy(() => import("@/pages/admin-discord-bots"));
 const AdminCutoverFlags = lazy(() => import("@/pages/admin-cutover-flags"));
 const AdminSheetsImport = lazy(() => import("@/pages/admin-sheets-import"));
 const Support = lazy(() => import("@/pages/support"));
@@ -444,6 +448,8 @@ function Router() {
       <Route path="/complete-profile"><AuthOnlyRoute component={CompleteProfile} /></Route>
       <Route path="/dashboard"><ProtectedRoute component={Dashboard} /></Route>
       <Route path="/bots"><ProtectedRoute component={Bots} /></Route>
+      <Route path="/discord-bots"><ProtectedRoute component={DiscordBots} /></Route>
+      <Route path="/discord-bots/:id"><ProtectedRoute component={DiscordBotEditor} /></Route>
       <Route path="/products"><ProtectedRoute component={BuyBot} /></Route>
       <Route path="/products/:tierId"><ProtectedRoute component={BuyBotDetail} /></Route>
       {/* IRFORGE_PRODUCTS_SECTION_PROMPT Phase 3 — "Buy Bot" renamed to
@@ -541,6 +547,7 @@ function Router() {
       <Route path="/admin/pending-payments"><ProtectedRoute component={AdminPendingPayments} superAdminOnly /></Route>
       <Route path="/admin/sheet-pool"><ProtectedRoute component={AdminSheetPool} superAdminOnly /></Route>
       <Route path="/admin/school-bot-pool"><ProtectedRoute component={AdminSchoolBotPool} superAdminOnly /></Route>
+      <Route path="/admin/discord-bots"><ProtectedRoute component={AdminDiscordBots} adminOnly /></Route>
       <Route path="/admin/cutover-flags"><ProtectedRoute component={AdminCutoverFlags} superAdminOnly /></Route>
       <Route path="/admin/sheets-import"><ProtectedRoute component={AdminSheetsImport} superAdminOnly /></Route>
       <Route path="/super"><SuperOnlyRoute component={Super} /></Route>

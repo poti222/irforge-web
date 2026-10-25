@@ -5454,5 +5454,8 @@
     "ctaButton": "Open the school system",
     "ctaBots": "Buy and build a Telegram bot",
     "faqTitle": "School system FAQ"
+  },
+  "discordBots": {
+    "navLabel": "Discord bots"
   }
 }

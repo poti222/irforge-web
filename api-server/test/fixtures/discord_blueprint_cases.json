@@ -1,0 +1,1093 @@
+[
+ {
+  "name": "kitchen sink (valid + invalid mix)",
+  "input": {
+   "prefix": "!",
+   "variables": {
+    "log": "1",
+    "bad name": "x"
+   },
+   "commands": [
+    {
+     "name": "Ping",
+     "type": "both",
+     "actions": [
+      {
+       "type": "reply",
+       "content": "pong {latency}ms",
+       "buttons": [
+        {
+         "id": "b1",
+         "label": "ok",
+         "style": "success",
+         "actions": [
+          {
+           "type": "reply",
+           "content": "x",
+           "ephemeral": true
+          }
+         ]
+        },
+        {
+         "label": "L",
+         "style": "link",
+         "url": "https://example.com"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "kick",
+     "options": [
+      {
+       "name": "reason",
+       "type": "string"
+      },
+      {
+       "name": "user",
+       "type": "user",
+       "required": true
+      }
+     ],
+     "permissions": [
+      "kick_members",
+      "nope"
+     ],
+     "cooldown": "5",
+     "actions": [
+      {
+       "type": "condition",
+       "if": {
+        "and": [
+         {
+          "left": "{a}",
+          "op": "<",
+          "right": "{b}"
+         },
+         {
+          "not": {
+           "left": "1",
+           "op": "zzz",
+           "right": "2"
+          }
+         }
+        ]
+       },
+       "then": [
+        {
+         "type": "kick_member",
+         "target": "{options.user}"
+        }
+       ],
+       "else": [
+        {
+         "type": "reply"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "سلام",
+     "options": [
+      {
+       "name": "n",
+       "type": "integer",
+       "choices": [
+        {
+         "name": "one",
+         "value": "1"
+        },
+        {
+         "name": "bad",
+         "value": "x"
+        }
+       ]
+      }
+     ],
+     "actions": [
+      {
+       "type": "math",
+       "store_as": "r",
+       "left": "1",
+       "op": "%",
+       "right": "{n}"
+      },
+      {
+       "type": "loop",
+       "times": 99,
+       "actions": [
+        {
+         "type": "wait",
+         "seconds": 99
+        }
+       ]
+      },
+      {
+       "type": "set_variable",
+       "name": "1bad",
+       "value": "x"
+      },
+      {
+       "type": "send_embed",
+       "color": "red"
+      },
+      {
+       "type": "http_request",
+       "url": "ftp://x"
+      },
+      {
+       "type": "random_choice",
+       "options": [
+        "a",
+        "",
+        "b"
+       ]
+      }
+     ]
+    }
+   ],
+   "events": [
+    {
+     "on": "member_join",
+     "actions": [
+      {
+       "type": "send_message",
+       "content": "hi"
+      }
+     ]
+    },
+    {
+     "on": "nope"
+    }
+   ],
+   "status": {
+    "type": "bad",
+    "text": "x"
+   },
+   "settings": {
+    "allow_role_mentions": 1
+   }
+  },
+  "expected": {
+   "blueprint": {
+    "prefix": "!",
+    "status": {
+     "type": "playing",
+     "text": "x"
+    },
+    "settings": {
+     "allow_role_mentions": true
+    },
+    "variables": {
+     "log": "1"
+    },
+    "commands": [
+     {
+      "id": "<id>",
+      "name": "ping",
+      "description": "—",
+      "type": "both",
+      "enabled": true,
+      "ephemeral": false,
+      "cooldown": 0.0,
+      "permissions": [],
+      "options": [],
+      "actions": [
+       {
+        "type": "reply",
+        "content": "pong {latency}ms",
+        "ephemeral": false,
+        "buttons": [
+         {
+          "label": "ok",
+          "style": "success",
+          "emoji": "",
+          "id": "b1",
+          "actions": [
+           {
+            "type": "reply",
+            "content": "x",
+            "ephemeral": true,
+            "buttons": [],
+            "selects": []
+           }
+          ]
+         },
+         {
+          "label": "L",
+          "style": "link",
+          "emoji": "",
+          "url": "https://example.com"
+         }
+        ],
+        "selects": []
+       }
+      ]
+     },
+     {
+      "id": "<id>",
+      "name": "kick",
+      "description": "—",
+      "type": "slash",
+      "enabled": true,
+      "ephemeral": false,
+      "cooldown": 5.0,
+      "permissions": [
+       "kick_members"
+      ],
+      "options": [
+       {
+        "name": "user",
+        "type": "user",
+        "description": "—",
+        "required": true
+       },
+       {
+        "name": "reason",
+        "type": "string",
+        "description": "—",
+        "required": false
+       }
+      ],
+      "actions": [
+       {
+        "type": "condition",
+        "if": {
+         "and": [
+          {
+           "left": "{a}",
+           "op": "<",
+           "right": "{b}"
+          },
+          {
+           "not": {
+            "left": "1",
+            "op": "==",
+            "right": "2"
+           }
+          }
+         ]
+        },
+        "then": [
+         {
+          "type": "kick_member",
+          "target": "{options.user}",
+          "reason": ""
+         }
+        ],
+        "else": [
+         {
+          "type": "reply",
+          "content": "",
+          "ephemeral": false,
+          "buttons": [],
+          "selects": []
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "<id>",
+      "name": "سلام",
+      "description": "—",
+      "type": "slash",
+      "enabled": true,
+      "ephemeral": false,
+      "cooldown": 0.0,
+      "permissions": [],
+      "options": [
+       {
+        "name": "n",
+        "type": "integer",
+        "description": "—",
+        "required": false,
+        "choices": [
+         {
+          "name": "one",
+          "value": 1
+         }
+        ]
+       }
+      ],
+      "actions": [
+       {
+        "type": "math",
+        "store_as": "r",
+        "left": "1",
+        "op": "%",
+        "right": "{n}"
+       },
+       {
+        "type": "loop",
+        "times": 25,
+        "actions": [
+         {
+          "type": "wait",
+          "seconds": 30
+         }
+        ]
+       },
+       {
+        "type": "set_variable",
+        "name": "1bad",
+        "value": "x"
+       },
+       {
+        "type": "send_embed",
+        "title": "",
+        "description": "",
+        "color": "#5865F2",
+        "url": "",
+        "thumbnail": "",
+        "image": "",
+        "footer": "",
+        "timestamp": false,
+        "fields": [],
+        "channel": "",
+        "ephemeral": false,
+        "buttons": [],
+        "selects": []
+       },
+       {
+        "type": "http_request",
+        "url": "ftp://x",
+        "json_path": "",
+        "store_as": "response"
+       },
+       {
+        "type": "random_choice",
+        "options": [
+         "a",
+         "b"
+        ],
+        "store_as": "random"
+       }
+      ]
+     }
+    ],
+    "events": [
+     {
+      "id": "<id>",
+      "on": "member_join",
+      "enabled": true,
+      "filters": {},
+      "actions": [
+       {
+        "type": "send_message",
+        "channel": "",
+        "content": "hi",
+        "buttons": [],
+        "selects": []
+       }
+      ]
+     }
+    ]
+   },
+   "errors": [
+    "status.type: نوع وضعیت نامعتبر: bad",
+    "variables: نام متغیر «bad name» نامعتبر است",
+    "commands[1]: دسترسی نامعتبر: nope",
+    "commands[1].actions[0].if.and[1].not: عملگر ناشناخته: zzz",
+    "commands[1].actions[0].else[0].content: این فیلد الزامی است",
+    "commands[2].options[0]: مقدار گزینه‌ی انتخابی با نوع گزینه نمی‌خواند",
+    "commands[2].actions[2].name: نام متغیر باید با حرف انگلیسی/_ شروع شود و فقط شامل حرف، عدد و _ باشد (حداکثر ۳۲)",
+    "commands[2].actions[3].color: رنگ باید مثل #5865F2 باشد",
+    "commands[2].actions[3]: Embed باید حداقل عنوان، توضیحات، فیلد یا تصویر داشته باشد",
+    "commands[2].actions[4].url: آدرس باید با http:// یا https:// شروع شود",
+    "events[1]: نوع رویداد ناشناخته: nope"
+   ],
+   "intents": [
+    "members",
+    "message_content"
+   ]
+  }
+ },
+ {
+  "name": "duplicate names / unknown action",
+  "input": {
+   "commands": [
+    {
+     "name": "a",
+     "actions": [
+      {
+       "type": "embed"
+      }
+     ]
+    },
+    {
+     "name": "a"
+    },
+    {
+     "name": "B C"
+    }
+   ]
+  },
+  "expected": {
+   "blueprint": {
+    "prefix": "!",
+    "status": {
+     "type": "playing",
+     "text": ""
+    },
+    "settings": {
+     "allow_role_mentions": false
+    },
+    "variables": {},
+    "commands": [
+     {
+      "id": "<id>",
+      "name": "a",
+      "description": "—",
+      "type": "slash",
+      "enabled": true,
+      "ephemeral": false,
+      "cooldown": 0.0,
+      "permissions": [],
+      "options": [],
+      "actions": []
+     }
+    ],
+    "events": []
+   },
+   "errors": [
+    "commands[0].actions[0]: نوع اکشن ناشناخته: embed",
+    "commands[1]: نام دستور تکراری: a",
+    "commands[2]: نام دستور «b c» نامعتبر است (۱ تا ۳۲ حرف/عدد/_/- ، حروف کوچک، بدون فاصله)"
+   ],
+   "intents": []
+  }
+ },
+ {
+  "name": "array input",
+  "input": [],
+  "expected": {
+   "blueprint": {
+    "prefix": "!",
+    "status": {
+     "type": "playing",
+     "text": "IrForge"
+    },
+    "settings": {
+     "allow_role_mentions": false
+    },
+    "variables": {},
+    "commands": [],
+    "events": []
+   },
+   "errors": [
+    "بلوپرینت باید یک آبجکت JSON باشد"
+   ],
+   "intents": []
+  }
+ },
+ {
+  "name": "string input",
+  "input": "str",
+  "expected": {
+   "blueprint": {
+    "prefix": "!",
+    "status": {
+     "type": "playing",
+     "text": "IrForge"
+    },
+    "settings": {
+     "allow_role_mentions": false
+    },
+    "variables": {},
+    "commands": [],
+    "events": []
+   },
+   "errors": [
+    "بلوپرینت باید یک آبجکت JSON باشد"
+   ],
+   "intents": []
+  }
+ },
+ {
+  "name": "bad prefix",
+  "input": {
+   "prefix": "a b"
+  },
+  "expected": {
+   "blueprint": {
+    "prefix": "!",
+    "status": {
+     "type": "playing",
+     "text": ""
+    },
+    "settings": {
+     "allow_role_mentions": false
+    },
+    "variables": {},
+    "commands": [],
+    "events": []
+   },
+   "errors": [
+    "prefix: پیشوند نباید فاصله داشته باشد"
+   ],
+   "intents": []
+  }
+ },
+ {
+  "name": "selects & modals: valid",
+  "input": {
+   "commands": [
+    {
+     "name": "menu",
+     "actions": [
+      {
+       "type": "reply",
+       "content": "pick",
+       "selects": [
+        {
+         "id": "colors",
+         "placeholder": "x",
+         "min_values": "0",
+         "max_values": 9,
+         "options": [
+          {
+           "label": "A"
+          },
+          {
+           "label": "B",
+           "value": "b",
+           "description": "d",
+           "emoji": "🔥"
+          }
+         ],
+         "actions": [
+          {
+           "type": "reply",
+           "content": "you chose {select.value}"
+          }
+         ]
+        }
+       ],
+       "buttons": [
+        {
+         "label": "go",
+         "actions": [
+          {
+           "type": "show_modal",
+           "title": "T",
+           "inputs": [
+            {
+             "id": "name",
+             "label": "Name",
+             "max_length": "50"
+            },
+            {
+             "id": "bio",
+             "label": "Bio",
+             "style": "paragraph",
+             "required": false,
+             "min_length": 900,
+             "max_length": 10
+            }
+           ],
+           "actions": [
+            {
+             "type": "reply",
+             "content": "hi {modal.name}"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "blueprint": {
+    "prefix": "!",
+    "status": {
+     "type": "playing",
+     "text": ""
+    },
+    "settings": {
+     "allow_role_mentions": false
+    },
+    "variables": {},
+    "commands": [
+     {
+      "id": "<id>",
+      "name": "menu",
+      "description": "—",
+      "type": "slash",
+      "enabled": true,
+      "ephemeral": false,
+      "cooldown": 0.0,
+      "permissions": [],
+      "options": [],
+      "actions": [
+       {
+        "type": "reply",
+        "content": "pick",
+        "ephemeral": false,
+        "buttons": [
+         {
+          "label": "go",
+          "style": "primary",
+          "emoji": "",
+          "id": "<id>",
+          "actions": [
+           {
+            "type": "show_modal",
+            "title": "T",
+            "inputs": [
+             {
+              "id": "name",
+              "label": "Name",
+              "style": "short",
+              "placeholder": "",
+              "required": true,
+              "min_length": 0,
+              "max_length": 50
+             },
+             {
+              "id": "bio",
+              "label": "Bio",
+              "style": "paragraph",
+              "placeholder": "",
+              "required": false,
+              "min_length": 10,
+              "max_length": 10
+             }
+            ],
+            "actions": [
+             {
+              "type": "reply",
+              "content": "hi {modal.name}",
+              "ephemeral": false,
+              "buttons": [],
+              "selects": []
+             }
+            ],
+            "id": "<id>"
+           }
+          ]
+         }
+        ],
+        "selects": [
+         {
+          "id": "colors",
+          "placeholder": "x",
+          "min_values": 0,
+          "max_values": 2,
+          "options": [
+           {
+            "label": "A",
+            "value": "A",
+            "description": "",
+            "emoji": ""
+           },
+           {
+            "label": "B",
+            "value": "b",
+            "description": "d",
+            "emoji": "🔥"
+           }
+          ],
+          "actions": [
+           {
+            "type": "reply",
+            "content": "you chose {select.value}",
+            "ephemeral": false,
+            "buttons": [],
+            "selects": []
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "events": []
+   },
+   "errors": [],
+   "intents": []
+  }
+ },
+ {
+  "name": "selects & modals: invalid",
+  "input": {
+   "commands": [
+    {
+     "name": "a",
+     "actions": [
+      {
+       "type": "show_modal",
+       "title": "x",
+       "inputs": []
+      },
+      {
+       "type": "show_modal",
+       "id": "dup",
+       "title": "x",
+       "inputs": [
+        {
+         "id": "1bad",
+         "label": "L"
+        },
+        {
+         "id": "ok",
+         "label": ""
+        },
+        {
+         "id": "ok",
+         "label": "again",
+         "style": "huge"
+        }
+       ]
+      },
+      {
+       "type": "show_modal",
+       "id": "dup",
+       "title": "y",
+       "inputs": [
+        {
+         "id": "z",
+         "label": "Z"
+        }
+       ]
+      },
+      {
+       "type": "reply",
+       "content": "c",
+       "selects": [
+        {
+         "options": []
+        },
+        {
+         "id": "s",
+         "options": [
+          {
+           "label": "A"
+          },
+          {
+           "label": "B",
+           "value": "A"
+          },
+          {
+           "label": ""
+          }
+         ]
+        },
+        {
+         "id": "s",
+         "options": [
+          {
+           "label": "Q"
+          }
+         ]
+        },
+        {
+         "id": "third",
+         "options": [
+          {
+           "label": "Q"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "blueprint": {
+    "prefix": "!",
+    "status": {
+     "type": "playing",
+     "text": ""
+    },
+    "settings": {
+     "allow_role_mentions": false
+    },
+    "variables": {},
+    "commands": [
+     {
+      "id": "<id>",
+      "name": "a",
+      "description": "—",
+      "type": "slash",
+      "enabled": true,
+      "ephemeral": false,
+      "cooldown": 0.0,
+      "permissions": [],
+      "options": [],
+      "actions": [
+       {
+        "type": "show_modal",
+        "title": "x",
+        "inputs": [],
+        "actions": [],
+        "id": "<id>"
+       },
+       {
+        "type": "show_modal",
+        "title": "x",
+        "inputs": [
+         {
+          "id": "ok",
+          "label": "",
+          "style": "short",
+          "placeholder": "",
+          "required": true,
+          "min_length": 0,
+          "max_length": 400
+         }
+        ],
+        "actions": [],
+        "id": "dup"
+       },
+       {
+        "type": "show_modal",
+        "title": "y",
+        "inputs": [
+         {
+          "id": "z",
+          "label": "Z",
+          "style": "short",
+          "placeholder": "",
+          "required": true,
+          "min_length": 0,
+          "max_length": 400
+         }
+        ],
+        "actions": [],
+        "id": "dup"
+       },
+       {
+        "type": "reply",
+        "content": "c",
+        "ephemeral": false,
+        "buttons": [],
+        "selects": [
+         {
+          "id": "<id>",
+          "placeholder": "",
+          "min_values": 1,
+          "max_values": 1,
+          "options": [],
+          "actions": []
+         },
+         {
+          "id": "s",
+          "placeholder": "",
+          "min_values": 1,
+          "max_values": 1,
+          "options": [
+           {
+            "label": "A",
+            "value": "A",
+            "description": "",
+            "emoji": ""
+           }
+          ],
+          "actions": []
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "events": []
+   },
+   "errors": [
+    "commands[0].actions[0].inputs: فرم حداقل یک فیلد لازم دارد",
+    "commands[0].actions[1].inputs[0]: شناسه فیلد باید با حرف انگلیسی/_ شروع شود و فقط حرف، عدد و _ داشته باشد (حداکثر ۳۲)",
+    "commands[0].actions[1].inputs[1]: عنوان فیلد الزامی است",
+    "commands[0].actions[1].inputs[2]: شناسه فیلد تکراری است: ok",
+    "commands[0].actions[2]: شناسه فرم تکراری است: dup",
+    "commands[0].actions[3].selects: حداکثر 2 منوی انتخاب برای هر پیام",
+    "commands[0].actions[3].selects[0]: منو حداقل یک گزینه لازم دارد",
+    "commands[0].actions[3].selects[1].options[1]: مقدار گزینه تکراری است: A",
+    "commands[0].actions[3].selects[1].options[2]: متن گزینه الزامی است"
+   ],
+   "intents": []
+  }
+ },
+ {
+  "name": "too many buttons / selects",
+  "input": {
+   "commands": [
+    {
+     "name": "a",
+     "actions": [
+      {
+       "type": "reply",
+       "content": "x",
+       "buttons": [
+        {
+         "label": "0",
+         "style": "link",
+         "url": "https://e.com"
+        },
+        {
+         "label": "1",
+         "style": "link",
+         "url": "https://e.com"
+        },
+        {
+         "label": "2",
+         "style": "link",
+         "url": "https://e.com"
+        },
+        {
+         "label": "3",
+         "style": "link",
+         "url": "https://e.com"
+        },
+        {
+         "label": "4",
+         "style": "link",
+         "url": "https://e.com"
+        },
+        {
+         "label": "5",
+         "style": "link",
+         "url": "https://e.com"
+        }
+       ],
+       "selects": [
+        {
+         "options": [
+          {
+           "label": "q"
+          }
+         ]
+        },
+        {
+         "options": [
+          {
+           "label": "q"
+          }
+         ]
+        },
+        {
+         "options": [
+          {
+           "label": "q"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "blueprint": {
+    "prefix": "!",
+    "status": {
+     "type": "playing",
+     "text": ""
+    },
+    "settings": {
+     "allow_role_mentions": false
+    },
+    "variables": {},
+    "commands": [
+     {
+      "id": "<id>",
+      "name": "a",
+      "description": "—",
+      "type": "slash",
+      "enabled": true,
+      "ephemeral": false,
+      "cooldown": 0.0,
+      "permissions": [],
+      "options": [],
+      "actions": [
+       {
+        "type": "reply",
+        "content": "x",
+        "ephemeral": false,
+        "buttons": [
+         {
+          "label": "0",
+          "style": "link",
+          "emoji": "",
+          "url": "https://e.com"
+         },
+         {
+          "label": "1",
+          "style": "link",
+          "emoji": "",
+          "url": "https://e.com"
+         },
+         {
+          "label": "2",
+          "style": "link",
+          "emoji": "",
+          "url": "https://e.com"
+         },
+         {
+          "label": "3",
+          "style": "link",
+          "emoji": "",
+          "url": "https://e.com"
+         },
+         {
+          "label": "4",
+          "style": "link",
+          "emoji": "",
+          "url": "https://e.com"
+         }
+        ],
+        "selects": [
+         {
+          "id": "<id>",
+          "placeholder": "",
+          "min_values": 1,
+          "max_values": 1,
+          "options": [
+           {
+            "label": "q",
+            "value": "q",
+            "description": "",
+            "emoji": ""
+           }
+          ],
+          "actions": []
+         },
+         {
+          "id": "<id>",
+          "placeholder": "",
+          "min_values": 1,
+          "max_values": 1,
+          "options": [
+           {
+            "label": "q",
+            "value": "q",
+            "description": "",
+            "emoji": ""
+           }
+          ],
+          "actions": []
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "events": []
+   },
+   "errors": [
+    "commands[0].actions[0].buttons: حداکثر 5 دکمه برای هر پیام",
+    "commands[0].actions[0].selects: حداکثر 2 منوی انتخاب برای هر پیام"
+   ],
+   "intents": []
+  }
+ }
+]

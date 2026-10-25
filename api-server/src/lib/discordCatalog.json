@@ -1,0 +1,1332 @@
+{
+ "version": 1,
+ "limits": {
+  "maxBlueprintBytes": 200000,
+  "maxCommands": 50,
+  "maxEvents": 40,
+  "maxOptionsPerCommand": 10,
+  "maxActionsTotal": 400,
+  "maxActionsPerList": 40,
+  "maxDepth": 5,
+  "maxVariables": 50,
+  "maxButtonsPerAction": 5,
+  "maxSelectsPerAction": 2,
+  "maxSelectOptions": 25,
+  "maxModalInputs": 5,
+  "maxEmbedFields": 25,
+  "maxStringList": 50,
+  "maxStringLen": 4000,
+  "maxStepsPerRun": 100,
+  "maxLoopTimes": 25
+ },
+ "commandPermissions": [
+  "administrator",
+  "manage_guild",
+  "manage_channels",
+  "manage_roles",
+  "manage_messages",
+  "manage_nicknames",
+  "kick_members",
+  "ban_members",
+  "moderate_members",
+  "manage_threads",
+  "manage_webhooks",
+  "mention_everyone",
+  "view_audit_log"
+ ],
+ "optionTypes": [
+  "string",
+  "integer",
+  "number",
+  "boolean",
+  "user",
+  "channel",
+  "role"
+ ],
+ "commandTypes": [
+  "slash",
+  "prefix",
+  "both"
+ ],
+ "activityTypes": [
+  "playing",
+  "watching",
+  "listening",
+  "competing"
+ ],
+ "buttonStyles": [
+  "primary",
+  "secondary",
+  "success",
+  "danger",
+  "link"
+ ],
+ "inputStyles": [
+  "short",
+  "paragraph"
+ ],
+ "operators": [
+  {
+   "id": "==",
+   "label": "برابر است با",
+   "labelEn": "equals"
+  },
+  {
+   "id": "!=",
+   "label": "برابر نیست با",
+   "labelEn": "not equals"
+  },
+  {
+   "id": ">",
+   "label": "بزرگ‌تر از",
+   "labelEn": "greater than"
+  },
+  {
+   "id": "<",
+   "label": "کوچک‌تر از",
+   "labelEn": "less than"
+  },
+  {
+   "id": ">=",
+   "label": "بزرگ‌تر یا مساوی",
+   "labelEn": "≥"
+  },
+  {
+   "id": "<=",
+   "label": "کوچک‌تر یا مساوی",
+   "labelEn": "≤"
+  },
+  {
+   "id": "contains",
+   "label": "شامل",
+   "labelEn": "contains"
+  },
+  {
+   "id": "not_contains",
+   "label": "شامل نیست",
+   "labelEn": "does not contain"
+  },
+  {
+   "id": "startswith",
+   "label": "شروع می‌شود با",
+   "labelEn": "starts with"
+  },
+  {
+   "id": "endswith",
+   "label": "تمام می‌شود با",
+   "labelEn": "ends with"
+  },
+  {
+   "id": "has_role",
+   "label": "نقش دارد (لیست نقش‌ها)",
+   "labelEn": "has role (role list)"
+  },
+  {
+   "id": "is_empty",
+   "label": "خالی است",
+   "labelEn": "is empty"
+  },
+  {
+   "id": "not_empty",
+   "label": "خالی نیست",
+   "labelEn": "is not empty"
+  }
+ ],
+ "events": [
+  {
+   "id": "member_join",
+   "label": "ورود عضو جدید",
+   "labelEn": "Member joined",
+   "variables": [
+    "member.id",
+    "member.name",
+    "member.display_name",
+    "member.mention",
+    "member.avatar",
+    "member.joined_at",
+    "guild.name",
+    "guild.member_count"
+   ],
+   "needsIntents": [
+    "members"
+   ]
+  },
+  {
+   "id": "member_remove",
+   "label": "خروج عضو",
+   "labelEn": "Member left",
+   "variables": [
+    "member.id",
+    "member.name",
+    "member.display_name",
+    "member.mention",
+    "member.avatar",
+    "member.joined_at",
+    "guild.name",
+    "guild.member_count"
+   ],
+   "needsIntents": [
+    "members"
+   ]
+  },
+  {
+   "id": "message",
+   "label": "پیام جدید",
+   "labelEn": "New message",
+   "variables": [
+    "author.id",
+    "author.name",
+    "author.display_name",
+    "author.mention",
+    "message.content",
+    "message.id",
+    "message.link",
+    "channel.id",
+    "channel.name",
+    "channel.mention",
+    "guild.name"
+   ],
+   "needsIntents": [
+    "message_content"
+   ]
+  },
+  {
+   "id": "message_delete",
+   "label": "حذف پیام",
+   "labelEn": "Message deleted",
+   "variables": [
+    "message.id",
+    "message.content",
+    "channel.id",
+    "guild.name"
+   ],
+   "needsIntents": [
+    "message_content"
+   ]
+  },
+  {
+   "id": "message_edit",
+   "label": "ویرایش پیام",
+   "labelEn": "Message edited",
+   "variables": [
+    "author.id",
+    "author.name",
+    "author.display_name",
+    "author.mention",
+    "message.content",
+    "message.id",
+    "message.link",
+    "channel.id",
+    "channel.name",
+    "channel.mention",
+    "guild.name",
+    "before.content"
+   ],
+   "needsIntents": [
+    "message_content"
+   ]
+  },
+  {
+   "id": "reaction_add",
+   "label": "افزودن ری‌اکشن",
+   "labelEn": "Reaction added",
+   "variables": [
+    "author.id",
+    "author.mention",
+    "reaction.emoji",
+    "message.id",
+    "message.link",
+    "channel.id",
+    "guild.name"
+   ],
+   "needsIntents": []
+  },
+  {
+   "id": "reaction_remove",
+   "label": "حذف ری‌اکشن",
+   "labelEn": "Reaction removed",
+   "variables": [
+    "author.id",
+    "author.mention",
+    "reaction.emoji",
+    "message.id",
+    "message.link",
+    "channel.id",
+    "guild.name"
+   ],
+   "needsIntents": []
+  },
+  {
+   "id": "voice_join",
+   "label": "ورود به کانال صوتی",
+   "labelEn": "Joined voice",
+   "variables": [
+    "member.id",
+    "member.mention",
+    "member.display_name",
+    "voice.channel_id",
+    "voice.channel_name",
+    "guild.name"
+   ],
+   "needsIntents": []
+  },
+  {
+   "id": "voice_leave",
+   "label": "خروج از کانال صوتی",
+   "labelEn": "Left voice",
+   "variables": [
+    "member.id",
+    "member.mention",
+    "member.display_name",
+    "voice.channel_id",
+    "voice.channel_name",
+    "guild.name"
+   ],
+   "needsIntents": []
+  },
+  {
+   "id": "ready",
+   "label": "روشن‌شدن بات",
+   "labelEn": "Bot ready",
+   "variables": [
+    "config.*",
+    "latency"
+   ],
+   "needsIntents": []
+  }
+ ],
+ "actions": [
+  {
+   "type": "reply",
+   "label": "پاسخ دادن",
+   "labelEn": "Reply",
+   "category": "message",
+   "icon": "MessageSquare",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "content",
+     "label": "متن پیام",
+     "labelEn": "Message text",
+     "type": "textarea",
+     "required": true,
+     "max": 2000,
+     "supportsVariables": true
+    },
+    {
+     "key": "ephemeral",
+     "label": "فقط برای کاربر دیده شود",
+     "labelEn": "Only visible to the user",
+     "type": "boolean",
+     "default": false
+    },
+    {
+     "key": "buttons",
+     "label": "دکمه‌ها",
+     "labelEn": "Buttons",
+     "type": "buttons",
+     "help": "حداکثر ۵ دکمه. هر دکمه اکشن‌های خودش را اجرا می‌کند (حتی بعد از ری‌استارت بات).",
+     "helpEn": "Up to 5 buttons. Each runs its own actions (even after a bot restart)."
+    },
+    {
+     "key": "selects",
+     "label": "منوهای انتخاب",
+     "labelEn": "Select menus",
+     "type": "selects",
+     "help": "حداکثر ۲ منو. با انتخاب کاربر، اکشن‌های همان منو اجرا می‌شود؛ مقدار انتخاب‌شده: {select.value} / {select.values}",
+     "helpEn": "Up to 2 menus. Choosing an option runs that menu's actions; the choice is {select.value} / {select.values}"
+    }
+   ]
+  },
+  {
+   "type": "send_message",
+   "label": "ارسال پیام",
+   "labelEn": "Send message",
+   "category": "message",
+   "icon": "Send",
+   "botPermissions": [
+    "send_messages"
+   ],
+   "fields": [
+    {
+     "key": "channel",
+     "label": "کانال",
+     "labelEn": "Channel",
+     "type": "channel",
+     "required": false,
+     "help": "آیدی کانال یا متغیر مثل {config.log_channel}. خالی = کانال فعلی.",
+     "helpEn": "Channel ID or a variable like {config.log_channel}. Empty = current channel."
+    },
+    {
+     "key": "content",
+     "label": "متن پیام",
+     "labelEn": "Message text",
+     "type": "textarea",
+     "required": true,
+     "max": 2000,
+     "supportsVariables": true
+    },
+    {
+     "key": "buttons",
+     "label": "دکمه‌ها",
+     "labelEn": "Buttons",
+     "type": "buttons",
+     "help": "حداکثر ۵ دکمه. هر دکمه اکشن‌های خودش را اجرا می‌کند (حتی بعد از ری‌استارت بات).",
+     "helpEn": "Up to 5 buttons. Each runs its own actions (even after a bot restart)."
+    },
+    {
+     "key": "selects",
+     "label": "منوهای انتخاب",
+     "labelEn": "Select menus",
+     "type": "selects",
+     "help": "حداکثر ۲ منو. با انتخاب کاربر، اکشن‌های همان منو اجرا می‌شود؛ مقدار انتخاب‌شده: {select.value} / {select.values}",
+     "helpEn": "Up to 2 menus. Choosing an option runs that menu's actions; the choice is {select.value} / {select.values}"
+    }
+   ]
+  },
+  {
+   "type": "send_embed",
+   "label": "ارسال Embed",
+   "labelEn": "Send embed",
+   "category": "message",
+   "icon": "LayoutPanelTop",
+   "botPermissions": [
+    "send_messages",
+    "embed_links"
+   ],
+   "fields": [
+    {
+     "key": "title",
+     "label": "عنوان",
+     "labelEn": "Title",
+     "type": "text",
+     "max": 256,
+     "supportsVariables": true
+    },
+    {
+     "key": "description",
+     "label": "توضیحات",
+     "labelEn": "Description",
+     "type": "textarea",
+     "max": 4000,
+     "supportsVariables": true
+    },
+    {
+     "key": "color",
+     "label": "رنگ",
+     "labelEn": "Color",
+     "type": "color",
+     "default": "#5865F2"
+    },
+    {
+     "key": "url",
+     "label": "لینک عنوان",
+     "labelEn": "Title URL",
+     "type": "url"
+    },
+    {
+     "key": "thumbnail",
+     "label": "تصویر کوچک (URL)",
+     "labelEn": "Thumbnail (URL)",
+     "type": "url"
+    },
+    {
+     "key": "image",
+     "label": "تصویر بزرگ (URL)",
+     "labelEn": "Image (URL)",
+     "type": "url"
+    },
+    {
+     "key": "footer",
+     "label": "فوتر",
+     "labelEn": "Footer",
+     "type": "text",
+     "max": 2048,
+     "supportsVariables": true
+    },
+    {
+     "key": "timestamp",
+     "label": "نمایش زمان",
+     "labelEn": "Show timestamp",
+     "type": "boolean",
+     "default": false
+    },
+    {
+     "key": "fields",
+     "label": "فیلدها",
+     "labelEn": "Fields",
+     "type": "embed_fields"
+    },
+    {
+     "key": "channel",
+     "label": "کانال",
+     "labelEn": "Channel",
+     "type": "channel",
+     "required": false,
+     "help": "آیدی کانال یا متغیر مثل {config.log_channel}. خالی = کانال فعلی.",
+     "helpEn": "Channel ID or a variable like {config.log_channel}. Empty = current channel."
+    },
+    {
+     "key": "ephemeral",
+     "label": "فقط برای کاربر دیده شود",
+     "labelEn": "Only visible to the user",
+     "type": "boolean",
+     "default": false
+    },
+    {
+     "key": "buttons",
+     "label": "دکمه‌ها",
+     "labelEn": "Buttons",
+     "type": "buttons",
+     "help": "حداکثر ۵ دکمه. هر دکمه اکشن‌های خودش را اجرا می‌کند (حتی بعد از ری‌استارت بات).",
+     "helpEn": "Up to 5 buttons. Each runs its own actions (even after a bot restart)."
+    },
+    {
+     "key": "selects",
+     "label": "منوهای انتخاب",
+     "labelEn": "Select menus",
+     "type": "selects",
+     "help": "حداکثر ۲ منو. با انتخاب کاربر، اکشن‌های همان منو اجرا می‌شود؛ مقدار انتخاب‌شده: {select.value} / {select.values}",
+     "helpEn": "Up to 2 menus. Choosing an option runs that menu's actions; the choice is {select.value} / {select.values}"
+    }
+   ]
+  },
+  {
+   "type": "dm_user",
+   "label": "پیام خصوصی (DM)",
+   "labelEn": "Direct message",
+   "category": "message",
+   "icon": "Mail",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "target",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "required": false,
+     "default": "{author}",
+     "help": "آیدی کاربر یا متغیر مثل {author} / {options.user}",
+     "helpEn": "User ID or a variable like {author} / {options.user}"
+    },
+    {
+     "key": "content",
+     "label": "متن پیام",
+     "labelEn": "Message text",
+     "type": "textarea",
+     "required": true,
+     "max": 2000,
+     "supportsVariables": true
+    }
+   ]
+  },
+  {
+   "type": "show_modal",
+   "label": "نمایش فرم (Modal)",
+   "labelEn": "Show form (modal)",
+   "category": "message",
+   "icon": "FormInput",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "title",
+     "label": "عنوان فرم",
+     "labelEn": "Form title",
+     "type": "text",
+     "required": true,
+     "max": 45,
+     "supportsVariables": true,
+     "help": "فقط وقتی کار می‌کند که این اکشن اولین کارِ یک دستور اسلش/دکمه/منوی انتخاب باشد. بعد از نمایش فرم، ادامه‌ی اکشن‌های همان لیست اجرا نمی‌شود.",
+     "helpEn": "Works only as the first thing a slash command / button / select does. Actions after it in the same list are skipped."
+    },
+    {
+     "key": "inputs",
+     "label": "فیلدهای فرم",
+     "labelEn": "Form inputs",
+     "type": "modal_inputs",
+     "required": true,
+     "help": "حداکثر ۵ فیلد. مقدار هر فیلد بعد از ارسال: {modal.شناسه}",
+     "helpEn": "Up to 5 inputs. After submit each value is {modal.id}"
+    },
+    {
+     "key": "actions",
+     "label": "بعد از ارسال فرم اجرا شود",
+     "labelEn": "Run after the form is submitted",
+     "type": "actions"
+    }
+   ]
+  },
+  {
+   "type": "delete_message",
+   "label": "حذف پیام فعلی",
+   "labelEn": "Delete current message",
+   "category": "message",
+   "icon": "Trash2",
+   "botPermissions": [
+    "manage_messages"
+   ],
+   "fields": []
+  },
+  {
+   "type": "add_reaction",
+   "label": "افزودن ری‌اکشن",
+   "labelEn": "Add reaction",
+   "category": "message",
+   "icon": "SmilePlus",
+   "botPermissions": [
+    "add_reactions"
+   ],
+   "fields": [
+    {
+     "key": "emoji",
+     "label": "ایموجی",
+     "labelEn": "Emoji",
+     "type": "text",
+     "required": true,
+     "max": 100,
+     "help": "مثل 👍 یا <:name:id>",
+     "helpEn": "Like 👍 or <:name:id>"
+    }
+   ]
+  },
+  {
+   "type": "pin_message",
+   "label": "پین‌کردن پیام فعلی",
+   "labelEn": "Pin current message",
+   "category": "message",
+   "icon": "Pin",
+   "botPermissions": [
+    "manage_messages"
+   ],
+   "fields": []
+  },
+  {
+   "type": "add_role",
+   "label": "دادن نقش",
+   "labelEn": "Add role",
+   "category": "moderation",
+   "icon": "BadgePlus",
+   "botPermissions": [
+    "manage_roles"
+   ],
+   "fields": [
+    {
+     "key": "target",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "required": false,
+     "default": "{author}",
+     "help": "آیدی کاربر یا متغیر مثل {author} / {options.user}",
+     "helpEn": "User ID or a variable like {author} / {options.user}"
+    },
+    {
+     "key": "role",
+     "label": "نقش",
+     "labelEn": "Role",
+     "type": "role",
+     "required": true,
+     "help": "آیدی نقش یا متغیر مثل {config.default_role}",
+     "helpEn": "Role ID or a variable like {config.default_role}"
+    },
+    {
+     "key": "reason",
+     "label": "دلیل",
+     "labelEn": "Reason",
+     "type": "text",
+     "max": 300
+    }
+   ]
+  },
+  {
+   "type": "remove_role",
+   "label": "گرفتن نقش",
+   "labelEn": "Remove role",
+   "category": "moderation",
+   "icon": "BadgeMinus",
+   "botPermissions": [
+    "manage_roles"
+   ],
+   "fields": [
+    {
+     "key": "target",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "required": false,
+     "default": "{author}",
+     "help": "آیدی کاربر یا متغیر مثل {author} / {options.user}",
+     "helpEn": "User ID or a variable like {author} / {options.user}"
+    },
+    {
+     "key": "role",
+     "label": "نقش",
+     "labelEn": "Role",
+     "type": "role",
+     "required": true
+    },
+    {
+     "key": "reason",
+     "label": "دلیل",
+     "labelEn": "Reason",
+     "type": "text",
+     "max": 300
+    }
+   ]
+  },
+  {
+   "type": "kick_member",
+   "label": "اخراج کاربر",
+   "labelEn": "Kick member",
+   "category": "moderation",
+   "icon": "UserX",
+   "botPermissions": [
+    "kick_members"
+   ],
+   "fields": [
+    {
+     "key": "target",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "required": true,
+     "default": "{options.user}",
+     "help": "آیدی کاربر یا متغیر مثل {author} / {options.user}",
+     "helpEn": "User ID or a variable like {author} / {options.user}"
+    },
+    {
+     "key": "reason",
+     "label": "دلیل",
+     "labelEn": "Reason",
+     "type": "text",
+     "max": 300
+    }
+   ]
+  },
+  {
+   "type": "ban_member",
+   "label": "بن کاربر",
+   "labelEn": "Ban member",
+   "category": "moderation",
+   "icon": "Ban",
+   "botPermissions": [
+    "ban_members"
+   ],
+   "fields": [
+    {
+     "key": "target",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "required": true,
+     "default": "{options.user}",
+     "help": "آیدی کاربر یا متغیر مثل {author} / {options.user}",
+     "helpEn": "User ID or a variable like {author} / {options.user}"
+    },
+    {
+     "key": "reason",
+     "label": "دلیل",
+     "labelEn": "Reason",
+     "type": "text",
+     "max": 300
+    },
+    {
+     "key": "delete_seconds",
+     "label": "حذف پیام‌های چند ثانیه‌ی اخیر",
+     "labelEn": "Delete recent messages (seconds)",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 604800
+    }
+   ]
+  },
+  {
+   "type": "unban_user",
+   "label": "آنبن کاربر",
+   "labelEn": "Unban user",
+   "category": "moderation",
+   "icon": "UserCheck",
+   "botPermissions": [
+    "ban_members"
+   ],
+   "fields": [
+    {
+     "key": "user_id",
+     "label": "آیدی کاربر",
+     "labelEn": "User ID",
+     "type": "text",
+     "required": true,
+     "supportsVariables": true
+    },
+    {
+     "key": "reason",
+     "label": "دلیل",
+     "labelEn": "Reason",
+     "type": "text",
+     "max": 300
+    }
+   ]
+  },
+  {
+   "type": "timeout_member",
+   "label": "تایم‌اوت کاربر",
+   "labelEn": "Timeout member",
+   "category": "moderation",
+   "icon": "Timer",
+   "botPermissions": [
+    "moderate_members"
+   ],
+   "fields": [
+    {
+     "key": "target",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "required": true,
+     "default": "{options.user}",
+     "help": "آیدی کاربر یا متغیر مثل {author} / {options.user}",
+     "helpEn": "User ID or a variable like {author} / {options.user}"
+    },
+    {
+     "key": "duration",
+     "label": "مدت (ثانیه)",
+     "labelEn": "Duration (seconds)",
+     "type": "number",
+     "required": true,
+     "default": 60,
+     "min": 1,
+     "max": 2419200,
+     "supportsVariables": true
+    },
+    {
+     "key": "reason",
+     "label": "دلیل",
+     "labelEn": "Reason",
+     "type": "text",
+     "max": 300
+    }
+   ]
+  },
+  {
+   "type": "remove_timeout",
+   "label": "لغو تایم‌اوت",
+   "labelEn": "Remove timeout",
+   "category": "moderation",
+   "icon": "TimerOff",
+   "botPermissions": [
+    "moderate_members"
+   ],
+   "fields": [
+    {
+     "key": "target",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "required": true,
+     "default": "{options.user}",
+     "help": "آیدی کاربر یا متغیر مثل {author} / {options.user}",
+     "helpEn": "User ID or a variable like {author} / {options.user}"
+    }
+   ]
+  },
+  {
+   "type": "set_nickname",
+   "label": "تغییر نام مستعار",
+   "labelEn": "Set nickname",
+   "category": "moderation",
+   "icon": "PenLine",
+   "botPermissions": [
+    "manage_nicknames"
+   ],
+   "fields": [
+    {
+     "key": "target",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "required": false,
+     "default": "{author}",
+     "help": "آیدی کاربر یا متغیر مثل {author} / {options.user}",
+     "helpEn": "User ID or a variable like {author} / {options.user}"
+    },
+    {
+     "key": "nickname",
+     "label": "نام مستعار (خالی = بازنشانی)",
+     "labelEn": "Nickname (empty = reset)",
+     "type": "text",
+     "max": 32,
+     "supportsVariables": true
+    }
+   ]
+  },
+  {
+   "type": "purge",
+   "label": "پاک‌کردن پیام‌ها",
+   "labelEn": "Purge messages",
+   "category": "moderation",
+   "icon": "Eraser",
+   "botPermissions": [
+    "manage_messages",
+    "read_message_history"
+   ],
+   "fields": [
+    {
+     "key": "channel",
+     "label": "کانال",
+     "labelEn": "Channel",
+     "type": "channel",
+     "required": false,
+     "help": "آیدی کانال یا متغیر مثل {config.log_channel}. خالی = کانال فعلی.",
+     "helpEn": "Channel ID or a variable like {config.log_channel}. Empty = current channel."
+    },
+    {
+     "key": "amount",
+     "label": "تعداد",
+     "labelEn": "Amount",
+     "type": "number",
+     "default": 10,
+     "min": 1,
+     "max": 100
+    }
+   ]
+  },
+  {
+   "type": "condition",
+   "label": "شرط (اگر...)",
+   "labelEn": "Condition (if…)",
+   "category": "logic",
+   "icon": "GitBranch",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "if",
+     "label": "شرط",
+     "labelEn": "Condition",
+     "type": "condition",
+     "required": true
+    },
+    {
+     "key": "then",
+     "label": "آن‌گاه",
+     "labelEn": "Then",
+     "type": "actions"
+    },
+    {
+     "key": "else",
+     "label": "در غیر این صورت",
+     "labelEn": "Else",
+     "type": "actions"
+    }
+   ]
+  },
+  {
+   "type": "loop",
+   "label": "تکرار",
+   "labelEn": "Repeat",
+   "category": "logic",
+   "icon": "Repeat",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "times",
+     "label": "تعداد تکرار",
+     "labelEn": "Times",
+     "type": "number",
+     "required": true,
+     "default": 3,
+     "min": 1,
+     "max": 25
+    },
+    {
+     "key": "actions",
+     "label": "اکشن‌ها",
+     "labelEn": "Actions",
+     "type": "actions"
+    }
+   ]
+  },
+  {
+   "type": "set_variable",
+   "label": "تنظیم متغیر",
+   "labelEn": "Set variable",
+   "category": "logic",
+   "icon": "Variable",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "name",
+     "label": "نام متغیر",
+     "labelEn": "Variable name",
+     "type": "ident",
+     "required": true,
+     "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$"
+    },
+    {
+     "key": "value",
+     "label": "مقدار",
+     "labelEn": "Value",
+     "type": "text",
+     "max": 500,
+     "supportsVariables": true
+    }
+   ]
+  },
+  {
+   "type": "math",
+   "label": "محاسبه",
+   "labelEn": "Calculate",
+   "category": "logic",
+   "icon": "Calculator",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "store_as",
+     "label": "ذخیره در متغیر",
+     "labelEn": "Store as",
+     "type": "ident",
+     "required": true,
+     "default": "result",
+     "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$"
+    },
+    {
+     "key": "left",
+     "label": "عدد اول",
+     "labelEn": "Left",
+     "type": "text",
+     "required": true,
+     "supportsVariables": true
+    },
+    {
+     "key": "op",
+     "label": "عملگر",
+     "labelEn": "Operator",
+     "type": "select",
+     "required": true,
+     "default": "+",
+     "options": [
+      "+",
+      "-",
+      "*",
+      "/",
+      "%"
+     ]
+    },
+    {
+     "key": "right",
+     "label": "عدد دوم",
+     "labelEn": "Right",
+     "type": "text",
+     "required": true,
+     "supportsVariables": true
+    }
+   ]
+  },
+  {
+   "type": "random_choice",
+   "label": "انتخاب تصادفی",
+   "labelEn": "Random choice",
+   "category": "logic",
+   "icon": "Shuffle",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "options",
+     "label": "گزینه‌ها",
+     "labelEn": "Options",
+     "type": "string_list",
+     "required": true,
+     "max": 50
+    },
+    {
+     "key": "store_as",
+     "label": "ذخیره در متغیر",
+     "labelEn": "Store as",
+     "type": "ident",
+     "default": "random",
+     "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$"
+    }
+   ]
+  },
+  {
+   "type": "random_number",
+   "label": "عدد تصادفی",
+   "labelEn": "Random number",
+   "category": "logic",
+   "icon": "Dices",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "min",
+     "label": "حداقل",
+     "labelEn": "Min",
+     "type": "number",
+     "default": 1
+    },
+    {
+     "key": "max",
+     "label": "حداکثر",
+     "labelEn": "Max",
+     "type": "number",
+     "default": 100
+    },
+    {
+     "key": "store_as",
+     "label": "ذخیره در متغیر",
+     "labelEn": "Store as",
+     "type": "ident",
+     "default": "random",
+     "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$"
+    }
+   ]
+  },
+  {
+   "type": "wait",
+   "label": "انتظار",
+   "labelEn": "Wait",
+   "category": "logic",
+   "icon": "Clock",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "seconds",
+     "label": "ثانیه",
+     "labelEn": "Seconds",
+     "type": "number",
+     "required": true,
+     "default": 1,
+     "min": 0,
+     "max": 30
+    }
+   ]
+  },
+  {
+   "type": "stop",
+   "label": "توقف اجرا",
+   "labelEn": "Stop",
+   "category": "logic",
+   "icon": "OctagonX",
+   "botPermissions": [],
+   "fields": []
+  },
+  {
+   "type": "http_request",
+   "label": "درخواست HTTP (GET)",
+   "labelEn": "HTTP request (GET)",
+   "category": "data",
+   "icon": "Globe",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "url",
+     "label": "آدرس (https)",
+     "labelEn": "URL (https)",
+     "type": "url",
+     "required": true,
+     "supportsVariables": true,
+     "help": "فقط دامنه‌های مجاز (api.github.com، catfact.ninja و ...) — دامنه‌های بیشتر را مدیر سرور تعریف می‌کند.",
+     "helpEn": "Allow-listed hosts only (api.github.com, catfact.ninja, …) — the server admin can add more."
+    },
+    {
+     "key": "json_path",
+     "label": "مسیر مقدار در JSON",
+     "labelEn": "JSON path",
+     "type": "text",
+     "max": 200,
+     "placeholder": "data.items[0].name"
+    },
+    {
+     "key": "store_as",
+     "label": "ذخیره در متغیر",
+     "labelEn": "Store as",
+     "type": "ident",
+     "default": "response",
+     "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$"
+    }
+   ]
+  },
+  {
+   "type": "database_set",
+   "label": "ذخیره در دیتابیس",
+   "labelEn": "Database: set",
+   "category": "data",
+   "icon": "DatabaseZap",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "key",
+     "label": "کلید",
+     "labelEn": "Key",
+     "type": "text",
+     "required": true,
+     "max": 200,
+     "supportsVariables": true
+    },
+    {
+     "key": "value",
+     "label": "مقدار",
+     "labelEn": "Value",
+     "type": "text",
+     "max": 4000,
+     "supportsVariables": true
+    }
+   ]
+  },
+  {
+   "type": "database_get",
+   "label": "خواندن از دیتابیس",
+   "labelEn": "Database: get",
+   "category": "data",
+   "icon": "Database",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "key",
+     "label": "کلید",
+     "labelEn": "Key",
+     "type": "text",
+     "required": true,
+     "max": 200,
+     "supportsVariables": true
+    },
+    {
+     "key": "store_as",
+     "label": "ذخیره در متغیر",
+     "labelEn": "Store as",
+     "type": "ident",
+     "default": "value",
+     "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$"
+    },
+    {
+     "key": "default",
+     "label": "مقدار پیش‌فرض",
+     "labelEn": "Default",
+     "type": "text",
+     "max": 500
+    }
+   ]
+  },
+  {
+   "type": "database_increment",
+   "label": "افزایش عدد دیتابیس",
+   "labelEn": "Database: increment",
+   "category": "data",
+   "icon": "ArrowUp01",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "key",
+     "label": "کلید",
+     "labelEn": "Key",
+     "type": "text",
+     "required": true,
+     "max": 200,
+     "supportsVariables": true
+    },
+    {
+     "key": "amount",
+     "label": "مقدار افزایش",
+     "labelEn": "Amount",
+     "type": "number",
+     "default": 1
+    },
+    {
+     "key": "store_as",
+     "label": "ذخیره‌ی نتیجه در متغیر",
+     "labelEn": "Store result as",
+     "type": "ident",
+     "default": "value",
+     "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$"
+    }
+   ]
+  },
+  {
+   "type": "database_delete",
+   "label": "حذف از دیتابیس",
+   "labelEn": "Database: delete",
+   "category": "data",
+   "icon": "DatabaseBackup",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "key",
+     "label": "کلید",
+     "labelEn": "Key",
+     "type": "text",
+     "required": true,
+     "max": 200,
+     "supportsVariables": true
+    }
+   ]
+  }
+ ],
+ "variableGroups": {
+  "author": [
+   "id",
+   "name",
+   "display_name",
+   "mention",
+   "avatar",
+   "top_role",
+   "roles",
+   "joined_at"
+  ],
+  "member": [
+   "id",
+   "name",
+   "display_name",
+   "mention",
+   "avatar",
+   "top_role",
+   "roles",
+   "joined_at"
+  ],
+  "target": [
+   "id",
+   "name",
+   "display_name",
+   "mention",
+   "avatar"
+  ],
+  "guild": [
+   "id",
+   "name",
+   "member_count",
+   "icon"
+  ],
+  "channel": [
+   "id",
+   "name",
+   "mention"
+  ],
+  "message": [
+   "id",
+   "content",
+   "link"
+  ],
+  "options": [
+   "<option name>",
+   "<option name>_mention"
+  ],
+  "config": [
+   "<variable name>"
+  ],
+  "now": [
+   "date",
+   "time",
+   "iso",
+   "unix"
+  ],
+  "select": [
+   "value",
+   "values"
+  ],
+  "modal": [
+   "<input id>"
+  ],
+  "misc": [
+   "latency",
+   "<variables set by actions>"
+  ]
+ }
+}
