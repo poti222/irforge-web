@@ -4,99 +4,147 @@
  * مسیر والدها و زیرمجموعه‌هایش پررنگ و بقیه کم‌رنگ می‌شوند.
  *
  * خطِ ممتد = رابطه‌ی والد ← فرزند (`parent_id`).
- * خطِ نقطه‌چین = دکمه‌ای در یک پنل که به پنلِ دیگری می‌رود (action = panel).
+ * خطِ نقطه‌چین (با فلش) = دکمه‌ای در یک پنل که به پنلِ دیگری می‌رود (action = panel).
+ * این خطوط پیش‌فرض مخفی‌اند و فقط برای پنلِ هاور/انتخاب‌شده (یا با دکمه‌ی «نمایش همه») دیده می‌شوند.
+ *
+ * چیدمان: درخت چپ→راست (هر عمق یک ستون). کارت‌ها را می‌شود با کشیدن جابجا کرد؛
+ * جای دستی‌شان برای هر ربات در localStorage ذخیره می‌شود و دفعه‌ی بعد همان‌جا می‌ماند.
  *
  * بدون وابستگی جدید: چیدمان درختی ساده + SVG برای خطوط + pan/zoom دستی.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Home, Ban, Lock, Minus, Plus, Maximize2 } from "lucide-react";
+import { Home, Ban, Lock, Minus, Plus, Maximize2, RotateCcw, Link2 } from "lucide-react";
 import { useT } from "@/hooks/use-translation";
 import { panelTypeLabel } from "./labels";
 import type { Panel, PanelNode } from "./api";
 
 const NODE_W = 184;
 const NODE_H = 76;
-const GAP_X = 28;
-const GAP_Y = 72;
+const COL_GAP = 96; // فاصله‌ی افقی بین ستون‌ها (عمق‌ها)
+const ROW_GAP = 18; // فاصله‌ی عمودی بین کارت‌های هم‌سطح
 const PAD = 48;
+const SNAP = 8; // موقع کشیدن، جای کارت روی این شبکه می‌نشیند تا مرتب بماند
+const MIN_K = 0.05; // خیلی کوچک شدن مشکلی نیست؛ کاربر خودش بزرگ می‌کند
+const MAX_K = 2;
 
 type Pos = { x: number; y: number };
 type Edge = { from: string; to: string; kind: "child" | "link" };
+type Side = "r" | "l" | "t" | "b";
 
-function subtreeWidth(n: PanelNode, memo: Map<string, number>): number {
+function subtreeHeight(n: PanelNode, memo: Map<string, number>): number {
   const cached = memo.get(n.id);
   if (cached !== undefined) return cached;
-  const w = n.childNodes.length
+  const h = n.childNodes.length
     ? Math.max(
-        NODE_W,
-        n.childNodes.reduce((s, c) => s + subtreeWidth(c, memo), 0) + GAP_X * (n.childNodes.length - 1),
+        NODE_H,
+        n.childNodes.reduce((s, c) => s + subtreeHeight(c, memo), 0) + ROW_GAP * (n.childNodes.length - 1),
       )
-    : NODE_W;
-  memo.set(n.id, w);
-  return w;
+    : NODE_H;
+  memo.set(n.id, h);
+  return h;
 }
 
-function layout(tree: PanelNode[]) {
+/** چیدمان خودکار چپ→راست: هر عمق یک ستون، فرزندها زیر هم و وسطِ والد. */
+function layout(tree: PanelNode[]): Map<string, Pos> {
   const memo = new Map<string, number>();
   const pos = new Map<string, Pos>();
   let cursor = PAD;
-  let maxY = 0;
 
-  const place = (n: PanelNode, left: number, depth: number) => {
-    const w = subtreeWidth(n, memo);
-    const y = PAD + depth * (NODE_H + GAP_Y);
-    pos.set(n.id, { x: left + (w - NODE_W) / 2, y });
-    maxY = Math.max(maxY, y + NODE_H);
-    let l = left;
+  const place = (n: PanelNode, top: number, depth: number) => {
+    const h = subtreeHeight(n, memo);
+    pos.set(n.id, { x: PAD + depth * (NODE_W + COL_GAP), y: top + (h - NODE_H) / 2 });
+    let t = top;
     for (const c of n.childNodes) {
-      place(c, l, depth + 1);
-      l += subtreeWidth(c, memo) + GAP_X;
+      place(c, t, depth + 1);
+      t += subtreeHeight(c, memo) + ROW_GAP;
     }
   };
 
   for (const root of tree) {
     place(root, cursor, 0);
-    cursor += subtreeWidth(root, memo) + GAP_X * 2;
+    cursor += subtreeHeight(root, memo) + ROW_GAP * 3;
   }
-  return { pos, width: Math.max(cursor, NODE_W + PAD * 2), height: maxY + PAD };
+  return pos;
 }
 
-/** خطِ شکسته (عمودی-افقی-عمودی) مثل نمای سرویس‌ها. */
-function elbow(a: Pos, b: Pos): string {
-  const x1 = a.x + NODE_W / 2;
-  const y1 = a.y + NODE_H;
-  const x2 = b.x + NODE_W / 2;
-  const y2 = b.y;
-  const my = y1 + (y2 - y1) / 2;
-  const r = Math.min(10, Math.abs(x2 - x1) / 2, Math.abs(my - y1));
-  if (Math.abs(x2 - x1) < 1) return `M${x1},${y1} L${x2},${y2}`;
-  const dir = x2 > x1 ? 1 : -1;
-  return `M${x1},${y1} L${x1},${my - r} Q${x1},${my} ${x1 + dir * r},${my} L${x2 - dir * r},${my} Q${x2},${my} ${x2},${my + r} L${x2},${y2}`;
+// ── ذخیره‌ی جای دستیِ کارت‌ها (per-bot، در مرورگر) ────────────────
+function loadPositions(key: string): Record<string, Pos> {
+  try {
+    const raw = localStorage.getItem(key);
+    const obj = raw ? (JSON.parse(raw) as unknown) : null;
+    if (!obj || typeof obj !== "object") return {};
+    const out: Record<string, Pos> = {};
+    for (const [id, p] of Object.entries(obj as Record<string, Pos>)) {
+      if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) out[id] = { x: p.x, y: p.y };
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
 
-/** خطِ منحنی برای لینک‌های دکمه‌ای (ممکن است به هر جایی از درخت بروند). */
+function savePositions(key: string, value: Record<string, Pos>) {
+  try {
+    if (Object.keys(value).length) localStorage.setItem(key, JSON.stringify(value));
+    else localStorage.removeItem(key);
+  } catch {
+    /* localStorage ممکن است در دسترس نباشد */
+  }
+}
+
+const SIDE_DIR: Record<Side, [number, number]> = { r: [1, 0], l: [-1, 0], t: [0, -1], b: [0, 1] };
+
+function anchor(p: Pos, s: Side): Pos {
+  switch (s) {
+    case "r": return { x: p.x + NODE_W, y: p.y + NODE_H / 2 };
+    case "l": return { x: p.x, y: p.y + NODE_H / 2 };
+    case "t": return { x: p.x + NODE_W / 2, y: p.y };
+    default: return { x: p.x + NODE_W / 2, y: p.y + NODE_H };
+  }
+}
+
+/** از کدام ضلعِ مبدأ به کدام ضلعِ مقصد وصل شویم (بر اساس جای فعلیِ کارت‌ها). */
+function sidesFor(a: Pos, b: Pos): [Side, Side] {
+  if (b.x >= a.x + NODE_W + 8) return ["r", "l"];
+  if (b.x + NODE_W <= a.x - 8) return ["l", "r"];
+  return b.y >= a.y ? ["b", "t"] : ["t", "b"];
+}
+
+/** خطِ منحنی با فلش برای لینک‌های دکمه‌ای (ممکن است به هر جایی از درخت بروند). */
 function curve(a: Pos, b: Pos): string {
-  const x1 = a.x + NODE_W / 2;
-  const y1 = a.y + NODE_H;
-  const x2 = b.x + NODE_W / 2;
-  const y2 = b.y;
-  if (y2 > y1) {
-    const dy = (y2 - y1) / 2;
-    return `M${x1},${y1} C${x1},${y1 + dy} ${x2},${y2 - dy} ${x2},${y2}`;
-  }
-  // مقصد بالاتر/هم‌سطح: از کنار دور بزن.
-  const side = x2 >= x1 ? 1 : -1;
-  const off = NODE_W / 2 + 28;
-  return `M${x1},${y1} C${x1},${y1 + 50} ${x1 + side * off},${y1 + 50} ${x1 + side * off},${(y1 + y2) / 2} S${x2},${y2 - 50} ${x2},${y2}`;
+  const [sa, sb] = sidesFor(a, b);
+  const p = anchor(a, sa);
+  const q = anchor(b, sb);
+  const dist = Math.max(40, Math.hypot(q.x - p.x, q.y - p.y) / 2.5);
+  const [dx1, dy1] = SIDE_DIR[sa];
+  const [dx2, dy2] = SIDE_DIR[sb];
+  return `M${p.x},${p.y} C${p.x + dx1 * dist},${p.y + dy1 * dist} ${q.x + dx2 * dist},${q.y + dy2 * dist} ${q.x},${q.y}`;
+}
+
+/** خطِ شکسته (افقی-عمودی-افقی) برای والد ← فرزند؛ فرزندهای هم‌والد یک تنه‌ی مشترک دارند. */
+function elbow(a: Pos, b: Pos): string {
+  const x1 = a.x + NODE_W;
+  const y1 = a.y + NODE_H / 2;
+  const x2 = b.x;
+  const y2 = b.y + NODE_H / 2;
+  // اگر کارتِ فرزند را به سمت چپ/روی والد کشیده باشند، منحنیِ عمومی بهتر است.
+  if (x2 - x1 < 24) return curve(a, b);
+  if (Math.abs(y2 - y1) < 1) return `M${x1},${y1} L${x2},${y2}`;
+  const mx = x1 + (x2 - x1) / 2;
+  const r = Math.min(10, Math.abs(y2 - y1) / 2, (x2 - x1) / 2);
+  const dir = y2 > y1 ? 1 : -1;
+  return `M${x1},${y1} L${mx - r},${y1} Q${mx},${y1} ${mx},${y1 + dir * r} L${mx},${y2 - dir * r} Q${mx},${y2} ${mx + r},${y2} L${x2},${y2}`;
 }
 
 export function PanelGraph({
+  botId,
   tree,
   panels,
   selectedId,
   onSelect,
   panelTypeLabels,
 }: {
+  botId: string;
   tree: PanelNode[];
   panels: Panel[];
   selectedId: string | null;
@@ -104,7 +152,39 @@ export function PanelGraph({
   panelTypeLabels?: Record<string, string>;
 }) {
   const t = useT("botPanels");
-  const { pos, width, height } = useMemo(() => layout(tree), [tree]);
+  const autoPos = useMemo(() => layout(tree), [tree]);
+
+  // جای دستیِ کارت‌ها (بعد از درگ) — روی چیدمان خودکار اولویت دارد و ذخیره می‌شود.
+  const storageKey = `irforge:panel-graph:${botId}`;
+  const [custom, setCustom] = useState<Record<string, Pos>>(() => loadPositions(storageKey));
+  const customRef = useRef(custom);
+  customRef.current = custom;
+  useEffect(() => {
+    setCustom(loadPositions(storageKey));
+  }, [storageKey]);
+
+  const pos = useMemo(() => {
+    const m = new Map(autoPos);
+    for (const [id, p] of Object.entries(custom)) if (m.has(id)) m.set(id, p);
+    return m;
+  }, [autoPos, custom]);
+  const hasCustom = useMemo(() => Object.keys(custom).some((id) => autoPos.has(id)), [custom, autoPos]);
+
+  const bounds = useMemo(() => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of pos.values()) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x + NODE_W);
+      maxY = Math.max(maxY, p.y + NODE_H);
+    }
+    return Number.isFinite(minX) ? { minX, minY, maxX, maxY } : { minX: 0, minY: 0, maxX: NODE_W, maxY: NODE_H };
+  }, [pos]);
+  const boundsRef = useRef(bounds);
+  boundsRef.current = bounds;
+
+  const [showLinks, setShowLinks] = useState(false);
+  const [fitTick, setFitTick] = useState(0);
 
   const byId = useMemo(() => new Map(panels.map((p) => [p.id, p])), [panels]);
 
@@ -159,13 +239,21 @@ export function PanelGraph({
   const fit = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const k = Math.min(1, el.clientWidth / width, el.clientHeight / height);
-    setView({ k, x: (el.clientWidth - width * k) / 2, y: Math.max(0, (el.clientHeight - height * k) / 2) });
-  }, [width, height]);
+    const b = boundsRef.current;
+    const bw = b.maxX - b.minX;
+    const bh = b.maxY - b.minY;
+    const k = Math.min(1, Math.max(MIN_K, Math.min((el.clientWidth - PAD) / bw, (el.clientHeight - PAD) / bh)));
+    setView({
+      k,
+      x: (el.clientWidth - bw * k) / 2 - b.minX * k,
+      y: (el.clientHeight - bh * k) / 2 - b.minY * k,
+    });
+  }, []);
 
+  // فقط وقتی ساختار پنل‌ها عوض شد (یا «چیدمان خودکار» زده شد) دوباره fit کن؛ نه موقع درگ.
   useEffect(() => {
     fit();
-  }, [fit]);
+  }, [fit, autoPos, fitTick]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -176,7 +264,7 @@ export function PanelGraph({
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       setView((v) => {
-        const k = Math.min(2, Math.max(0.25, v.k * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
+        const k = Math.min(MAX_K, Math.max(MIN_K, v.k * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
         const r = k / v.k;
         return { k, x: mx - (mx - v.x) * r, y: my - (my - v.y) * r };
       });
@@ -191,10 +279,19 @@ export function PanelGraph({
     const mx = el.clientWidth / 2;
     const my = el.clientHeight / 2;
     setView((v) => {
-      const k = Math.min(2, Math.max(0.25, v.k * f));
+      const k = Math.min(MAX_K, Math.max(MIN_K, v.k * f));
       const r = k / v.k;
       return { k, x: mx - (mx - v.x) * r, y: my - (my - v.y) * r };
     });
+  }
+
+  // ── جابجاییِ کارت‌ها ───────────────────────────────────────────
+  const nodeDrag = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number; moved: boolean; last: Pos } | null>(null);
+
+  function resetLayout() {
+    setCustom({});
+    savePositions(storageKey, {});
+    setFitTick((n) => n + 1);
   }
 
   if (tree.length === 0) {
@@ -204,6 +301,7 @@ export function PanelGraph({
   }
 
   const isDim = (id: string) => related !== null && !related.has(id);
+  const focus = hovered ?? selectedId;
 
   return (
     <div className="space-y-2">
@@ -234,27 +332,41 @@ export function PanelGraph({
       >
         <div
           className="absolute left-0 top-0 origin-top-left"
-          style={{ width, height, transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}
+          style={{ width: 1, height: 1, transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}
         >
-          <svg width={width} height={height} className="pointer-events-none absolute left-0 top-0 overflow-visible">
+          <svg width={1} height={1} className="pointer-events-none absolute left-0 top-0 overflow-visible">
+            <defs>
+              <marker id="pg-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" className="fill-amber-500" />
+              </marker>
+            </defs>
             {edges.map((e) => {
               const a = pos.get(e.from)!;
               const b = pos.get(e.to)!;
-              const active = related ? related.has(e.from) && related.has(e.to) : false;
-              const dim = related !== null && !active;
+              const isLink = e.kind === "link";
+              // لینک‌های دکمه‌ای فقط برای کارتِ هاور/انتخاب‌شده (یا وقتی «نمایش همه» روشن است) رسم می‌شوند.
+              const touchesFocus = focus !== null && (e.from === focus || e.to === focus);
+              if (isLink && !showLinks && !touchesFocus) return null;
+              const active = isLink
+                ? touchesFocus
+                : related ? related.has(e.from) && related.has(e.to) : false;
+              const dim = isLink
+                ? focus !== null && !touchesFocus
+                : related !== null && !active;
               return (
                 <path
                   key={`${e.kind}:${e.from}>${e.to}`}
-                  d={e.kind === "child" ? elbow(a, b) : curve(a, b)}
+                  d={isLink ? curve(a, b) : elbow(a, b)}
                   fill="none"
-                  strokeWidth={active ? 2.5 : 2}
-                  strokeDasharray={e.kind === "link" ? "5 5" : undefined}
+                  strokeWidth={active ? 2.5 : isLink ? 1.5 : 2}
+                  strokeDasharray={isLink ? "5 5" : undefined}
+                  markerEnd={isLink ? "url(#pg-arrow)" : undefined}
                   className={
-                    e.kind === "child"
-                      ? active ? "stroke-primary" : "stroke-primary/40"
-                      : active ? "stroke-amber-500" : "stroke-amber-500/40"
+                    isLink
+                      ? "stroke-amber-500"
+                      : active ? "stroke-primary" : "stroke-primary/40"
                   }
-                  opacity={dim ? 0.2 : 1}
+                  opacity={dim ? 0.15 : isLink && !active ? 0.6 : 1}
                 />
               );
             })}
@@ -273,12 +385,44 @@ export function PanelGraph({
                   if (suppressClick.current) { suppressClick.current = false; return; }
                   onSelect(p.id);
                 }}
-                onPointerDown={(e) => e.stopPropagation()}
+                title={p.title || undefined}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  if (e.button !== 0) return;
+                  suppressClick.current = false;
+                  nodeDrag.current = { id: p.id, sx: e.clientX, sy: e.clientY, ox: at.x, oy: at.y, moved: false, last: at };
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                }}
+                onPointerMove={(e) => {
+                  const d = nodeDrag.current;
+                  if (!d || d.id !== p.id) return;
+                  const dx = e.clientX - d.sx;
+                  const dy = e.clientY - d.sy;
+                  if (!d.moved && Math.abs(dx) + Math.abs(dy) <= 4) return;
+                  d.moved = true;
+                  const next = {
+                    x: Math.round((d.ox + dx / view.k) / SNAP) * SNAP,
+                    y: Math.round((d.oy + dy / view.k) / SNAP) * SNAP,
+                  };
+                  d.last = next;
+                  setCustom((c) => ({ ...c, [p.id]: next }));
+                }}
+                onPointerUp={(e) => {
+                  const d = nodeDrag.current;
+                  nodeDrag.current = null;
+                  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+                  if (d?.moved) {
+                    suppressClick.current = true; // کلیکِ بعد از درگ نباید پنل را باز کند
+                    const next = { ...customRef.current, [d.id]: d.last };
+                    setCustom(next);
+                    savePositions(storageKey, next);
+                  }
+                }}
                 onMouseEnter={() => setHovered(p.id)}
                 onMouseLeave={() => setHovered(null)}
                 onFocus={() => setHovered(p.id)}
                 onBlur={() => setHovered(null)}
-                className={`absolute flex flex-col justify-between rounded-lg border bg-card p-2.5 text-start shadow-sm transition-[opacity,box-shadow,border-color] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                className={`absolute flex cursor-grab flex-col justify-between rounded-lg border bg-card p-2.5 text-start shadow-sm transition-[opacity,box-shadow,border-color] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:cursor-grabbing ${
                   selected ? "border-primary ring-1 ring-primary" : "hover:border-primary/60"
                 } ${isDim(p.id) ? "opacity-30" : ""}`}
                 style={{ left: at.x, top: at.y, width: NODE_W, height: NODE_H }}
@@ -318,6 +462,26 @@ export function PanelGraph({
           </button>
           <button type="button" aria-label={t.graphFit} className="rounded p-1.5 hover:bg-muted" onClick={fit}>
             <Maximize2 className="size-4" />
+          </button>
+          <button
+            type="button"
+            aria-label={showLinks ? t.graphHideLinks : t.graphShowLinks}
+            title={showLinks ? t.graphHideLinks : t.graphShowLinks}
+            aria-pressed={showLinks}
+            className={`rounded p-1.5 hover:bg-muted ${showLinks ? "bg-muted text-amber-500" : ""}`}
+            onClick={() => setShowLinks((v) => !v)}
+          >
+            <Link2 className="size-4" />
+          </button>
+          <button
+            type="button"
+            aria-label={t.graphResetLayout}
+            title={t.graphResetLayout}
+            disabled={!hasCustom}
+            className="rounded p-1.5 hover:bg-muted disabled:opacity-40"
+            onClick={resetLayout}
+          >
+            <RotateCcw className="size-4" />
           </button>
         </div>
       </div>

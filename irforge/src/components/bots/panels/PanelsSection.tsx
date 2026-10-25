@@ -352,7 +352,7 @@ export function PanelsSection({ bot }: { bot: Bot }) {
         <PanelTree tree={data.tree} selectedId={selectedId} onSelect={openPanel} />
       ) : effectiveView === "graph" ? (
         <PanelGraph
-          tree={data.tree} panels={panels} selectedId={selectedId}
+          botId={bot.id} tree={data.tree} panels={panels} selectedId={selectedId}
           onSelect={openPanel} panelTypeLabels={catalog?.panelTypeLabels}
         />
       ) : filtered.length === 0 ? (
