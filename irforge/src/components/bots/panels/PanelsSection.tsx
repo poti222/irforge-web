@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import type { Bot } from "@workspace/api-client-react";
 import {
-  Plus, Search, ListTree, Table2, Loader2, Trash2, Home, Ban, Lock, Wrench, AlertTriangle,
+  Plus, Search, ListTree, Table2, Network, Loader2, Trash2, Home, Ban, Lock, Wrench, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,7 @@ import { confirmDiscardUnsaved } from "@/lib/unsaved-changes";
 import { useBotSettings } from "@/components/bots/settings/api";
 import { TabReplyKeyboard } from "@/components/bots/settings/TabReplyKeyboard";
 import { PanelTree } from "./PanelTree";
+import { PanelGraph } from "./PanelGraph";
 import { PanelEditor } from "./PanelEditor";
 import { panelTypeLabel } from "./labels";
 import {
@@ -37,7 +38,7 @@ import {
   type ButtonStrategy, type DeleteStrategy, type Panel,
 } from "./api";
 
-type View = "tree" | "table";
+type View = "tree" | "table" | "graph";
 
 /** دیالوگ حذف: اول ارجاعات را نشان می‌دهد، بعد استراتژی می‌پرسد (باگ‌های B6/B7). */
 function DeletePanelDialog({
@@ -334,6 +335,12 @@ export function PanelsSection({ bot }: { bot: Bot }) {
           >
             <Table2 className="size-4" />
           </Button>
+          <Button
+            variant={effectiveView === "graph" ? "secondary" : "ghost"} size="icon"
+            aria-label={t.viewGraph} disabled={filtering} onClick={() => setView("graph")}
+          >
+            <Network className="size-4" />
+          </Button>
         </div>
 
         <Button onClick={quickCreatePanel} disabled={createPanel.isPending} data-testid="panel-create">
@@ -343,6 +350,11 @@ export function PanelsSection({ bot }: { bot: Bot }) {
 
       {effectiveView === "tree" ? (
         <PanelTree tree={data.tree} selectedId={selectedId} onSelect={openPanel} />
+      ) : effectiveView === "graph" ? (
+        <PanelGraph
+          tree={data.tree} panels={panels} selectedId={selectedId}
+          onSelect={openPanel} panelTypeLabels={catalog?.panelTypeLabels}
+        />
       ) : filtered.length === 0 ? (
         <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
           {panels.length === 0 ? t.noPanels : t.noMatches}
