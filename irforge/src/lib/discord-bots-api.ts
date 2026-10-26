@@ -87,6 +87,8 @@ export interface DiscordBlueprint {
   variables: Record<string, string>;
   commands: any[];
   events: any[];
+  /** تنظیمات خامِ ماژول‌های آماده (خوش‌آمدگویی، ری‌اکشن‌رول …)؛ رویدادهای آن‌ها با برچسب `module` در events/commands هستند. */
+  modules?: Record<string, any>;
 }
 
 export interface DiscordLogEntry { id: number; level: "info" | "warn" | "error"; message: string; at: string }

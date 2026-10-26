@@ -3,7 +3,7 @@
  "limits": {
   "maxBlueprintBytes": 200000,
   "maxCommands": 50,
-  "maxEvents": 40,
+  "maxEvents": 80,
   "maxOptionsPerCommand": 10,
   "maxActionsTotal": 400,
   "maxActionsPerList": 40,
@@ -144,6 +144,8 @@
     "member.mention",
     "member.avatar",
     "member.joined_at",
+    "member.account_age_days",
+    "member.is_bot",
     "guild.name",
     "guild.member_count"
    ],
@@ -162,6 +164,8 @@
     "member.mention",
     "member.avatar",
     "member.joined_at",
+    "member.account_age_days",
+    "member.is_bot",
     "guild.name",
     "guild.member_count"
    ],
@@ -285,6 +289,87 @@
    "needsIntents": []
   },
   {
+   "id": "member_role_add",
+   "label": "گرفتنِ نقش توسط عضو",
+   "labelEn": "Member got a role",
+   "variables": [
+    "member.id",
+    "member.mention",
+    "member.display_name",
+    "role.id",
+    "role.name",
+    "role.mention",
+    "guild.name"
+   ],
+   "needsIntents": [
+    "members"
+   ]
+  },
+  {
+   "id": "member_role_remove",
+   "label": "از دست دادنِ نقش توسط عضو",
+   "labelEn": "Member lost a role",
+   "variables": [
+    "member.id",
+    "member.mention",
+    "member.display_name",
+    "role.id",
+    "role.name",
+    "role.mention",
+    "guild.name"
+   ],
+   "needsIntents": [
+    "members"
+   ]
+  },
+  {
+   "id": "member_ban",
+   "label": "بن‌شدن عضو",
+   "labelEn": "Member banned",
+   "variables": [
+    "member.id",
+    "member.name",
+    "member.mention",
+    "guild.name"
+   ],
+   "needsIntents": []
+  },
+  {
+   "id": "member_unban",
+   "label": "آنبن‌شدن عضو",
+   "labelEn": "Member unbanned",
+   "variables": [
+    "member.id",
+    "member.name",
+    "member.mention",
+    "guild.name"
+   ],
+   "needsIntents": []
+  },
+  {
+   "id": "channel_create",
+   "label": "ساخته‌شدن کانال",
+   "labelEn": "Channel created",
+   "variables": [
+    "channel.id",
+    "channel.name",
+    "channel.mention",
+    "guild.name"
+   ],
+   "needsIntents": []
+  },
+  {
+   "id": "channel_delete",
+   "label": "حذف‌شدن کانال",
+   "labelEn": "Channel deleted",
+   "variables": [
+    "channel.id",
+    "channel.name",
+    "guild.name"
+   ],
+   "needsIntents": []
+  },
+  {
    "id": "ready",
    "label": "روشن‌شدن بات",
    "labelEn": "Bot ready",
@@ -381,6 +466,15 @@
      "type": "selects",
      "help": "حداکثر ۲ منو. با انتخاب کاربر، اکشن‌های همان منو اجرا می‌شود؛ مقدار انتخاب‌شده: {select.value} / {select.values}",
      "helpEn": "Up to 2 menus. Choosing an option runs that menu's actions; the choice is {select.value} / {select.values}"
+    },
+    {
+     "key": "store_as",
+     "label": "ذخیره‌ی آیدی پیام در متغیر",
+     "labelEn": "Store message ID as",
+     "type": "ident",
+     "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$",
+     "help": "اختیاری. آیدی پیام ارسال‌شده در این متغیر می‌ماند تا بعداً برای ری‌اکشن یا دیتابیس استفاده کنید ({نام_متغیر}).",
+     "helpEn": "Optional. The sent message's ID is kept in this variable for reactions or the database ({name})."
     }
    ]
   },
@@ -488,6 +582,15 @@
      "type": "selects",
      "help": "حداکثر ۲ منو. با انتخاب کاربر، اکشن‌های همان منو اجرا می‌شود؛ مقدار انتخاب‌شده: {select.value} / {select.values}",
      "helpEn": "Up to 2 menus. Choosing an option runs that menu's actions; the choice is {select.value} / {select.values}"
+    },
+    {
+     "key": "store_as",
+     "label": "ذخیره‌ی آیدی پیام در متغیر",
+     "labelEn": "Store message ID as",
+     "type": "ident",
+     "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$",
+     "help": "اختیاری. آیدی پیام ارسال‌شده در این متغیر می‌ماند تا بعداً برای ری‌اکشن یا دیتابیس استفاده کنید ({نام_متغیر}).",
+     "helpEn": "Optional. The sent message's ID is kept in this variable for reactions or the database ({name})."
     }
    ]
   },
@@ -574,7 +677,8 @@
    "category": "message",
    "icon": "SmilePlus",
    "botPermissions": [
-    "add_reactions"
+    "add_reactions",
+    "read_message_history"
    ],
    "fields": [
     {
@@ -586,6 +690,83 @@
      "max": 100,
      "help": "مثل 👍 یا <:name:id>",
      "helpEn": "Like 👍 or <:name:id>"
+    },
+    {
+     "key": "channel",
+     "label": "کانالِ پیام",
+     "labelEn": "Message channel",
+     "type": "channel",
+     "help": "خالی = کانال فعلی (یا کانالی که ری‌اکشن در آن خورده)",
+     "helpEn": "Empty = the current channel"
+    },
+    {
+     "key": "message_id",
+     "label": "آیدی پیام",
+     "labelEn": "Message ID",
+     "type": "text",
+     "max": 100,
+     "supportsVariables": true,
+     "help": "خالی = پیام فعلی. می‌تواند متغیر باشد، مثل {welcome_msg} یا {message.id}",
+     "helpEn": "Empty = the current message. Can be a variable like {welcome_msg} or {message.id}"
+    }
+   ]
+  },
+  {
+   "type": "remove_reaction",
+   "label": "برداشتن ری‌اکشن",
+   "labelEn": "Remove reaction",
+   "category": "message",
+   "icon": "SmileMinus",
+   "botPermissions": [
+    "manage_messages",
+    "read_message_history"
+   ],
+   "fields": [
+    {
+     "key": "emoji",
+     "label": "ایموجی",
+     "labelEn": "Emoji",
+     "type": "text",
+     "required": true,
+     "max": 100,
+     "help": "مثل 👍 یا <:name:id>",
+     "helpEn": "Like 👍 or <:name:id>"
+    },
+    {
+     "key": "user",
+     "label": "ری‌اکشنِ چه کسی",
+     "labelEn": "Whose reaction",
+     "type": "user",
+     "default": "{author}",
+     "help": "آیدی/متغیر کاربر؛ پیش‌فرض همان کاربری که رویداد را ساخته.",
+     "helpEn": "User ID/variable; defaults to the user who triggered the event."
+    },
+    {
+     "key": "all_users",
+     "label": "ری‌اکشن همه‌ی کاربران پاک شود",
+     "labelEn": "Clear for everyone",
+     "type": "boolean",
+     "default": false,
+     "help": "اگر روشن باشد این ایموجی از روی پیام برای همه برداشته می‌شود و فیلد بالا نادیده گرفته می‌شود.",
+     "helpEn": "When on, this emoji is cleared for everyone and the user above is ignored."
+    },
+    {
+     "key": "channel",
+     "label": "کانالِ پیام",
+     "labelEn": "Message channel",
+     "type": "channel",
+     "help": "خالی = کانال فعلی (یا کانالی که ری‌اکشن در آن خورده)",
+     "helpEn": "Empty = the current channel"
+    },
+    {
+     "key": "message_id",
+     "label": "آیدی پیام",
+     "labelEn": "Message ID",
+     "type": "text",
+     "max": 100,
+     "supportsVariables": true,
+     "help": "خالی = پیام فعلی. می‌تواند متغیر باشد، مثل {welcome_msg} یا {message.id}",
+     "helpEn": "Empty = the current message. Can be a variable like {welcome_msg} or {message.id}"
     }
    ]
   },
@@ -1279,7 +1460,17 @@
    "avatar",
    "top_role",
    "roles",
-   "joined_at"
+   "joined_at",
+   "account_age_days",
+   "is_bot"
+  ],
+  "role": [
+   "id",
+   "name",
+   "mention"
+  ],
+  "reaction": [
+   "emoji"
   ],
   "target": [
    "id",

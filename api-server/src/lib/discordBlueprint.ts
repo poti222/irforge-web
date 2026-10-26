@@ -35,6 +35,7 @@ export interface DiscordBlueprint {
   variables: Record<string, string>;
   commands: any[];
   events: any[];
+  modules?: Record<string, any>;
 }
 
 export function defaultBlueprint(): DiscordBlueprint {
@@ -317,6 +318,28 @@ function cleanOptions(raw: any, path: string, st: State): any[] {
   return [...out.filter((o) => o.required), ...out.filter((o) => !o.required)];
 }
 
+const MODULE_RE = /^[a-z0-9_]{1,40}$/;
+/** Optional marker saying which site «module» (welcome, reaction roles…) generated this command/event. */
+function moduleTag(raw: any): { module?: string } {
+  const m = str(raw.module, 40).trim();
+  return m && MODULE_RE.test(m) ? { module: m } : {};
+}
+
+/** `modules` = the site's friendly per-feature forms (opaque JSON). The runner ignores it; the editor regenerates events from it. */
+function cleanModules(raw: any, st: State): Record<string, any> {
+  if (raw === undefined || raw === null || raw === "" || (isObj(raw) && Object.keys(raw).length === 0)) return {};
+  if (!isObj(raw)) { st.err("modules", "modules باید آبجکت باشد"); return {}; }
+  const out: Record<string, any> = {};
+  Object.entries(raw).slice(0, 30).forEach(([k, v]) => {
+    if (!MODULE_RE.test(k) || !isObj(v)) { st.err("modules", `ماژول «${k.slice(0, 20)}» نامعتبر است`); return; }
+    let len = 0;
+    try { len = JSON.stringify(v).length; } catch { return; }
+    if (len > 30000) { st.err("modules", `تنظیمات ماژول «${k}» بیش از حد بزرگ است`); return; }
+    out[k] = v;
+  });
+  return out;
+}
+
 function cleanCommands(raw: any, st: State): any[] {
   let items: any[] = Array.isArray(raw) ? raw : [];
   if (items.length > LIMITS.maxCommands) { st.err("commands", `حداکثر ${LIMITS.maxCommands} دستور`); items = items.slice(0, LIMITS.maxCommands); }
@@ -345,6 +368,7 @@ function cleanCommands(raw: any, st: State): any[] {
       id: cid, name, description: str(c.description, 100).trim() || "—", type: ctype, enabled: c.enabled === undefined ? true : !!c.enabled,
       ephemeral: !!c.ephemeral, cooldown, permissions: perms.filter((x) => !bad.includes(x)),
       options: cleanOptions(c.options, `${p}.options`, st), actions: cleanActions(c.actions, `${p}.actions`, st, 1),
+      ...moduleTag(c),
     });
   });
   return out;
@@ -362,6 +386,7 @@ function cleanEvents(raw: any, st: State): any[] {
     out.push({
       id: str(e.id, 64).trim() || crypto.randomUUID().replace(/-/g, ""), on, enabled: e.enabled === undefined ? true : !!e.enabled,
       filters: cleanCondition(e.filters, `${p}.filters`, st), actions: cleanActions(e.actions, `${p}.actions`, st, 1),
+      ...moduleTag(e),
     });
   });
   return out;
@@ -392,6 +417,8 @@ export function validateBlueprint(raw: unknown): { blueprint: DiscordBlueprint; 
     prefix, status: { type: stype, text: str(statusRaw.text, 128) }, settings: { allow_role_mentions: !!settingsRaw.allow_role_mentions },
     variables, commands: cleanCommands(raw.commands, st), events: cleanEvents(raw.events, st),
   };
+  const modules = cleanModules(raw.modules, st);
+  if (Object.keys(modules).length) blueprint.modules = modules;
   return { blueprint, errors: st.errors };
 }
 

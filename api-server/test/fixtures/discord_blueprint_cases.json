@@ -349,7 +349,8 @@
         "channel": "",
         "ephemeral": false,
         "buttons": [],
-        "selects": []
+        "selects": [],
+        "store_as": ""
        },
        {
         "type": "http_request",
@@ -380,7 +381,8 @@
         "channel": "",
         "content": "hi",
         "buttons": [],
-        "selects": []
+        "selects": [],
+        "store_as": ""
        }
       ]
      }
@@ -1088,6 +1090,149 @@
     "commands[0].actions[0].selects: حداکثر 2 منوی انتخاب برای هر پیام"
    ],
    "intents": []
+  }
+ },
+ {
+  "name": "module tags and modules config",
+  "input": {
+   "prefix": "!",
+   "modules": {
+    "welcome": {
+     "enabled": true,
+     "channels": [
+      "123456789012345678"
+     ]
+    },
+    "Bad Key": {
+     "x": 1
+    },
+    "oops": "no"
+   },
+   "events": [
+    {
+     "on": "member_join",
+     "module": "welcome",
+     "actions": [
+      {
+       "type": "send_message",
+       "channel": "123456789012345678",
+       "content": "hi {member.mention}",
+       "store_as": "wm"
+      }
+     ]
+    },
+    {
+     "on": "member_role_add",
+     "module": "BAD TAG",
+     "actions": [
+      {
+       "type": "remove_reaction",
+       "emoji": "👍",
+       "message_id": "{wm}"
+      }
+     ]
+    }
+   ],
+   "commands": [
+    {
+     "name": "setup",
+     "module": "reaction_roles",
+     "type": "slash",
+     "actions": [
+      {
+       "type": "add_reaction",
+       "emoji": "✅",
+       "channel": "1",
+       "message_id": "{wm}"
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "blueprint": {
+    "prefix": "!",
+    "status": {
+     "type": "playing",
+     "text": ""
+    },
+    "settings": {
+     "allow_role_mentions": false
+    },
+    "variables": {},
+    "commands": [
+     {
+      "id": "<id>",
+      "name": "setup",
+      "description": "—",
+      "type": "slash",
+      "enabled": true,
+      "ephemeral": false,
+      "cooldown": 0.0,
+      "permissions": [],
+      "options": [],
+      "actions": [
+       {
+        "type": "add_reaction",
+        "emoji": "✅",
+        "channel": "1",
+        "message_id": "{wm}"
+       }
+      ],
+      "module": "reaction_roles"
+     }
+    ],
+    "events": [
+     {
+      "id": "<id>",
+      "on": "member_join",
+      "enabled": true,
+      "filters": {},
+      "actions": [
+       {
+        "type": "send_message",
+        "channel": "123456789012345678",
+        "content": "hi {member.mention}",
+        "buttons": [],
+        "selects": [],
+        "store_as": "wm"
+       }
+      ],
+      "module": "welcome"
+     },
+     {
+      "id": "<id>",
+      "on": "member_role_add",
+      "enabled": true,
+      "filters": {},
+      "actions": [
+       {
+        "type": "remove_reaction",
+        "emoji": "👍",
+        "user": "{author}",
+        "all_users": false,
+        "channel": "",
+        "message_id": "{wm}"
+       }
+      ]
+     }
+    ],
+    "modules": {
+     "welcome": {
+      "enabled": true,
+      "channels": [
+       "123456789012345678"
+      ]
+     }
+    }
+   },
+   "errors": [
+    "modules: ماژول «Bad Key» نامعتبر است",
+    "modules: ماژول «oops» نامعتبر است"
+   ],
+   "intents": [
+    "members"
+   ]
   }
  }
 ]
