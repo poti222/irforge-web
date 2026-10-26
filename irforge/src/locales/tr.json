@@ -19,6 +19,7 @@
     "superAdmin": "Süper Yönetici",
     "pendingPayments": "Bekleyen Ödemeler",
     "sheetPool": "Sayfa Havuzu",
+    "smsForward": "SMS'i Telegram'a Gönder",
     "cutoverFlags": "Veritabanı Geçiş Bayrakları",
     "sheetsImport": "Sayfalardan İçe Aktarma",
     "profileSettings": "Profil Ayarları",

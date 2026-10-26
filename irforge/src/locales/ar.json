@@ -19,6 +19,7 @@
     "superAdmin": "المدير العام",
     "pendingPayments": "المدفوعات المعلقة",
     "sheetPool": "مجمع الشيتات",
+    "smsForward": "إرسال الرسائل إلى تلغرام",
     "cutoverFlags": "أعلام ترحيل قاعدة البيانات",
     "sheetsImport": "استيراد بيانات الشيتات",
     "profileSettings": "إعدادات الحساب",

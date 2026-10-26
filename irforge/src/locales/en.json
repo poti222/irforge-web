@@ -19,6 +19,7 @@
     "superAdmin": "Super Admin",
     "pendingPayments": "Pending Payments",
     "sheetPool": "Sheet Pool",
+    "smsForward": "SMS to Telegram",
     "cutoverFlags": "Cutover Flags",
     "sheetsImport": "Sheets Import",
     "profileSettings": "Profile Settings",

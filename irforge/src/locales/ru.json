@@ -19,6 +19,7 @@
     "superAdmin": "Суперадминистратор",
     "pendingPayments": "Ожидающие платежи",
     "sheetPool": "Пул таблиц",
+    "smsForward": "SMS в Telegram",
     "cutoverFlags": "Флаги перехода БД",
     "sheetsImport": "Импорт из таблиц",
     "profileSettings": "Настройки профиля",

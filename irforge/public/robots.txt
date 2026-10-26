@@ -38,6 +38,8 @@ Disallow: /tickets
 Disallow: /*/tickets
 Disallow: /wallet
 Disallow: /*/wallet
+Disallow: /sms-forward
+Disallow: /*/sms-forward
 Disallow: /support
 Disallow: /*/support
 Disallow: /notifications

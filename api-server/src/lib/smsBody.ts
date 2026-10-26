@@ -14,7 +14,7 @@
 import { SmsIngestError } from "./smsIngest";
 
 /** آدرس‌هایی که parserِ سراسریِ JSON/urlencoded نباید رویشان اجرا شود (خودِ route بدنه را می‌خواند). */
-const RAW_SMS_PATH = /^\/api\/(?:payments\/sms\/[A-Za-z0-9_-]{1,64}|internal\/wallet-topup\/sms-webhook)\/?$/;
+const RAW_SMS_PATH = /^\/api\/(?:payments\/sms\/[A-Za-z0-9_-]{1,64}|internal\/wallet-topup\/sms-webhook|sms-forward\/hook\/smf_[a-f0-9]{18})\/?$/;
 export function isRawSmsPath(method: string, path: string): boolean {
   return method === "POST" && RAW_SMS_PATH.test(path);
 }

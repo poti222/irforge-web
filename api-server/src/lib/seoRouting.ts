@@ -49,6 +49,7 @@ export const APP_SEGMENTS: ReadonlySet<string> = new Set([
   "invoices",
   "tickets",
   "wallet",
+  "sms-forward",
   "plans",
   "support",
   "notifications",

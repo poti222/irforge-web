@@ -15,6 +15,7 @@ import { Link, useLocation } from "wouter";
 import { SidebarBrandHeader } from "@/components/layout/brand-home";
 import {
   Gamepad2,
+  Send,
   Bot,
   LayoutDashboard,
   Settings,
@@ -281,6 +282,14 @@ export function AppSidebar() {
                     <Link href="/admin/sheet-pool" data-testid="nav-sheet-pool" onClick={closeMobileMenu}>
                       <Database />
                       <span>{nav.sheetPool}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location === "/sms-forward"} tooltip={nav.smsForward}>
+                    <Link href="/sms-forward" data-testid="nav-sms-forward" onClick={closeMobileMenu}>
+                      <Send />
+                      <span>{nav.smsForward}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

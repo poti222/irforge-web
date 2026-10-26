@@ -19,6 +19,7 @@
     "superAdmin": "سوپر ادمین",
     "pendingPayments": "پرداخت‌های معلق",
     "sheetPool": "استخر شیت",
+    "smsForward": "ارسال پیامک به تلگرام",
     "cutoverFlags": "پرچم‌های مهاجرت دیتابیس",
     "sheetsImport": "مهاجرت اطلاعات از شیت",
     "profileSettings": "تنظیمات پروفایل",

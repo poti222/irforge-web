@@ -99,6 +99,7 @@ import paymentSmsWebhookRouter from "./paymentSmsWebhook.js";
 import internalBotPaymentsRouter from "./internalBotPayments.js";
 import botPaymentChannelsRouter from "./botPaymentChannels.js";
 import adminCardAutoConfirmRouter from "./adminCardAutoConfirm.js";
+import smsForwarderRouter from "./smsForwarder.js";
 import guidedFlowRouter from "./guidedFlow.js";
 // بخش "/schools" فاز ۱ — پروفایلِ مدرسه‌ای، کدهای معرف، مدیریتِ مدرسه
 import schoolsRouter from "./schools.js";
@@ -174,6 +175,7 @@ router.use(paymentSmsWebhookRouter);
 router.use(internalBotPaymentsRouter);
 router.use(botPaymentChannelsRouter);
 router.use(adminCardAutoConfirmRouter);
+router.use(smsForwarderRouter);
 router.use(databaseRouter);
 router.use(cutoverFlagsRouter);
 router.use(sheetsImportRouter);

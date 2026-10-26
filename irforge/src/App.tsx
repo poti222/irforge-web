@@ -139,6 +139,7 @@ const SchoolAuditLogPage = lazy(() => import("@/pages/schools/admin/audit-log"))
 
 const AdminPendingPayments = lazy(() => import("@/pages/admin-pending-payments"));
 const AdminSheetPool = lazy(() => import("@/pages/admin-sheet-pool"));
+const SmsForward = lazy(() => import("@/pages/sms-forward"));
 const AdminSchoolBotPool = lazy(() => import("@/pages/admin-school-bot-pool"));
 // بات‌ساز دیسکورد
 const DiscordBots = lazy(() => import("@/pages/discord-bots"));
@@ -597,6 +598,7 @@ function Router() {
       <Route path="/admin/users/:id"><ProtectedRoute component={AdminUserDetail} superAdminOnly /></Route>
       <Route path="/admin/pending-payments"><ProtectedRoute component={AdminPendingPayments} superAdminOnly /></Route>
       <Route path="/admin/sheet-pool"><ProtectedRoute component={AdminSheetPool} superAdminOnly /></Route>
+      <Route path="/sms-forward"><ProtectedRoute component={SmsForward} superAdminOnly /></Route>
       <Route path="/admin/school-bot-pool"><ProtectedRoute component={AdminSchoolBotPool} superAdminOnly /></Route>
       <Route path="/admin/discord-bots"><ProtectedRoute component={AdminDiscordBots} adminOnly /></Route>
       <Route path="/admin/cutover-flags"><ProtectedRoute component={AdminCutoverFlags} superAdminOnly /></Route>
