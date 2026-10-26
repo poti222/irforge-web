@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Blocks, ChevronDown, DoorOpen, Gavel, PartyPopper, Plus, ScrollText, ShieldAlert, ShieldCheck, SmilePlus, Trash2, BadgePlus, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Blocks, ChevronDown, DoorOpen, Gavel, PartyPopper, Plus, ScrollText, ShieldAlert, ShieldCheck, SmilePlus, Trash2, BadgePlus, TrendingUp, type LucideIcon } from "lucide-react";
 
-const MODULE_ICONS: Record<string, LucideIcon> = { PartyPopper, DoorOpen, BadgePlus, SmilePlus, ShieldCheck, ScrollText, ShieldAlert, Gavel };
+const MODULE_ICONS: Record<string, LucideIcon> = { TrendingUp, PartyPopper, DoorOpen, BadgePlus, SmilePlus, ShieldCheck, ScrollText, ShieldAlert, Gavel };
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { DiscordBlueprint } from "@/lib/discord-bots-api";
 import { NativeSelect, type EditorEnv } from "../action-editor";
-import { LOG_EVENTS, MODULES, MODULE_BY_ID, MOD_COMMANDS, applyModule, newRRPanel, type ModuleDef, type ModuleId, type RRPanel } from "./registry";
+import { LOG_EVENTS, MODULES, MODULE_BY_ID, MOD_COMMANDS, applyModule, newRRPanel, type LevelReward, type ModuleDef, type ModuleId, type RRPanel } from "./registry";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -92,6 +92,56 @@ const VARS_MEMBER_FA = "متغیرها: {member.mention} {member.display_name} {
 const VARS_MEMBER_EN = "Variables: {member.mention} {member.display_name} {guild.name} {guild.member_count}";
 
 // ─── per-module forms ────────────────────────────────────────────────────────
+function LevelingForm({ c, set, fa }: FormProps) {
+  const t = (a: string, b: string) => (fa ? a : b);
+  const num = (k: string, min: number, max: number) => (v: string) => set({ [k]: Math.max(min, Math.min(max, Number(v.replace(/\D/g, "")) || min)) });
+  const rewards: LevelReward[] = c.rewards ?? [];
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label={t("حداقل XP هر پیام", "Min XP per message")}><Input dir="ltr" inputMode="numeric" value={c.minXp} onChange={(e) => num("minXp", 1, 1000)(e.target.value)} /></Field>
+        <Field label={t("حداکثر XP هر پیام", "Max XP per message")}><Input dir="ltr" inputMode="numeric" value={c.maxXp} onChange={(e) => num("maxXp", 1, 1000)(e.target.value)} /></Field>
+        <Field label={t("فاصله‌ی دو امتیاز (ثانیه)", "Cooldown (seconds)")} hint={t("ضد اسپم: در این فاصله XP بیشتری داده نمی‌شود.", "Anti-spam: no extra XP inside this window.")}><Input dir="ltr" inputMode="numeric" value={c.cooldown} onChange={(e) => num("cooldown", 0, 3600)(e.target.value)} /></Field>
+      </div>
+      <div className="space-y-2 rounded-lg border p-3">
+        <Field label={t("اعلام لول‌آپ", "Level-up announcement")}>
+          <NativeSelect value={c.announce} onChange={(v) => set({ announce: v })}>
+            <option value="same">{t("همان کانالی که پیام داده", "In the channel the member typed in")}</option>
+            <option value="channel">{t("یک کانال مشخص", "In a specific channel")}</option>
+            <option value="dm">{t("پیام خصوصی", "Direct message")}</option>
+            <option value="off">{t("اعلام نشود", "Don't announce")}</option>
+          </NativeSelect>
+        </Field>
+        {c.announce === "channel" && <IdSingle value={c.announceChannel} onChange={(v) => set({ announceChannel: v })} placeholder={t("آیدی کانال", "Channel ID")} />}
+        {c.announce !== "off" && <Field label={t("متن", "Message")} hint={t("متغیرها: {author.mention} {level} {xp}", "Variables: {author.mention} {level} {xp}")}><Textarea rows={2} maxLength={1000} value={c.text} onChange={(e) => set({ text: e.target.value })} /></Field>}
+      </div>
+      <div className="space-y-2 rounded-lg border p-3">
+        <h5 className="text-xs font-semibold">{t("نقش‌های جایزه (بر اساس لول)", "Role rewards (by level)")}</h5>
+        {rewards.map((r, i) => (
+          <div key={i} className="grid grid-cols-[5rem_1fr_auto] items-center gap-2">
+            <Input dir="ltr" inputMode="numeric" placeholder={t("لول", "Level")} value={r.level || ""} onChange={(e) => set({ rewards: rewards.map((x, j) => (j === i ? { ...x, level: Math.min(MAX_REWARD_LEVEL, Number(e.target.value.replace(/\D/g, "")) || 0) } : x)) })} />
+            <IdSingle value={r.role} onChange={(v) => set({ rewards: rewards.map((x, j) => (j === i ? { ...x, role: v } : x)) })} placeholder={t("آیدی نقش", "Role ID")} />
+            <Button type="button" size="icon" variant="ghost" onClick={() => set({ rewards: rewards.filter((_, j) => j !== i) })}><Trash2 className="size-4" /></Button>
+          </div>
+        ))}
+        {rewards.length < 10 && <Button type="button" size="sm" variant="outline" onClick={() => set({ rewards: [...rewards, { level: (rewards.at(-1)?.level ?? 0) + 5, role: "" }] })}><Plus className="me-1 size-3.5" />{t("افزودن جایزه", "Add reward")}</Button>}
+        <Toggle checked={c.stack} onChange={(v) => set({ stack: v })} label={t("نقش‌های قبلی بماند (انباشته)", "Keep earlier reward roles (stack)")} />
+        <p className="text-[11px] text-muted-foreground">{t("جایزه‌ها فقط در لحظه‌ی لول‌آپ داده می‌شوند، نه به‌صورت عطف‌به‌ماسبق.", "Rewards are given at the moment of levelling up, not retroactively.")}</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("کانال‌های بدون XP", "Channels without XP")}><IdList value={c.ignoredChannels} onChange={(v) => set({ ignoredChannels: v })} placeholder={t("آیدی کانال", "Channel ID")} /></Field>
+        <Field label={t("نقش‌های بدون XP", "Roles without XP")}><IdList value={c.ignoredRoles} onChange={(v) => set({ ignoredRoles: v })} placeholder={t("آیدی نقش", "Role ID")} /></Field>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <Toggle checked={c.rank} onChange={(v) => set({ rank: v })} label="/rank" />
+        <Toggle checked={c.leaderboard} onChange={(v) => set({ leaderboard: v })} label="/leaderboard" />
+        <Toggle checked={c.setxp} onChange={(v) => set({ setxp: v })} label={t("/setxp (فقط مدیران)", "/setxp (admins)")} />
+      </div>
+    </div>
+  );
+}
+const MAX_REWARD_LEVEL = 500;
+
 function WelcomeForm({ c, set, fa }: FormProps) {
   const t = (a: string, b: string) => (fa ? a : b);
   return (
@@ -291,7 +341,7 @@ function ModerationForm({ c, set, fa }: FormProps) {
 
 interface FormProps { c: any; set: (p: any) => void; fa: boolean }
 const FORMS: Record<ModuleId, (p: FormProps) => React.ReactElement> = {
-  welcome: WelcomeForm, goodbye: GoodbyeForm, autorole: AutoRoleForm, reaction_roles: ReactionRolesForm,
+  leveling: LevelingForm, welcome: WelcomeForm, goodbye: GoodbyeForm, autorole: AutoRoleForm, reaction_roles: ReactionRolesForm,
   verification: VerificationForm, logs: LogsForm, automod: AutomodForm, moderation: ModerationForm,
 };
 

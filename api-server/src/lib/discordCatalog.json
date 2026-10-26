@@ -1327,6 +1327,132 @@
    ]
   },
   {
+   "type": "xp_add",
+   "label": "دادن XP (لول‌دهی)",
+   "labelEn": "Give XP (leveling)",
+   "category": "data",
+   "icon": "TrendingUp",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "target",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "default": "{author.id}",
+     "help": "پیش‌فرض: کاربری که رویداد را ساخته",
+     "helpEn": "Defaults to the user who triggered this"
+    },
+    {
+     "key": "min",
+     "label": "حداقل XP",
+     "labelEn": "Min XP",
+     "type": "number",
+     "default": 15,
+     "min": 1,
+     "max": 1000
+    },
+    {
+     "key": "max",
+     "label": "حداکثر XP",
+     "labelEn": "Max XP",
+     "type": "number",
+     "default": 25,
+     "min": 1,
+     "max": 1000
+    },
+    {
+     "key": "cooldown",
+     "label": "فاصله بین دو امتیاز (ثانیه)",
+     "labelEn": "Cooldown between grants (seconds)",
+     "type": "number",
+     "default": 60,
+     "min": 0,
+     "max": 3600,
+     "help": "در این فاصله پیام‌های بیشتر XP نمی‌دهند (ضد اسپم). متغیرها: {xp} {level} {leveled_up} {xp_gained}",
+     "helpEn": "Messages inside this window give no XP (anti-spam). Variables: {xp} {level} {leveled_up} {xp_gained}"
+    }
+   ]
+  },
+  {
+   "type": "xp_get",
+   "label": "خواندن لول و رتبه",
+   "labelEn": "Read level & rank",
+   "category": "data",
+   "icon": "Medal",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "target",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "default": "{author.id}",
+     "help": "پیش‌فرض: کاربری که رویداد را ساخته",
+     "helpEn": "Defaults to the user who triggered this"
+    }
+   ]
+  },
+  {
+   "type": "xp_top",
+   "label": "جدول امتیازها",
+   "labelEn": "Leaderboard",
+   "category": "data",
+   "icon": "Trophy",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "limit",
+     "label": "تعداد نفرات",
+     "labelEn": "Rows",
+     "type": "number",
+     "default": 10,
+     "min": 1,
+     "max": 15
+    },
+    {
+     "key": "page",
+     "label": "صفحه",
+     "labelEn": "Page",
+     "type": "text",
+     "default": "1",
+     "max": 10,
+     "supportsVariables": true,
+     "help": "متن آماده در متغیر {leaderboard} می‌آید",
+     "helpEn": "Ready-made text goes into {leaderboard}"
+    }
+   ]
+  },
+  {
+   "type": "xp_set",
+   "label": "تنظیم XP کاربر (مدیریتی)",
+   "labelEn": "Set user XP (admin)",
+   "category": "data",
+   "icon": "SlidersHorizontal",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "target",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "default": "{author.id}",
+     "help": "پیش‌فرض: کاربری که رویداد را ساخته",
+     "helpEn": "Defaults to the user who triggered this"
+    },
+    {
+     "key": "amount",
+     "label": "XP کل",
+     "labelEn": "Total XP",
+     "type": "text",
+     "required": true,
+     "default": "0",
+     "max": 12,
+     "supportsVariables": true
+    }
+   ]
+  },
+  {
    "type": "database_set",
    "label": "ذخیره در دیتابیس",
    "labelEn": "Database: set",

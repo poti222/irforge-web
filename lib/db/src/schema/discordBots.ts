@@ -4,7 +4,7 @@
  * سایت فقط `desired_state` / `blueprint` / `restart_nonce` را تغییر می‌دهد و سرویس هر چند ثانیه همگرا می‌شود.
  * مایگریشنِ زمان‌اجرا: api-server/migrate.mjs (آینه: migrations/0061_discord_bots.sql).
  */
-import { pgTable, text, timestamp, integer, jsonb, bigserial, primaryKey, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, jsonb, bigserial, bigint, primaryKey, index } from "drizzle-orm/pg-core";
 
 export const discordBotsTable = pgTable("discord_bots", {
   id: text("id").primaryKey(),
@@ -54,5 +54,16 @@ export const discordBotLogsTable = pgTable("discord_bot_logs", {
   message: text("message").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const discordBotLevelsTable = pgTable("discord_bot_levels", {
+  botId: text("bot_id").notNull(),
+  guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+  userId: bigint("user_id", { mode: "bigint" }).notNull(),
+  xp: bigint("xp", { mode: "number" }).notNull().default(0),
+  lastGainAt: timestamp("last_gain_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.botId, t.guildId, t.userId] }),
+  topIdx: index("discord_bot_levels_top_idx").on(t.botId, t.guildId, t.xp),
+}));
 
 export type DiscordBot = typeof discordBotsTable.$inferSelect;

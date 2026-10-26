@@ -11,7 +11,7 @@ import type { DiscordBlueprint } from "@/lib/discord-bots-api";
  * هر چیزی که این‌جا ساخته می‌شود را می‌توان در تب «رویدادها / دستورها» هم دید و دستی ویرایش کرد (با دوباره‌سازی از فرم بازنویسی می‌شود).
  */
 
-export type ModuleId = "welcome" | "goodbye" | "autorole" | "reaction_roles" | "verification" | "logs" | "automod" | "moderation";
+export type ModuleId = "leveling" | "welcome" | "goodbye" | "autorole" | "reaction_roles" | "verification" | "logs" | "automod" | "moderation";
 
 export interface ModuleOutput { events: any[]; commands: any[] }
 export interface ModuleDef {
@@ -52,6 +52,55 @@ function messageActions(env: EditorEnv, channels: string[], c: { mode: string; t
       : mk(env, "send_message", { channel: ch, content: c.text }),
   );
 }
+
+// ─── leveling (XP) ───────────────────────────────────────────────────────────
+export interface LevelReward { level: number; role: string }
+const leveling: ModuleDef = {
+  id: "leveling", icon: "TrendingUp",
+  title: ["لول و XP", "Leveling & XP"], desc: ["با هر پیام XP بده، لول‌آپ اعلام کن، نقش جایزه بده، و /rank و /leaderboard داشته باش (منحنی XP مثل MEE6).", "XP per message, level-up announcements, role rewards, /rank and /leaderboard (MEE6-style XP curve)."],
+  needs: [["Message Content Intent", "Message Content Intent"], ["Manage Roles (برای جایزه‌ها)", "Manage Roles (for rewards)"]],
+  defaults: (fa) => ({
+    enabled: false, minXp: 15, maxXp: 25, cooldown: 60, announce: "same", announceChannel: "",
+    text: fa ? "🎉 تبریک {author.mention}! به **لول {level}** رسیدی." : "🎉 GG {author.mention}, you reached **level {level}**!",
+    ignoredChannels: [], ignoredRoles: [], rewards: [] as LevelReward[], stack: true, rank: true, leaderboard: true, setxp: true,
+  }),
+  problems: (c, fa) => [
+    ...(c.announce === "channel" && !String(c.announceChannel).trim() ? [fa ? "کانال اعلام لول‌آپ خالی است" : "level-up channel is empty"] : []),
+    ...((c.rewards ?? []).some((r: LevelReward) => !String(r.role).trim() || !(Number(r.level) >= 1)) ? [fa ? "هر جایزه به لول و نقش نیاز دارد" : "every reward needs a level and a role"] : []),
+    ...(Number(c.maxXp) < Number(c.minXp) ? [fa ? "حداکثر XP نباید کمتر از حداقل باشد" : "max XP must be ≥ min XP"] : []),
+  ],
+  generate: (c, env) => {
+    const guards: any[] = [rule("{author.is_bot}", "!=", "true"), ...idList(c.ignoredChannels).map((x) => ({ not: rule("{channel.id}", "==", x) })), ...idList(c.ignoredRoles).map((r) => ({ not: rule("{author.roles}", "has_role", r) }))];
+    const rewards = ((c.rewards ?? []) as LevelReward[]).filter((r) => String(r.role).trim() && Number(r.level) >= 1).slice(0, 10).sort((a, b) => a.level - b.level);
+    const announce = c.announce === "off" ? [] : [c.announce === "dm" ? mk(env, "dm_user", { target: "{author.id}", content: c.text })
+      : mk(env, "send_message", { channel: c.announce === "channel" ? String(c.announceChannel).trim() : "{channel.id}", content: c.text })];
+    const rewardActs = rewards.map((r, i) => {
+      const next = rewards[i + 1];
+      const give = mk(env, "add_role", { target: "{author.id}", role: r.role.trim(), reason: `level ${r.level} reward` });
+      if (c.stack) return cond(env, rule("{level}", ">=", String(r.level)), [give]);
+      return cond(env, allOf([rule("{level}", ">=", String(r.level)), ...(next ? [rule("{level}", "<", String(next.level))] : [])]),
+        [give, ...rewards.filter((o) => o !== r).map((o) => mk(env, "remove_role", { target: "{author.id}", role: o.role.trim(), reason: "level reward replaced" }))]);
+    });
+    const events = [ev("leveling", "message", { and: guards }, [
+      mk(env, "xp_add", { target: "{author.id}", min: Math.max(1, Number(c.minXp) || 15), max: Math.max(Number(c.minXp) || 1, Number(c.maxXp) || 25), cooldown: Math.max(0, Number(c.cooldown) || 0) }),
+      cond(env, rule("{leveled_up}", "==", "true"), [...announce, ...rewardActs]),
+    ])];
+    const commands: any[] = [];
+    if (c.rank) commands.push(cmd("leveling", "rank", "Show your level and rank", [
+      mk(env, "xp_get", { target: "{options.user}" }),
+      mk(env, "send_embed", { title: "🏅 Rank", description: "**Level {level}** · {xp} XP\n{bar} {progress}% ({xp_into}/{xp_need})\n🏆 #{rank}", color: "#5865F2" }),
+    ], { options: [opt("user", "user", "Member (default: you)", false)] }));
+    if (c.leaderboard) commands.push(cmd("leveling", "leaderboard", "Top members by XP", [
+      mk(env, "xp_top", { limit: 10, page: "{options.page}" }),
+      mk(env, "send_embed", { title: "🏆 Leaderboard", description: "{leaderboard}", color: "#FEE75C", footer: "Page {leaderboard_page}" }),
+    ], { options: [opt("page", "integer", "Page", false)] }));
+    if (c.setxp) commands.push(cmd("leveling", "setxp", "Set a member's total XP", [
+      mk(env, "xp_set", { target: "{options.user}", amount: "{options.amount}" }),
+      mk(env, "reply", { content: "✅ {options.user_mention}: {xp} XP (level {level})", ephemeral: true }),
+    ], { permissions: ["manage_guild"], ephemeral: true, options: [opt("user", "user", "Member"), opt("amount", "integer", "Total XP")] }));
+    return { events, commands };
+  },
+};
 
 // ─── welcome ─────────────────────────────────────────────────────────────────
 const welcome: ModuleDef = {
@@ -271,7 +320,7 @@ const moderation: ModuleDef = {
   },
 };
 
-export const MODULES: ModuleDef[] = [welcome, goodbye, autorole, reactionRoles, verification, logs, automod, moderation];
+export const MODULES: ModuleDef[] = [leveling, welcome, goodbye, autorole, reactionRoles, verification, logs, automod, moderation];
 export const MODULE_BY_ID: Record<string, ModuleDef> = Object.fromEntries(MODULES.map((m) => [m.id, m]));
 
 // ─── applying a module to a blueprint ────────────────────────────────────────
