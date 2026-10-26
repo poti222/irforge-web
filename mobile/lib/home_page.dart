@@ -21,7 +21,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
-  AgentConfig? _cfg;
+  List<AgentConfig> _profiles = const [];
   AgentStatus _st = const AgentStatus();
   bool _busy = false;
   String? _msg;
@@ -57,11 +57,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _refresh() async {
-    final c = await Native.loadConfig();
+    final c = await Native.profiles();
     final s = await Native.status();
     if (mounted)
       setState(() {
-        _cfg = c;
+        _profiles = c;
         _st = s;
       });
   }
@@ -129,15 +129,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (open == true) await Native.openAppSettings();
   }
 
+  /// اتصالِ تازه (QR/لینک/دستی) را ذخیره می‌کند. اگر همان کلید قبلاً هست، همان اتصال به‌روز می‌شود، نه تکراری.
   Future<void> _applyConfig(AgentConfig c) async {
-    await Native.saveConfig(c);
+    var toSave = c;
+    final same = c.id.isEmpty
+        ? _profiles.where((p) => p.secret == c.secret).firstOrNull
+        : null;
+    if (same != null) {
+      toSave = c.copyWith(
+          id: same.id,
+          name: c.name.isEmpty ? same.name : c.name,
+          enabled: same.enabled);
+    }
+    await Native.saveProfile(toSave);
     await _refresh();
     if (Native.isAndroid && !_st.smsPermission) {
       await Native.requestSmsPermission();
       await _refresh();
       if (!_st.smsPermission && mounted) await _showRestrictedHelp();
     }
-    await _run(() => Native.testConnection(c));
+    await _run(() => Native.testConnection(toSave));
+    if (mounted &&
+        toSave.isForward &&
+        toSave.senders.isEmpty &&
+        toSave.keywords.isEmpty) {
+      setState(() => _msg =
+          '${_msg ?? ''}\nبرای «ارسال به تلگرام» حتماً یک فرستنده یا کلمه‌ی فیلتر تنظیم کنید (دکمه‌ی «فرستنده‌ها»)؛ تا آن موقع هیچ پیامکی ارسال نمی‌شود.');
+    }
   }
 
   Future<void> _run(Future<TestResult> Function() f) async {
@@ -160,10 +178,32 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (c != null) await _applyConfig(c);
   }
 
-  Future<void> _manual() async {
+  Future<void> _manual({AgentConfig? edit}) async {
     final c = await Navigator.of(context).push<AgentConfig>(
-        MaterialPageRoute(builder: (_) => ManualPage(initial: _cfg)));
+        MaterialPageRoute(builder: (_) => ManualPage(initial: edit)));
     if (c != null) await _applyConfig(c);
+  }
+
+  Future<void> _delete(AgentConfig p) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('حذف «${p.label}»؟'),
+        content: const Text(
+            'کلید و تنظیمات این اتصال و پیامک‌های در صفِ آن از این گوشی پاک می‌شود. در سایت چیزی حذف نمی‌شود.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('انصراف')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('حذف')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await Native.deleteProfile(p.id);
+    await _refresh();
   }
 
   Future<void> _paste() async {
@@ -179,17 +219,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final cfg = _cfg;
     return Scaffold(
       appBar: AppBar(title: const Text('IrForge Pay Agent'), actions: [
-        if (Native.isAndroid)
-          IconButton(
-            tooltip: 'محدود کردن فرستنده‌ها',
-            icon: const Icon(Icons.filter_alt_outlined),
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const SendersPage()))
-                .then((_) => _refresh()),
-          ),
         if (Native.isAndroid)
           IconButton(
             tooltip: 'پیامک‌های دریافتی',
@@ -220,54 +251,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     maxWidth: 560), // گوشی/تبلت/وب: عرضِ محتوا ثابتِ خوانا
                 child: ListView(padding: const EdgeInsets.all(16), children: [
                   if (_st.update != null) _updateCard(_st.update!),
-                  _statusCard(cfg),
+                  _statusCard(),
                   const SizedBox(height: 16),
+                  if (_profiles.isNotEmpty) ...[
+                    Text('اتصال‌ها',
+                        style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 4),
+                    for (final p in _profiles) _profileCard(p),
+                    const SizedBox(height: 8),
+                  ],
                   FilledButton.icon(
                       onPressed: _busy ? null : _scan,
                       icon: const Icon(Icons.qr_code_scanner),
-                      label: const Text('اتصال با اسکن QR')),
+                      label: Text(_profiles.isEmpty
+                          ? 'اتصال با اسکن QR'
+                          : 'افزودن اتصال با اسکن QR')),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
                       onPressed: _busy ? null : _paste,
                       icon: const Icon(Icons.content_paste),
-                      label: const Text('اتصال با لینک (از کلیپ‌بورد)')),
+                      label: const Text('افزودن با لینک (از کلیپ‌بورد)')),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
-                      onPressed: _busy ? null : _manual,
+                      onPressed: _busy ? null : () => _manual(),
                       icon: const Icon(Icons.edit),
-                      label: const Text('ورود / ویرایش دستی')),
-                  if (cfg != null) ...[
-                    const Divider(height: 32),
+                      label: const Text('افزودن دستی')),
+                  if (_profiles.isNotEmpty && Native.isAndroid) ...[
+                    const SizedBox(height: 8),
                     FilledButton.tonalIcon(
                       onPressed: _busy
                           ? null
-                          : () => _run(() => Native.testConnection(cfg)),
-                      icon: const Icon(Icons.wifi_tethering),
-                      label: const Text('تست اتصال'),
+                          : () async {
+                              await Native.flushNow();
+                              await _refresh();
+                              setState(() => _msg = 'ارسال صف شروع شد');
+                            },
+                      icon: const Icon(Icons.send),
+                      label: const Text('ارسال مجدد صف'),
                     ),
-                    if (Native.isAndroid) ...[
-                      const SizedBox(height: 8),
-                      FilledButton.tonalIcon(
-                        onPressed: () => Navigator.of(context)
-                            .push(MaterialPageRoute(
-                                builder: (_) => const SendersPage()))
-                            .then((_) => _refresh()),
-                        icon: const Icon(Icons.filter_alt_outlined),
-                        label: const Text('محدود کردن فرستنده‌ها'),
-                      ),
-                      const SizedBox(height: 8),
-                      FilledButton.tonalIcon(
-                        onPressed: _busy
-                            ? null
-                            : () async {
-                                await Native.flushNow();
-                                await _refresh();
-                                setState(() => _msg = 'ارسال صف شروع شد');
-                              },
-                        icon: const Icon(Icons.send),
-                        label: const Text('ارسال مجدد صف'),
-                      ),
-                    ],
                   ],
                   if (_msg != null)
                     Padding(
@@ -279,7 +300,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     FilledButton.icon(
                       onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
-                              builder: (_) => IosGuidePage(config: cfg))),
+                              builder: (_) => IosGuidePage(
+                                  config: _profiles.isEmpty
+                                      ? null
+                                      : _profiles.first))),
                       icon: const Icon(Icons.phone_iphone),
                       label: const Text('راهنمای راه‌اندازی روی آیفون'),
                     ),
@@ -292,14 +316,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         child: Text(
                             'نسخه ${_st.versionName} (${_st.versionCode}) · بررسی نسخه جدید'),
                       ),
-                    ),
-                  if (cfg != null)
-                    TextButton(
-                      onPressed: () async {
-                        await Native.clearConfig();
-                        await _refresh();
-                      },
-                      child: const Text('حذف تنظیمات این گوشی'),
                     ),
                 ]),
               ))),
@@ -371,8 +387,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _statusCard(AgentConfig? cfg) {
-    final (Color color, String title, String sub) = _summary(cfg);
+  Widget _statusCard() {
+    final (Color color, String title, String sub) = _summary();
     return Card(
       color: color.withValues(alpha: 0.12),
       child: Padding(
@@ -387,7 +403,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ]),
           const SizedBox(height: 6),
           Text(sub),
-          if (Native.isAndroid && cfg != null) ...[
+          if (Native.isAndroid && _profiles.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(spacing: 16, children: [
               Text('ارسال‌شده: ${_st.sent}'),
@@ -406,12 +422,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  (Color, String, String) _summary(AgentConfig? cfg) {
-    if (cfg == null)
+  (Color, String, String) _summary() {
+    final ps = _profiles;
+    if (ps.isEmpty)
       return (
         Colors.grey,
         'متصل نیست',
-        'با دکمه‌های زیر یک‌بار تنظیمات کانال را وارد کنید.'
+        'با دکمه‌های زیر یک اتصال اضافه کنید (هر اتصال کلید و فیلترِ جدا دارد).'
       );
     if (!Native.isAndroid)
       return (
@@ -423,21 +440,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return (
         Colors.red,
         'مجوز پیامک داده نشده',
-        'بدون مجوز، پیامک بانک به سایت نمی‌رسد.'
+        'بدون مجوز، پیامکی به سایت نمی‌رسد.'
       );
-    if (cfg.senders.isEmpty) {
+    final active = ps.where((p) => p.enabled).toList();
+    if (active.isEmpty)
       return (
-        Colors.orange,
-        'فرستنده‌ی مجاز تنظیم نشده',
-        'فعلاً فقط پیامک‌های شبیه بانکی ارسال می‌شود. در «پیامک‌های دریافتی» فرستنده‌ی بانک را به لیست مجاز اضافه کنید.'
+        Colors.grey,
+        'همه‌ی اتصال‌ها خاموش‌اند',
+        'یکی از اتصال‌ها را روشن کنید.'
       );
-    }
     if (_st.blocked > 0)
       return (
         Colors.red,
         'کلید/کانال نامعتبر',
-        'پیامک‌ها منتظرند. تنظیمات را اصلاح کنید؛ خودکار ارسال می‌شوند.'
+        'پیامک‌ها منتظرند. اتصالِ دارای مشکل را اصلاح کنید؛ خودکار ارسال می‌شوند.'
       );
+    if (active.any((p) => !p.isForward && p.senders.isEmpty)) {
+      return (
+        Colors.orange,
+        'فرستنده‌ی مجاز تنظیم نشده',
+        'برای اتصالِ پرداخت فعلاً فقط پیامک‌های شبیه بانکی ارسال می‌شود. با دکمه‌ی «فرستنده‌ها» فرستنده‌ی بانک را اضافه کنید.'
+      );
+    }
+    if (active.any((p) => p.isForward && p.senders.isEmpty && p.keywords.isEmpty)) {
+      return (
+        Colors.orange,
+        'فیلتر «ارسال به تلگرام» تنظیم نشده',
+        'برای اتصالِ تلگرام یک فرستنده یا کلمه‌ی فیلتر بگذارید؛ تا آن موقع چیزی ارسال نمی‌شود.'
+      );
+    }
     if (_st.pending > 0)
       return (
         Colors.orange,
@@ -447,7 +478,87 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return (
       Colors.green,
       'فعال و آماده',
-      'هر پیامک بانک به‌صورت خودکار به سایت می‌رسد.'
+      '${active.length} اتصال فعال؛ هر پیامک مطابق فیلترِ هر اتصال به مقصدش می‌رسد.'
+    );
+  }
+
+  /// کارتِ یک اتصال: نام، وضعیت، روشن/خاموش و دکمه‌های تست/ویرایش/فرستنده‌ها/حذف.
+  Widget _profileCard(AgentConfig p) {
+    final host = Uri.tryParse(p.urls.first)?.host ?? '';
+    final filters = [
+      if (p.senders.isNotEmpty) 'فرستنده: ${p.senders.join('، ')}',
+      if (p.keywords.isNotEmpty) 'کلمه: ${p.keywords.join('، ')}',
+    ];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(p.isForward ? Icons.send : Icons.account_balance, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Text(p.label,
+                    style: Theme.of(context).textTheme.titleMedium)),
+            Switch(
+              value: p.enabled,
+              onChanged: (v) async {
+                await Native.saveProfile(p.copyWith(enabled: v));
+                await _refresh();
+              },
+            ),
+          ]),
+          Text(host,
+              textDirection: TextDirection.ltr,
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 4),
+          Text(p.isForward ? 'ارسال پیامک به تلگرام' : 'تأیید پرداخت بانکی',
+              style: Theme.of(context).textTheme.bodySmall),
+          Text(filters.isEmpty ? 'بدون فیلتر' : filters.join(' · '),
+              style: Theme.of(context).textTheme.bodySmall),
+          if (Native.isAndroid) ...[
+            const SizedBox(height: 6),
+            Wrap(spacing: 12, children: [
+              Text('ارسال‌شده: ${p.sent}'),
+              Text('در صف: ${p.pending}'),
+              if (p.blocked > 0)
+                Text('متوقف (کلید): ${p.blocked}',
+                    style: const TextStyle(color: Colors.redAccent)),
+              if (p.dead > 0) Text('ردشده: ${p.dead}'),
+            ]),
+            if (p.lastSentAt != null)
+              Text('آخرین ارسال: ${_fmt(p.lastSentAt!)}'),
+            if (p.lastError != null && p.pending > 0)
+              Text('آخرین خطا: ${p.lastError}',
+                  style: const TextStyle(color: Colors.redAccent)),
+          ],
+          Wrap(spacing: 4, children: [
+            TextButton.icon(
+              onPressed: _busy ? null : () => _run(() => Native.testConnection(p)),
+              icon: const Icon(Icons.wifi_tethering, size: 18),
+              label: const Text('تست'),
+            ),
+            TextButton.icon(
+              onPressed: _busy ? null : () => _manual(edit: p),
+              icon: const Icon(Icons.edit, size: 18),
+              label: const Text('ویرایش'),
+            ),
+            if (Native.isAndroid)
+              TextButton.icon(
+                onPressed: () => Navigator.of(context)
+                    .push(MaterialPageRoute(
+                        builder: (_) => SendersPage(profile: p)))
+                    .then((_) => _refresh()),
+                icon: const Icon(Icons.filter_alt_outlined, size: 18),
+                label: const Text('فرستنده‌ها'),
+              ),
+            TextButton.icon(
+              onPressed: () => _delete(p),
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: const Text('حذف'),
+            ),
+          ]),
+        ]),
+      ),
     );
   }
 

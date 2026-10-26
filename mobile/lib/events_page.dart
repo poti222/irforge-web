@@ -13,7 +13,7 @@ class EventsPage extends StatefulWidget {
 
 class _EventsPageState extends State<EventsPage> {
   List<SmsEvent>? _ev;
-  AgentConfig? _cfg;
+  List<AgentConfig> _profiles = const [];
 
   @override
   void initState() {
@@ -23,11 +23,11 @@ class _EventsPageState extends State<EventsPage> {
 
   Future<void> _load() async {
     final e = await Native.events();
-    final c = await Native.loadConfig();
+    final c = await Native.profiles();
     if (mounted) {
       setState(() {
         _ev = e;
-        _cfg = c;
+        _profiles = c;
       });
     }
   }
@@ -38,20 +38,32 @@ class _EventsPageState extends State<EventsPage> {
     'not_bank_like': 'رد شد: شبیه پیامک بانکی نبود (فرستنده‌ی مجاز تنظیم نشده)',
     'no_keyword': 'رد شد: کلمه‌ی فیلتر در متن نبود',
     'no_config': 'رد شد: اپ هنوز به کانال وصل نیست',
+    'no_filter': 'رد شد: برای «ارسال به تلگرام» فرستنده یا کلمه‌ی فیلتر تنظیم نشده',
     'blank': 'رد شد: متن خالی',
   };
 
+  /// فرستنده را به لیست مجازِ یک اتصال اضافه می‌کند (اگر چند اتصال هست، می‌پرسد کدام).
   Future<void> _allow(String sender) async {
-    final c = _cfg;
-    if (c == null) return;
-    await Native.saveConfig(AgentConfig(
-        urls: c.urls,
-        secret: c.secret,
-        senders: {...c.senders, sender}.toList()));
+    if (_profiles.isEmpty) return;
+    AgentConfig? target = _profiles.length == 1 ? _profiles.first : null;
+    target ??= await showDialog<AgentConfig>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text('«$sender» به کدام اتصال اضافه شود؟'),
+        children: [
+          for (final p in _profiles)
+            SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, p), child: Text(p.label)),
+        ],
+      ),
+    );
+    if (target == null) return;
+    await Native.saveProfile(
+        target.copyWith(senders: {...target.senders, sender}.toList()));
     await _load();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('«$sender» به فرستنده‌های مجاز اضافه شد')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('«$sender» به فرستنده‌های «${target.label}» اضافه شد')));
     }
   }
 
@@ -85,7 +97,7 @@ class _EventsPageState extends State<EventsPage> {
                     ev.isEmpty
                         ? 'هنوز هیچ پیامکی به اپ نرسیده. اگر پیامک بانک آمده ولی اینجا نیست، اندروید آن را به اپ نمی‌دهد: '
                             'مجوز «SMS»، «Allow restricted settings»، «Autostart» و (شیائومی) مجوز «Notification SMS / پیامک‌های اعلان» را بررسی کنید.'
-                        : 'فرستنده‌ی مجاز: ${(_cfg?.senders.isEmpty ?? true) ? 'تنظیم نشده (فقط پیامک‌های شبیه بانکی ارسال می‌شود)' : _cfg!.senders.join('، ')}',
+                        : 'هر پیامک جداگانه برای هر اتصال سنجیده می‌شود؛ یک پیامک می‌تواند به چند اتصال برود.',
                   ),
                 ),
                 for (final e in ev)
@@ -100,9 +112,10 @@ class _EventsPageState extends State<EventsPage> {
                     title: Text(e.sender.isEmpty ? '(بدون فرستنده)' : e.sender,
                         textDirection: TextDirection.ltr),
                     subtitle: Text(
-                        '${_fmt(e.ts)} · ${_labels[e.decision] ?? e.decision}'),
+                        '${_fmt(e.ts)} · ${_labels[e.decision] ?? e.decision}${e.to.isNotEmpty ? ' ← ${e.to}' : ''}'),
                     trailing: (e.decision == 'not_allowed' ||
-                                e.decision == 'not_bank_like') &&
+                                e.decision == 'not_bank_like' ||
+                                e.decision == 'no_filter') &&
                             e.sender.isNotEmpty
                         ? TextButton(
                             onPressed: () => _allow(e.sender),

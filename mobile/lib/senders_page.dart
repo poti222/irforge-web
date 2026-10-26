@@ -6,8 +6,10 @@ import 'setup_link.dart';
 /// محدود کردنِ پیامک‌هایی که خوانده و ارسال می‌شوند:
 ///  • فرستنده‌های مجاز (نام مثل Blubank یا شماره مثل 30008080 / +98…)؛ لیست خالی = فقط پیامک‌های شبیه بانکی.
 ///  • فیلترِ کلمه (اختیاری): فقط پیامکی که یکی از این کلمه‌ها را در متن دارد.
+/// هر اتصال فیلترِ جدای خودش را دارد؛ این صفحه برای همان اتصالِ داده‌شده است.
 class SendersPage extends StatefulWidget {
-  const SendersPage({super.key});
+  const SendersPage({super.key, required this.profile});
+  final AgentConfig profile;
 
   @override
   State<SendersPage> createState() => _SendersPageState();
@@ -15,7 +17,6 @@ class SendersPage extends StatefulWidget {
 
 class _SendersPageState extends State<SendersPage> {
   AgentConfig? _cfg;
-  AgentSettings _s = const AgentSettings();
   List<String> _recent = const [];
   final _add = TextEditingController();
   final _kw = TextEditingController();
@@ -28,14 +29,14 @@ class _SendersPageState extends State<SendersPage> {
   }
 
   Future<void> _load() async {
-    final c = await Native.loadConfig();
-    final s = await Native.getSettings();
+    final c = (await Native.profiles())
+        .where((e) => e.id == widget.profile.id)
+        .firstOrNull;
     final ev = await Native.events();
     if (!mounted) return;
     setState(() {
       _cfg = c;
-      _s = s;
-      _kw.text = s.keywords;
+      _kw.text = c?.keywords.join(', ') ?? '';
       _recent = {
         for (final e in ev)
           if (e.sender.isNotEmpty) e.sender
@@ -47,8 +48,8 @@ class _SendersPageState extends State<SendersPage> {
   Future<void> _saveSenders(List<String> senders) async {
     final c = _cfg;
     if (c == null) return;
-    final next = AgentConfig(urls: c.urls, secret: c.secret, senders: senders);
-    await Native.saveConfig(next);
+    final next = c.copyWith(senders: senders);
+    await Native.saveProfile(next);
     if (mounted) setState(() => _cfg = next);
   }
 
@@ -69,7 +70,7 @@ class _SendersPageState extends State<SendersPage> {
         .where((r) => !senders.any((e) => e.toLowerCase() == r.toLowerCase()))
         .toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('محدود کردن فرستنده‌ها')),
+      appBar: AppBar(title: Text('فرستنده‌ها · ${widget.profile.label}')),
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
           : c == null
@@ -77,7 +78,7 @@ class _SendersPageState extends State<SendersPage> {
                   child: Padding(
                       padding: EdgeInsets.all(24),
                       child: Text(
-                          'اول اپ را به کانال وصل کنید (QR یا ورود دستی).')))
+                          'این اتصال دیگر وجود ندارد.')))
               : SafeArea(
                   child: Align(
                     alignment: Alignment.topCenter,
@@ -162,8 +163,11 @@ class _SendersPageState extends State<SendersPage> {
                                 border: OutlineInputBorder(),
                               ),
                               onChanged: (v) {
-                                _s = _s.copyWith(keywords: v.trim());
-                                Native.saveSettings(_s);
+                                final cur = _cfg;
+                                if (cur == null) return;
+                                final next = cur.copyWith(keywords: splitList(v));
+                                _cfg = next;
+                                Native.saveProfile(next);
                               },
                             ),
                           ]),

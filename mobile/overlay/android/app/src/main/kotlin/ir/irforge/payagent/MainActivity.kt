@@ -24,13 +24,13 @@ class MainActivity : FlutterActivity() {
         runCatching { UpdateWorker.schedule(this) }
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
-                "getConfig" -> result.success(Store.config(this)?.let { mapOf("urls" to it.urls, "secret" to it.secret, "senders" to it.senders) })
-                "saveConfig" -> {
-                    Store.saveConfig(this, cfgFrom(call.arguments as Map<*, *>))
+                "getProfiles" -> result.success(Store.profiles(this).map { profileMap(it) })
+                "saveProfile" -> {
+                    val saved = Store.saveProfile(this, cfgFrom(call.arguments as Map<*, *>))
                     SendWorker.schedulePeriodic(this); SendWorker.kick(this)
-                    result.success(null)
+                    result.success(saved.id)
                 }
-                "clearConfig" -> { Store.clearConfig(this); result.success(null) }
+                "deleteProfile" -> { Store.deleteProfile(this, call.arguments as String); result.success(null) }
                 "status" -> result.success(mapOf(
                     "smsPermission" to hasSms(),
                     "batteryExempt" to batteryExempt(),
@@ -116,6 +116,19 @@ class MainActivity : FlutterActivity() {
         urls = (m["urls"] as List<*>).map { it.toString() },
         secret = m["secret"].toString(),
         senders = (m["senders"] as? List<*>)?.map { it.toString() } ?: emptyList(),
+        id = (m["id"] as? String) ?: "",
+        name = (m["name"] as? String) ?: "",
+        kind = ((m["kind"] as? String) ?: "payment").let { if (it == "forward") "forward" else "payment" },
+        keywords = (m["keywords"] as? List<*>)?.map { it.toString() } ?: emptyList(),
+        enabled = (m["enabled"] as? Boolean) ?: true,
+    )
+
+    private fun profileMap(c: Config) = mapOf(
+        "id" to c.id, "name" to c.name, "kind" to c.kind, "urls" to c.urls, "secret" to c.secret,
+        "senders" to c.senders, "keywords" to c.keywords, "enabled" to c.enabled,
+        "pending" to Store.count(this, "pending", c.id), "sent" to Store.count(this, "sent", c.id),
+        "blocked" to Store.count(this, "blocked", c.id), "dead" to Store.count(this, "dead", c.id),
+        "lastSentAt" to Store.lastSentAt(this, c.id), "lastError" to Store.lastError(this, c.id),
     )
 
     private fun hasSms() = ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED

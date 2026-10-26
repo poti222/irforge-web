@@ -72,7 +72,7 @@ class _QueuePageState extends State<QueuePage> {
                         leading: Icon(Icons.circle,
                             size: 12, color: _colors[e.status]),
                         title: Text(
-                            '${e.sender} · ${_labels[e.status] ?? e.status}'),
+                            '${e.sender} · ${_labels[e.status] ?? e.status}${e.profile.isNotEmpty ? ' · ${e.profile}' : ''}'),
                         subtitle: Text(
                             '${_fmt(e.ts)}${e.attempts > 0 ? ' · ${e.attempts} تلاش' : ''}${e.body.isNotEmpty ? '\n${e.body}' : ''}',
                             maxLines: 3,

@@ -148,8 +148,12 @@ class AgentSettings {
 /// یک ردیف از صفِ پیامک‌ها. status: pending | sent | blocked | dead
 class QueueItem {
   const QueueItem(
-      this.id, this.sender, this.body, this.ts, this.attempts, this.status);
+      this.id, this.sender, this.body, this.ts, this.attempts, this.status,
+      [this.profile = '']);
   final String id, sender, body, status;
+
+  /// نامِ اتصالی که این پیامک برایش در صف است.
+  final String profile;
   final DateTime ts;
   final int attempts;
   static QueueItem fromMap(Map m) => QueueItem(
@@ -158,18 +162,23 @@ class QueueItem {
       (m['body'] as String?) ?? '',
       DateTime.fromMillisecondsSinceEpoch((m['ts'] as num).toInt()),
       (m['attempts'] as num?)?.toInt() ?? 0,
-      m['status'] as String);
+      m['status'] as String,
+      (m['profile'] as String?) ?? '');
 }
 
 /// یک پیامکِ دریافتی و تصمیمِ اپ. decision: queued | not_allowed | not_bank_like | no_config | blank
 class SmsEvent {
-  const SmsEvent(this.ts, this.sender, this.decision);
+  const SmsEvent(this.ts, this.sender, this.decision, [this.to = '']);
   final DateTime ts;
   final String sender, decision;
+
+  /// نامِ اتصال‌هایی که پیامک برایشان به صف رفته (خالی = هیچ‌کدام).
+  final String to;
   static SmsEvent fromMap(Map m) => SmsEvent(
       DateTime.fromMillisecondsSinceEpoch((m['ts'] as num).toInt()),
       (m['sender'] as String?) ?? '',
-      (m['decision'] as String?) ?? '');
+      (m['decision'] as String?) ?? '',
+      (m['to'] as String?) ?? '');
 }
 
 class TestResult {
@@ -188,22 +197,44 @@ class Native {
   static bool get isAndroid =>
       isPreview || (!kIsWeb && defaultTargetPlatform == TargetPlatform.android);
   static bool get _real => !isPreview;
-  static AgentConfig? _fakeCfg;
+  static final List<AgentConfig> _fakeProfiles = [];
 
+  /// همه‌ی اتصال‌ها (هر کدام آدرس/کلید/فیلترِ خودش را دارد).
+  static Future<List<AgentConfig>> profiles() async {
+    if (!isAndroid) return List.of(_fakeProfiles);
+    if (!_real) return List.of(_fakeProfiles);
+    final l = await _ch.invokeMethod<List>('getProfiles') ?? const [];
+    return [
+      for (final m in l)
+        if (AgentConfig.fromMap(m as Map) != null) AgentConfig.fromMap(m)!
+    ];
+  }
+
+  /// برای جاهایی که فقط یک اتصال لازم است (راهنمای آیفون).
   static Future<AgentConfig?> loadConfig() async {
-    if (!isAndroid) return null;
-    if (!_real) return _fakeCfg;
-    return AgentConfig.fromMap(await _ch.invokeMethod<Map>('getConfig'));
+    final l = await profiles();
+    return l.isEmpty ? null : l.first;
   }
 
-  static Future<void> saveConfig(AgentConfig c) async {
-    if (!_real) _fakeCfg = c;
-    if (isAndroid && _real) await _ch.invokeMethod('saveConfig', c.toMap());
+  /// ساخت یا ویرایش (با `id`). شناسه‌ی نهایی را برمی‌گرداند.
+  static Future<String> saveProfile(AgentConfig c) async {
+    if (isAndroid && _real) {
+      return await _ch.invokeMethod<String>('saveProfile', c.toMap()) ?? c.id;
+    }
+    final id = c.id.isEmpty ? 'p${_fakeProfiles.length + 1}' : c.id;
+    final next = c.copyWith(id: id);
+    final i = _fakeProfiles.indexWhere((e) => e.id == id);
+    if (i >= 0) {
+      _fakeProfiles[i] = next;
+    } else {
+      _fakeProfiles.add(next);
+    }
+    return id;
   }
 
-  static Future<void> clearConfig() async {
-    if (!_real) _fakeCfg = null;
-    if (isAndroid && _real) await _ch.invokeMethod('clearConfig');
+  static Future<void> deleteProfile(String id) async {
+    _fakeProfiles.removeWhere((e) => e.id == id);
+    if (isAndroid && _real) await _ch.invokeMethod('deleteProfile', id);
   }
 
   static Future<AgentStatus> status() async {

@@ -10,28 +10,27 @@ class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
         val parts = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
-        val cfg = Store.config(ctx)
-        val keywords = Store.settings(ctx).keywords.split(',', '،', '\n').map { it.trim() }.filter { it.isNotEmpty() }
+        // فقط اتصال‌های روشن و کامل؛ هر پیامک جداگانه برای هر اتصال سنجیده می‌شود (یک پیامک می‌تواند به چند مقصد برود).
+        val profiles = Store.profiles(ctx).filter { it.enabled && it.complete }
         var queued = false
         // پیامکِ چندبخشی = چند PDU از یک فرستنده؛ یکی‌شان کن.
         for ((sender, group) in parts.groupBy { it.originatingAddress ?: "" }) {
             val body = group.joinToString("") { it.messageBody ?: "" }
-            val decision = when {
-                cfg == null -> "no_config"
-                body.isBlank() -> "blank"
-                cfg.senders.isNotEmpty() && !senderAllowed(sender, cfg.senders) -> "not_allowed"
-                // لیستِ فرستنده خالی است: فقط پیامک‌هایی که شبیه تراکنشِ بانکی‌اند (پیامکِ شخصی/OTP نه).
-                cfg.senders.isEmpty() && !looksLikeBankSms(body) -> "not_bank_like"
-                // فیلترِ کلمه: اگر کاربر کلمه‌ای تعیین کرده، متن باید یکی‌شان را داشته باشد.
-                keywords.isNotEmpty() && keywords.none { body.contains(it, ignoreCase = true) } -> "no_keyword"
-                else -> "queued"
+            val to = mutableListOf<String>()
+            var reason: String? = null
+            if (profiles.isEmpty()) reason = "no_config"
+            else if (body.isBlank()) reason = "blank"
+            else for (p in profiles) {
+                val d = decide(p, sender, body)
+                if (d == "queued") {
+                    Store.enqueue(ctx, p.id, sender, body, group.first().timestampMillis)
+                    to += p.label
+                } else if (reason == null) reason = d
             }
+            val decision = if (to.isNotEmpty()) "queued" else reason ?: "not_allowed"
             Log.i("PayAgent", "sms-received sender=$sender decision=$decision")
-            Store.logEvent(ctx, sender, decision)
-            if (decision == "queued") {
-                Store.enqueue(ctx, sender, body, group.first().timestampMillis)
-                queued = true
-            }
+            Store.logEvent(ctx, sender, decision, to.joinToString("، "))
+            if (to.isNotEmpty()) queued = true
         }
         if (queued) {
             SendWorker.kick(ctx)
@@ -40,6 +39,16 @@ class SmsReceiver : BroadcastReceiver() {
     }
 
     companion object {
+        /** تصمیمِ یک اتصال برای یک پیامک. «forward» حتماً باید فیلترِ فرستنده یا کلمه داشته باشد (وگرنه پیامکِ شخصی لو می‌رفت). */
+        fun decide(p: Config, sender: String, body: String): String = when {
+            p.senders.isNotEmpty() && !senderAllowed(sender, p.senders) -> "not_allowed"
+            p.kind == "forward" && p.senders.isEmpty() && p.keywords.isEmpty() -> "no_filter"
+            // لیستِ فرستنده خالی است: فقط پیامک‌هایی که شبیه تراکنشِ بانکی‌اند (پیامکِ شخصی/OTP نه).
+            p.kind != "forward" && p.senders.isEmpty() && !looksLikeBankSms(body) -> "not_bank_like"
+            p.keywords.isNotEmpty() && p.keywords.none { body.contains(it, ignoreCase = true) } -> "no_keyword"
+            else -> "queued"
+        }
+
         /** برابریِ بی‌توجه به حروف؛ برای شماره‌ها (+98… یا 98… یا 0…) ۸ رقمِ آخر مقایسه می‌شود. */
         fun senderAllowed(sender: String, allow: List<String>): Boolean {
             val s = sender.trim()
