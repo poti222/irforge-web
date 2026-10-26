@@ -1453,6 +1453,146 @@
    ]
   },
   {
+   "type": "rate_check",
+   "label": "شمارنده‌ی نرخ (ضد اسپم)",
+   "labelEn": "Rate counter (anti-spam)",
+   "category": "data",
+   "icon": "Gauge",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "key",
+     "label": "کلید شمارش",
+     "labelEn": "Counter key",
+     "type": "text",
+     "required": true,
+     "default": "spam:{author.id}",
+     "max": 300,
+     "supportsVariables": true,
+     "help": "مثل spam:{author.id}. برای پیام تکراری متن پیام را هم در کلید بگذارید.",
+     "helpEn": "Like spam:{author.id}. For duplicates include the message text in the key."
+    },
+    {
+     "key": "window",
+     "label": "بازه (ثانیه)",
+     "labelEn": "Window (seconds)",
+     "type": "number",
+     "default": 10,
+     "min": 1,
+     "max": 3600
+    },
+    {
+     "key": "limit",
+     "label": "حد مجاز (تعداد)",
+     "labelEn": "Limit (count)",
+     "type": "number",
+     "default": 5,
+     "min": 1,
+     "max": 100
+    },
+    {
+     "key": "store_as",
+     "label": "پیشوند متغیر",
+     "labelEn": "Variable prefix",
+     "type": "ident",
+     "default": "rate",
+     "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$",
+     "help": "متغیرها: {rate_count} و {rate_hit} (true وقتی تعداد به حد رسید)",
+     "helpEn": "Variables: {rate_count} and {rate_hit} (true once the limit is reached)"
+    }
+   ]
+  },
+  {
+   "type": "text_stats",
+   "label": "تحلیل متن پیام",
+   "labelEn": "Analyse message text",
+   "category": "data",
+   "icon": "ScanText",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "text",
+     "label": "متن",
+     "labelEn": "Text",
+     "type": "textarea",
+     "default": "{message.content}",
+     "max": 2000,
+     "supportsVariables": true,
+     "help": "متغیرها: {caps_percent} {letters} {mention_count} {emoji_count} {link_count} {text_length}",
+     "helpEn": "Variables: {caps_percent} {letters} {mention_count} {emoji_count} {link_count} {text_length}"
+    }
+   ]
+  },
+  {
+   "type": "set_slowmode",
+   "label": "اسلو‌مود کانال",
+   "labelEn": "Set slowmode",
+   "category": "moderation",
+   "icon": "Timer",
+   "botPermissions": [
+    "manage_channels"
+   ],
+   "fields": [
+    {
+     "key": "channel",
+     "label": "کانال",
+     "labelEn": "Channel",
+     "type": "channel",
+     "required": false,
+     "help": "آیدی کانال یا متغیر مثل {config.log_channel}. خالی = کانال فعلی.",
+     "helpEn": "Channel ID or a variable like {config.log_channel}. Empty = current channel."
+    },
+    {
+     "key": "seconds",
+     "label": "ثانیه (۰ = خاموش)",
+     "labelEn": "Seconds (0 = off)",
+     "type": "number",
+     "default": 5,
+     "min": 0,
+     "max": 21600,
+     "supportsVariables": true
+    }
+   ]
+  },
+  {
+   "type": "lock_channel",
+   "label": "قفل / بازکردن کانال",
+   "labelEn": "Lock / unlock channel",
+   "category": "moderation",
+   "icon": "Lock",
+   "botPermissions": [
+    "manage_channels"
+   ],
+   "fields": [
+    {
+     "key": "channel",
+     "label": "کانال",
+     "labelEn": "Channel",
+     "type": "channel",
+     "required": false,
+     "help": "آیدی کانال یا متغیر مثل {config.log_channel}. خالی = کانال فعلی.",
+     "helpEn": "Channel ID or a variable like {config.log_channel}. Empty = current channel."
+    },
+    {
+     "key": "locked",
+     "label": "قفل شود",
+     "labelEn": "Lock it",
+     "type": "boolean",
+     "default": true,
+     "help": "خاموش = باز کردن قفل",
+     "helpEn": "Off = unlock"
+    },
+    {
+     "key": "reason",
+     "label": "دلیل",
+     "labelEn": "Reason",
+     "type": "text",
+     "max": 200,
+     "supportsVariables": true
+    }
+   ]
+  },
+  {
    "type": "database_set",
    "label": "ذخیره در دیتابیس",
    "labelEn": "Database: set",

@@ -11,7 +11,7 @@ import type { DiscordBlueprint } from "@/lib/discord-bots-api";
  * هر چیزی که این‌جا ساخته می‌شود را می‌توان در تب «رویدادها / دستورها» هم دید و دستی ویرایش کرد (با دوباره‌سازی از فرم بازنویسی می‌شود).
  */
 
-export type ModuleId = "leveling" | "welcome" | "goodbye" | "autorole" | "reaction_roles" | "verification" | "logs" | "automod" | "moderation";
+export type ModuleId = "leveling" | "welcome" | "goodbye" | "autorole" | "reaction_roles" | "verification" | "logs" | "automod" | "antispam" | "moderation";
 
 export interface ModuleOutput { events: any[]; commands: any[] }
 export interface ModuleDef {
@@ -296,13 +296,47 @@ const automod: ModuleDef = {
   },
 };
 
+// ─── anti-spam ───────────────────────────────────────────────────────────────
+const antispam: ModuleDef = {
+  id: "antispam", icon: "ShieldBan",
+  title: ["ضد اسپم", "Anti-spam"], desc: ["سیل پیام، پیام تکراری، کپس، منشن و ایموجیِ زیاد را تشخیص می‌دهد؛ پیام را حذف و در صورت نیاز تایم‌اوت می‌کند.", "Detects message floods, duplicates, caps, mass mentions and emoji spam; deletes the message and optionally times the author out."],
+  needs: [["Message Content Intent", "Message Content Intent"], ["Manage Messages", "Manage Messages"], ["Moderate Members (برای تایم‌اوت)", "Moderate Members (for timeouts)"]],
+  defaults: (fa) => ({
+    enabled: false,
+    spam: { on: true, count: 5, seconds: 5 }, duplicates: { on: true, count: 3, seconds: 30 },
+    caps: { on: false, percent: 70, minLetters: 10 }, mentions: { on: true, max: 5 }, emojis: { on: false, max: 10 },
+    warn: true, warnText: fa ? "⚠️ {author.mention} {reason}" : "⚠️ {author.mention} {reason}", timeoutMin: 5, logChannel: "", exemptRoles: [], ignoredChannels: [],
+  }),
+  problems: (c, fa) => (["spam", "duplicates", "caps", "mentions", "emojis"].some((k) => c[k]?.on) ? [] : [fa ? "حداقل یک قانون را روشن کنید" : "Turn on at least one rule"]),
+  generate: (c, env) => {
+    const fa = env.fa;
+    const guards: any[] = [rule("{author.is_bot}", "!=", "true"), ...idList(c.exemptRoles).map((r) => ({ not: rule("{author.roles}", "has_role", r) })), ...idList(c.ignoredChannels).map((x) => ({ not: rule("{channel.id}", "==", x) }))];
+    const n = (v: any, d: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Number(v) || d));
+    const setReason = (txt: string) => mk(env, "set_variable", { name: "reason", value: txt });
+    const acts: any[] = [setReason(""), mk(env, "text_stats", { text: "{message.content}" })];
+    if (c.spam?.on) acts.push(mk(env, "rate_check", { key: "spam:{author.id}", window: n(c.spam.seconds, 5, 1, 3600), limit: n(c.spam.count, 5, 2, 100), store_as: "spam" }),
+      cond(env, rule("{spam_hit}", "==", "true"), [setReason(fa ? "ارسال پیام پشت‌سرهم (اسپم)" : "Sending messages too fast (spam)")]));
+    if (c.duplicates?.on) acts.push(mk(env, "rate_check", { key: "dup:{author.id}:{message.content}", window: n(c.duplicates.seconds, 30, 1, 3600), limit: n(c.duplicates.count, 3, 2, 100), store_as: "dup" }),
+      cond(env, rule("{dup_hit}", "==", "true"), [setReason(fa ? "پیام تکراری" : "Duplicate messages")]));
+    if (c.caps?.on) acts.push(cond(env, { and: [rule("{caps_percent}", ">=", String(n(c.caps.percent, 70, 30, 100))), rule("{letters}", ">=", String(n(c.caps.minLetters, 10, 1, 500)))] }, [setReason(fa ? "حروف بزرگ بیش از حد" : "Too many capital letters")]));
+    if (c.mentions?.on) acts.push(cond(env, rule("{mention_count}", ">", String(n(c.mentions.max, 5, 1, 50))), [setReason(fa ? "منشن بیش از حد" : "Too many mentions")]));
+    if (c.emojis?.on) acts.push(cond(env, rule("{emoji_count}", ">", String(n(c.emojis.max, 10, 1, 100))), [setReason(fa ? "ایموجی بیش از حد" : "Too many emojis")]));
+    const punish: any[] = [mk(env, "delete_message")];
+    if (c.warn) punish.push(mk(env, "send_message", { channel: "{channel.id}", content: c.warnText }));
+    if (Number(c.timeoutMin) > 0) punish.push(mk(env, "timeout_member", { target: "{author.id}", duration: n(c.timeoutMin, 5, 1, 40320) * 60, reason: "anti-spam: {reason}" }));
+    if (String(c.logChannel).trim()) punish.push(mk(env, "send_embed", { channel: String(c.logChannel).trim(), title: "Anti-spam", description: "{author.mention} · {channel.mention}\n**{reason}**\n{message.content}", color: "#ED4245", timestamp: true }));
+    acts.push(cond(env, rule("{reason}", "!=", ""), punish));
+    return { events: [ev("antispam", "message", { and: guards }, acts)], commands: [] };
+  },
+};
+
 // ─── moderation commands ─────────────────────────────────────────────────────
-export const MOD_COMMANDS = ["kick", "ban", "timeout", "untimeout", "clear", "warn", "warnings"] as const;
+export const MOD_COMMANDS = ["kick", "ban", "timeout", "untimeout", "clear", "warn", "warnings", "clearwarns", "lock", "unlock", "slowmode", "nick", "addrole", "removerole"] as const;
 const moderation: ModuleDef = {
   id: "moderation", icon: "Gavel",
   title: ["دستورهای مدیریتی", "Moderation commands"], desc: ["/kick /ban /timeout /clear /warn … با کنترل دسترسی واقعی و ثبت در کانال لاگ.", "/kick /ban /timeout /clear /warn … with real permission checks and optional log channel."],
   needs: [["Kick / Ban / Moderate Members / Manage Messages", "Kick / Ban / Moderate Members / Manage Messages"]],
-  defaults: () => ({ enabled: false, logChannel: "", on: { kick: true, ban: true, timeout: true, untimeout: true, clear: true, warn: true, warnings: true } }),
+  defaults: () => ({ enabled: false, logChannel: "", warnTimeoutAt: 0, warnTimeoutMin: 60, warnKickAt: 0, warnBanAt: 0, on: { kick: true, ban: true, timeout: true, untimeout: true, clear: true, warn: true, warnings: true, clearwarns: true, lock: true, unlock: true, slowmode: true, nick: false, addrole: false, removerole: false } }),
   problems: (c, fa) => (Object.values(c.on ?? {}).some(Boolean) ? [] : [fa ? "حداقل یک دستور را روشن کنید" : "Turn on at least one command"]),
   generate: (c, env) => {
     const log = (text: string) => (String(c.logChannel).trim() ? [mk(env, "send_embed", { channel: String(c.logChannel).trim(), title: "Moderation", description: text, color: "#FEE75C", timestamp: true })] : []);
@@ -313,14 +347,27 @@ const moderation: ModuleDef = {
       timeout: cmd("moderation", "timeout", "Time a member out (minutes)", [mk(env, "math", { store_as: "secs", left: "{options.minutes}", op: "*", right: "60" }), mk(env, "timeout_member", { target: "{options.user}", duration: "{secs}", reason: "{options.reason}" }), mk(env, "reply", { content: "🔇 {options.user_mention}" }), ...log("🔇 {options.user_mention} ← {author.mention}")], { permissions: ["moderate_members"], options: [user, opt("minutes", "integer", "Minutes"), reason] }),
       untimeout: cmd("moderation", "untimeout", "Remove a timeout", [mk(env, "remove_timeout", { target: "{options.user}" }), mk(env, "reply", { content: "🔊 {options.user_mention}" })], { permissions: ["moderate_members"], options: [user] }),
       clear: cmd("moderation", "clear", "Delete recent messages", [mk(env, "purge", { amount: "{options.amount}" }), mk(env, "reply", { content: "🧹 {options.amount}", ephemeral: true }), ...log("🧹 {options.amount} · {channel.mention} ← {author.mention}")], { permissions: ["manage_messages"], options: [opt("amount", "integer", "How many (1-100)")], ephemeral: true }),
-      warn: cmd("moderation", "warn", "Warn a member", [mk(env, "database_increment", { key: "warns:{options.user}", amount: 1, store_as: "warns" }), mk(env, "reply", { content: "⚠️ {options.user_mention} — {warns}" }), ...log("⚠️ {options.user_mention} ({warns}) ← {author.mention}\n{options.reason}")], { permissions: ["moderate_members"], options: [user, reason] }),
+      warn: cmd("moderation", "warn", "Warn a member", [mk(env, "database_increment", { key: "warns:{options.user}", amount: 1, store_as: "warns" }), mk(env, "reply", { content: "⚠️ {options.user_mention} — {warns}" }), ...log("⚠️ {options.user_mention} ({warns}) ← {author.mention}\n{options.reason}"),
+        ...[
+          [Number(c.warnBanAt), mk(env, "ban_member", { target: "{options.user}", reason: "warn limit reached" })],
+          [Number(c.warnKickAt), mk(env, "kick_member", { target: "{options.user}", reason: "warn limit reached" })],
+          [Number(c.warnTimeoutAt), mk(env, "timeout_member", { target: "{options.user}", duration: Math.max(1, Math.min(40320, Number(c.warnTimeoutMin) || 60)) * 60, reason: "warn limit reached" })],
+        ].filter(([at]) => (at as number) >= 1).map(([at, act]) => cond(env, rule("{warns}", "==", String(at)), [act as any]))],
+        { permissions: ["moderate_members"], options: [user, reason] }),
+      clearwarns: cmd("moderation", "clearwarns", "Clear a member's warnings", [mk(env, "database_delete", { key: "warns:{options.user}" }), mk(env, "reply", { content: "🧽 {options.user_mention}", ephemeral: true })], { permissions: ["moderate_members"], options: [user], ephemeral: true }),
+      lock: cmd("moderation", "lock", "Lock a channel (nobody can send)", [mk(env, "lock_channel", { channel: "{options.channel}", locked: true, reason: "{author.name}" }), mk(env, "reply", { content: "🔒" })], { permissions: ["manage_channels"], options: [opt("channel", "channel", "Channel (default: this one)", false)] }),
+      unlock: cmd("moderation", "unlock", "Unlock a channel", [mk(env, "lock_channel", { channel: "{options.channel}", locked: false, reason: "{author.name}" }), mk(env, "reply", { content: "🔓" })], { permissions: ["manage_channels"], options: [opt("channel", "channel", "Channel (default: this one)", false)] }),
+      slowmode: cmd("moderation", "slowmode", "Set slowmode in seconds (0 = off)", [mk(env, "set_slowmode", { channel: "{options.channel}", seconds: "{options.seconds}" }), mk(env, "reply", { content: "🐢 {options.seconds}s" })], { permissions: ["manage_channels"], options: [opt("seconds", "integer", "Seconds (0 = off)"), opt("channel", "channel", "Channel (default: this one)", false)] }),
+      nick: cmd("moderation", "nick", "Change a member's nickname (empty = reset)", [mk(env, "set_nickname", { target: "{options.user}", nickname: "{options.nickname}" }), mk(env, "reply", { content: "✏️ {options.user_mention}", ephemeral: true })], { permissions: ["manage_nicknames"], options: [user, opt("nickname", "string", "New nickname", false)], ephemeral: true }),
+      addrole: cmd("moderation", "addrole", "Give a role to a member", [mk(env, "add_role", { target: "{options.user}", role: "{options.role}" }), mk(env, "reply", { content: "➕ {options.user_mention}", ephemeral: true })], { permissions: ["manage_roles"], options: [user, opt("role", "role", "Role")], ephemeral: true }),
+      removerole: cmd("moderation", "removerole", "Take a role from a member", [mk(env, "remove_role", { target: "{options.user}", role: "{options.role}" }), mk(env, "reply", { content: "➖ {options.user_mention}", ephemeral: true })], { permissions: ["manage_roles"], options: [user, opt("role", "role", "Role")], ephemeral: true }),
       warnings: cmd("moderation", "warnings", "Show a member's warnings", [mk(env, "database_get", { key: "warns:{options.user}", store_as: "warns", default: "0" }), mk(env, "reply", { content: "📋 {options.user_mention}: {warns}", ephemeral: true })], { permissions: ["moderate_members"], options: [user], ephemeral: true }),
     };
     return { events: [], commands: MOD_COMMANDS.filter((k) => c.on?.[k]).map((k) => defs[k]) };
   },
 };
 
-export const MODULES: ModuleDef[] = [leveling, welcome, goodbye, autorole, reactionRoles, verification, logs, automod, moderation];
+export const MODULES: ModuleDef[] = [leveling, welcome, goodbye, autorole, reactionRoles, verification, logs, automod, antispam, moderation];
 export const MODULE_BY_ID: Record<string, ModuleDef> = Object.fromEntries(MODULES.map((m) => [m.id, m]));
 
 // ─── applying a module to a blueprint ────────────────────────────────────────

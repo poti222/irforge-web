@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Blocks, ChevronDown, DoorOpen, Gavel, PartyPopper, Plus, ScrollText, ShieldAlert, ShieldCheck, SmilePlus, Trash2, BadgePlus, TrendingUp, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Blocks, ChevronDown, DoorOpen, Gavel, PartyPopper, Plus, ScrollText, ShieldAlert, ShieldCheck, SmilePlus, Trash2, BadgePlus, ShieldBan, TrendingUp, type LucideIcon } from "lucide-react";
 
-const MODULE_ICONS: Record<string, LucideIcon> = { TrendingUp, PartyPopper, DoorOpen, BadgePlus, SmilePlus, ShieldCheck, ScrollText, ShieldAlert, Gavel };
+const MODULE_ICONS: Record<string, LucideIcon> = { ShieldBan, TrendingUp, PartyPopper, DoorOpen, BadgePlus, SmilePlus, ShieldCheck, ScrollText, ShieldAlert, Gavel };
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -326,6 +326,51 @@ function AutomodForm({ c, set, fa }: FormProps) {
   );
 }
 
+function AntiSpamForm({ c, set, fa }: FormProps) {
+  const t = (a: string, b: string) => (fa ? a : b);
+  const rules: { key: string; fa: string; en: string; fields: { k: string; fa: string; en: string; min: number; max: number }[] }[] = [
+    { key: "spam", fa: "سیل پیام", en: "Message flood", fields: [{ k: "count", fa: "تعداد پیام", en: "Messages", min: 2, max: 100 }, { k: "seconds", fa: "در چند ثانیه", en: "Within seconds", min: 1, max: 3600 }] },
+    { key: "duplicates", fa: "پیام تکراری", en: "Duplicate messages", fields: [{ k: "count", fa: "تعداد تکرار", en: "Repeats", min: 2, max: 100 }, { k: "seconds", fa: "در چند ثانیه", en: "Within seconds", min: 1, max: 3600 }] },
+    { key: "caps", fa: "حروف بزرگ (Caps)", en: "Capital letters", fields: [{ k: "percent", fa: "درصد حروف بزرگ", en: "Caps %", min: 30, max: 100 }, { k: "minLetters", fa: "حداقل تعداد حرف", en: "Min letters", min: 1, max: 500 }] },
+    { key: "mentions", fa: "منشن زیاد", en: "Mass mentions", fields: [{ k: "max", fa: "حداکثر منشن در یک پیام", en: "Max mentions per message", min: 1, max: 50 }] },
+    { key: "emojis", fa: "ایموجی زیاد", en: "Emoji spam", fields: [{ k: "max", fa: "حداکثر ایموجی در یک پیام", en: "Max emojis per message", min: 1, max: 100 }] },
+  ];
+  const upd = (key: string, patch: any) => set({ [key]: { ...c[key], ...patch } });
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 lg:grid-cols-2">
+        {rules.map((r) => (
+          <div key={r.key} className="space-y-2 rounded-lg border p-3">
+            <Toggle checked={!!c[r.key]?.on} onChange={(v) => upd(r.key, { on: v })} label={fa ? r.fa : r.en} />
+            {c[r.key]?.on && (
+              <div className="grid grid-cols-2 gap-2">
+                {r.fields.map((f) => (
+                  <Field key={f.k} label={fa ? f.fa : f.en}>
+                    <Input dir="ltr" inputMode="numeric" value={c[r.key]?.[f.k] ?? ""} onChange={(e) => upd(r.key, { [f.k]: Math.max(f.min, Math.min(f.max, Number(e.target.value.replace(/\D/g, "")) || f.min)) })} />
+                  </Field>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Toggle checked={c.warn} onChange={(v) => set({ warn: v })} label={t("اخطار در همان کانال", "Warn in the same channel")} />
+        <Field label={t("تایم‌اوت (دقیقه) — ۰ = ندارد", "Timeout (minutes) — 0 = none")}>
+          <Input dir="ltr" inputMode="numeric" className="max-w-28" value={c.timeoutMin} onChange={(e) => set({ timeoutMin: Math.max(0, Math.min(40320, Number(e.target.value.replace(/\D/g, "")) || 0)) })} />
+        </Field>
+      </div>
+      {c.warn && <Field label={t("متن اخطار", "Warning text")} hint={t("{reason} دلیل تشخیص‌داده‌شده است.", "{reason} is the rule that fired.")}><Input maxLength={300} value={c.warnText} onChange={(e) => set({ warnText: e.target.value })} /></Field>}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("کانال لاگ (اختیاری)", "Log channel (optional)")}><IdSingle value={c.logChannel} onChange={(v) => set({ logChannel: v })} placeholder={t("آیدی کانال", "Channel ID")} /></Field>
+        <Field label={t("نقش‌های معاف", "Exempt roles")}><IdList value={c.exemptRoles} onChange={(v) => set({ exemptRoles: v })} placeholder={t("آیدی نقش (مثلاً مدیران)", "Role ID (e.g. staff)")} /></Field>
+        <Field label={t("کانال‌های معاف", "Ignored channels")}><IdList value={c.ignoredChannels} onChange={(v) => set({ ignoredChannels: v })} placeholder={t("آیدی کانال", "Channel ID")} /></Field>
+      </div>
+      <p className="text-[11px] text-muted-foreground">{t("شمارنده‌ها در حافظه‌ی بات‌اند و با ری‌استارت صفر می‌شوند.", "Counters live in the bot's memory and reset when it restarts.")}</p>
+    </div>
+  );
+}
+
 function ModerationForm({ c, set, fa }: FormProps) {
   const t = (a: string, b: string) => (fa ? a : b);
   return (
@@ -333,6 +378,17 @@ function ModerationForm({ c, set, fa }: FormProps) {
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {MOD_COMMANDS.map((k) => <Toggle key={k} checked={!!c.on?.[k]} onChange={(v) => set({ on: { ...c.on, [k]: v } })} label={`/${k}`} />)}
       </div>
+      {c.on?.warn && (
+        <div className="space-y-2 rounded-lg border p-3">
+          <h5 className="text-xs font-semibold">{t("جریمه‌ی خودکار بعد از چند اخطار (۰ = خاموش)", "Automatic punishment after N warnings (0 = off)")}</h5>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {([["warnTimeoutAt", "تایم‌اوت در اخطارِ", "Timeout at warning #"], ["warnKickAt", "اخراج در اخطارِ", "Kick at warning #"], ["warnBanAt", "بن در اخطارِ", "Ban at warning #"]] as const).map(([k, a, b]) => (
+              <Field key={k} label={t(a, b)}><Input dir="ltr" inputMode="numeric" value={c[k] ?? 0} onChange={(e) => set({ [k]: Math.max(0, Math.min(50, Number(e.target.value.replace(/\D/g, "")) || 0)) })} /></Field>
+            ))}
+          </div>
+          {Number(c.warnTimeoutAt) > 0 && <Field label={t("مدت تایم‌اوت (دقیقه)", "Timeout length (minutes)")}><Input dir="ltr" className="max-w-28" inputMode="numeric" value={c.warnTimeoutMin} onChange={(e) => set({ warnTimeoutMin: Math.max(1, Math.min(40320, Number(e.target.value.replace(/\D/g, "")) || 60)) })} /></Field>}
+        </div>
+      )}
       <Field label={t("کانال لاگ مدیریتی (اختیاری)", "Moderation log channel (optional)")}><IdSingle value={c.logChannel} onChange={(v) => set({ logChannel: v })} placeholder={t("آیدی کانال", "Channel ID")} /></Field>
       <p className="text-[11px] text-muted-foreground">{t("هر دستور دسترسی واقعیِ اجراکننده را (kick/ban/…) و سلسله‌مراتب نقش‌ها را چک می‌کند.", "Each command checks the caller's real permission and the role hierarchy.")}</p>
     </div>
@@ -342,7 +398,7 @@ function ModerationForm({ c, set, fa }: FormProps) {
 interface FormProps { c: any; set: (p: any) => void; fa: boolean }
 const FORMS: Record<ModuleId, (p: FormProps) => React.ReactElement> = {
   leveling: LevelingForm, welcome: WelcomeForm, goodbye: GoodbyeForm, autorole: AutoRoleForm, reaction_roles: ReactionRolesForm,
-  verification: VerificationForm, logs: LogsForm, automod: AutomodForm, moderation: ModerationForm,
+  verification: VerificationForm, logs: LogsForm, automod: AutomodForm, antispam: AntiSpamForm, moderation: ModerationForm,
 };
 
 // ─── card ────────────────────────────────────────────────────────────────────
