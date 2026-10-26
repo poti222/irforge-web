@@ -10,6 +10,9 @@
  * Permissions mirror the bot: a tenant owner may edit their own bot's sheet; the
  * platform-level registry/data sheets are super-admin only.
  */
+import { isPgTenant } from "../lib/pgTenant.js";
+import { listKnownPgEntities } from "../lib/businessPg.js";
+import { listEntity } from "../lib/botConfig.js";
 import { Router } from "express";
 import { db, botsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
@@ -108,7 +111,7 @@ router.get("/database/targets", requireAuth, async (req: any, res) => {
 router.get("/database/:target/tabs", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId, label, kind } = await resolveTarget(req.userId, req.params.target);
-    const tabs = await listTabs(spreadsheetId);
+    const tabs = isPgTenant(spreadsheetId) ? listKnownPgEntities() : await listTabs(spreadsheetId);
     res.json({ spreadsheetId, label, kind, tabs });
   } catch (err) {
     fail(res, err, "Failed to list tabs");
@@ -121,6 +124,10 @@ router.post("/database/:target/tabs", requireAuth, async (req: any, res) => {
     const { spreadsheetId } = await resolveTarget(req.userId, req.params.target);
     const name = String(req.body?.name ?? "").trim();
     if (!name) { res.status(400).json({ error: "نام تب لازم است." }); return; }
+    if (isPgTenant(spreadsheetId)) {
+      res.status(409).json({ error: "این بات روی Postgres است و ساختنِ تبِ شیت برایش معنی ندارد." });
+      return;
+    }
     await addTab(spreadsheetId, name);
     res.json({ success: true, name });
   } catch (err) {
@@ -132,7 +139,9 @@ router.post("/database/:target/tabs", requireAuth, async (req: any, res) => {
 router.get("/database/:target/tabs/:tab/rows", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveTarget(req.userId, req.params.target);
-    const rows = await readTabRows(spreadsheetId, req.params.tab);
+    const rows = isPgTenant(spreadsheetId)
+      ? (await listEntity(spreadsheetId, req.params.tab)).map((r) => ({ key: r.key, value: r.value }))
+      : await readTabRows(spreadsheetId, req.params.tab);
     res.json({ tab: req.params.tab, rows, count: rows.length });
   } catch (err) {
     fail(res, err, "Failed to read rows");

@@ -39,6 +39,7 @@
  *                            E: status (pending|done|failed)
  */
 
+import { isPgTenant } from "./pgTenant.js";
 import pg from "pg";
 import { appendSheet, readSheet, writeSheet, clearSheet, listTabs, addTab } from "./sheets.js";
 import { logger } from "./logger.js";
@@ -695,6 +696,7 @@ function buildSheetPoolValue(entry: SheetPoolUpsertInput) {
 }
 
 export function syncSheetPoolUpsert(entry: SheetPoolUpsertInput) {
+  if (isPgTenant(entry.sheet_id)) return; // تننتِ pg_ ردیفِ pool/شیت ندارد
   bg(async () => {
     const value = buildSheetPoolValue(entry);
 

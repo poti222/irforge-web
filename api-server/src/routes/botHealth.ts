@@ -11,6 +11,7 @@
  *
  * هر مورد `fixHint` دارد — کجای سایت باید برود تا درستش کند.
  */
+import { isPgTenant } from "../lib/pgTenant.js";
 import { Router } from "express";
 import { requireAuth } from "./auth.js";
 import { listTabs } from "../lib/tenantSheets.js";
@@ -125,7 +126,7 @@ router.get("/bots/:botId/health", requireAuth, async (req: any, res) => {
     // ۴. پلاگین فعال بدون تبِ لازم.
     let tabs: string[] = [];
     try {
-      tabs = await listTabs(spreadsheetId);
+      tabs = isPgTenant(spreadsheetId) ? [] : await listTabs(spreadsheetId); // بدونِ شیت: بررسیِ «تبِ لازم» معنا ندارد
     } catch {
       tabs = [];
     }

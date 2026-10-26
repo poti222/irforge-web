@@ -212,6 +212,10 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema> = {
   },
 };
 
+export function listKnownPgEntities(): string[] {
+  return Object.keys(ENTITY_SCHEMAS).sort();
+}
+
 export function isKnownPgEntity(entity: string): boolean {
   return entity in ENTITY_SCHEMAS;
 }

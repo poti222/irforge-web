@@ -23,6 +23,7 @@ import pg from "pg";
 import { db, botsTable, usersTable, botManagersTable } from "@workspace/db";
 import { eq, and, or, exists, sql } from "drizzle-orm";
 import { logger } from "./logger.js";
+import { isPgTenant } from "./pgTenant.js";
 import { readTabRows, upsertRow, deleteRow, listTabs } from "./tenantSheets.js";
 import { isSheetsNotConfiguredError } from "./sheets.js";
 import { bustTabCache, bustTabsCache } from "./botCacheBust.js";
@@ -247,6 +248,7 @@ export type EntityRow<T> = { key: string; value: T };
  * `assertSheetsAuthoritative()`ی خودِ هر route است، اینجا دست‌نخورده مانده.
  */
 async function usesPostgres(spreadsheetId: string, tab: string): Promise<boolean> {
+  if (isPgTenant(spreadsheetId)) return isKnownPgEntity(tab);
   return isKnownPgEntity(tab) && (await isEntityOnPostgres(tab, spreadsheetId));
 }
 
@@ -260,6 +262,7 @@ export async function listEntity<T = unknown>(spreadsheetId: string, tab: string
     const rows = await pgListEntity(spreadsheetId, tab);
     return rows.map((r) => ({ key: r.key, value: r.value as T }));
   }
+  if (isPgTenant(spreadsheetId)) return []; // تننتِ pg_: هیچ‌وقت به شیت سقوط نکن
   const rows = await sheetLayer.readTabRows(spreadsheetId, tab);
   return rows.map((r) => ({ key: r.key, value: r.value as T }));
 }
@@ -276,6 +279,7 @@ export async function listUsersLight(spreadsheetId: string): Promise<Array<{ key
   if (await isEntityOnPostgres("users", spreadsheetId)) {
     return pgListUsersLight(spreadsheetId);
   }
+  if (isPgTenant(spreadsheetId)) return [];
   const rows = await sheetLayer.readTabRows(spreadsheetId, "users");
   return rows
     .filter((r) => r.value && typeof r.value === "object")
@@ -303,6 +307,7 @@ export async function getEntity<T = unknown>(
     const value = await pgGetEntity(spreadsheetId, tab, key);
     return (value ?? null) as T | null;
   }
+  if (isPgTenant(spreadsheetId)) return null;
   const rows = await sheetLayer.readTabRows(spreadsheetId, tab);
   const hit = rows.find((r) => r.key === key);
   return hit ? (hit.value as T) : null;
@@ -320,6 +325,13 @@ export async function putEntity(
     await pgSetEntity(spreadsheetId, tab, key, value);
     return { created: !existed };
   }
+  if (isPgTenant(spreadsheetId)) {
+    throw new BotConfigError(
+      409,
+      "این بخش برای باتِ بدونِ شیت هنوز روی Postgres پیاده نشده و نمی‌شود روی شیت نوشت.",
+      "entity_not_on_postgres"
+    );
+  }
   const result = await sheetLayer.upsertRow(spreadsheetId, tab, key, value);
   await bustTabCache(spreadsheetId, tab);
   return result;
@@ -335,6 +347,13 @@ export async function putEntities(
     await pgSetEntities(spreadsheetId, tab, entries);
     return;
   }
+  if (isPgTenant(spreadsheetId)) {
+    throw new BotConfigError(
+      409,
+      "این بخش برای باتِ بدونِ شیت هنوز روی Postgres پیاده نشده و نمی‌شود روی شیت نوشت.",
+      "entity_not_on_postgres"
+    );
+  }
   for (const e of entries) {
     await sheetLayer.upsertRow(spreadsheetId, tab, e.key, e.value);
   }
@@ -344,6 +363,13 @@ export async function putEntities(
 export async function removeEntity(spreadsheetId: string, tab: string, key: string): Promise<boolean> {
   if (await usesPostgres(spreadsheetId, tab)) {
     return pgDeleteEntity(spreadsheetId, tab, key);
+  }
+  if (isPgTenant(spreadsheetId)) {
+    throw new BotConfigError(
+      409,
+      "این بخش برای باتِ بدونِ شیت هنوز روی Postgres پیاده نشده و نمی‌شود روی شیت نوشت.",
+      "entity_not_on_postgres"
+    );
   }
   const ok = await sheetLayer.deleteRow(spreadsheetId, tab, key);
   if (ok) await bustTabCache(spreadsheetId, tab);
@@ -502,6 +528,7 @@ async function readCutoverFlags(): Promise<void> {
  * خوانده می‌شود، دقیقاً مثل `current_spreadsheet_id`ی بات.
  */
 export async function isEntityOnPostgres(entity: string, tenantId?: string): Promise<boolean> {
+  if (isPgTenant(tenantId ?? tenantCutoverContext.getStore())) return true; // بدونِ شیت: همیشه Postgres
   await loadCutoverFlags();
   const tid = tenantId ?? tenantCutoverContext.getStore();
   if (tid !== undefined) {

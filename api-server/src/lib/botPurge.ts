@@ -12,6 +12,8 @@ import { syncBotDelete, syncSheetPoolUpsert, syncTenantDeleteAwait, syncDeletion
 import { renameSpreadsheet, resetSpreadsheet } from "./sheets";
 import { getBusinessPool } from "./businessDbPool.js";
 import { invalidateCutoverCache } from "./botConfig.js";
+import { isPgTenant } from "./pgTenant.js";
+import { removeTenantCutoverFlags } from "./sheetsForceCutover.js";
 
 /**
  * وقتی شیتی از یک بات آزاد می‌شه (چه با حذف بات، چه با release دستی توسط
@@ -19,7 +21,7 @@ import { invalidateCutoverCache } from "./botConfig.js";
  * ازش استفاده نمی‌کنه. Best-effort و non-fatal، مثل syncSheetTitle.
  */
 export async function markSheetTitleFreed(sheetId: string | null | undefined) {
-  if (!sheetId) return;
+  if (!sheetId || isPgTenant(sheetId)) return;
   try {
     await renameSpreadsheet(sheetId, "~");
   } catch (err) {
@@ -124,6 +126,12 @@ export async function purgeBotFully(
         { sheetId: bot.sheetId, deletedBotId: bot.id, otherBotId: stillInUse.id },
         "sheetId is still referenced by another bot row after purge — skipping resetSpreadsheet/pool-release " +
           "to avoid destroying that bot's live data (pre-existing sheet-pool collision, needs manual review)"
+      );
+    } else if (isPgTenant(bot.sheetId)) {
+      // تننتِ بدونِ شیت: نه Google Sheet دارد نه ردیفِ sheet_pool؛ فقط دیتای Postgres و پرچم‌هایش پاک می‌شود.
+      await purgeTenantPostgresData(bot.sheetId);
+      await removeTenantCutoverFlags(bot.sheetId).catch((err) =>
+        logger.warn({ err, sheetId: bot.sheetId }, "removeTenantCutoverFlags failed (non-fatal)")
       );
     } else {
       // قبلاً فقط رجیستری/وضعیت Postgres آزاد می‌شد ولی خودِ گوگل‌شیت پاک

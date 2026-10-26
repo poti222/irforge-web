@@ -38,3 +38,12 @@ export async function forceTenantToPostgres(tenantId: string): Promise<number> {
   invalidateCutoverCache();
   return Number(rows[0]?.flipped ?? 0);
 }
+
+/** حذفِ همه‌ی پرچم‌های cutoverِ یک تننت (هنگامِ حذفِ باتِ `pg_…`، تا ردیفِ یتیم نماند). */
+export async function removeTenantCutoverFlags(tenantId: string): Promise<number> {
+  const pool = getCutoverPool();
+  if (!pool) return 0;
+  const res = await pool.query("DELETE FROM entity_cutover_flags WHERE tenant_id = $1", [tenantId]);
+  invalidateCutoverCache();
+  return res.rowCount ?? 0;
+}

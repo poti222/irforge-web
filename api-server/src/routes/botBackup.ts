@@ -9,6 +9,8 @@
  * فقط متد `deflate` و `store` پشتیبانی می‌شوند — همان چیزی که هر ZIPِ ساخته‌شده
  * توسط این اندپوینت یا پایتون تولید می‌کند.
  */
+import { isPgTenant } from "../lib/pgTenant.js";
+import { listKnownPgEntities } from "../lib/businessPg.js";
 import { Router } from "express";
 import crypto from "node:crypto";
 import zlib from "node:zlib";
@@ -185,7 +187,7 @@ export function tabNameFromEntry(name: string): string | null {
 router.get("/bots/:botId/backup", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId, botName } = await resolveBotSheet(req.userId, req.params.botId);
-    const tabs = await listTabs(spreadsheetId);
+    const tabs = isPgTenant(spreadsheetId) ? listKnownPgEntities() : await listTabs(spreadsheetId);
 
     const files: Array<{ name: string; data: Buffer }> = [];
     for (const tab of tabs) {

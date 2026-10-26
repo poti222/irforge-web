@@ -56,7 +56,8 @@ import {
 import { renameSpreadsheet, sheetIsAccessible, resetSpreadsheet, ensureAllTenantTabs } from "../lib/sheets";
 import { readTabRows, readTabRowsBatch } from "../lib/tenantSheets.js";
 import { listEntity, listUsersLight, isEntityOnPostgres } from "../lib/botConfig.js";
-import { autoQueuePostgresForNewTenant } from "../lib/sheetsImport.js";
+import { isPgTenant, newPgTenantId } from "../lib/pgTenant.js";
+import { forceTenantToPostgres } from "../lib/sheetsForceCutover.js";
 import { evaluateBotTrial, trialDaysLeft } from "../lib/trial";
 import { purgeBotFully, markSheetTitleFreed } from "../lib/botPurge.js";
 import { createNotification, notifySuperAdmins, formatTomanFa } from "../lib/notify";
@@ -99,24 +100,13 @@ function isValidSheetId(id: string): boolean {
 // Folding the SELECT and UPDATE into one statement with FOR UPDATE SKIP
 // LOCKED lets Postgres itself serialize concurrent claims: each caller gets a
 // different row (or null once the pool is empty).
-async function claimFreeSheet(botId: string) {
-  const picked = db
-    .select({ id: sheetPoolTable.id })
-    .from(sheetPoolTable)
-    .where(eq(sheetPoolTable.status, "available"))
-    .limit(1)
-    .for("update", { skipLocked: true });
-
-  const [claimed] = await db
-    .update(sheetPoolTable)
-    .set({ status: "assigned", assignedBotId: botId })
-    .where(inArray(sheetPoolTable.id, picked))
-    .returning();
-
-  // باتِ جدید از همان لحظه‌ی گرفتنِ شیت روی Postgres برود (best-effort، بدونِ await).
-  if (claimed) void autoQueuePostgresForNewTenant(claimed.sheetId);
-
-  return claimed ?? null;
+async function allocateTenantKey(botId: string): Promise<{ id: string | null; sheetId: string; createdAt: Date }> {
+  // دیگر شیتی از sheet_pool گرفته نمی‌شود: هر باتِ جدید یک کلیدِ تننتِ داخلی (`pg_…`) می‌گیرد و
+  // همه‌ی entityهایش همان لحظه روی Postgres پرچم می‌خورد. اگر BUSINESS_DATABASE_URL نباشد
+  // throw می‌کند — بهتر از اینکه بات بی‌صدا به مسیرِ شیت برگردد.
+  const sheetId = newPgTenantId(botId);
+  await forceTenantToPostgres(sheetId);
+  return { id: null, sheetId, createdAt: new Date() };
 }
 
 // ─── Sheet title ↔ bot name sync ─────────────────────────────────────────────
@@ -133,7 +123,7 @@ function sheetTitleForBot(botName: string): string {
 }
 
 async function syncSheetTitle(sheetId: string | null | undefined, botName: string) {
-  if (!sheetId) return;
+  if (!sheetId || isPgTenant(sheetId)) return;
   try {
     await renameSpreadsheet(sheetId, sheetTitleForBot(botName));
   } catch (err) {
@@ -1099,7 +1089,7 @@ router.post("/bots/trial", requireAuth, perUserRateLimit("bot_create", 10, 60 * 
 
     // ۱. یک شیت آزاد از Pool بگیر — بدون این، بات هیچ‌وقت spreadsheet_id
     //    نداره و runtime اصلی نمی‌تونه دیتای این tenant رو ذخیره کنه.
-    const freeSheet = await claimFreeSheet(botId);
+    const freeSheet = await allocateTenantKey(botId);
 
     if (!freeSheet) {
       res.status(503).json({ error: "در حال حاضر شیت آزادی برای تریال موجود نیست. بعداً دوباره تلاش کن." });
@@ -1145,11 +1135,14 @@ router.post("/bots/trial", requireAuth, perUserRateLimit("bot_create", 10, 60 * 
       });
     } catch (err) {
       if (err instanceof DuplicateTokenError) {
-        await db
-          .update(sheetPoolTable)
-          .set({ status: "available", assignedBotId: null })
-          .where(eq(sheetPoolTable.id, freeSheet.id));
-        syncSheetPoolUpsert({ sheet_id: freeSheet.sheetId, assigned_to: null, status: "available" });
+        // کلیدِ تننتِ `pg_…` ردیفی در sheet_pool ندارد؛ فقط تننتِ قدیمیِ pool باید آزاد شود.
+        if (freeSheet.id) {
+          await db
+            .update(sheetPoolTable)
+            .set({ status: "available", assignedBotId: null })
+            .where(eq(sheetPoolTable.id, freeSheet.id));
+          syncSheetPoolUpsert({ sheet_id: freeSheet.sheetId, assigned_to: null, status: "available" });
+        }
         res.status(409).json({ error: "این توکنِ بات قبلاً ثبت شده است.", code: "duplicate_token" });
         return;
       }
@@ -1366,7 +1359,7 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
     // best-effort sheet assignment (unlike receipt approval, this does not 503
     // when the pool is empty — the bot is created and a sheet can be assigned later)
     let sheetId: string | null = null;
-    const freeSheet = await claimFreeSheet(botId);
+    const freeSheet = await allocateTenantKey(botId);
     if (freeSheet) {
       sheetId = freeSheet.sheetId;
     }
@@ -1423,8 +1416,8 @@ router.post("/bots/wallet-purchase", requireAuth, perUserRateLimit("bot_create",
       });
     } catch (err) {
       if (err instanceof DuplicateTokenError) {
-        if (sheetId) {
-          await db.update(sheetPoolTable).set({ status: "available", assignedBotId: null }).where(eq(sheetPoolTable.id, freeSheet!.id));
+        if (sheetId && freeSheet?.id) {
+          await db.update(sheetPoolTable).set({ status: "available", assignedBotId: null }).where(eq(sheetPoolTable.id, freeSheet.id));
           syncSheetPoolUpsert({ sheet_id: sheetId, assigned_to: null, status: "available" });
         }
         await creditWallet(req.userId, tomanToRial(finalAmount), `Refund: duplicate token, bot "${name}"`, "refund");
@@ -1574,7 +1567,7 @@ router.post("/bots/:botId/approve-payment", requireSuperAdmin, async (req: any, 
     }
 
     // ۱. یک شیت آزاد از Pool بگیر
-    const freeSheet = await claimFreeSheet(botId);
+    const freeSheet = await allocateTenantKey(botId);
 
     if (!freeSheet) {
       res.status(503).json({
@@ -2334,7 +2327,7 @@ router.post("/admin/bots", requireSuperAdmin, async (req: any, res) => {
     const botId = crypto.randomUUID();
 
     let sheetId: string | null = null;
-    const freeSheet = await claimFreeSheet(botId);
+    const freeSheet = await allocateTenantKey(botId);
     if (freeSheet) {
       sheetId = freeSheet.sheetId;
     }
@@ -2537,7 +2530,7 @@ router.get("/admin/bots/:botId/registry-status", requireSuperAdmin, async (req: 
     // token, not e.g. a leftover Postgres bot id from before the shape fix.
     let poolMatches = true; // no sheet at all isn't a pool-sync problem by itself
     let poolEntry: { spreadsheet_id?: string; used_by?: string | null } | null = null;
-    if (bot.sheetId) {
+    if (bot.sheetId && !isPgTenant(bot.sheetId)) {
       poolEntry = await readKV(spreadsheetId, "sheet_pool", bot.sheetId);
       poolMatches = poolEntry?.used_by === plainToken;
     }
@@ -2580,7 +2573,7 @@ router.post("/admin/bots/:botId/resync", requireSuperAdmin, async (req: any, res
 
     let sheetJustAssigned = false;
     if (!bot.sheetId) {
-      const freeSheet = await claimFreeSheet(bot.id);
+      const freeSheet = await allocateTenantKey(bot.id);
       if (freeSheet) {
         [bot] = await db
           .update(botsTable)
