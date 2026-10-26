@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Blocks, ChevronDown, DoorOpen, Gavel, PartyPopper, Plus, ScrollText, ShieldAlert, ShieldCheck, SmilePlus, Trash2, BadgePlus, ShieldBan, TrendingUp, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Blocks, ChevronDown, DoorOpen, Gavel, PartyPopper, Plus, ScrollText, ShieldAlert, ShieldCheck, SmilePlus, Trash2, BadgePlus, ShieldBan, Ticket, TrendingUp, type LucideIcon } from "lucide-react";
 
-const MODULE_ICONS: Record<string, LucideIcon> = { ShieldBan, TrendingUp, PartyPopper, DoorOpen, BadgePlus, SmilePlus, ShieldCheck, ScrollText, ShieldAlert, Gavel };
+const MODULE_ICONS: Record<string, LucideIcon> = { Ticket, ShieldBan, TrendingUp, PartyPopper, DoorOpen, BadgePlus, SmilePlus, ShieldCheck, ScrollText, ShieldAlert, Gavel };
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { DiscordBlueprint } from "@/lib/discord-bots-api";
 import { NativeSelect, type EditorEnv } from "../action-editor";
+import { newTicketCategory, type TicketCategory } from "./tickets";
 import { LOG_EVENTS, MODULES, MODULE_BY_ID, MOD_COMMANDS, applyModule, newRRPanel, type LevelReward, type ModuleDef, type ModuleId, type RRPanel } from "./registry";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -371,6 +372,94 @@ function AntiSpamForm({ c, set, fa }: FormProps) {
   );
 }
 
+function TicketsForm({ c, set, fa }: FormProps) {
+  const t = (a: string, b: string) => (fa ? a : b);
+  const cats: TicketCategory[] = c.categories ?? [];
+  const upd = (i: number, patch: Partial<TicketCategory>) => set({ categories: cats.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+  const k = c.commands ?? {};
+  return (
+    <div className="space-y-5">
+      <section className="space-y-3 rounded-xl border p-4">
+        <h4 className="text-sm font-semibold">{t("۱. پنل تیکت", "1. Ticket panel")}</h4>
+        <Field label={t("کانالی که پنل در آن ارسال شود", "Channel for the panel")}><IdSingle value={c.panelChannel} onChange={(v) => set({ panelChannel: v })} placeholder={t("آیدی کانال", "Channel ID")} /></Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t("عنوان", "Title")}><Input maxLength={256} value={c.panelTitle} onChange={(e) => set({ panelTitle: e.target.value })} /></Field>
+          <Field label={t("رنگ", "Color")}><Input dir="ltr" maxLength={7} value={c.panelColor} onChange={(e) => set({ panelColor: e.target.value })} /></Field>
+          <Field label={t("متن پنل", "Panel text")} className="sm:col-span-2"><Textarea rows={3} maxLength={1500} value={c.panelDescription} onChange={(e) => set({ panelDescription: e.target.value })} /></Field>
+          <Field label={t("تصویر (URL، اختیاری)", "Image (URL, optional)")} className="sm:col-span-2"><Input dir="ltr" value={c.panelImage} onChange={(e) => set({ panelImage: e.target.value })} placeholder="https://…" /></Field>
+        </div>
+        <p className="rounded-md bg-muted/50 p-2 text-[11px] leading-relaxed text-muted-foreground">
+          {t("بعد از ذخیره و روشن‌بودن بات، دستور /ticket-setup را در سرور اجرا کنید تا پنل ارسال شود. یک دسته = یک دکمه (با امکان فرم «دلیل»)؛ چند دسته = منوی انتخاب.", "After saving with the bot running, run /ticket-setup in your server to post the panel. One category = one button (with an optional reason form); several = a select menu.")}
+        </p>
+      </section>
+
+      <section className="space-y-3 rounded-xl border p-4">
+        <h4 className="text-sm font-semibold">{t("۲. دسته‌ها", "2. Categories")}</h4>
+        {cats.map((x, i) => (
+          <div key={x.id} className="space-y-3 rounded-lg border bg-background/60 p-3">
+            <div className="flex items-center justify-between"><span className="text-xs font-semibold">{t("دسته", "Category")} {i + 1}</span>
+              {cats.length > 1 && <Button type="button" size="icon" variant="ghost" className="text-destructive" onClick={() => set({ categories: cats.filter((_, j) => j !== i) })}><Trash2 className="size-4" /></Button>}</div>
+            <div className="grid gap-3 sm:grid-cols-[5rem_1fr_1fr]">
+              <Field label={t("ایموجی", "Emoji")}><Input className="text-center text-lg" maxLength={60} value={x.emoji} onChange={(e) => upd(i, { emoji: e.target.value })} /></Field>
+              <Field label={t("نام دسته", "Label")}><Input maxLength={80} value={x.label} onChange={(e) => upd(i, { label: e.target.value })} /></Field>
+              <Field label={t("پیشوند نام کانال (انگلیسی)", "Channel name prefix")} hint={`${(x.prefix || "ticket").toLowerCase()}-12`}><Input dir="ltr" maxLength={30} value={x.prefix} onChange={(e) => upd(i, { prefix: e.target.value })} /></Field>
+            </div>
+            {cats.length > 1 && <Field label={t("توضیح کوتاه در منو", "Short description in the menu")}><Input maxLength={100} value={x.description} onChange={(e) => upd(i, { description: e.target.value })} /></Field>}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label={t("دسته‌بندی (Category) دیسکورد برای ساخت کانال", "Discord category to create channels in")} hint={t("اختیاری. آیدی یک Category.", "Optional. A Category's ID.")}><IdSingle value={x.discordCategory} onChange={(v) => upd(i, { discordCategory: v })} placeholder={t("آیدی دسته‌بندی", "Category ID")} /></Field>
+              <Field label={t("نقش‌های پشتیبانِ این دسته", "Support roles for this category")} hint={t("علاوه بر نقش‌های عمومیِ پایین.", "In addition to the global roles below.")}><IdList value={x.staffRoles} onChange={(v) => upd(i, { staffRoles: v })} placeholder={t("آیدی نقش", "Role ID")} /></Field>
+            </div>
+            <Field label={t("پیام خوش‌آمد این دسته (خالی = پیام عمومی)", "Welcome message for this category (empty = the global one)")}><Textarea rows={2} maxLength={1500} value={x.welcome} onChange={(e) => upd(i, { welcome: e.target.value })} /></Field>
+          </div>
+        ))}
+        {cats.length < 10 && <Button type="button" variant="outline" size="sm" onClick={() => set({ categories: [...cats, { ...newTicketCategory(fa, cats.length + 1), id: `cat${Date.now().toString(36).slice(-5)}`, label: "" }] })}><Plus className="me-1 size-3.5" />{t("افزودن دسته", "Add category")}</Button>}
+        {cats.length === 1 && <Toggle checked={c.askReason} onChange={(v) => set({ askReason: v })} label={t("قبل از ساخت تیکت فرم «دلیل» نشان داده شود", "Ask for a reason in a form before opening")} />}
+        {cats.length === 1 && c.askReason && <Field label={t("عنوان فیلد دلیل", "Reason field label")}><Input maxLength={45} value={c.reasonLabel} onChange={(e) => set({ reasonLabel: e.target.value })} /></Field>}
+      </section>
+
+      <section className="space-y-3 rounded-xl border p-4">
+        <h4 className="text-sm font-semibold">{t("۳. پشتیبان‌ها و قوانین", "3. Support team & rules")}</h4>
+        <Field label={t("نقش‌های پشتیبانِ عمومی", "Global support roles")} hint={t("همه‌ی تیکت‌ها را می‌بینند و می‌توانند ببندند، بردارند و دستورهای /ticket-* را بزنند.", "They see every ticket and can claim, close and use /ticket-* commands.")}>
+          <IdList max={10} value={c.staffRoles} onChange={(v) => set({ staffRoles: v })} placeholder={t("آیدی نقش", "Role ID")} />
+        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t("حداکثر تیکت باز برای هر نفر", "Max open tickets per user")}><Input dir="ltr" className="max-w-24" inputMode="numeric" value={c.maxPerUser} onChange={(e) => set({ maxPerUser: Math.max(1, Math.min(5, Number(e.target.value.replace(/\D/g, "")) || 1)) })} /></Field>
+          <Field label={t("پیام خوش‌آمد (عمومی)", "Welcome title")}><Input maxLength={256} value={c.welcomeTitle} onChange={(e) => set({ welcomeTitle: e.target.value })} /></Field>
+          <Field label={t("متن خوش‌آمد عمومی", "Global welcome text")} className="sm:col-span-2" hint={t("متغیرها: {author.mention} {tk_label} {ticket_number}", "Variables: {author.mention} {tk_label} {ticket_number}")}><Textarea rows={3} maxLength={1500} value={c.welcomeText} onChange={(e) => set({ welcomeText: e.target.value })} /></Field>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Toggle checked={c.claim} onChange={(v) => set({ claim: v })} label={t("دکمه‌ی «برداشتن تیکت» برای پشتیبان‌ها", "“Claim” button for staff")} />
+          <Toggle checked={c.closeOnlyStaff} onChange={(v) => set({ closeOnlyStaff: v })} label={t("فقط پشتیبان‌ها بتوانند ببندند", "Only staff can close")} />
+          <Toggle checked={c.pingStaff} onChange={(v) => set({ pingStaff: v })} label={t("با ساخت تیکت، پشتیبان‌ها منشن شوند", "Mention staff when a ticket opens")} />
+        </div>
+        {c.pingStaff && <p className="text-[11px] text-amber-600">{t("برای اینکه منشن نقش‌ها واقعاً اعلان بدهد، در «تنظیمات بات» گزینه‌ی مجاز بودن منشن نقش را روشن کنید.", "For role mentions to really notify, enable “allow role mentions” in the bot settings.")}</p>}
+      </section>
+
+      <section className="space-y-3 rounded-xl border p-4">
+        <h4 className="text-sm font-semibold">{t("۴. بستن، رونوشت و لاگ", "4. Closing, transcripts & logs")}</h4>
+        <Field label={t("کانال لاگ تیکت‌ها", "Ticket log channel")} hint={t("باز و بسته‌شدن تیکت‌ها و فایل رونوشت این‌جا می‌آید.", "Opens, closes and transcript files go here.")}><IdSingle value={c.logChannel} onChange={(v) => set({ logChannel: v })} placeholder={t("آیدی کانال", "Channel ID")} /></Field>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Toggle checked={c.closeConfirm} onChange={(v) => set({ closeConfirm: v })} label={t("قبل از بستن تأیید بگیر", "Ask for confirmation before closing")} />
+          <Toggle checked={c.transcript} onChange={(v) => set({ transcript: v })} label={t("رونوشت گفتگو ذخیره شود", "Save a transcript")} />
+          {c.transcript && <Toggle checked={c.dmTranscript} onChange={(v) => set({ dmTranscript: v })} label={t("رونوشت برای صاحب تیکت DM شود", "DM the transcript to the opener")} />}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {c.transcript && <Field label={t("قالب رونوشت", "Transcript format")}><NativeSelect value={c.transcriptFormat} onChange={(v) => set({ transcriptFormat: v })}><option value="html">HTML ({t("زیبا", "pretty")})</option><option value="txt">{t("متن ساده", "Plain text")}</option></NativeSelect></Field>}
+          <Field label={t("تأخیر قبل از حذف کانال (ثانیه، تا ۳۰)", "Delay before deleting the channel (seconds, up to 30)")}><Input dir="ltr" className="max-w-24" inputMode="numeric" value={c.closeDelay} onChange={(e) => set({ closeDelay: Math.max(0, Math.min(30, Number(e.target.value.replace(/\D/g, "")) || 0)) })} /></Field>
+        </div>
+        {c.transcript && !String(c.logChannel).trim() && !c.dmTranscript && <p className="text-[11px] text-amber-600">{t("رونوشت بدون کانال لاگ یا DM ذخیره نمی‌شود.", "A transcript needs a log channel or DM to go anywhere.")}</p>}
+      </section>
+
+      <section className="space-y-2 rounded-xl border p-4">
+        <h4 className="text-sm font-semibold">{t("۵. دستورهای داخل تیکت (فقط پشتیبان‌ها)", "5. In-ticket commands (staff only)")}</h4>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {(["add", "remove", "rename", "close", "transcript"] as const).map((n) => <Toggle key={n} checked={!!k[n]} onChange={(v) => set({ commands: { ...k, [n]: v } })} label={`/ticket-${n}`} />)}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function ModerationForm({ c, set, fa }: FormProps) {
   const t = (a: string, b: string) => (fa ? a : b);
   return (
@@ -397,7 +486,7 @@ function ModerationForm({ c, set, fa }: FormProps) {
 
 interface FormProps { c: any; set: (p: any) => void; fa: boolean }
 const FORMS: Record<ModuleId, (p: FormProps) => React.ReactElement> = {
-  leveling: LevelingForm, welcome: WelcomeForm, goodbye: GoodbyeForm, autorole: AutoRoleForm, reaction_roles: ReactionRolesForm,
+  tickets: TicketsForm, leveling: LevelingForm, welcome: WelcomeForm, goodbye: GoodbyeForm, autorole: AutoRoleForm, reaction_roles: ReactionRolesForm,
   verification: VerificationForm, logs: LogsForm, automod: AutomodForm, antispam: AntiSpamForm, moderation: ModerationForm,
 };
 

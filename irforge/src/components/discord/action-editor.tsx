@@ -26,6 +26,7 @@ const CATEGORY_LABEL: Record<string, [string, string]> = {
   moderation: ["مدیریت سرور", "Moderation"],
   logic: ["منطق و متغیر", "Logic & variables"],
   data: ["داده و شبکه", "Data & network"],
+  ticket: ["تیکت", "Tickets"],
 };
 
 const selectCls =

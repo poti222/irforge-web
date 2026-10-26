@@ -1,5 +1,7 @@
-import { newAction, type EditorEnv } from "../action-editor";
+import type { EditorEnv } from "../action-editor";
 import { newId } from "../ids";
+import { allOf, cmd, cond, ev, idList, mk, opt, rule, type ModuleDef, type ModuleId, type ModuleOutput } from "./helpers";
+import { tickets } from "./tickets";
 import type { DiscordBlueprint } from "@/lib/discord-bots-api";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -10,40 +12,6 @@ import type { DiscordBlueprint } from "@/lib/discord-bots-api";
  * `blueprint.modules[id]` نگه می‌دارد تا هر وقت فرم عوض شد، همان رویدادها دوباره ساخته شوند.
  * هر چیزی که این‌جا ساخته می‌شود را می‌توان در تب «رویدادها / دستورها» هم دید و دستی ویرایش کرد (با دوباره‌سازی از فرم بازنویسی می‌شود).
  */
-
-export type ModuleId = "leveling" | "welcome" | "goodbye" | "autorole" | "reaction_roles" | "verification" | "logs" | "automod" | "antispam" | "moderation";
-
-export interface ModuleOutput { events: any[]; commands: any[] }
-export interface ModuleDef {
-  id: ModuleId;
-  icon: string; // lucide icon name (resolved in the UI)
-  title: [string, string];
-  desc: [string, string];
-  /** چه چیزهایی بعد از فعال‌سازی لازم است (نمایش در کارت) */
-  needs: [string, string][];
-  defaults: (fa: boolean) => any;
-  generate: (cfg: any, env: EditorEnv) => ModuleOutput;
-  /** هشدارهای فرم (فیلد خالی …)؛ لیست خالی = آماده */
-  problems: (cfg: any, fa: boolean) => string[];
-}
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
-const idList = (v: unknown): string[] =>
-  (Array.isArray(v) ? v : String(v ?? "").split(/[\s,،]+/)).map((x) => String(x).trim()).filter(Boolean).slice(0, 10);
-
-export function mk(env: EditorEnv, type: string, patch: Record<string, any> = {}): any {
-  const spec = env.actionByType[type];
-  const base = spec ? newAction(spec) : { type };
-  return { ...base, ...patch };
-}
-const cond = (env: EditorEnv, ifc: any, then: any[], els: any[] = []) => mk(env, "condition", { if: ifc, then, else: els });
-const rule = (left: string, op: string, right = "") => ({ left, op, right });
-const allOf = (rules: any[]) => (rules.length === 0 ? {} : rules.length === 1 ? rules[0] : { and: rules });
-const ev = (module: string, on: string, filters: any, actions: any[]) => ({ id: newId(), on, enabled: true, filters, actions, module });
-const cmd = (module: string, name: string, description: string, actions: any[], extra: Record<string, any> = {}) => ({
-  id: newId(), name, description, type: "slash", enabled: true, ephemeral: false, cooldown: 0, permissions: [], options: [], actions, module, ...extra,
-});
-const opt = (name: string, type: string, description: string, required = true) => ({ name, type, description, required });
 
 function messageActions(env: EditorEnv, channels: string[], c: { mode: string; text: string; title: string; color: string; image: string; avatar: boolean; footer?: string }) {
   return channels.map((ch) =>
@@ -367,7 +335,8 @@ const moderation: ModuleDef = {
   },
 };
 
-export const MODULES: ModuleDef[] = [leveling, welcome, goodbye, autorole, reactionRoles, verification, logs, automod, antispam, moderation];
+export type { ModuleDef, ModuleId, ModuleOutput } from "./helpers";
+export const MODULES: ModuleDef[] = [tickets, leveling, welcome, goodbye, autorole, reactionRoles, verification, logs, automod, antispam, moderation];
 export const MODULE_BY_ID: Record<string, ModuleDef> = Object.fromEntries(MODULES.map((m) => [m.id, m]));
 
 // ─── applying a module to a blueprint ────────────────────────────────────────

@@ -1593,6 +1593,369 @@
    ]
   },
   {
+   "type": "schedule",
+   "label": "زمان‌بندی اجرای اکشن‌ها",
+   "labelEn": "Schedule actions for later",
+   "category": "logic",
+   "icon": "CalendarClock",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "delay",
+     "label": "بعد از چند ثانیه",
+     "labelEn": "After (seconds)",
+     "type": "number",
+     "required": true,
+     "default": 600,
+     "min": 10,
+     "max": 7776000,
+     "supportsVariables": true,
+     "help": "از ۱۰ ثانیه تا ۹۰ روز. بعد از ری‌استارت بات هم اجرا می‌شود.",
+     "helpEn": "From 10 seconds to 90 days. Survives bot restarts."
+    },
+    {
+     "key": "key",
+     "label": "کلید (اختیاری)",
+     "labelEn": "Key (optional)",
+     "type": "text",
+     "max": 100,
+     "supportsVariables": true,
+     "help": "با همین کلید می‌توانید بعداً آن را لغو کنید، مثلاً giveaway:{message.id}",
+     "helpEn": "Lets you cancel it later, e.g. giveaway:{message.id}"
+    },
+    {
+     "key": "actions",
+     "label": "اکشن‌های دیرتر",
+     "labelEn": "Actions to run later",
+     "type": "actions",
+     "help": "با همان متغیرها، کاربر و کانالِ لحظه‌ی زمان‌بندی اجرا می‌شود.",
+     "helpEn": "Runs with the variables, user and channel as they were when scheduled."
+    }
+   ]
+  },
+  {
+   "type": "unschedule",
+   "label": "لغو کار زمان‌بندی‌شده",
+   "labelEn": "Cancel scheduled actions",
+   "category": "logic",
+   "icon": "CalendarX",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "key",
+     "label": "کلید",
+     "labelEn": "Key",
+     "type": "text",
+     "required": true,
+     "max": 100,
+     "supportsVariables": true
+    }
+   ]
+  },
+  {
+   "type": "ticket_create",
+   "label": "ساخت تیکت (کانال خصوصی)",
+   "labelEn": "Create ticket (private channel)",
+   "category": "ticket",
+   "icon": "Ticket",
+   "botPermissions": [
+    "manage_channels",
+    "manage_roles"
+   ],
+   "fields": [
+    {
+     "key": "name",
+     "label": "نام کانال",
+     "labelEn": "Channel name",
+     "type": "text",
+     "required": true,
+     "default": "ticket-{ticket_number}",
+     "max": 100,
+     "supportsVariables": true,
+     "help": "فقط حروف انگلیسی، عدد و خط تیره؛ بقیه حذف می‌شود.",
+     "helpEn": "Letters, digits and dashes only; the rest is dropped."
+    },
+    {
+     "key": "category",
+     "label": "دسته‌بندی (Category) کانال",
+     "labelEn": "Channel category",
+     "type": "channel",
+     "help": "آیدی دسته‌بندیِ دیسکورد که تیکت در آن ساخته شود. خالی = بدون دسته.",
+     "helpEn": "ID of the Discord category to create the ticket in. Empty = none."
+    },
+    {
+     "key": "owner",
+     "label": "صاحب تیکت",
+     "labelEn": "Ticket owner",
+     "type": "user",
+     "default": "{author.id}"
+    },
+    {
+     "key": "staff_roles",
+     "label": "نقش‌های پشتیبان (آیدی، با ویرگول)",
+     "labelEn": "Support roles (IDs, comma-separated)",
+     "type": "text",
+     "max": 300,
+     "supportsVariables": true,
+     "help": "این نقش‌ها تیکت را می‌بینند و می‌توانند پیام بدهند.",
+     "helpEn": "These roles can see and write in the ticket."
+    },
+    {
+     "key": "extra_users",
+     "label": "کاربران اضافه (آیدی، با ویرگول)",
+     "labelEn": "Extra users (IDs, comma-separated)",
+     "type": "text",
+     "max": 200,
+     "supportsVariables": true
+    },
+    {
+     "key": "topic",
+     "label": "توضیح کانال",
+     "labelEn": "Channel topic",
+     "type": "text",
+     "max": 300,
+     "supportsVariables": true
+    },
+    {
+     "key": "store_as",
+     "label": "ذخیره‌ی آیدی کانال در متغیر",
+     "labelEn": "Store channel ID as",
+     "type": "ident",
+     "default": "ticket_channel",
+     "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$",
+     "help": "متغیرهای دیگر: {ticket_mention} {ticket_name}",
+     "helpEn": "Other variables: {ticket_mention} {ticket_name}"
+    }
+   ]
+  },
+  {
+   "type": "ticket_find",
+   "label": "پیدا کردن تیکت‌های باز کاربر",
+   "labelEn": "Find a user's open tickets",
+   "category": "ticket",
+   "icon": "Search",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "owner",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "default": "{author.id}",
+     "help": "متغیرها: {ticket_count} {ticket_channel}",
+     "helpEn": "Variables: {ticket_count} {ticket_channel}"
+    }
+   ]
+  },
+  {
+   "type": "ticket_info",
+   "label": "اطلاعات تیکت",
+   "labelEn": "Ticket info",
+   "category": "ticket",
+   "icon": "Info",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "channel",
+     "label": "کانال تیکت",
+     "labelEn": "Ticket channel",
+     "type": "channel",
+     "help": "خالی = کانال فعلی (باید یک تیکتِ ساخته‌شده توسط بات باشد)",
+     "helpEn": "Empty = the current channel (must be a ticket made by the bot)"
+    }
+   ]
+  },
+  {
+   "type": "ticket_access",
+   "label": "افزودن / حذف کاربر یا نقش از تیکت",
+   "labelEn": "Add / remove user or role",
+   "category": "ticket",
+   "icon": "UserPlus",
+   "botPermissions": [
+    "manage_channels"
+   ],
+   "fields": [
+    {
+     "key": "channel",
+     "label": "کانال تیکت",
+     "labelEn": "Ticket channel",
+     "type": "channel",
+     "help": "خالی = کانال فعلی (باید یک تیکتِ ساخته‌شده توسط بات باشد)",
+     "helpEn": "Empty = the current channel (must be a ticket made by the bot)"
+    },
+    {
+     "key": "user",
+     "label": "کاربر",
+     "labelEn": "User",
+     "type": "user",
+     "help": "یا نقش را پر کنید",
+     "helpEn": "Or fill in a role instead"
+    },
+    {
+     "key": "role",
+     "label": "نقش",
+     "labelEn": "Role",
+     "type": "role"
+    },
+    {
+     "key": "mode",
+     "label": "عملیات",
+     "labelEn": "Operation",
+     "type": "select",
+     "default": "grant",
+     "options": [
+      "grant",
+      "revoke"
+     ],
+     "help": "grant = افزودن، revoke = حذف",
+     "helpEn": "grant = add, revoke = remove"
+    }
+   ]
+  },
+  {
+   "type": "ticket_rename",
+   "label": "تغییر نام تیکت",
+   "labelEn": "Rename ticket",
+   "category": "ticket",
+   "icon": "Pencil",
+   "botPermissions": [
+    "manage_channels"
+   ],
+   "fields": [
+    {
+     "key": "channel",
+     "label": "کانال تیکت",
+     "labelEn": "Ticket channel",
+     "type": "channel",
+     "help": "خالی = کانال فعلی (باید یک تیکتِ ساخته‌شده توسط بات باشد)",
+     "helpEn": "Empty = the current channel (must be a ticket made by the bot)"
+    },
+    {
+     "key": "name",
+     "label": "نام جدید",
+     "labelEn": "New name",
+     "type": "text",
+     "required": true,
+     "max": 100,
+     "supportsVariables": true
+    }
+   ]
+  },
+  {
+   "type": "ticket_claim",
+   "label": "برداشتن تیکت توسط پشتیبان",
+   "labelEn": "Claim ticket",
+   "category": "ticket",
+   "icon": "HandHelping",
+   "botPermissions": [],
+   "fields": [
+    {
+     "key": "channel",
+     "label": "کانال تیکت",
+     "labelEn": "Ticket channel",
+     "type": "channel",
+     "help": "خالی = کانال فعلی (باید یک تیکتِ ساخته‌شده توسط بات باشد)",
+     "helpEn": "Empty = the current channel (must be a ticket made by the bot)"
+    },
+    {
+     "key": "user",
+     "label": "پشتیبان",
+     "labelEn": "Staff member",
+     "type": "user",
+     "default": "{author.id}",
+     "help": "متغیر {ticket_claimed_by}",
+     "helpEn": "Variable {ticket_claimed_by}"
+    }
+   ]
+  },
+  {
+   "type": "ticket_transcript",
+   "label": "رونوشت گفتگوی تیکت (فایل)",
+   "labelEn": "Ticket transcript (file)",
+   "category": "ticket",
+   "icon": "FileText",
+   "botPermissions": [
+    "read_message_history",
+    "attach_files"
+   ],
+   "fields": [
+    {
+     "key": "channel",
+     "label": "کانال تیکت",
+     "labelEn": "Ticket channel",
+     "type": "channel",
+     "help": "خالی = کانال فعلی (باید یک تیکتِ ساخته‌شده توسط بات باشد)",
+     "helpEn": "Empty = the current channel (must be a ticket made by the bot)"
+    },
+    {
+     "key": "send_to",
+     "label": "ارسال به کانال",
+     "labelEn": "Send to channel",
+     "type": "channel",
+     "help": "مثلاً کانال لاگ تیکت‌ها",
+     "helpEn": "E.g. the ticket log channel"
+    },
+    {
+     "key": "dm_owner",
+     "label": "برای صاحب تیکت هم DM شود",
+     "labelEn": "Also DM the ticket owner",
+     "type": "boolean",
+     "default": false
+    },
+    {
+     "key": "format",
+     "label": "قالب فایل",
+     "labelEn": "File format",
+     "type": "select",
+     "default": "html",
+     "options": [
+      "html",
+      "txt"
+     ],
+     "help": "html = صفحه‌ی زیبا، txt = متن ساده",
+     "helpEn": "html = pretty page, txt = plain text"
+    },
+    {
+     "key": "limit",
+     "label": "حداکثر پیام",
+     "labelEn": "Max messages",
+     "type": "number",
+     "default": 500,
+     "min": 10,
+     "max": 1000
+    }
+   ]
+  },
+  {
+   "type": "ticket_delete",
+   "label": "حذف کانال تیکت",
+   "labelEn": "Delete ticket channel",
+   "category": "ticket",
+   "icon": "Trash2",
+   "botPermissions": [
+    "manage_channels"
+   ],
+   "fields": [
+    {
+     "key": "channel",
+     "label": "کانال تیکت",
+     "labelEn": "Ticket channel",
+     "type": "channel",
+     "help": "خالی = کانال فعلی (باید یک تیکتِ ساخته‌شده توسط بات باشد)",
+     "helpEn": "Empty = the current channel (must be a ticket made by the bot)"
+    },
+    {
+     "key": "delay",
+     "label": "تأخیر (ثانیه، تا ۳۰)",
+     "labelEn": "Delay (seconds, up to 30)",
+     "type": "number",
+     "default": 5,
+     "min": 0,
+     "max": 30
+    }
+   ]
+  },
+  {
    "type": "database_set",
    "label": "ذخیره در دیتابیس",
    "labelEn": "Database: set",

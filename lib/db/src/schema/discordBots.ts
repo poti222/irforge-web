@@ -66,4 +66,16 @@ export const discordBotLevelsTable = pgTable("discord_bot_levels", {
   topIdx: index("discord_bot_levels_top_idx").on(t.botId, t.guildId, t.xp),
 }));
 
+export const discordBotJobsTable = pgTable("discord_bot_jobs", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  botId: text("bot_id").notNull(),
+  jobKey: text("job_key"),
+  runAt: timestamp("run_at", { withTimezone: true }).notNull(),
+  payload: jsonb("payload").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  dueIdx: index("discord_bot_jobs_due_idx").on(t.botId, t.runAt),
+  keyIdx: index("discord_bot_jobs_key_idx").on(t.botId, t.jobKey),
+}));
+
 export type DiscordBot = typeof discordBotsTable.$inferSelect;
