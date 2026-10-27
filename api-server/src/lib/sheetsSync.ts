@@ -308,7 +308,17 @@ async function registryPgUpsert(
   key: string,
   value: object,
 ): Promise<void> {
-  if (!(await isEntityOnPostgres("tenant_registry"))) return;
+  // همیشه (مستقل از پرچمِ tenant_registry) در Postgres هم می‌نویسیم. قبلاً این‌جا «اگر پرچم خاموش است
+  // return» بود؛ نتیجه: وقتی رجیستریِ شیت جواب نمی‌داد (کلید/سهمیه‌ی گوگل، شیتِ حذف‌شده) و پرچم هم
+  // خاموش بود، توکنِ باتِ جدید هیچ‌جا ثبت نمی‌شد و mainbot هرگز نمی‌شناختش. ردیفِ اضافه‌ی PG وقتی
+  // پرچم خاموش است بی‌ضرر است و وقتی روشن شد داده از قبل آماده است.
+  if (!getCutoverPool()) {
+    logger.error(
+      { table, key: key.slice(0, 6) + "…" },
+      "registryPgUpsert: BUSINESS_DATABASE_URL تنظیم نیست — رکوردِ رجیستری در Postgres نوشته نشد"
+    );
+    return;
+  }
   try {
     await withRegistryTenantContext((client) =>
       client.query(
@@ -318,12 +328,12 @@ async function registryPgUpsert(
       )
     );
   } catch (err) {
-    logger.warn({ err, table, key }, "registryPgUpsert failed (non-fatal, Sheets write still applies)");
+    logger.error({ err, table, key: key.slice(0, 6) + "…" }, "registryPgUpsert FAILED — اگر رجیستریِ شیت هم کار نکند این بات ثبت نمی‌شود");
   }
 }
 
 async function registryPgDelete(table: "registry_tenants" | "registry_sheet_pool", key: string): Promise<void> {
-  if (!(await isEntityOnPostgres("tenant_registry"))) return;
+  if (!getCutoverPool()) return; // حذف: بدونِ دیتابیس چیزی برای پاک‌کردن نیست
   try {
     await withRegistryTenantContext((client) =>
       client.query(`DELETE FROM ${table} WHERE tenant_id = $1 AND id = $2`, [REGISTRY_PG_PARTITION, key])
@@ -628,7 +638,14 @@ export function syncTenantUpsert(tenant: TenantUpsertInput) {
     if (await isEntityOnPostgres("tenant_registry")) return;
 
     const spreadsheetId = registrySheetId();
-    if (!spreadsheetId) return;
+    if (!spreadsheetId) {
+      logger.error(
+        { owner: tenant.owner_user_id },
+        "tenant registry: پرچمِ tenant_registry روی Sheets است ولی SHEETS_REGISTRY_ID تنظیم نیست — " +
+          "بات فقط در Postgres ثبت شد و mainbot تا فلیپِ tenant_registry به Postgres آن را نمی‌بیند"
+      );
+      return;
+    }
     await upsertKV(spreadsheetId, "tenants", tenant.bot_token, value);
   }, `tenant-upsert:${tenant.owner_user_id}`);
 }
