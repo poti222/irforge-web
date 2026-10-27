@@ -40,6 +40,7 @@ import {
   Smile,
   ChevronDown,
   type LucideIcon,
+  FolderOpen,
 } from "lucide-react";
 import type { Bot } from "@workspace/api-client-react";
 import { useGetBotStats, getGetBotStatsQueryKey, customFetch } from "@workspace/api-client-react";
@@ -122,6 +123,7 @@ type SectionKey =
   | "giveaways"
   | "surveys"
   | "drip"
+  | "files"
   | "translatePost"
   | "postbox"
   | "guidedFlow"
@@ -258,6 +260,8 @@ const SECTION_GROUPS: SectionGroup[] = [
       // IRFORGE_PROMPT_V3 Phase 19 — همان الگوی `showWhenDisabled`ی booking/address:
       // سکشن ناپدید نمی‌شود، فقط وقتی پلاگین خاموش است یک CTA فعال‌سازی نشان می‌دهد.
       { key: "drip", icon: Send, labelKey: "sectionDrip", requiresPlugin: "drip", showWhenDisabled: true },
+      // کتابخانه‌ی فایل‌ها (پلاگین `files`): فایل‌ها از خودِ بات آپلود می‌شوند؛ سایت فهرست/ویرایش/حذف و لینکِ مستقیم را می‌دهد.
+      { key: "files", icon: FolderOpen, labelKey: "sectionFiles", requiresPlugin: "files", showWhenDisabled: true },
     ],
   },
   {
@@ -565,6 +569,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "giveaways" && <GiveawaySection bot={bot} />}
             {section === "surveys" && <SurveySection bot={bot} />}
             {section === "drip" && <DripSection bot={bot} />}
+            {section === "files" && <PluginSection bot={bot} plugin="files" />}
             {section === "translatePost" && <TranslatePostSection bot={bot} />}
             {section === "postbox" && <PostboxSection bot={bot} />}
             {section === "guidedFlow" && <GuidedFlowSection bot={bot} />}

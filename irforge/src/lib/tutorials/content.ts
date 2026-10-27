@@ -52,6 +52,7 @@ export type TutorialSectionId =
   | "giveaways"
   | "surveys"
   | "drip"
+  | "files"
   | "translatePost"
   | "postbox"
   | "guidedFlow"

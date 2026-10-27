@@ -20,6 +20,7 @@ export const SECTION_LABEL_KEYS: Record<string, keyof LocaleShape["botWorkspace"
   giveaways: "sectionGiveaways",
   surveys: "sectionSurveys",
   drip: "sectionDrip",
+  files: "sectionFiles",
   crm: "sectionCrm",
   catalog: "sectionCatalog",
   wallet: "sectionWallet",
