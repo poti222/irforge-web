@@ -210,6 +210,26 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema> = {
     includeIdInValue: false,
     rowUpdatedAtCol: "updated_at",
   },
+  // Live bug, 2026-10-25: "Bot users" page stayed frozen at the cutover day (new users and last_seen
+  // never appeared) while only the COUNTS had been fixed (pgListUsersLight). `users` was deliberately
+  // left unregistered, so listEntity/getEntity/putEntity("users") — used by the bot-users page and by
+  // broadcasts — kept reading the frozen Sheets tab. Mirrors bot/migrations/sql/0002_users.sql and
+  // business_repository.py's `users` EntitySchema. `is_premium` (0026) is intentionally NOT listed:
+  // nothing on the site needs it, and omitting it keeps this working on a DB where 0026 hasn't run.
+  users: {
+    table: "users",
+    columns: [
+      "user_id", "username", "first_name", "last_name", "language",
+      "profile_data", "orders", "is_admin", "is_banned", "ban_reason",
+      "current_panel", "current_form", "form_data", "flood_timestamps",
+      "joined_at", "last_seen", "referral_by", "notes",
+    ],
+    jsonbColumns: ["profile_data", "orders", "form_data", "flood_timestamps"],
+    kvMode: false,
+    includeIdInValue: false,
+    rowUpdatedAtCol: "updated_at",
+    nullableColumns: ["current_panel", "current_form", "referral_by"],
+  },
 };
 
 export function listKnownPgEntities(): string[] {
@@ -290,6 +310,7 @@ export async function pgListEntity(tenantId: string, entity: string): Promise<Pg
  * شمارش و «فعال امروز» فقط همین دو ستون لازم است.
  * اگر ستون `last_seen` در جدول نبود (۴۲۷۰۳)، با فقط `id` تلاش مجدد می‌کند تا شمارشِ کل
  * حداقل درست بماند.
+ * (۲۰۲۶-۱۰-۲۵: `users` حالا در ENTITY_SCHEMAS ثبت شده؛ این تابعِ سبک برای شمارش همچنان بهینه‌تر است.)
  */
 export async function pgListUsersLight(tenantId: string): Promise<Array<{ key: string; last_seen: string | null }>> {
   try {
@@ -338,6 +359,41 @@ export async function pgListUsersFull(tenantId: string): Promise<Array<{ key: st
       if (base.user_id == null) base.user_id = key;
       return { key, value: base };
     });
+  });
+}
+
+export type PgUserSummary = {
+  user_id: string; username: string; first_name: string; last_name: string; language: string;
+  is_admin: boolean; is_banned: boolean; ban_reason: string; joined_at: string; last_seen: string;
+  orderCount: number;
+};
+
+/**
+ * لیستِ سبکِ صفحه‌یِ «Bot users» از جدول `users`: فقط ستون‌هایی که ردیفِ لیست لازم دارد.
+ * `profile_data`/`form_data`/`flood_timestamps`/`orders` عمداً خوانده نمی‌شوند (در هزاران کاربر
+ * سنگین‌ترین‌اند)؛ فقط طولِ `orders` برایِ شمارنده‌یِ سفارش.
+ */
+export async function pgListUsersSummary(tenantId: string): Promise<PgUserSummary[]> {
+  return withTenantTx(tenantId, async (client) => {
+    const { rows } = await client.query<Record<string, unknown>>(
+      "SELECT id, user_id, username, first_name, last_name, language, is_admin, is_banned, ban_reason, " +
+        "joined_at, last_seen, COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(orders) = 'array' THEN orders ELSE '[]'::jsonb END), 0) AS order_count " +
+        "FROM users WHERE tenant_id = $1",
+      [tenantId]
+    );
+    return rows.map((r: Record<string, unknown>) => ({
+      user_id: String(r.user_id || r.id),
+      username: String(r.username ?? ""),
+      first_name: String(r.first_name ?? ""),
+      last_name: String(r.last_name ?? ""),
+      language: String(r.language ?? ""),
+      is_admin: Boolean(r.is_admin),
+      is_banned: Boolean(r.is_banned),
+      ban_reason: String(r.ban_reason ?? ""),
+      joined_at: String(r.joined_at ?? ""),
+      last_seen: String(r.last_seen ?? ""),
+      orderCount: Number(r.order_count ?? 0),
+    }));
   });
 }
 

@@ -13,11 +13,10 @@ import { Router } from "express";
 import { requireAuth } from "./auth.js";
 import {
   resolveBotSheet,
-  listUsersFull,
-  isEntityOnPostgres,
+  listUsersSummary,
   getEntity,
   putEntity,
-  assertSheetsAuthoritative,
+  isEntityOnPostgres,
   sendBotConfigError,
   BotConfigError,
 } from "../lib/botConfig.js";
@@ -33,20 +32,19 @@ function bad(message: string, code?: string): BotConfigError {
 // ─── کش ۶۰ ثانیه‌ای ─────────────────────────────────────────────────────────
 
 const LIST_TTL_MS = 60_000;
-const listCache = new Map<string, { at: number; users: BotUser[] }>();
+type UserSummary = Awaited<ReturnType<typeof listUsersSummary>>[number];
+const listCache = new Map<string, { at: number; users: UserSummary[] }>();
 
 function invalidateUsers(spreadsheetId: string): void {
   listCache.delete(spreadsheetId);
 }
 
-async function readUsers(spreadsheetId: string): Promise<BotUser[]> {
+async function readUsers(spreadsheetId: string): Promise<UserSummary[]> {
   const cached = listCache.get(spreadsheetId);
   if (cached && Date.now() - cached.at < LIST_TTL_MS) return cached.users;
 
-  const rows = await listUsersFull<BotUser>(spreadsheetId);
-  const users = rows
-    .filter((r) => r.value && typeof r.value === "object")
-    .map((r) => ({ ...(r.value as BotUser), user_id: String((r.value as BotUser).user_id ?? r.key) }));
+  // cutover-aware: Postgres برایِ تننتی که `users`اش مهاجرت کرده، وگرنه شیت (همان رفتارِ قبلی).
+  const users = await listUsersSummary(spreadsheetId);
 
   listCache.set(spreadsheetId, { at: Date.now(), users });
   return users;
@@ -57,19 +55,19 @@ async function readUsers(spreadsheetId: string): Promise<BotUser[]> {
  * `orders` را نمی‌فرستد: در یک لیست هزارتایی این‌ها بیشترین حجم و کمترین فایده
  * را دارند و در صفحه‌ی جزئیات در دسترس‌اند.
  */
-function toSummary(user: BotUser) {
+function toSummary(user: UserSummary) {
   return {
     user_id: user.user_id,
-    username: user.username ?? "",
-    first_name: user.first_name ?? "",
-    last_name: user.last_name ?? "",
-    language: user.language ?? "",
-    is_admin: Boolean(user.is_admin),
-    is_banned: Boolean(user.is_banned),
-    ban_reason: user.ban_reason ?? "",
-    joined_at: user.joined_at ?? "",
-    last_seen: user.last_seen ?? "",
-    orderCount: Array.isArray(user.orders) ? user.orders.length : 0,
+    username: user.username,
+    first_name: user.first_name,
+    last_name: user.last_name,
+    language: user.language,
+    is_admin: user.is_admin,
+    is_banned: user.is_banned,
+    ban_reason: user.ban_reason,
+    joined_at: user.joined_at,
+    last_seen: user.last_seen,
+    orderCount: user.orderCount,
   };
 }
 
@@ -128,7 +126,7 @@ router.get("/bots/:botId/bot-users/:userId", requireAuth, async (req: any, res) 
       ? (await readUsers(spreadsheetId)).find((u) => u.user_id === String(req.params.userId)) ?? null
       : await getEntity<BotUser>(spreadsheetId, USERS_TAB, req.params.userId);
     if (!user) throw new BotConfigError(404, "این کاربر پیدا نشد.", "user_not_found");
-    res.json({ user: { ...user, user_id: String(user.user_id ?? req.params.userId) } });
+    res.json({ user: { ...user, user_id: String(user.user_id || req.params.userId) } });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to read bot user");
   }
@@ -147,13 +145,13 @@ const EDITABLE = new Set(["is_banned", "ban_reason", "notes", "language"]);
 router.patch("/bots/:botId/bot-users/:userId", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
-    await assertSheetsAuthoritative(USERS_TAB);
+    // (۲۰۲۶-۱۰-۲۵) دیگر ۴۰۹ نمی‌دهیم: خواندن/نوشتنِ `users` حالا cutover-aware است.
 
     const current = await getEntity<BotUser>(spreadsheetId, USERS_TAB, req.params.userId);
     if (!current) throw new BotConfigError(404, "این کاربر پیدا نشد.", "user_not_found");
 
     const body = req.body ?? {};
-    const next: BotUser = { ...current, user_id: String(current.user_id ?? req.params.userId) };
+    const next: BotUser = { ...current, user_id: String(current.user_id || req.params.userId) };
 
     for (const key of Object.keys(body)) {
       if (!EDITABLE.has(key)) continue; // هر چیز دیگری بی‌سروصدا نادیده گرفته می‌شود
@@ -173,7 +171,20 @@ router.patch("/bots/:botId/bot-users/:userId", requireAuth, async (req: any, res
     if (next.is_banned === false && current.is_banned === true) next.ban_reason = "";
     next.last_seen = current.last_seen ?? nowIso();
 
-    await putEntity(spreadsheetId, USERS_TAB, next.user_id, next);
+    if (await isEntityOnPostgres(USERS_TAB, spreadsheetId)) {
+      // Postgres: upsert فقط ستون‌هایِ داده‌شده را می‌نویسد. فقط چهار فیلدِ قابل‌ویرایش را می‌فرستیم،
+      // نه کلِ رکورد را — وگرنه حالتِ runtimeِ بات (current_panel/form_data/flood_timestamps) که
+      // بینِ خواندن و نوشتن عوض شده، با مقدارِ کهنه رونویسی می‌شد.
+      await putEntity(spreadsheetId, USERS_TAB, next.user_id, {
+        user_id: next.user_id,
+        is_banned: next.is_banned,
+        ban_reason: next.ban_reason,
+        notes: next.notes,
+        language: next.language,
+      });
+    } else {
+      await putEntity(spreadsheetId, USERS_TAB, next.user_id, next);
+    }
     invalidateUsers(spreadsheetId);
     res.json({ user: next });
   } catch (err) {

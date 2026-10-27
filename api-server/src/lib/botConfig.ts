@@ -28,7 +28,7 @@ import { readTabRows, upsertRow, deleteRow, listTabs } from "./tenantSheets.js";
 import { isSheetsNotConfiguredError } from "./sheets.js";
 import { bustTabCache, bustTabsCache } from "./botCacheBust.js";
 import { getBusinessPool } from "./businessDbPool.js";
-import { isKnownPgEntity, pgListEntity, pgGetEntity, pgSetEntity, pgSetEntities, pgDeleteEntity, pgListUsersLight, pgListUsersFull } from "./businessPg.js";
+import { isKnownPgEntity, pgListEntity, pgGetEntity, pgSetEntity, pgSetEntities, pgDeleteEntity, pgListUsersLight, pgListUsersFull, pgListUsersSummary, type PgUserSummary } from "./businessPg.js";
 import {
   defaultBotSettings,
   defaultWorkingHours,
@@ -296,6 +296,36 @@ export async function listUsersFull<T = unknown>(spreadsheetId: string): Promise
     return (await pgListUsersFull(spreadsheetId)) as Array<{ key: string; value: T }>;
   }
   return listEntity<T>(spreadsheetId, "users");
+}
+
+/**
+ * لیستِ کاربرانِ بات برایِ صفحه‌یِ «Bot users»: روی Postgres (اگر cutover روشن است) فقط ستون‌هایِ
+ * سبک؛ روی Sheets همان خواندنِ قبلی، با همان شکلِ خروجی. (باگِ ۲۰۲۶-۱۰-۲۵: لیست همیشه از شیتِ
+ * منجمد خوانده می‌شد و کاربرانِ جدید/آخرین بازدید هرگز نمی‌آمد.)
+ */
+export async function listUsersSummary(spreadsheetId: string): Promise<PgUserSummary[]> {
+  if (await isEntityOnPostgres("users", spreadsheetId)) {
+    return pgListUsersSummary(spreadsheetId);
+  }
+  const rows = await sheetLayer.readTabRows(spreadsheetId, "users");
+  return rows
+    .filter((r) => r.value && typeof r.value === "object")
+    .map((r) => {
+      const v = r.value as Record<string, any>;
+      return {
+        user_id: String(v.user_id || r.key),
+        username: String(v.username ?? ""),
+        first_name: String(v.first_name ?? ""),
+        last_name: String(v.last_name ?? ""),
+        language: String(v.language ?? ""),
+        is_admin: Boolean(v.is_admin),
+        is_banned: Boolean(v.is_banned),
+        ban_reason: String(v.ban_reason ?? ""),
+        joined_at: String(v.joined_at ?? ""),
+        last_seen: String(v.last_seen ?? ""),
+        orderCount: Array.isArray(v.orders) ? v.orders.length : 0,
+      };
+    });
 }
 
 export async function getEntity<T = unknown>(

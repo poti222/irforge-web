@@ -92,7 +92,9 @@ test("businessPg: isKnownPgEntity is scoped to exactly the registered entities �
   assert.equal(isKnownPgEntity("catalog_fulfillments"), true);
   // bot_settings (2026-10-06): the bot already routes it to Postgres for cut-over tenants — the site must too.
   assert.equal(isKnownPgEntity("bot_settings"), true);
-  for (const other of ["users", "workflows", "events", "payments", "wallet"]) {
+  // users (2026-10-25): registered — the Bot users page + broadcasts were stuck on the frozen Sheets tab.
+  assert.equal(isKnownPgEntity("users"), true);
+  for (const other of ["workflows", "events", "payments", "wallet"]) {
     assert.equal(isKnownPgEntity(other), false, `'${other}' must stay on the old Sheets-only path until it's actually registered here`);
   }
 });
@@ -669,4 +671,24 @@ test("catalogStore.createItem/updateItem/deleteItemHard route through botConfig'
     invalidateCutoverCache();
     await rawPool.end();
   }
+});
+
+
+// ─── users (2026-10-25: Bot users page frozen at cutover day) ────────────────
+
+test("businessPg: users schema matches bot/migrations/sql/0002_users.sql (site-side subset, no is_premium)", async () => {
+  const { __testables } = await import("../src/lib/businessPg.ts");
+  const s = __testables.ENTITY_SCHEMAS.users;
+  assert.ok(s, "users must be registered");
+  assert.deepEqual(s.columns, [
+    "user_id", "username", "first_name", "last_name", "language",
+    "profile_data", "orders", "is_admin", "is_banned", "ban_reason",
+    "current_panel", "current_form", "form_data", "flood_timestamps",
+    "joined_at", "last_seen", "referral_by", "notes",
+  ]);
+  assert.deepEqual(new Set(s.jsonbColumns), new Set(["profile_data", "orders", "form_data", "flood_timestamps"]));
+  assert.equal(s.kvMode, false);
+  assert.equal(s.includeIdInValue, false, "BotUser.user_id is its own column, there is no separate `id` field in the value");
+  assert.equal(s.rowUpdatedAtCol, "updated_at");
+  assert.ok(!s.columns.includes("is_premium"));
 });
