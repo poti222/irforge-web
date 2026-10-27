@@ -280,32 +280,6 @@ export const COLLECTIONS: CollectionSpec[] = [
   // duplicating) — the generic POST handler above only ever generates a
   // random id, which made real assignment from the site structurally
   // impossible here; it had to stay `readonly` for that reason alone.
-  // ── کتابخانه‌ی فایل‌ها ───────────────────────────────────────────────────
-  // `plugins/files/domain.py`. فایل‌ها (file_id تلگرام) فقط از داخل بات آپلود
-  // می‌شوند، پس ساخت از سایت ممکن نیست؛ ویرایش عنوان/توضیح/فعال‌بودن/حذف آری.
-  {
-    key: "files-library",
-    tab: "files_library",
-    plugin: "files",
-    title: t("Files library", "کتابخانه‌ی فایل‌ها"),
-    description: t(
-      "Upload files from the bot (admin panel → Files). Share a file's direct link in your channel: t.me/<bot>?start=<id>.",
-      "فایل‌ها را از داخل بات آپلود کنید (پنل ادمین ← فایل‌ها). لینک مستقیم هر فایل را در کانال بگذارید: t.me/<bot>?start=<id>.",
-    ),
-    idPrefix: "fl",
-    noCreate: true,
-    fields: [
-      { key: "title", label: t("Title", "عنوان"), type: "text", required: true, maxLength: 120 },
-      { key: "description", label: t("Description", "توضیح"), type: "textarea", maxLength: 500 },
-      { key: "file_kind", label: t("Type", "نوع"), type: "readonly" },
-      { key: "is_active", label: t("Active", "فعال"), type: "boolean", default: true },
-      { key: "downloads", label: t("Downloads", "دانلودها"), type: "readonly" },
-      { key: "ttl", label: t("Auto-delete after (seconds, 0 = never)", "حذف خودکار بعد از (ثانیه، ۰ = هرگز)"), type: "number", min: 0, max: 3600, default: 0 },
-      { key: "protect", label: t("Block forwarding & saving", "ضد فوروارد و ذخیره"), type: "boolean", default: false },
-    ],
-    listColumns: ["title", "file_kind", "downloads", "is_active"],
-    sortBy: "created_at",
-  },
 ];
 
 const BY_KEY = new Map(COLLECTIONS.map((c) => [c.key, c]));

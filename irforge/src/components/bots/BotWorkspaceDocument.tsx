@@ -88,6 +88,7 @@ import { GiveawaySection } from "@/components/bots/giveaway/GiveawaySection";
 import { LoyaltySection } from "@/components/bots/loyalty/LoyaltySection";
 // سکشن عمومیِ پلاگین‌های تازه — جدول‌هایش از اسکیمای سرور ساخته می‌شوند.
 import { PluginSection } from "@/components/bots/plugins/PluginSection";
+import { FilesSection } from "@/components/bots/files/FilesSection";
 import { TokenRecoveryCard } from "@/components/bots/TokenRecoveryCard";
 import { BotProfileForm } from "@/components/bots/BotProfileForm";
 import { BotOverview } from "@/components/bots/BotOverview";
@@ -569,7 +570,7 @@ export function BotWorkspaceDocument({ bot }: { bot: Bot }) {
             {section === "giveaways" && <GiveawaySection bot={bot} />}
             {section === "surveys" && <SurveySection bot={bot} />}
             {section === "drip" && <DripSection bot={bot} />}
-            {section === "files" && <PluginSection bot={bot} plugin="files" />}
+            {section === "files" && <FilesSection bot={bot} />}
             {section === "translatePost" && <TranslatePostSection bot={bot} />}
             {section === "postbox" && <PostboxSection bot={bot} />}
             {section === "guidedFlow" && <GuidedFlowSection bot={bot} />}
