@@ -49,6 +49,7 @@ export const PLUGIN_COMMAND_TARGETS: PluginCommandTarget[] = [
   { pluginId: "waitlist", key: "waitlist", label: "📋 لیست انتظار" },
   { pluginId: "files", key: "files", label: "📁 فایل‌ها" },
   { pluginId: "feedback", key: "feedback", label: "📣 بازخورد" },
+  { pluginId: "prices", key: "prices", label: "💰 قیمت‌ها" },
   { pluginId: "guided_flow", key: "guided_flow", label: "🧭 گفت‌وگوهایِ راهنما" },
   { pluginId: "forms_pro", key: "openforms", label: "📋 فرم‌ها" },
   { pluginId: "invoice", key: "receipts", label: "🧾 رسیدهای من" },
