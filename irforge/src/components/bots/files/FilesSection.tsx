@@ -131,7 +131,7 @@ export function FilesSection({ bot }: { bot: Bot }) {
 
   const { data, isLoading, error } = useQuery({
     queryKey: key,
-    queryFn: () => customFetch<{ bundles: Bundle[] }>(base),
+    queryFn: () => customFetch<{ bundles: Bundle[]; sheet?: string }>(base),
     // تا وقتی فایلی در حال دریافت است، هر چند ثانیه تازه شود تا «تمام شد» خودکار دیده شود.
     refetchInterval: (q) => ((q.state.data as any)?.bundles?.some((b: Bundle) => b.status === "collecting") ? 3000 : false),
   });
@@ -192,6 +192,8 @@ export function FilesSection({ bot }: { bot: Bot }) {
           {create.isPending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />} {t.newFile}
         </Button>
       </div>
+
+      {data?.sheet && <p className="text-[10px] text-muted-foreground" dir="ltr">sheet={data.sheet} · ids: {bundles.map((b) => b.id).join(", ") || "-"}</p>}
 
       {isLoading && <div className="flex items-center gap-2 p-6 text-muted-foreground"><Loader2 className="size-4 animate-spin" /></div>}
       {error && <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">{errMessage(error, t.err)}</div>}

@@ -15,7 +15,7 @@ router.get("/bots/:botId/files/bundles", requireAuth, async (req: any, res) => {
   try {
     const { spreadsheetId } = await resolveBotSheet(req.userId, req.params.botId);
     await requirePluginEnabled(spreadsheetId, PLUGIN_ID);
-    res.json({ bundles: await filesStore.listBundles(spreadsheetId) });
+    res.json({ bundles: await filesStore.listBundles(spreadsheetId), sheet: String(spreadsheetId).slice(0, 10) });
   } catch (err) {
     sendBotConfigError(res, err, "Failed to list files");
   }
