@@ -32,7 +32,7 @@ import type { PoolLike } from "../lib/paymentRequests.js";
 import {
   FORWARD_ID_RE, MAX_SMS_TEXT, ForwardError, contentHash, createAccount, createRule, deleteAccount, deleteRule, dispatchAll,
   dispatchToRule, getAccountByPublicId, getAccountByUser, getRule, listLog, listRules, matchRules, rotateSecret, touchReceived,
-  updateAccountFields, updateRule, validateRuleInput, verifyForwardSecret, wasRecentlySent, writeLog,
+  updateAccountFields, updateRule, validateRuleInput, verifyForwardSecret, claimSms, releaseSmsClaim, writeLog,
   type AccountRow, type RuleRow, type SendResult, type Senders,
 } from "../lib/smsForwarder.js";
 import { isBotTokenShape, sendViaBot, verifyBotToken } from "../lib/smsForwardBot.js";
@@ -162,7 +162,8 @@ export function createSmsForwarderRouter(deps: SmsForwarderDeps = {}): Router {
           res.status(200).json({ ok: true, matched: 0 });
           return;
         }
-        if (await wasRecentlySent(pool, account.userId, hash)) {
+        // قفلِ اتمیک (نه «چک سپس ارسال»): درخواست‌های همزمانِ یک پیامک فقط یک‌بار ارسال می‌شوند.
+        if (!(await claimSms(pool, account.userId, hash))) {
           await writeLog(pool, account.userId, { ruleId: null, ruleName: null, sender, contentHash: hash, textLen: text.length, status: "duplicate", via: null, error: null });
           res.status(200).json({ ok: true, matched: rules.length, duplicate: true });
           return;
@@ -187,6 +188,8 @@ export function createSmsForwarderRouter(deps: SmsForwarderDeps = {}): Router {
         status: o.ok ? "sent" : "failed", via: o.via, error: o.error,
       });
     }
+    // هیچ مقصدی موفق نشد → قفل آزاد، تا retryِ گوشی بتواند دوباره تلاش کند.
+    if (outcomes.length > 0 && outcomes.every((o) => !o.ok)) await releaseSmsClaim(pool, account.userId, hash);
   }
 
   // ── مدیریت (per-user؛ فعلاً سوپرادمین) ──────────────────────────────────

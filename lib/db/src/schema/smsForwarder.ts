@@ -7,7 +7,7 @@
  * ⚠️ منبعِ حقیقتِ DDL در پروداکشن `api-server/migrate.mjs` است (آینه: `lib/db/migrations/0065_sms_forwarder.sql`).
  * اینجا فقط برای این است که `drizzle-kit push` این جدول‌ها را «اضافه» نبیند و حذفشان نکند.
  */
-import { pgTable, text, timestamp, boolean, integer, index, check } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, index, check, primaryKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const smsForwardAccountsTable = pgTable("sms_forward_accounts", {
@@ -73,6 +73,17 @@ export const smsForwardLogTable = pgTable(
     byUserTime: index("idx_sms_forward_log_user_time").on(t.userId, t.receivedAt.desc()),
     dedupe: index("idx_sms_forward_log_dedupe").on(t.userId, t.contentHash, t.receivedAt.desc()),
   }),
+);
+
+/** قفلِ اتمیکِ ضدِ ارسالِ چندباره‌ی یک پیامک (INSERT … ON CONFLICT). */
+export const smsForwardClaimTable = pgTable(
+  "sms_forward_claim",
+  {
+    userId: text("user_id").notNull(),
+    contentHash: text("content_hash").notNull(),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.userId, t.contentHash] }) }),
 );
 
 export type SmsForwardAccount = typeof smsForwardAccountsTable.$inferSelect;

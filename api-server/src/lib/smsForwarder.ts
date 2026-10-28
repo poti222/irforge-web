@@ -410,3 +410,29 @@ export async function wasRecentlySent(pool: PoolLike, userId: string, hash: stri
   );
   return rows.length > 0;
 }
+
+/**
+ * قفلِ اتمیک قبل از ارسال — جلوگیری از ارسالِ چندباره‌ی یک پیامک.
+ *
+ * `wasRecentlySent` فقط لاگِ `sent` را می‌بیند و لاگ **بعد از** ارسالِ تلگرام نوشته می‌شود؛ پس اگر برنامه‌ی گوشی
+ * یک پیامک را چند بار پشت‌سرهم بفرستد (retry / ارسالِ همزمان)، همه‌ی درخواست‌ها قبل از ثبتِ اولین لاگ از چک رد
+ * می‌شدند و هرکدام جدا ارسال می‌کردند. اینجا `INSERT … ON CONFLICT` اتمیک است: از چند درخواستِ همزمان فقط یکی
+ * `true` می‌گیرد (روی چند replica هم درست کار می‌کند). `false` = تکراری. بعد از `windowMs` قفل منقضی می‌شود.
+ */
+export async function claimSms(pool: PoolLike, userId: string, hash: string, windowMs = DEDUPE_WINDOW_MS): Promise<boolean> {
+  const rows = await q(
+    pool,
+    `INSERT INTO sms_forward_claim (user_id, content_hash)
+     VALUES ($1, $2)
+     ON CONFLICT (user_id, content_hash) DO UPDATE SET claimed_at = NOW()
+       WHERE sms_forward_claim.claimed_at < NOW() - ($3::int * INTERVAL '1 millisecond')
+     RETURNING 1`,
+    [userId, hash, windowMs],
+  );
+  return rows.length > 0;
+}
+
+/** اگر هیچ مقصدی موفق نشد قفل آزاد می‌شود تا retryِ گوشی شانسِ دوباره داشته باشد. */
+export async function releaseSmsClaim(pool: PoolLike, userId: string, hash: string): Promise<void> {
+  await q(pool, `DELETE FROM sms_forward_claim WHERE user_id = $1 AND content_hash = $2`, [userId, hash]);
+}

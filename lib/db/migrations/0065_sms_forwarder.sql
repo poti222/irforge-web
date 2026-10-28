@@ -47,3 +47,11 @@ CREATE TABLE IF NOT EXISTS sms_forward_log (
 );
 CREATE INDEX IF NOT EXISTS idx_sms_forward_log_user_time ON sms_forward_log(user_id, received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sms_forward_log_dedupe ON sms_forward_log(user_id, content_hash, received_at DESC);
+
+-- قفلِ اتمیکِ ضدِ ارسالِ چندباره‌ی یک پیامک (کلیدِ یکتا = اکانت + هشِ محتوا).
+CREATE TABLE IF NOT EXISTS sms_forward_claim (
+  user_id TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, content_hash)
+);

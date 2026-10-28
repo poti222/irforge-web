@@ -134,8 +134,9 @@ async function withEnv(fn, { hitFn, userbot } = {}) {
   await pool.query(ddl);
 
   const sent = []; // { token, chat, text }
-  const state = { botFails: 0 };
+  const state = { botFails: 0, botDelay: 0 };
   const botSend = async (token, chat, text) => {
+    if (state.botDelay) await new Promise((r) => setTimeout(r, state.botDelay)); // ارسالِ کندِ تلگرام
     if (state.botFails > 0) { state.botFails--; return { ok: false, error: "Forbidden: bot was blocked" }; }
     sent.push({ token, chat, text });
     return { ok: true };
@@ -286,6 +287,21 @@ test("زنده: retry در ۶۰ ثانیه تکراری نمی‌رود؛ بعد
     assert.equal(dup.body.duplicate, true);
     assert.equal(sent.length, 1, "تکراری ارسال نشد");
     assert.equal((await logRows(1, "duplicate")).length, 1);
+  });
+});
+
+test("زنده: ۵ درخواستِ همزمانِ یک پیامک فقط یک‌بار ارسال می‌شود (race)", live, async () => {
+  await withEnv(async ({ call, hook, sent, state, logRows }) => {
+    const { publicId, secret } = await setup(call);
+    await call("PUT", "/bot", { token: TOKEN });
+    await call("POST", "/rules", { name: "r", chatRef: "@sms_inbox" });
+
+    state.botDelay = 150; // لاگِ sent دیر نوشته می‌شود؛ همین پنجره باگِ قبلی بود
+    const rs = await Promise.all(Array.from({ length: 5 }, () => hook(publicId, secret, "واریز ۱۰۰", { sender: "S" })));
+    assert.equal(rs.filter((r) => r.status === 202).length, 1, "فقط یک درخواست ارسال می‌کند");
+    assert.equal(rs.filter((r) => r.body?.duplicate === true).length, 4);
+    await logRows(1, "sent");
+    assert.equal(sent.length, 1, "پیامک یک‌بار رفت");
   });
 });
 
