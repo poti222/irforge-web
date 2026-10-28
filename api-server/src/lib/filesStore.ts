@@ -15,7 +15,7 @@
  * سایت هرگز `items` را دست نمی‌زند: فقط بات آن را می‌نویسد، تا ویرایشِ همزمانِ
  * سایت پیام‌های در حال رسیدن را بازنویسی نکند (هر PATCH رکورد را تازه می‌خواند).
  */
-import { getEntity, putEntity, listEntity, removeEntity, assertSheetsAuthoritative, BotConfigError } from "./botConfig.js";
+import { getEntity, putEntity, listEntity, removeEntity, BotConfigError } from "./botConfig.js";
 import { nowIso } from "./botTypes.js";
 import { newRecordId } from "./pluginCollections.js";
 import { tgApi } from "./telegram.js";
@@ -149,7 +149,6 @@ async function sendPrompt(token: string, chatIds: string[], id: string): Promise
 }
 
 export async function createBundle(spreadsheetId: string, botId: string, body: any): Promise<FileBundle> {
-  await assertSheetsAuthoritative(TAB);
   const admins = await adminChatIds(spreadsheetId);
   if (admins.length === 0) {
     throw new BotConfigError(409, "هیچ ادمینی برای این بات ثبت نشده است.", "no_admins");

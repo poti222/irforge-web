@@ -210,6 +210,17 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema> = {
     includeIdInValue: false,
     rowUpdatedAtCol: "updated_at",
   },
+  // 2026-10-28: files library (multi-message file links). The bot collects a site-created bundle by reading
+  // `files_library`; for a cut-over tenant the bot reads this Postgres table while the site was writing the
+  // Sheets tab, so the bot answered "session not found". kv_mode, mirrors business_repository.py's registration.
+  files_library: {
+    table: "files_library",
+    columns: [],
+    jsonbColumns: [],
+    kvMode: true,
+    includeIdInValue: false,
+    rowUpdatedAtCol: "updated_at",
+  },
   // Live bug, 2026-10-25: "Bot users" page stayed frozen at the cutover day (new users and last_seen
   // never appeared) while only the COUNTS had been fixed (pgListUsersLight). `users` was deliberately
   // left unregistered, so listEntity/getEntity/putEntity("users") — used by the bot-users page and by
