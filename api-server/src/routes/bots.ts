@@ -2682,7 +2682,7 @@ router.get("/bots/:botId", requireAuth, async (req: any, res) => {
 // نسخه‌ی جدید در `routes/botLanguage.ts` روی `bot_settings.language` شیت تننت
 // و تب‌های `text_keys`/`text_values` کار می‌کند.
 
-router.patch("/bots/:botId", requireAuth, async (req: any, res) => {
+router.patch("/bots/:botId", requireBotAccess, async (req: any, res) => {
   try {
     const { name, description, token } = req.body;
     const newToken: string | undefined = token !== undefined ? String(token).trim() : undefined;
@@ -2712,7 +2712,7 @@ router.patch("/bots/:botId", requireAuth, async (req: any, res) => {
     // باتی که به‌خاطرِ توکنِ نامعتبر خاموش شده بود با توکنِ معتبرِ جدید دوباره روشن می‌شود.
     if (newToken !== undefined && newToken.length > 0) {
       const [prev] = await db.select({ status: botsTable.status }).from(botsTable)
-        .where(and(eq(botsTable.id, req.params.botId), eq(botsTable.userId, req.userId))).limit(1);
+        .where(and(eq(botsTable.id, req.params.botId), eq(botsTable.userId, req.bot.userId))).limit(1);
       if (prev?.status === TOKEN_INVALID_STATUS) update.status = "active";
     }
     // BUG FIX: Drizzle crashes if SET has no fields
@@ -2723,7 +2723,7 @@ router.patch("/bots/:botId", requireAuth, async (req: any, res) => {
     const [bot] = await db
       .update(botsTable)
       .set(update)
-      .where(and(eq(botsTable.id, req.params.botId), eq(botsTable.userId, req.userId)))
+      .where(and(eq(botsTable.id, req.params.botId), eq(botsTable.userId, req.bot.userId)))
       .returning();
     if (!bot) {
       res.status(404).json({ error: "Bot not found" });
